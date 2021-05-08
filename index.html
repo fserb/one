@@ -1,0 +1,61 @@
+<!doctype html>
+<html prefix="og: http://ogp.me/ns#" lang="en">
+<head>
+  <title>one</title>
+  <meta charset="utf-8">
+  <meta name='viewport' content='width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover'>
+  <meta name="description" content="">
+  <link rel="canonical" href="{{ url }}">
+  <meta property="og:title" content="This is the title">
+  <meta property="og:type" content="website">
+  <meta property="og:description" content="You can play it in your browser now! (Works on your phone too!)">
+  <meta property="og:url" content="{{ url }}">
+  <meta property="og:image" content="{{ og image 1200x627 }}">
+  <meta name="twitter:card" content="player">
+  <meta name="twitter:title" content="Twitter Tittle">
+  <meta name="twitter:description" content="You can play it in your browser now! (Works on your phone too!)">
+  <meta name="twitter:url" content="{{ url }}">
+  <meta name="twitter:site" content="@fserb">
+  <meta name="twitter:creator" content="@fserb">
+  <meta name="twitter:image" content="{{ twitter image 1456x728 }}">
+  <meta name="twitter:player" content="{{ url }}">
+  <meta name="twitter:player:width" content="480" />
+  <meta name="twitter:player:height" content="480" />
+  <meta name="theme-color" content="{{ themecolor }}">
+  <meta name="mobile-web-app-capable" content="yes">
+  <link rel="shortcut icon" href="{{ icon }}">
+  <link rel="apple-touch-icon" href="{{ icon }}">
+  <link rel="icon" type="image/png" sizes="32x32" href="{{ icon }}">
+  <link rel="icon" type="image/png" sizes="16x16" href="{{ icon }}">
+  <meta name="apple-mobile-web-app-title" content="duoban">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+  <style>
+html {
+  height: 100%;
+}
+body {
+  margin: 0;
+  height: 100%;
+  background-color: #222;
+  color: white;
+  overflow: hidden;
+  touch-action: none;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+#canvas {
+  width: 100vmin;
+  height: 100vmin;
+  margin: auto;
+  background-color: black;
+  cursor: pointer;
+  user-select: none;
+}
+  </style>
+  <script type="module" src="src/_pointer.js"></script>
+</head>
+<body><canvas id="canvas"></canvas></body>
+</html>

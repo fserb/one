@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "target": "es2020",
+    "module": "es2020",
+    "checkJs": true
+  },
+  "exclude": [
+    "node_modules",
+    "src/lib/3rdp/**/*",
+    "src/platform.cap.js",
+    "src/realms.encrypted.js",
+    "3rdp",
+    "static",
+  ],
+  "include": ["src/**/*"]
+}
