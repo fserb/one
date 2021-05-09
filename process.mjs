@@ -36,10 +36,8 @@ e.decompress(a, res => { const s = document.createElement('script'); s.type = 'm
 </script>`;
 // const payload = `<script type="module">${script}</script>`;
 
-const base = fs.readFileSync('index.html').toString()
-  .replace('<script type="module">import main from "./bundle.js";main();</script>', payload);
-
-fs.writeFileSync(`www/${GAME}/index.html`, nunjucks.renderString(base, data));
+data['payload'] = payload;
+fs.writeFileSync(`www/${GAME}/index.html`, nunjucks.render('index.html', data));
 
 const browser = await puppeteer.launch({
   executablePath: "/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome"

@@ -37,6 +37,16 @@ body { background-color: #222; margin: 0; height: 100%; overflow: hidden; touch-
   </style>
 </head>
 <body><canvas id="canvas"></canvas>
-<script type="module">import main from "./bundle.js";main();</script>
+{{ payload | safe }}{% set unpayload %}
+<style>body { font-size: 0; }</style>
+<script type="module">
+import {startGame} from "./src/one/one.js";
+import main from "./src/wow.js";
+
+main();
+startGame();
+
+</script>
+{% endset %}
 </body>
 </html>
