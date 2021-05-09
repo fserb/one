@@ -3,7 +3,7 @@
     [
       "@babel/preset-env",
       {
-        "targets": "defaults, not IE 11",
+        "targets": "defaults, not IE 11, not ios_saf < 14",
         "useBuiltIns": "usage",
         "corejs": {"version": "3.10", "proposals": true},
         "shippedProposals": true

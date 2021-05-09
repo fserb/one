@@ -24,7 +24,7 @@ export default {
     babel({ babelHelpers: 'bundled' }),
     terser({}),
     strip({}),
-    bundleSize(),
+    // bundleSize(),
   ],
   preserveEntrySignatures: true,
   output: {
