@@ -6,7 +6,7 @@ import * as input from "./input.js";
 import {stages, defaultOpts, C, opts, mouse, ease, setOpts, op,
   sysact, act} from "./internal.js";
 
-import * as _utils from "./lib/utils.js";
+import * as utils from "./lib/utils.js";
 
 import * as intro from "./intro.js";
 import * as finish from "./finish.js";
@@ -26,7 +26,7 @@ export let ctx = null;
 
 export let tick = 0;
 
-export { C, mouse, act, ease };
+export { C, mouse, act, ease, utils };
 
 export function startGame() {
   stage = "game";
@@ -161,5 +161,3 @@ export function description(n, s) {
   opts.name = n;
   opts.desc = s;
 }
-
-export const utils = _utils;
