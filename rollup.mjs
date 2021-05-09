@@ -19,17 +19,28 @@ export default {
       browser: true,
     }),
     commonjs({
-      include: 'node_modules/**',
+      transformMixedEsModules: true,
+    //   include: 'node_modules/**',
     }),
-    babel({ babelHelpers: 'bundled' }),
-    terser({}),
+    babel({
+      exclude: /node_modules/,
+      babelHelpers: 'bundled'
+    }),
+    terser({
+      compress: {
+        passes: 3,
+        unsafe: true,
+      },
+      module: true,
+      toplevel: true
+    }),
     strip({}),
     bundleSize(),
   ],
   preserveEntrySignatures: true,
   output: {
     inlineDynamicImports: true,
-    format: 'es',
+    format: 'esm',
     name: 'main',
     sourcemap: false,
     file: `www/${GAME}/bundle.js`
