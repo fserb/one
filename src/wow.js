@@ -1,11 +1,9 @@
-// zot.js
+// wow.js
 
 import * as one from "./one/one.js";
 import {C, act, ease, mouse} from "./one/one.js";
 
-one.description("zot", `
-click to slide
-
+one.description("wow", `
 move the small circle
 inside the bigger circle
 `);
@@ -49,6 +47,7 @@ function init() {
   // pieces[1].y = 2;
   // pieces[4].y = 0;
   // empty.y = 1;
+  // check();
 
   let c;
   [tiles, c] = one.utils.newCanvas(1404, 1872);
@@ -76,11 +75,11 @@ function init() {
   c.fillCircle(702, 234, 150 - r * 3);
 
   c.fillStyle = C[9];
-  c.text("Z", 234, 265, 350);
-  c.text("T", 468 * 2 + 234, 265, 350);
+  c.text("W", 234, 265, 350);
+  c.text("W", 468 * 2 + 234, 265, 350);
 
-  ox = (1024 - 702) / 2;
-  oy = (1024 - 936 - 20);
+  ox = (1024 - (234*3)) / 2;
+  oy = (1024 - (234*4) - 28);
 }
 
 function check() {

@@ -1,0 +1,36 @@
+#!/bin/bash
+set -euo pipefail
+IFS=$'\n\t'
+
+GAMES=(wow)
+
+function one {
+  export GAME="$1"
+  echo "Building $GAME"
+  mkdir "www/${GAME}"
+  echo "import main from './src/${GAME}.js'; main();" | npx rollup -c rollup.mjs
+  node process.mjs
+  rm -f "www/${GAME}/bundle.js"
+}
+
+function build {
+  rm -rf www
+  mkdir www
+
+  for g in ${GAMES[@]}; do
+    one "$g"
+  done
+}
+
+function sync {
+  rsync -a --partial --progress www/ metaphora.co:one/
+}
+
+function help {
+  echo "$0 <task> <args>"
+  echo "Tasks:"
+  compgen -A function | grep -v "^_" | cat -n
+}
+
+TIMEFORMAT="Task completed in %3lR"
+time "${@:-help}"

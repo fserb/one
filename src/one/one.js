@@ -1,4 +1,3 @@
-
 import "./lib/extend.js";
 import plus2d from "./lib/plus2d.js";
 import Act from "./lib/Act.js";
@@ -82,19 +81,23 @@ export function gameOver() {
 }
 
 function _renderScore() {
-  const b = 10;
-  const fs = 40;
+  if (stage == "intro") return;
+
+  const b = 11;
+  const fs = 26;
+
+  ctx.fillStyle = C[opts.fgColor];
+  ctx.fillRect(0, 0, 1024, 44);
+
   if (bestScore !== null) {
-    ctx.fillStyle = C[opts.fgColor];
-    ctx.text("BEST " + bestScore, 1024 - b, b, fs,
+    ctx.fillStyle = C[opts.bgColor];
+    ctx.text("BEST " + bestScore, 1024 - b * 1.5, b, fs,
     {align: "right", valign: "top" });
   }
 
-  if (stage != "intro") {
-    ctx.fillStyle = C[opts.fgColor];
-    ctx.text("SCORE " + score, b, b, fs,
-      {align: "left", valign: "top" });
-  }
+  ctx.fillStyle = C[opts.bgColor];
+  ctx.text("SCORE " + score, b * 1.5, b, fs,
+    {align: "left", valign: "top" });
 }
 
 function _render() {
@@ -137,6 +140,9 @@ function _frame(now) {
 }
 
 export function main(obj) {
+
+  // document.body.style.backgroundColor = C[opts.bgColor];
+
   canvas = obj ?? document.getElementById("canvas");
   ctx = canvas.getContext("2d");
   plus2d(ctx);

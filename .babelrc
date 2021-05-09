@@ -1,0 +1,15 @@
+{
+  "presets": [
+    [
+      "@babel/preset-env",
+      {
+        "targets": "defaults, not IE 11",
+        "useBuiltIns": "usage",
+        "corejs": {"version": "3.10", "proposals": true},
+        "shippedProposals": true
+      }
+    ]
+  ],
+  "plugins": [
+  ]
+}
