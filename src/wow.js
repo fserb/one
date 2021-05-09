@@ -128,7 +128,6 @@ function update(tick) {
   act(target)
     .attr("x", empty.x, 0.3, ease.fastOutSlowIn)
     .attr("y", empty.y, 0.3, ease.fastOutSlowIn)
-    .then(() => one.shake(0.1))
     .then(check);
 
   empty.x = nex;

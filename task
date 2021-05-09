@@ -7,20 +7,29 @@ GAMES=(wow)
 function one {
   export GAME="$1"
   echo "Building $GAME"
+  rm -rf "www/${GAME}"
   mkdir "www/${GAME}"
   echo "import main from './src/${GAME}.js'; main();" | npx rollup -c rollup.mjs
   node process.mjs
   rm -f "www/${GAME}/bundle.js"
 }
 
-function build {
-  rm -rf www
-  mkdir www
+function rebuild {
+  rm -rf www/
+  mkdir www/
+  build
+}
 
-  cp page.html www/index.html
+function build {
+  \cp page.html www/index.html
+  \cp icon.png www/
 
   for g in ${GAMES[@]}; do
-    one "$g"
+    if [ ! -d "www/$g" ]; then
+      one "$g"
+    else
+      echo "Skipping $g"
+    fi
   done
 }
 
