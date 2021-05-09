@@ -1,37 +1,19 @@
 import "./lib/extend.js";
 import plus2d from "./lib/plus2d.js";
-import Act from "./lib/Act.js";
-import _ease from "./lib/ease.js";
 
-import * as intro from "./intro.js";
-import * as finish from "./finish.js";
 import * as input from "./input.js";
+
+import {stages, defaultOpts, C, opts, mouse, ease, setOpts, op,
+  sysact, act} from "./internal.js";
 
 import * as _utils from "./lib/utils.js";
 
-const defaultOpts = {
-  bgColor: 9,
-  fgColor: 14,
-  shColor: -1,
-  hasScore: true,
-  scoreMax: true,
-  finishGood: false,
-};
-export let opts = null;
-
-// https://lospec.com/palette-list/downgraded-32
-export const C = [ "#7b334c", "#a14d55", "#c77369", "#e3a084", "#f2cb9b",
-"#d37b86", "#af5d8b", "#804085", "#5b3374", "#412051", "#5c486a", "#887d8d",
-"#b8b4b2", "#dcdac9", "#ffffe0", "#b6f5db", "#89d9d9", "#72b6cf", "#5c8ba8",
-"#4e6679", "#464969", "#44355d", "#3d003d", "#621748", "#942c4b", "#c7424f",
-"#e06b51", "#f2a561", "#fcef8d", "#b1d480", "#80b878", "#658d78" ];
+import * as intro from "./intro.js";
+import * as finish from "./finish.js";
+stages['intro'] = intro;
+stages['finish'] = finish;
 
 let stage = "intro";
-export const stages = {
-  intro: intro,
-  game: {intro: null, update: null, render: null},
-  finish: finish,
-};
 
 export let score = 0;
 export function addScore(v = 1) {
@@ -39,26 +21,12 @@ export function addScore(v = 1) {
 }
 export let bestScore = null;
 
-export let desc = null;
-export let name = null;
-
 export let canvas = null;
 export let ctx = null;
 
 export let tick = 0;
 
-export const mouse = {
-  x: 0, y: 0,
-  click: false,
-  press: false,
-};
-
-export const ease = _ease;
-const sysact = new Act();
-export function act(obj) {
-  return sysact.act(obj);
-}
-act.is = () => sysact.isActing();
+export { C, mouse, act, ease };
 
 export function startGame() {
   stage = "game";
@@ -66,6 +34,7 @@ export function startGame() {
   score = 0;
   stages[stage].init();
 }
+op.startGame = startGame;
 
 export function gameOver() {
   stage = "finish";
@@ -158,7 +127,7 @@ function _frame(now) {
 
 export function main(obj) {
   document.body.style.backgroundColor = "#222";
-  canvas = obj ?? document.getElementById("canvas");
+  canvas = op.canvas = obj ?? document.getElementById("canvas");
   ctx = canvas.getContext("2d");
   plus2d(ctx);
 
@@ -178,7 +147,7 @@ export function main(obj) {
 }
 
 export function options(o) {
-  opts = Object.assign(defaultOpts, o);
+  setOpts(o);
 }
 
 export function game(init, update, render) {
@@ -189,8 +158,8 @@ export function game(init, update, render) {
 }
 
 export function description(n, s) {
-  name = n;
-  desc = s;
+  opts.name = n;
+  opts.desc = s;
 }
 
 export const utils = _utils;

@@ -1,4 +1,4 @@
-import {C, desc, act, opts, mouse, ease, stages, startGame} from "./one.js";
+import {stages, C, opts, mouse, act, op, ease} from "./internal.js";
 
 const state = {
   t: 0.0
@@ -20,7 +20,7 @@ export function update(tick) {
 
   state.t = 1.0;
   act(state).attr("t", 0.0, 0.25, ease.fastInSlowOut)
-    .then(() => startGame());
+    .then(() => op.startGame());
 
 }
 

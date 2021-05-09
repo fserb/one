@@ -1,4 +1,4 @@
-import {canvas, mouse} from "./one.js";
+import {op, mouse} from "./internal.js";
 
 function onMouseMove(ev) {
   if (ev.touches && ev.touches.length == 0) return;
@@ -8,10 +8,10 @@ function onMouseMove(ev) {
 
   const o = ev.touches ? ev.touches[0] : ev;
 
-  const x = o.pageX - canvas.offsetLeft;
-  const y = o.pageY - canvas.offsetTop;
-  mouse.x = 1024 * x * window.devicePixelRatio / canvas.width;
-  mouse.y = 1024 * y * window.devicePixelRatio / canvas.height;
+  const x = o.pageX - op.canvas.offsetLeft;
+  const y = o.pageY - op.canvas.offsetTop;
+  mouse.x = 1024 * x * window.devicePixelRatio / op.canvas.width;
+  mouse.y = 1024 * y * window.devicePixelRatio / op.canvas.height;
 }
 
 let inclick = false;
@@ -19,10 +19,10 @@ let inclick = false;
 function onMouseUp(ev) {
   ev.stopPropagation();
   ev.preventDefault();
-  canvas.removeEventListener("mousemove", onMouseMove, { passive: false});
-  canvas.removeEventListener("mouseup", onMouseUp, { passive: false });
-  canvas.removeEventListener("touchmove", onMouseMove, { passive: false});
-  canvas.removeEventListener("touchend", onMouseUp, { passive: false });
+  op.canvas.removeEventListener("mousemove", onMouseMove, { passive: false});
+  op.canvas.removeEventListener("mouseup", onMouseUp, { passive: false });
+  op.canvas.removeEventListener("touchmove", onMouseMove, { passive: false});
+  op.canvas.removeEventListener("touchend", onMouseUp, { passive: false });
   mouse.press = false;
   onMouseMove(ev);
 }
@@ -30,18 +30,18 @@ function onMouseUp(ev) {
 function onMouseDown(ev) {
   ev.stopPropagation();
   ev.preventDefault();
-  canvas.addEventListener("mousemove", onMouseMove, { passive: false});
-  canvas.addEventListener("mouseup", onMouseUp, { passive: false });
-  canvas.addEventListener("touchmove", onMouseMove, { passive: false});
-  canvas.addEventListener("touchend", onMouseUp, { passive: false });
+  op.canvas.addEventListener("mousemove", onMouseMove, { passive: false});
+  op.canvas.addEventListener("mouseup", onMouseUp, { passive: false });
+  op.canvas.addEventListener("touchmove", onMouseMove, { passive: false});
+  op.canvas.addEventListener("touchend", onMouseUp, { passive: false });
   inclick = true;
   mouse.press = true;
   onMouseMove(ev);
 }
 
 export function init() {
-  canvas.addEventListener("mousedown", onMouseDown, { passive: false });
-  canvas.addEventListener("touchstart", onMouseDown, { passive: false });
+  op.canvas.addEventListener("mousedown", onMouseDown, { passive: false });
+  op.canvas.addEventListener("touchstart", onMouseDown, { passive: false });
 }
 
 export function update() {

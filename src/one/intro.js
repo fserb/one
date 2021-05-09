@@ -1,5 +1,6 @@
 
-import {C, desc, opts, act, ease, mouse, startGame} from "./one.js";
+import {C, opts, act, mouse, ease, op} from "./internal.js";
+
 
 let lines;
 let starty = 0;
@@ -10,7 +11,7 @@ let state = {
 };
 
 export function init() {
-  lines =  desc.strip().split('\n');
+  lines =  opts.desc.strip().split('\n');
 
   size = Math.min(800 / (lines.length * 1.5),
     800 / (Math.max(...lines.map(x => x.length)) * 0.6));
@@ -24,7 +25,7 @@ export function update(tick) {
   if (!mouse.click) return;
 
   state.t = 0;
-  act(state).attr("t", 1.0, 0.3, ease.fastOutSlowIn).then(() => startGame());
+  act(state).attr("t", 1.0, 0.3, ease.fastOutSlowIn).then(() => op.startGame());
 }
 
 export function render(ctx) {

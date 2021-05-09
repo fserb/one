@@ -9,17 +9,17 @@ import puppeteer from "puppeteer-core";
 import sharp from "sharp";
 import lzma from "lzma";
 
-import * as one from "./src/one/one.js";
+import {opts, C} from "./src/one/internal.js";
 const x = await import(`./src/${GAME}.js`);
 
 const BASEURL = "https://one.fserb.com";
 
 const data = {
-  title: one.name,
+  title: opts.name,
   url: `${BASEURL}/${GAME}`,
   ogimage: `${BASEURL}/${GAME}/ogimage.png`,
   twitterimage: `${BASEURL}/${GAME}/twitterimage.png`,
-  themecolor: one.C[one.opts.bgColor],
+  themecolor: C[opts.bgColor],
 };
 
 const script = fs.readFileSync(`www/${GAME}/bundle.js`);
@@ -62,7 +62,7 @@ async function buildImage(name, width, height) {
 
   obj.resize(width, height, {
     fit: "contain",
-    background: one.C[one.opts.bgColor]}).png().toFile(name);
+    background: C[opts.bgColor]}).png().toFile(name);
 }
 
 await buildImage(`www/${GAME}/ogimage.png`, 1200, 627);

@@ -6,11 +6,6 @@
   },
   "exclude": [
     "node_modules",
-    "src/lib/3rdp/**/*",
-    "src/platform.cap.js",
-    "src/realms.encrypted.js",
-    "3rdp",
-    "static",
   ],
   "include": ["src/**/*"]
 }
