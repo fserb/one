@@ -23,16 +23,16 @@
   <meta name="twitter:player:height" content="480" />
   <meta name="theme-color" content="{{ themecolor }}">
   <meta name="mobile-web-app-capable" content="yes">
-  <link rel="shortcut icon" href="icon.png">
-  <link rel="apple-touch-icon" href="icon.png">
-  <meta name="apple-mobile-web-app-title" content="duoban">
+  <link rel="shortcut icon" href="../icon.png">
+  <link rel="apple-touch-icon" href="../icon.png">
+  <meta name="apple-mobile-web-app-title" content="{{ title }}">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
   <style>
 html { height: 100%; }
-body { background-color: #222; margin: 0; height: 100%; overflow: hidden; touch-action: none; display: flex; justify-content: center; align-items: flex-start; }
 #canvas { width: 100vmin; height: 100vmin; cursor: pointer; user-select: none; }
+body { margin: 0; height: 100%; overflow: hidden; touch-action: none; display: flex; justify-content: center; align-items: flex-start; background-color: {{ themecolor }}}
   </style>
 </head>
 <body><canvas id="canvas"></canvas>

@@ -67,3 +67,4 @@ async function buildImage(name, width, height) {
 
 await buildImage(`www/${GAME}/ogimage.png`, 1200, 627);
 await buildImage(`www/${GAME}/twitterimage.png`, 1456, 728);
+await buildImage(`www/${GAME}/base.png`, 800, 800);

@@ -17,6 +17,8 @@ function build {
   rm -rf www
   mkdir www
 
+  cp page.html www/index.html
+
   for g in ${GAMES[@]}; do
     one "$g"
   done

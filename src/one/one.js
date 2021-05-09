@@ -158,6 +158,7 @@ export function main(obj) {
 
   input.init();
   stages[stage].init();
+  document.body.style.backgroundColor = "#222";
 
   _frame(0);
 }
