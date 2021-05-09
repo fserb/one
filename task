@@ -37,38 +37,6 @@ function sync {
   rsync -a --partial --progress www/ metaphora.co:one/
 }
 
-function bench {
-  RULE="$1"
-  echo $RULE
-  npx browserslist "${RULE}"
-  cat <<EOF > .babelrc
-{
-  "presets": [
-    [
-      "@babel/preset-env",
-      {
-        "targets": "${RULE}",
-        "useBuiltIns": "usage",
-        "corejs": {"version": "3.10", "proposals": true},
-        "shippedProposals": true
-      }
-    ]
-  ],
-  "plugins": [
-  ]
-}
-EOF
-  echo "import main from './src/wow.js'; main();" | npx rollup -c rollup.mjs -o x
-  SIZE=`stat -f%z x`
-  PAYLOAD=7266
-  COMP=`cat x | lzma -9 | base64 | wc -c`
-  TOTAL=$((COMP + PAYLOAD))
-  rm -f x
-  echo "JS size ${SIZE}"
-  echo "Bundle size ${TOTAL}"
-  npx browserslist --coverage "${RULE}"
-}
-
 function help {
   echo "$0 <task> <args>"
   echo "Tasks:"
