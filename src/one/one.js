@@ -100,16 +100,32 @@ function _renderScore() {
     {align: "left", valign: "top" });
 }
 
+let shaking = 0.0;
+export function shake(t = 0.4) {
+  shaking = Math.max(shaking, t);
+}
+
 function _render() {
   ctx.reset();
   ctx.save();
   const factor = canvas.width / 1024;
   ctx.scale(factor, factor);
 
+  if (shaking > 0.0) {
+    ctx.save();
+    const mag = 5 + 10 * shaking;
+    ctx.translate(mag * (2 * Math.random() - 1),
+      mag * (2 * Math.random() - 1));
+  }
+
   ctx.fillStyle = C[opts.bgColor];
   ctx.fillRect(0, 0, 1024, 1024);
 
   stages[stage].render(ctx);
+
+  if (shaking > 0.0) {
+    ctx.restore();
+  }
 
   if (opts.hasScore) {
     _renderScore();
@@ -126,6 +142,7 @@ function _frame(now) {
   currentTime = now;
 
   sysact._actFrame(dt);
+  shaking = Math.max(0.0, shaking - dt);
   accumulator += dt;
   while (accumulator >= frameRate) {
     input.update();
@@ -140,9 +157,7 @@ function _frame(now) {
 }
 
 export function main(obj) {
-
-  // document.body.style.backgroundColor = C[opts.bgColor];
-
+  document.body.style.backgroundColor = "#222";
   canvas = obj ?? document.getElementById("canvas");
   ctx = canvas.getContext("2d");
   plus2d(ctx);
@@ -158,7 +173,6 @@ export function main(obj) {
 
   input.init();
   stages[stage].init();
-  document.body.style.backgroundColor = "#222";
 
   _frame(0);
 }

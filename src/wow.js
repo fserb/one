@@ -1,4 +1,8 @@
 // wow.js
+/*
+based on ZOT
+https://www.cs.brandeis.edu/~storer/JimPuzzles/ZPAGES/zzzBullsEye.html
+*/
 
 import * as one from "./one/one.js";
 import {C, act, ease, mouse} from "./one/one.js";
@@ -124,6 +128,7 @@ function update(tick) {
   act(target)
     .attr("x", empty.x, 0.3, ease.fastOutSlowIn)
     .attr("y", empty.y, 0.3, ease.fastOutSlowIn)
+    .then(() => one.shake(0.1))
     .then(check);
 
   empty.x = nex;
