@@ -11,7 +11,6 @@ export const op = {};
 export const defaultOpts = {
   bgColor: 9,
   fgColor: 14,
-  shColor: -1,
   hasScore: true,
   scoreMax: true,
   finishGood: false,
@@ -19,13 +18,28 @@ export const defaultOpts = {
   desc: null,
 };
 
-
-// https://lospec.com/palette-list/downgraded-32
-export const C = [ "#7b334c", "#a14d55", "#c77369", "#e3a084", "#f2cb9b",
-"#d37b86", "#af5d8b", "#804085", "#5b3374", "#412051", "#5c486a", "#887d8d",
-"#b8b4b2", "#dcdac9", "#ffffe0", "#b6f5db", "#89d9d9", "#72b6cf", "#5c8ba8",
-"#4e6679", "#464969", "#44355d", "#3d003d", "#621748", "#942c4b", "#c7424f",
-"#e06b51", "#f2a561", "#fcef8d", "#b1d480", "#80b878", "#658d78" ];
+export const C = Object.assign({}, [ "#F2F0E5", "#B8B5B9", "#646365", "#45444F",
+"#212123", "#352B42", "#4B4158", "#5F556A", "#474969", "#4B80CA", "#669ECA",
+"#68C2D3", "#A2DCC7", "#EDE19E", "#D3A068", "#E2A084", "#B45252", "#C6424F",
+"#932C4B", "#402F2E", "#7E6352", "#B9A588", "#FFF18A", "#E6B951", "#C2D368",
+"#8AB060", "#567B79", "#4E584A", "#7B7243", "#B2B47E", "#EDC8C4", "#C990C6" ]);
+C.white = C[0];
+C.lightGrey = C[1];
+C.darkGrey = C[2];
+C.black = C[4];
+C.purple = C[5];
+C.blue = C[9];
+C.cyan = C[11];
+C.brown = C[19];
+C.lightBrown = C[20];
+C.yellow = C[22];
+C.gold = C[23];
+C.lightGreen = C[24];
+C.green = C[25];
+C.darkGreen = C[26];
+C.lime = C[28];
+C.lightPink = C[30];
+C.pink = C[31];
 
 export let opts = defaultOpts;
 export function setOpts(op) {

@@ -55,16 +55,16 @@ function _renderScore() {
   const b = 11;
   const fs = 26;
 
-  ctx.fillStyle = C[opts.fgColor];
+  ctx.fillStyle = opts.fgColor;
   ctx.fillRect(0, 0, 1024, 44);
 
   if (bestScore !== null) {
-    ctx.fillStyle = C[opts.bgColor];
+    ctx.fillStyle = opts.bgColor;
     ctx.text("BEST " + bestScore, 1024 - b * 1.5, b, fs,
     {align: "right", valign: "top" });
   }
 
-  ctx.fillStyle = C[opts.bgColor];
+  ctx.fillStyle = opts.bgColor;
   ctx.text("SCORE " + score, b * 1.5, b, fs,
     {align: "left", valign: "top" });
 }
@@ -87,7 +87,7 @@ function _render() {
       mag * (2 * Math.random() - 1));
   }
 
-  ctx.fillStyle = C[opts.bgColor];
+  ctx.fillStyle = opts.bgColor;
   ctx.fillRect(0, 0, 1024, 1024);
 
   stages[stage].render(ctx);

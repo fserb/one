@@ -1,5 +1,5 @@
 
-import {C, opts, act, mouse, ease, op} from "./internal.js";
+import {opts, act, mouse, ease, op} from "./internal.js";
 
 
 let lines;
@@ -31,13 +31,13 @@ export function update(tick) {
 export function render(ctx) {
   let y = starty;
 
-  ctx.fillStyle = C[opts.fgColor];
+  ctx.fillStyle = opts.fgColor;
   ctx.fillRect(0, Math.lerp(y - size * 1.5, 0, state.t),
     1024, Math.lerp(lines.length * size * 1.5 + size * 1.5, 44, state.t));
 
   if (state.t != 0.0) return;
 
-  ctx.fillStyle = C[opts.bgColor];
+  ctx.fillStyle = opts.bgColor;
 
   for (const l of lines) {
     ctx.text(l, 512, y, size);

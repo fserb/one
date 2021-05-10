@@ -12,13 +12,21 @@ move the small circle
 inside the bigger circle
 `);
 
+const L = {
+  bg: C[1],
+  fg: C[6],
+  pp: C[13],
+  gr: C[25],
+  sh: C[5],
+}
+
 one.options({
-  bgColor: 12,
-  fgColor: 9,
-  shColor: 11,
+  bgColor: L.bg,
+  fgColor: L.fg,
   scoreMax: false,
   finishGood: true,
 });
+
 
 let pieces;
 let empty
@@ -56,29 +64,27 @@ function init() {
   let c;
   [tiles, c] = one.utils.newCanvas(1404, 1872);
 
-  c.fillStyle = C[13];
+  c.fillStyle = L.pp;
   c.fillRect(0, 0, 1404, 1872);
 
   const r = 50;
-  c.fillStyle = C[9];
+  c.fillStyle = L.fg;
   c.fillCircle(702, 1170, 600);
-  c.fillStyle = C[30];
+  c.fillStyle = L.gr;
   c.fillCircle(702, 1170, 600 - r);
-  c.fillStyle = C[9];
+  c.fillStyle = L.fg;
   c.fillCircle(702, 1170, 600 - r * 2);
-  c.fillStyle = C[13];
+  c.fillStyle = L.pp;
   c.fillCircle(702, 1170, 600 - r * 3);
 
-  c.fillStyle = C[9];
+  c.fillStyle = L.fg;
   c.fillCircle(702, 234, 150);
-  c.fillStyle = C[30];
+  c.fillStyle = L.gr;
   c.fillCircle(702, 234, 150 - r);
-  c.fillStyle = C[9];
+  c.fillStyle = L.fg;
   c.fillCircle(702, 234, 150 - r * 2);
-  c.fillStyle = C[13];
-  c.fillCircle(702, 234, 150 - r * 3);
 
-  c.fillStyle = C[9];
+  c.fillStyle = L.fg;
   c.text("W", 234, 265, 350);
   c.text("W", 468 * 2 + 234, 265, 350);
 
@@ -135,7 +141,7 @@ function update(tick) {
 }
 
 function render(ctx) {
-  ctx.fillStyle = C[22];
+  ctx.fillStyle = L.sh;
   const s = 15;
   for (const p of pieces) {
     ctx.fillRect(ox + p.x * 234 + s, oy + p.y * 234 + s, 234, 234);
