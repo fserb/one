@@ -46,7 +46,8 @@ const H2 = Math.SQRT3 / 2;
 
 const SEL = {c: -2, r: -2};
 
-const ALIEN = {c: 4, r: 8, blink: 0, blinking: 1, looking: 10,
+const ALIEN = {c: 4, r: 8, blink: 0, blinking: 1, looking: 10, breath: 0,
+  pupil: 0,
   eye: {x : 0, y: 0}, tail: {c: 4, r: 8}};
 
 let HEADSTART = 0;
@@ -129,6 +130,11 @@ function moveAlien() {
     return;
   }
 
+  ALIEN.looking = 10;
+  act(ALIEN.eye)
+  .attr("x", 0, 0.5 + 0.3 * Math.random(), ease.quadIn)
+  .attr("y", 0, 0.5 + 0.3 * Math.random(), ease.quadIn);
+
   return act(ALIEN)
     .attr("tail.c", dec.c, 0.5, ease.quadIn)
     .attr("tail.r", dec.r, 0.5, ease.quadIn)
@@ -144,6 +150,8 @@ function blinkAlien() {
 
 let lock = false;
 function update(tick) {
+  ALIEN.breath = Math.sin(tick * 2 * Math.PI / 500);
+  ALIEN.pupil = Math.cos(333 + tick * 2 * Math.PI / 1713);
   ALIEN.blinking -= 1/60;
   if (ALIEN.blinking <= 0) {
     blinkAlien();
@@ -215,9 +223,9 @@ function renderAlien(ctx, head, tail) {
   const norm = vec.normalize(vec.rotate(body, Math.PI / 2));
 
   const br = 0.65;
-
+  const major = 48 + 1 * ALIEN.breath;
   ctx.beginPath();
-  ctx.moveTo(head.x - norm.x * 48, head.y - norm.y * 48);
+  ctx.moveTo(head.x - norm.x * major, head.y - norm.y * major);
   ctx.bezierCurveTo(
     head.x + body.x * br, head.y + body.y * br,
     head.x + body.x * br, head.y + body.y * br,
@@ -226,7 +234,7 @@ function renderAlien(ctx, head, tail) {
   ctx.bezierCurveTo(
     head.x + body.x * br, head.y + body.y * br,
     head.x + body.x * br, head.y + body.y * br,
-    head.x + norm.x * 48, head.y + norm.y * 48);
+    head.x + norm.x * major, head.y + norm.y * major);
   ctx.closePath();
   ctx.fillStyle = L.alien;
   ctx.fill();
@@ -235,14 +243,15 @@ function renderAlien(ctx, head, tail) {
   ctx.fillCircle(tail.x, tail.y, 25);
 
   ctx.fillStyle = L.alien;
-  ctx.fillCircle(head.x, head.y, 48);
+  ctx.fillCircle(head.x, head.y, major);
   ctx.fillStyle = L.eye;
   ctx.fillCircle(head.x, head.y, 38);
 
   const ER = 16;
   ctx.fillStyle = L.iris;
-  const rx = 20 - 5 * vec.len(ALIEN.eye);
-  const ry = 20;
+  const rb = 21 - 2 * ALIEN.pupil;
+  const rx = rb - 5 * vec.len(ALIEN.eye);
+  const ry = rb;
   const ang = vec.angle(ALIEN.eye);
   ctx.beginPath();
   ctx.ellipse(head.x + ALIEN.eye.x * ER, head.y + ALIEN.eye.y * ER, rx, ry, ang, 0, 2 * Math.PI);
@@ -250,8 +259,9 @@ function renderAlien(ctx, head, tail) {
   ctx.fillStyle = L.eye;
   const f = Math.sin((vec.len(ALIEN.eye) / Math.SQRT2) * Math.PI / 2) ** 2;
   const ff = 4 + 2 * f;
+  const d = (rb / 4) + (rb / 10) * f;
   ctx.beginPath();
-  ctx.ellipse(head.x + ALIEN.eye.x * ER - 5 - 2 * f, head.y + ALIEN.eye.y * ER - 5 - 2 * f, rx / ff, ry / ff, ang, 0, 2 * Math.PI);
+  ctx.ellipse(head.x + ALIEN.eye.x * ER - d, head.y + ALIEN.eye.y * ER - d, rx / ff, ry / ff, ang, 0, 2 * Math.PI);
   ctx.fill();
 
   if (ALIEN.blink > 0) {
