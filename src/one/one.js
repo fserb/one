@@ -28,7 +28,13 @@ export let ctx = null;
 
 export let tick = 0;
 
+let topmsg = "";
+
 export { C, mouse, act, ease, utils, vec };
+
+export function msg(m) {
+  topmsg = m;
+}
 
 export function startGame() {
   stage = "game";
@@ -69,6 +75,10 @@ function _renderScore() {
   ctx.fillStyle = opts.bgColor;
   ctx.text("SCORE " + score, b * 1.5, b, fs,
     {align: "left", valign: "top" });
+
+  if (topmsg) {
+    ctx.text(topmsg, 512, b, fs, {valign: "top" });
+  }
 }
 
 let shaking = 0.0;
