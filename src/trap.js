@@ -3,14 +3,14 @@ pig: 5x11 - 3 early placements
 tiger: 7x11 - no placement
 mouse: 11x11 - very few blocks
 
-
 TODO:
 
+- alien exit -> game over
 - clean up function that drop all -1.
+- kill alien
 - full game loop
 
 - astar score to build!
-- eye movement / blinking
 - level progression
 
 */
@@ -46,7 +46,8 @@ const H2 = Math.SQRT3 / 2;
 
 const SEL = {c: -2, r: -2};
 
-const ALIEN = {c: 4, r: 8, tail: {c: 4, r: 8}};
+const ALIEN = {c: 4, r: 8, blink: 0, blinking: 1, looking: 10,
+  eye: {x : 0, y: 0}, tail: {c: 4, r: 8}};
 
 let HEADSTART = 0;
 
@@ -85,7 +86,7 @@ function build(number) {
   ALIEN.c = ALIEN.tail.c = v.c;
   ALIEN.r = ALIEN.tail.r = v.r;
 
-  setHeadstart(3);
+  setHeadstart(0);
 }
 
 function setHeadstart(n) {
@@ -128,7 +129,7 @@ function moveAlien() {
     return;
   }
 
-  act(ALIEN)
+  return act(ALIEN)
     .attr("tail.c", dec.c, 0.5, ease.quadIn)
     .attr("tail.r", dec.r, 0.5, ease.quadIn)
     .then()
@@ -136,15 +137,37 @@ function moveAlien() {
     .attr("r", dec.r, 0.6, ease.backOut(2));
 }
 
-function update(tick) {
+function blinkAlien() {
+  act(ALIEN).attr("blink", 1.0, 0.1, ease.quadIn).then()
+    .attr("blink", 0.0, 0.1, ease.quadIn);
+}
 
+let lock = false;
+function update(tick) {
+  ALIEN.blinking -= 1/60;
+  if (ALIEN.blinking <= 0) {
+    blinkAlien();
+    ALIEN.blinking = 2 + 8 * Math.random();
+  }
+  ALIEN.looking -= 1/60;
+  if (ALIEN.looking <= 0) {
+    ALIEN.looking = 2 + 10 * Math.random();
+    const t = {x : -1 + 2 * Math.random(), y: -1 + 2 * Math.random()};
+    act(ALIEN.eye)
+      .attr("x", t.x, 0.5 + 0.3 * Math.random(), ease.quadIn)
+      .attr("y", t.y, 0.5 + 0.3 * Math.random(), ease.quadIn);
+  }
+
+  if (lock) return;
   if (!mouse.click) return;
+  blinkAlien();
 
   const p = mouseHex();
 
   const v = get(p);
-  if (!v) return;
+  if (!v || !v.v) return;
 
+  lock = true;
   act(v).attr("s", 0.0, 0.5, ease.quadIn).set("v", false).then(() => {
     buildAStar();
 
@@ -152,8 +175,10 @@ function update(tick) {
       setHeadstart(HEADSTART - 1);
     }
     if (HEADSTART == 0) {
-      moveAlien();
+      const x = moveAlien();
+      if (x) return x.then(() => { lock = false; });
     }
+    lock = false;
   });
 }
 
@@ -213,10 +238,34 @@ function renderAlien(ctx, head, tail) {
   ctx.fillCircle(head.x, head.y, 48);
   ctx.fillStyle = L.eye;
   ctx.fillCircle(head.x, head.y, 38);
+
+  const ER = 16;
   ctx.fillStyle = L.iris;
-  ctx.fillCircle(head.x, head.y, 20);
+  const rx = 20 - 5 * vec.len(ALIEN.eye);
+  const ry = 20;
+  const ang = vec.angle(ALIEN.eye);
+  ctx.beginPath();
+  ctx.ellipse(head.x + ALIEN.eye.x * ER, head.y + ALIEN.eye.y * ER, rx, ry, ang, 0, 2 * Math.PI);
+  ctx.fill();
   ctx.fillStyle = L.eye;
-  ctx.fillCircle(head.x - 5, head.y - 5, 5);
+  const f = Math.sin((vec.len(ALIEN.eye) / Math.SQRT2) * Math.PI / 2) ** 2;
+  const ff = 4 + 2 * f;
+  ctx.beginPath();
+  ctx.ellipse(head.x + ALIEN.eye.x * ER - 5 - 2 * f, head.y + ALIEN.eye.y * ER - 5 - 2 * f, rx / ff, ry / ff, ang, 0, 2 * Math.PI);
+  ctx.fill();
+
+  if (ALIEN.blink > 0) {
+    ctx.fillStyle = L.alien;
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.arc(head.x, head.y, 39, Math.PI, 2 * Math.PI);
+    if (ALIEN.blink < 0.5) {
+      ctx.ellipse(head.x, head.y, 39, Math.lerp(39, 0, ALIEN.blink * 2), 0, 0, Math.PI, true);
+    } else {
+      ctx.ellipse(head.x, head.y, 39, Math.lerp(0, 39, (ALIEN.blink - 0.5) * 2), 0, 0, Math.PI);
+    }
+    ctx.fill();
+  }
 }
 
 function buildAStar() {
@@ -265,6 +314,7 @@ function decideAlien() {
   }
 
   const pick = best[Math.floor(Math.random() * best.length)];
+
   return {c: pick.c, r: pick. r};
 }
 
