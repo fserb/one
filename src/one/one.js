@@ -54,7 +54,7 @@ export function gameOver() {
     bestScore = Math.min(bestScore ?? score, score);
   }
 
-  localStorage.setItem("one#" + name, bestScore);
+  localStorage.setItem("one#" + opts.name, bestScore);
 }
 
 function _renderScore() {
@@ -150,7 +150,7 @@ export function main(obj) {
   ro.observe(canvas);
 
   // load score
-  bestScore = localStorage.getItem("one#" + name);
+  bestScore = localStorage.getItem("one#" + opts.name);
 
   input.init();
   stages[stage].init();
