@@ -13,6 +13,8 @@ import * as finish from "./finish.js";
 stages['intro'] = intro;
 stages['finish'] = finish;
 
+import * as vec from "./vec.js";
+
 let stage = "intro";
 
 export let score = 0;
@@ -26,7 +28,7 @@ export let ctx = null;
 
 export let tick = 0;
 
-export { C, mouse, act, ease, utils };
+export { C, mouse, act, ease, utils, vec };
 
 export function startGame() {
   stage = "game";
