@@ -8,7 +8,6 @@ TODO:
 - astar score on build()
 - level progression
 - sound
-- screen shake / tilt - camera
 */
 
 import * as one from "./one/one.js";
@@ -40,7 +39,10 @@ const SIZE = 60;
 
 const H2 = Math.SQRT3 / 2;
 
-const ALIEN = {c: 4, r: 8, blink: 0, blinking: 1, looking: 2, breath: 0,
+const ALIEN = {
+  c: 4, r: 8,
+  anim: {c:4, r:8},
+  blink: 0, blinking: 1, looking: 2, breath: 0,
   s: 1.0,
   pupil: 0,
   eye: {x : 0, y: 0},
@@ -106,8 +108,8 @@ function build(number) {
   }
 
   const v = avail[Math.floor(Math.random() * avail.length)];
-  ALIEN.c = v.c;
-  ALIEN.r = v.r;
+  ALIEN.c = ALIEN.anim.c = v.c;
+  ALIEN.r = ALIEN.anim.r = v.r;
   for (const l of ALIEN.legs) {
     l.c = v.c;
     l.r = v.r;
@@ -115,7 +117,9 @@ function build(number) {
 
   buildAStar();
   cleanupLoose();
-  recenterCamera();
+  recenterCamera().then(() => {
+    camera.shake(0.2, 50);
+  });
 
   setHeadstart(3);
   lock = false;
@@ -144,13 +148,15 @@ function actAlien(target) {
   .attr("x", 0, 0.5 + 0.3 * Math.random(), ease.quadIn)
   .attr("y", 0, 0.5 + 0.3 * Math.random(), ease.quadIn);
 
+  ALIEN.c = target.c;
+  ALIEN.r = target.r;
   const r = () => 0.3 * Math.random();
   return act(ALIEN)
     .attr("legs.0.c", target.c, 0.3 + r(), ease.quadIn)
     .attr("legs.0.r", target.r, 0.3 + r(), ease.quadIn)
     .then()
-    .attr("c", target.c, 0.5 + r(), ease.backOut(2 + 5 * r()))
-    .attr("r", target.r, 0.5 + r(), ease.backOut(2 + 5 * r()))
+    .attr("anim.c", target.c, 0.5 + r(), ease.backOut(2 + 5 * r()))
+    .attr("anim.r", target.r, 0.5 + r(), ease.backOut(2 + 5 * r()))
     .attr("legs.1.c", target.c, 0.3 + r(), ease.quadOut, 0.3)
     .attr("legs.1.r", target.r, 0.3 + r(), ease.quadOut, 0.3);
 }
@@ -205,7 +211,6 @@ function blinkAlien() {
 
 async function finishGame() {
   camera.act.stop();
-  console.log("FINISH");
   lock = true;
   const wait = [];
   for (const v of all()) {
@@ -263,7 +268,7 @@ function recenterCamera() {
   const dur = camera.z > 1024 ? 1 : 0.25;
   return camera.lerp(camera.lookRect(rect.minx, rect.miny,
     rect.maxx - rect.minx,
-    rect.maxy - rect.miny), dur, ease.quadOut);
+    rect.maxy - rect.miny, camera.angle), dur, ease.quadOut);
 }
 
 async function updateNext() {
@@ -275,10 +280,8 @@ async function updateNext() {
   }
   recenterCamera();
   if (HEADSTART == 0 || get(ALIEN).astar == -1) {
-    lock = true;
-    await moveAlien();
+    moveAlien();
   }
-
   lock = false;
 }
 
@@ -386,7 +389,7 @@ function render(ctx) {
   //   ctx.text(v.astar + ":" + v.rstar, pos.x, pos.y, 20);
   // }
 
-  renderAlien(ctx, posHex(ALIEN), ALIEN.legs.map(l => posHex(l)));
+  renderAlien(ctx, posHex(ALIEN.anim), ALIEN.legs.map(l => posHex(l)));
 
   // ctx.strokeStyle = "red";
   // ctx.lineWidth = 5;

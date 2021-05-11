@@ -49,13 +49,13 @@ class Camera {
       .attr("cy", target.cy);
   }
 
-  lookRect(x, y, w, h) {
+  lookRect(x, y, w, h, ang) {
     h = h ?? w;
     const s = Math.max(w, h);
     return new Camera(
       x - s * 512 / s + w / 2,
       y - s * 512 / s + h / 2,
-      0,
+      ang,
       s,
       x + w / 2, y + h / 2);
   }
@@ -111,15 +111,16 @@ class Camera {
     };
   }
 
-  shake(t = 0.4) {
-    console.log("SHAKE");
+  shake(t = 0.4, mag = 100) {
     this.shaking = Math.max(this.shaking ?? 0, t);
+    this.mag = mag;
   }
 
   transform(ctx) {
     if (this.shaking) {
-      const mag = 5 + 10 * this.shaking;
-      ctx.translate(mag * (2 * Math.random() - 1),
+      const mag = this.mag * this.shaking;
+      ctx.translate(
+        mag * (2 * Math.random() - 1),
         mag * (2 * Math.random() - 1));
     }
 
