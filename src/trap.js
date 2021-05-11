@@ -5,8 +5,6 @@ mouse: 11x11 - very few blocks
 
 TODO:
 
-- full game loop
-
 - astar score on build()
 - level progression
 - sound
@@ -14,7 +12,7 @@ TODO:
 */
 
 import * as one from "./one/one.js";
-import {C, act, ease, mouse, vec} from "./one/one.js";
+import {C, act, ease, mouse, vec, camera} from "./one/one.js";
 
 one.description("trap", `
 destroy blocks
@@ -42,8 +40,6 @@ const SIZE = 60;
 
 const H2 = Math.SQRT3 / 2;
 
-const SEL = {c: -2, r: -2};
-
 const ALIEN = {c: 4, r: 8, blink: 0, blinking: 1, looking: 2, breath: 0,
   s: 1.0,
   pupil: 0,
@@ -53,7 +49,26 @@ const ALIEN = {c: 4, r: 8, blink: 0, blinking: 1, looking: 2, breath: 0,
 let HEADSTART = 0;
 let lock = false;
 
-let x0, y0;
+let LEVEL = 0;
+
+function init() {
+  LEVEL = 0;
+  for (let c = 0; c < WIDTH; ++c) {
+    if (!MAP[c]) MAP[c] = {};
+    for (let r = 0; r < HEIGHT; ++r) {
+      if ((c + r) % 2 == 1) continue;
+      MAP[c][r] = {v: true, c: c, r: r, s: 1, border: false, rstar: -1, astar: -1};
+    }
+  }
+  for (const v of all()) {
+    v.border = (connections(v) != 6);
+  }
+
+  camera.reset();
+  camera.z *= 50;
+
+  nextLevel();
+}
 
 function build(number) {
   ALIEN.s = 1.0;
@@ -100,41 +115,27 @@ function build(number) {
 
   buildAStar();
   cleanupLoose();
+  recenterCamera();
 
   setHeadstart(3);
   lock = false;
 }
 
+function nextLevel() {
+  LEVEL++;
+  build(20);
+}
+
 function setHeadstart(n) {
   HEADSTART = n;
   if (n == 0) {
-    one.msg("LEVEL 3");
+    one.msg("LEVEL " + LEVEL);
     return;
   }
-  const s = ['LEVEL', '3', '['];
+  const s = ['LEVEL', "" + LEVEL, '['];
   for (let i = 0; i < n; ++i) s.push('⬣');
   s.push(']');
   one.msg(s.join(' '));
-}
-
-function init() {
-  for (let c = 0; c < WIDTH; ++c) {
-    if (!MAP[c]) MAP[c] = {};
-    for (let r = 0; r < HEIGHT; ++r) {
-      if ((c + r) % 2 == 1) continue;
-      MAP[c][r] = {v: true, c: c, r: r, s: 1, border: false, rstar: -1, astar: -1};
-    }
-  }
-  for (const v of all()) {
-    v.border = (connections(v) != 6);
-  }
-
-  const FW = SIZE * (1.5 * WIDTH + 0.5);
-  const FH = Math.SQRT3 * SIZE * (HEIGHT / 2 + 0.5);
-  x0 = (1024 - FW) / 2 + SIZE;
-  y0 = 44 + (980 - FH) / 2 + SIZE * H2;
-
-  build(15);
 }
 
 function actAlien(target) {
@@ -158,18 +159,35 @@ function escapeAlien() {
   const v = MAP[ALIEN.c][ALIEN.r];
   if (!v.border) return;
 
-  let target = {c: v.c, r: v.r};
-  if (v.c == 0) target.c -= 2;
-  else if (v.c == WIDTH - 1) target.c += 2;
-  else if (v.r == 0 || v.r == 1) target.r -= 4;
-  else if (v.r == 15 || v.r == 16) target.r += 4;
+  // let target = {c: v.c, r: v.r};
+  // if (v.c == 0) target.c -= 2;
+  // else if (v.c == WIDTH - 1) target.c += 2;
+  // else if (v.r == 0 || v.r == 1) target.r -= 4;
+  // else if (v.r == 15 || v.r == 16) target.r += 4;
+  const target = {
+    x: SIZE * 3/2 * v.c,
+    y: SIZE * H2 * v.r};
+  const b = 1.1 * SIZE;
+  const corner00 = camera.map({x: -b, y: -b});
+  const corner11 = camera.map({x: 1024 + b, y: 1024 + b});
+  if (v.c == 0) target.x = corner00.x;
+  else if (v.c == WIDTH - 1) target.x = corner11.x;
+  else if (v.r == 0 || v.r == 1) target.y = corner00.y;
+  else if (v.r == 15 || v.r == 16) target.y = corner11.y;
+
+  const q = 2/3 * target.x / SIZE;
+  const r = (-1/3 * target.x + Math.SQRT3/3 * target.y) / SIZE;
+
+  target.c = q;
+  target.r = 2 * r + q;
 
   return actAlien(target).delay(0.5).then(() => {
+    one.setScore(LEVEL - 1);
     one.gameOver();
   });
 }
 
-function moveAlien() {
+async function moveAlien() {
   const dec = decideAlien();
 
   if (dec == null) {
@@ -177,7 +195,7 @@ function moveAlien() {
     return;
   }
 
-  return actAlien(dec).then(escapeAlien);
+  return await actAlien(dec).then(escapeAlien);
 }
 
 function blinkAlien() {
@@ -186,6 +204,7 @@ function blinkAlien() {
 }
 
 async function finishGame() {
+  camera.act.stop();
   console.log("FINISH");
   lock = true;
   const wait = [];
@@ -200,7 +219,12 @@ async function finishGame() {
 
   await act(ALIEN).attr("s", 0.0, 0.5, ease.backIn(3));
 
-  lock = false;
+  camera.reset();
+  camera.z *= 100;
+
+  await Promise.sleep(0.3);
+
+  nextLevel();
 }
 
 async function cleanupLoose() {
@@ -216,6 +240,32 @@ async function cleanupLoose() {
   lock = false;
 }
 
+function recenterCamera() {
+  const rect = {minx: 1024, miny: 1024, maxx: 0, maxy: 0};
+
+  for (const v of all()) {
+    const x = SIZE * 3/2 * v.c;
+    const y = SIZE * H2 * v.r;
+
+    rect.minx = Math.min(rect.minx, x - SIZE);
+    rect.maxx = Math.max(rect.maxx, x + SIZE);
+    rect.miny = Math.min(rect.miny, y - Math.SQRT3 * SIZE / 2);
+    rect.maxy = Math.max(rect.maxy, y + Math.SQRT3 * SIZE / 2);
+  }
+
+  const border = 30;
+  rect.minx -= border;
+  rect.miny -= border + 44;
+  rect.maxx += border;
+  rect.maxy += border;
+
+
+  const dur = camera.z > 1024 ? 1 : 0.25;
+  return camera.lerp(camera.lookRect(rect.minx, rect.miny,
+    rect.maxx - rect.minx,
+    rect.maxy - rect.miny), dur, ease.quadOut);
+}
+
 async function updateNext() {
   buildAStar();
   await cleanupLoose();
@@ -223,9 +273,12 @@ async function updateNext() {
   if (HEADSTART > 0) {
     setHeadstart(HEADSTART - 1);
   }
+  recenterCamera();
   if (HEADSTART == 0 || get(ALIEN).astar == -1) {
+    lock = true;
     await moveAlien();
   }
+
   lock = false;
 }
 
@@ -270,16 +323,16 @@ function updateSky() {
     let y = 0;
     let dir = 1;
 
-    while (y < 2048) {
+    while (y < 1280) {
       SKYR.push(0.15 + 1.35 * Math.random());
       const h = 50;
       let x = 0;
-      while (x < 2048) {
-        const w = 50;
+      while (x < 1280) {
+        const w = h;
         SKY.push({ x: x, y: y, w: w, h: h, idx: SKYR.length - 1 });
-        x += 81.92;
+        x += 80;
       }
-      y += 81.92;
+      y += 80;
     }
   }
 
@@ -289,7 +342,7 @@ function updateSky() {
 
   for (const c of SKY) {
     const v = SKYR[c.idx];
-    c.x = (2048 + c.x + v) % 2048;
+    c.x = (1280 + c.x + v) % 1280;
   }
 
   SKYANGLE += 0.001;
@@ -299,7 +352,7 @@ function renderSky(ctx) {
   ctx.save();
   ctx.translate(512, 512);
   ctx.rotate(Math.PI / 2);
-  ctx.translate(-1024, -1024);
+  ctx.translate(-640, -640);
   ctx.globalAlpha = 0.25;
   ctx.fillStyle = C.white;
   for (const c of SKY) {
@@ -310,6 +363,8 @@ function renderSky(ctx) {
 
 function render(ctx) {
   renderSky(ctx);
+  ctx.save();
+  camera.transform(ctx);
 
   for (const v of all()) {
     ctx.lineWidth = 1;
@@ -331,11 +386,18 @@ function render(ctx) {
   //   ctx.text(v.astar + ":" + v.rstar, pos.x, pos.y, 20);
   // }
 
-  ctx.strokeStyle = "red";
-  ctx.lineWidth = 10;
-  renderHex(ctx, SEL.c, SEL.r, SIZE, false, true);
-
   renderAlien(ctx, posHex(ALIEN), ALIEN.legs.map(l => posHex(l)));
+
+  // ctx.strokeStyle = "red";
+  // ctx.lineWidth = 5;
+  // ctx.beginPath();
+  // ctx.rect(RECT.minx, RECT.miny,
+  //   RECT.maxx - RECT.minx,
+  //   RECT.maxy - RECT.miny);
+  // ctx.stroke();
+
+
+  ctx.restore();
 }
 
 function renderAlien(ctx, head, legs) {
@@ -514,7 +576,7 @@ function distanceHex(a, b) {
 }
 
 function posHex(p) {
-  return { x: x0 + SIZE * 3/2 * p.c, y: y0 + SIZE * H2 * p.r };
+  return { x: SIZE * 3/2 * p.c, y: SIZE * H2 * p.r };
 }
 
 const hexPath = new Path2D();
@@ -528,8 +590,8 @@ hexPath.closePath();
 
 function renderHex(ctx, c, r, size, fill = false, stroke = false, delta = 0) {
   ctx.save();
-  const x = x0 + SIZE * 3/2 * c + delta;
-  const y = y0 + SIZE * H2 * r + delta;
+  const x = SIZE * 3/2 * c + delta;
+  const y = SIZE * H2 * r + delta;
   ctx.translate(x, y);
   ctx.scale(size, size);
   if (fill) {
@@ -545,11 +607,10 @@ function renderHex(ctx, c, r, size, fill = false, stroke = false, delta = 0) {
 }
 
 function mouseHex() {
-  const mx = mouse.x - x0;
-  const my = mouse.y - y0;
+  const m = camera.map(mouse);
 
-  const q = 2/3 * mx / SIZE;
-  const r = (-1/3 * mx + Math.SQRT3/3 * my) / SIZE;
+  const q = 2/3 * m.x / SIZE;
+  const r = (-1/3 * m.x + Math.SQRT3/3 * m.y) / SIZE;
 
   let rx = Math.round(q);
   let ry = Math.round(-q-r);

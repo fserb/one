@@ -8,6 +8,8 @@ import {stages, defaultOpts, C, opts, mouse, ease, setOpts, op,
 
 import * as utils from "./lib/utils.js";
 
+import camera from "./camera.js";
+
 import * as intro from "./intro.js";
 import * as finish from "./finish.js";
 stages['intro'] = intro;
@@ -21,6 +23,9 @@ export let score = 0;
 export function addScore(v = 1) {
   score += v;
 }
+export function setScore(v) {
+  score = v;
+}
 export let bestScore = null;
 
 export let canvas = null;
@@ -30,7 +35,7 @@ export let tick = 0;
 
 let topmsg = "";
 
-export { C, mouse, act, ease, utils, vec };
+export { C, mouse, act, ease, utils, vec, camera };
 
 export function msg(m) {
   topmsg = m;
@@ -72,18 +77,15 @@ function _renderScore() {
     {align: "right", valign: "top" });
   }
 
-  ctx.fillStyle = opts.bgColor;
-  ctx.text("SCORE " + score, b * 1.5, b, fs,
-    {align: "left", valign: "top" });
+  if (score > 0) {
+    ctx.fillStyle = opts.bgColor;
+    ctx.text("SCORE " + score, b * 1.5, b, fs,
+      {align: "left", valign: "top" });
+  }
 
   if (topmsg) {
     ctx.text(topmsg, 512, b, fs, {valign: "top" });
   }
-}
-
-let shaking = 0.0;
-export function shake(t = 0.4) {
-  shaking = Math.max(shaking, t);
 }
 
 function _render() {
@@ -92,21 +94,10 @@ function _render() {
   const factor = canvas.width / 1024;
   ctx.scale(factor, factor);
 
-  if (shaking > 0.0) {
-    ctx.save();
-    const mag = 5 + 10 * shaking;
-    ctx.translate(mag * (2 * Math.random() - 1),
-      mag * (2 * Math.random() - 1));
-  }
-
   ctx.fillStyle = opts.bgColor;
   ctx.fillRect(0, 0, 1024, 1024);
 
   stages[stage].render(ctx);
-
-  if (shaking > 0.0) {
-    ctx.restore();
-  }
 
   if (opts.hasScore) {
     _renderScore();
@@ -123,7 +114,7 @@ function _frame(now) {
   currentTime = now;
 
   sysact._actFrame(dt);
-  shaking = Math.max(0.0, shaking - dt);
+  camera._update(dt);
   accumulator += dt;
   while (accumulator >= frameRate) {
     input.update();
