@@ -111,7 +111,6 @@ function build(number) {
   }
 
   if (avail.length == 0) {
-    console.log("CANT");
     return build(number);
   }
 
@@ -141,7 +140,6 @@ function build(number) {
 function nextLevel() {
   LEVEL++;
   const pr = PROG[LEVEL] ?? 5;
-  console.log(LEVEL, pr);
   build(pr);
 }
 
@@ -218,6 +216,7 @@ function moveAlien() {
 }
 
 function blinkAlien() {
+  if (ALIEN.blink != 0) return;
   act(ALIEN).attr("blink", 1.0, 0.1, ease.quadIn).then()
     .attr("blink", 0.0, 0.1, ease.quadIn);
 }
@@ -309,7 +308,7 @@ function update(tick) {
   if (ALIEN.looking <= 0) {
     ALIEN.looking = 2 + 10 * Math.random();
     const t = {x : -1 + 2 * Math.random(), y: -1 + 2 * Math.random()};
-    act(ALIEN.eye)
+    act(ALIEN.eye).stop()
       .attr("x", t.x, 0.5 + 0.3 * Math.random(), ease.quadIn)
       .attr("y", t.y, 0.5 + 0.3 * Math.random(), ease.quadIn);
   }
