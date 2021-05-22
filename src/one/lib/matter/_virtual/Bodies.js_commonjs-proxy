@@ -1,0 +1,2 @@
+import Bodies_1 from '../factory/Bodies.js';
+export { default } from '../factory/Bodies.js';

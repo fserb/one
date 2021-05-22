@@ -1,0 +1,2 @@
+import Vertices_1 from '../geometry/Vertices.js';
+export { default } from '../geometry/Vertices.js';

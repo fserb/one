@@ -1,0 +1,2 @@
+import Axes_1 from '../geometry/Axes.js';
+export { default } from '../geometry/Axes.js';

@@ -1,0 +1,2 @@
+import Plugin_1 from '../core/Plugin.js';
+export { default } from '../core/Plugin.js';

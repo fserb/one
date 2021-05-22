@@ -1,0 +1,2 @@
+import Composite_1 from '../body/Composite.js';
+export { default } from '../body/Composite.js';

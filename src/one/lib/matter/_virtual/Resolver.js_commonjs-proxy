@@ -1,0 +1,2 @@
+import Resolver_1 from '../collision/Resolver.js';
+export { default } from '../collision/Resolver.js';

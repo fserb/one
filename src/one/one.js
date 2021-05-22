@@ -16,7 +16,6 @@ import * as finish from "./finish.js";
 stages['intro'] = intro;
 stages['finish'] = finish;
 
-
 let stage = "intro";
 
 export let score = 0;

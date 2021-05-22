@@ -1,0 +1,2 @@
+import Render_1 from '../render/Render.js';
+export { default } from '../render/Render.js';

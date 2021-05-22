@@ -1,0 +1,2 @@
+import MouseConstraint_1 from '../constraint/MouseConstraint.js';
+export { default } from '../constraint/MouseConstraint.js';

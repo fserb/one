@@ -26,15 +26,15 @@ export default {
       exclude: /node_modules/,
       babelHelpers: 'bundled'
     }),
-    terser({
-      compress: {
-        passes: 3,
-        unsafe: true,
-      },
-      module: true,
-      toplevel: true
-    }),
-    strip({}),
+    // terser({
+    //   compress: {
+    //     passes: 3,
+    //     unsafe: true,
+    //   },
+    //   module: true,
+    //   toplevel: true
+    // }),
+    // strip({}),
     bundleSize(),
   ],
   preserveEntrySignatures: true,

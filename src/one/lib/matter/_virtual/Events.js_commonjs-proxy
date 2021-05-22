@@ -1,0 +1,2 @@
+import Events_1 from '../core/Events.js';
+export { default } from '../core/Events.js';

@@ -1,0 +1,32 @@
+
+import Matter from './matter/core/Matter.js';
+export * as Axes from './matter/geometry/Axes.js';
+export * as Bodies from './matter/factory/Bodies.js';
+export * as Body from './matter/body/Body.js';
+export * as Bounds from './matter/geometry/Bounds.js';
+export * as Common from './matter/core/Common.js';
+export * as Composite from './matter/body/Composite.js';
+// export * as Composites from './matter/factory/Composites.js';
+export * as Constraint from './matter/constraint/Constraint.js';
+export * as Contact from './matter/collision/Contact.js';
+export * as Detector from './matter/collision/Detector.js';
+export * as Engine from './matter/core/Engine.js';
+export * as Events from './matter/core/Events.js';
+export * as Grid from './matter/collision/Grid.js';
+export * as Mouse from './matter/core/Mouse.js';
+export * as MouseConstraint from './matter/constraint/MouseConstraint.js';
+export * as Pair from './matter/collision/Pair.js';
+export * as Pairs from './matter/collision/Pairs.js';
+export * as Plugin from './matter/core/Plugin.js';
+export * as Query from './matter/collision/Query.js';
+export * as Render from './matter/render/Render.js';
+export * as Resolver from './matter/collision/Resolver.js';
+export * as Runner from './matter/core/Runner.js';
+export * as SAT from './matter/collision/SAT.js';
+export * as Sleeping from './matter/core/Sleeping.js';
+export * as Svg from './matter/geometry/Svg.js';
+export * as Vector from './matter/geometry/Vector.js';
+export * as Vertices from './matter/geometry/Vertices.js';
+export * as World from './matter/body/World.js';
+
+export default Matter;
