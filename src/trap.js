@@ -6,6 +6,7 @@ mouse: 11x11 - very few blocks
 TODO:
 
 - sound
+- double play on first click?
 */
 
 import * as one from "./one/one.js";
@@ -30,6 +31,38 @@ one.options({
   fgColor: L.fg,
 });
 
+one.sound.make("hit", 0.3, (f, track) => {
+  track(f.karplus_strong, {b: 0.5, freq: 40, S: 0.1});
+  track(f.biquad, {type: "lowpass", freq: 1500});
+  track(f.bitcrush, {sample: 4, bits: 24});
+  track(f.compressor);
+  track(f.envelope,
+    {env: f.ADSR({sustainv: 2, sustain: 0.1, release: 0.2, type: "linear"})});
+});
+
+one.sound.make("drop", 0.3, (f, track) => {
+  track(f.oscillator, {type: "saw", freq: f.linear(100, -300)});
+  track(f.oscillator, {type: "brown", amp: 0.5});
+  track(f.ringmod, {wet: 1, freq: 120});
+  track(f.biquad, {type: "lowpass", freq: 1000});
+  track(f.envelope,
+    {env: f.ADSR({sustainv: 1, sustain: 0.05, release: 0.25, type: "linear"})});
+});
+
+one.sound.make("move", 0.65, (f, track) => {
+  track(f.oscillator, {type: "sine", freq: f.VSAJ(400, 400, -4000)});
+  track(f.ringmod, {wet: 0.5, freq: 200});
+  track(f.envelope,
+    {env: f.ADSR({attack: 0.3, sustain: 0.2, release: 0.25, sustainv: 1, type: "exp"})});
+});
+
+one.sound.make("fall", 0.5, (f, track) => {
+  track(f.oscillator, {type: "sine", freq: f.VSAJ(400, -200)});
+  track(f.ringmod, {wet: 0.5, freq: 200});
+  track(f.envelope,
+    {env: f.ADSR({attack: 0.1, release: 0.4, sustainv: 1, type: "linear"})});
+});
+
 const MAP = {};
 const WIDTH = 10;
 const HEIGHT = 17;
@@ -48,6 +81,7 @@ const ALIEN = {
 
 let HEADSTART = 0;
 let pending = 0;
+let locked = true;
 
 let LEVEL = 0;
 const PROG = [0, 50, 45, 40, 35, 30,
@@ -58,6 +92,7 @@ const PROG = [0, 50, 45, 40, 35, 30,
   9, 8, 7, 6, 5 ];
 
 function init() {
+  locked = true;
   LEVEL = 0;
   for (let c = 0; c < WIDTH; ++c) {
     if (!MAP[c]) MAP[c] = {};
@@ -128,9 +163,11 @@ function build(number) {
   }
 
   buildAStar();
-  cleanupLoose();
+  cleanupLoose(false);
   recenterCamera().then(() => {
     camera.shake(0.2, 50);
+    one.sound.play("hit");
+    locked = false;
   });
 
   setHeadstart(3);
@@ -157,6 +194,8 @@ function setHeadstart(n) {
 
 function actAlien(target) {
   ALIEN.looking = 10;
+
+  one.sound.play("move");
   act(ALIEN.eye)
   .attr("x", 0, 0.5 + 0.3 * Math.random(), ease.quadIn)
   .attr("y", 0, 0.5 + 0.3 * Math.random(), ease.quadIn);
@@ -225,16 +264,23 @@ async function finishGame() {
   camera.act.stop();
   pending = 100;
   const wait = [];
+  let delay = 0.5;
   for (const v of all()) {
+    if (v.v === false) continue;
     v.v = false;
-    wait.push(act(v).attr("s", 0.0, 0.5, ease.quadIn, 1.5 + 0.3 * Math.random()));
-
+    const d = 1.5 + 0.3 * Math.random();
+    wait.push(act(v)
+      .delay(delay)
+      .then(() => one.sound.play("drop", (2 * Math.random() - 1) * 1200, 0.1))
+      .attr("s", 0.0, 0.5, ease.quadIn));
+    delay += 0.15;
   }
 
   await Promise.all(wait);
 
   await Promise.sleep(0.1);
 
+  one.sound.play("fall");
   await act(ALIEN).attr("s", 0.0, 0.5, ease.backIn(3));
 
   camera.reset();
@@ -245,13 +291,21 @@ async function finishGame() {
   nextLevel();
 }
 
-async function cleanupLoose() {
+async function cleanupLoose(action=true) {
   const wait = [];
+  let delay = 0.1;
+  let snd = 0.085;
   for (const v of all()) {
     if (v.rstar != -1) continue;
     if (act(v).is()) continue;
     v.v = false;
-    wait.push(act(v).attr("s", 0.0, 0.5, ease.quadIn, 0.5 + 0.3 * Math.random()));
+    wait.push(act(v).attr("s", 0.0, 0.5, ease.quadIn, delay));
+    delay += 0.01;
+    snd += 0.01;
+    if (action && snd >= 0.085) {
+      snd -= 0.085;
+      one.sound.play("drop", (2 * Math.random() - 1) * 1200, delay + 0.1);
+    }
   }
   await Promise.all(wait);
 }
@@ -289,6 +343,7 @@ function updateNext() {
   if (HEADSTART > 0) {
     setHeadstart(HEADSTART - 1);
   }
+  camera.act.delay(1).then(() => recenterCamera());
   recenterCamera();
   if (HEADSTART == 0 || get(ALIEN).astar == -1) {
     moveAlien();
@@ -315,9 +370,9 @@ function update(tick) {
 
   updateSky();
 
+  if (locked) return;
   if (pending > 2) return;
   if (!mouse.click) return;
-
   const p = mouseHex();
 
   const v = get(p);
@@ -326,6 +381,7 @@ function update(tick) {
   if (v.r == ALIEN.r && v.c == ALIEN.c) return;
 
   v.v = false;
+  one.sound.play("drop", 0.1);
   updateNext();
   pending++;
   act(v).attr("s", 0.0, 0.5, ease.quadIn);

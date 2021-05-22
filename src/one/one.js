@@ -1,21 +1,21 @@
 import "./lib/extend.js";
 import plus2d from "./lib/plus2d.js";
 
-import * as input from "./input.js";
-
 import {stages, defaultOpts, C, opts, mouse, ease, setOpts, op,
   sysact, act} from "./internal.js";
 
 import * as utils from "./lib/utils.js";
 
 import camera from "./camera.js";
+import * as vec from "./vec.js";
+import * as sound from "./sound.js";
 
+import * as input from "./input.js";
 import * as intro from "./intro.js";
 import * as finish from "./finish.js";
 stages['intro'] = intro;
 stages['finish'] = finish;
 
-import * as vec from "./vec.js";
 
 let stage = "intro";
 
@@ -35,7 +35,7 @@ export let tick = 0;
 
 let topmsg = "";
 
-export { C, mouse, act, ease, utils, vec, camera };
+export { C, mouse, act, ease, utils, vec, camera, sound };
 
 export function msg(m) {
   topmsg = m;
@@ -143,6 +143,7 @@ export function main(obj) {
   // load score
   bestScore = localStorage.getItem("one#" + opts.name);
 
+  sound.init();
   input.init();
   stages[stage].init();
 

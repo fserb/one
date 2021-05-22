@@ -7,7 +7,17 @@ if (Math.clamp === undefined) {
   };
 }
 
-if (Math.SQRT3 == undefined) {
+if (Math.frac === undefined) {
+  Math.frac = function(x) {
+    return x - Math.floor(x);
+  }
+}
+
+if (Math.TAU === undefined) {
+  Math.TAU = 2 * Math.PI;
+}
+
+if (Math.SQRT3 === undefined) {
   Math.SQRT3 = Math.sqrt(3);
 }
 

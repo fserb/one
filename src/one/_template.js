@@ -1,14 +1,22 @@
-import * as one from "./one/one.js";
-import {C, act, ease, mouse} from "./one/one.js";
+/*
 
-one.description("game", `
-how to play
+
+*/
+import * as one from "./one/one.js";
+import {C, act, ease, mouse, vec, camera} from "./one/one.js";
+
+one.description("name", `
+instructions
 `);
 
+const L = {
+  bg: C[11],
+  fg: C[19],
+};
+
 one.options({
-  bgColor: 12,
-  fgColor: 9,
-  shColor: 11,
+  bgColor: L.bg,
+  fgColor: L.fg,
 });
 
 function init() {
