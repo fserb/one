@@ -71,11 +71,18 @@ function _renderScore() {
   ctx.fillStyle = opts.fgColor;
   ctx.fillRect(0, 0, 1024, 44);
 
+  let best = "";
+  let soundstatus = "";
   if (bestScore !== null) {
-    ctx.fillStyle = opts.bgColor;
-    ctx.text("BEST " + bestScore, 1024 - b * 1.5, b, fs,
-    {align: "right", valign: "top" });
+    best = ` BEST ${bestScore}`;
   }
+  if (!sound.mute) {
+    soundstatus = "♫";
+  }
+
+  ctx.fillStyle = opts.bgColor;
+  ctx.text(`${soundstatus}${best}`, 1024 - b * 1.5, b, fs,
+    {align: "right", valign: "top" });
 
   if (score > 0) {
     ctx.fillStyle = opts.bgColor;
@@ -118,6 +125,7 @@ function _frame(now) {
   accumulator += dt;
   while (accumulator >= frameRate) {
     input.update();
+    sound.update();
     stages[stage].update(tick);
     tick++
     accumulator -= frameRate;

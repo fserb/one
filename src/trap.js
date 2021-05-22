@@ -5,8 +5,6 @@ mouse: 11x11 - very few blocks
 
 TODO:
 
-- sound
-- double play on first click?
 */
 
 import * as one from "./one/one.js";

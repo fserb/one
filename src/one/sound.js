@@ -1,8 +1,12 @@
 // sound.js
 
+import {mouse} from "./internal.js";
+
 import * as fsfx from "./fsfx/fsfx.js";
 
 let player;
+
+export let mute = false;
 
 export function init() {
   player = new fsfx.Player();
@@ -28,7 +32,14 @@ export function make(name, duration, func) {
 }
 
 export function play(name, detune = 0, when = 0) {
+  if (mute) return;
   if (!player.ready()) return;
   if (blockBuffer.length > 0) flushSamples();
   player.samplePlay(name, detune, when);
+}
+
+export function update() {
+  if (!mouse.click) return;
+  if (mouse.x < 512 || mouse.y >= 44) return;
+  mute = !mute;
 }
