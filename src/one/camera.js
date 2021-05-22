@@ -20,6 +20,7 @@ class Camera {
     this.x = this.y = this.angle = 0;
     this.z = 1024;
     this.cx = this.cy = 512;
+    if (this.act) this.act.stop();
   }
 
   copy() {

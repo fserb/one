@@ -42,14 +42,16 @@ export function msg(m) {
 }
 
 export function startGame() {
-  stage = "game";
   tick = -1;
   score = 0;
+  stage = "game";
+  sysact.reset();
   stages[stage].init();
 }
 op.startGame = startGame;
 
 export function gameOver() {
+  sysact.reset();
   stage = "finish";
   stages[stage].init();
 
@@ -151,7 +153,6 @@ export function main(obj) {
   // load score
   bestScore = localStorage.getItem("one#" + opts.name);
 
-  sound.init();
   input.init();
   stages[stage].init();
 

@@ -167,6 +167,11 @@ export default class SysAct {
     return this._actions.length != 0;
   }
 
+  reset() {
+    this._actions = [];
+    this._waitAll = [];
+  }
+
   waitAll() {
     return new Promise((acc, _rej) => {
       this._waitAll.push(acc);

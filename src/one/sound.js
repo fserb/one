@@ -5,10 +5,10 @@ import {mouse} from "./internal.js";
 import * as fsfx from "./fsfx/fsfx.js";
 
 let player;
-
-export let mute = false;
+export let mute = true;
 
 export function init() {
+  mute = false;
   player = new fsfx.Player();
   player.trapEvents();
 }
@@ -29,6 +29,7 @@ export function make(name, duration, func) {
 
   blockBuffer.push({name, block});
   flushSamples();
+  if (!player) init();
 }
 
 export function play(name, detune = 0, when = 0) {

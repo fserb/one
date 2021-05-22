@@ -10,6 +10,8 @@ import sharp from "sharp";
 import lzma from "lzma";
 
 import {opts, C} from "./src/one/internal.js";
+global.window = new Proxy({}, {get: function() { return function() {} }});
+global.Path2D = class Path2D { constructor() { return new Proxy({}, {get: function() { return function() {} }})}};
 const x = await import(`./src/${GAME}.js`);
 
 const BASEURL = "https://one.fserb.com";
@@ -51,7 +53,7 @@ const url = `https://dev.metaphora.co/games/one/www/${GAME}/index.html`;
 
 await page.goto(url);
 await page.click("#canvas");
-await Promise.sleep(0.5);
+await Promise.sleep(1.5);
 const png = await page.screenshot({type: "png"});
 await browser.close();
 

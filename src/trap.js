@@ -1,12 +1,3 @@
-/*
-pig: 5x11 - 3 early placements
-tiger: 7x11 - no placement
-mouse: 11x11 - very few blocks
-
-TODO:
-
-*/
-
 import * as one from "./one/one.js";
 import {C, act, ease, mouse, vec, camera} from "./one/one.js";
 
@@ -61,21 +52,14 @@ one.sound.make("fall", 0.5, (f, track) => {
     {env: f.ADSR({attack: 0.1, release: 0.4, sustainv: 1, type: "linear"})});
 });
 
-const MAP = {};
+let MAP = {};
 const WIDTH = 10;
 const HEIGHT = 17;
 const SIZE = 60;
 
 const H2 = Math.SQRT3 / 2;
 
-const ALIEN = {
-  c: 4, r: 8,
-  anim: {c:4, r:8},
-  blink: 0, blinking: 1, looking: 2, breath: 0,
-  s: 1.0,
-  pupil: 0,
-  eye: {x : 0, y: 0},
-  legs: [{c: 4, r: 8}, {c :4, r: 8}]};
+let ALIEN = {};
 
 let HEADSTART = 0;
 let pending = 0;
@@ -92,6 +76,7 @@ const PROG = [0, 50, 45, 40, 35, 30,
 function init() {
   locked = true;
   LEVEL = 0;
+  MAP = {};
   for (let c = 0; c < WIDTH; ++c) {
     if (!MAP[c]) MAP[c] = {};
     for (let r = 0; r < HEIGHT; ++r) {
@@ -103,9 +88,18 @@ function init() {
     v.border = (connections(v) != 6);
   }
 
+  ALIEN = { c: 4, r: 8, anim: {c:4, r:8},
+    blink: 0, blinking: 1, looking: 2, breath: 0,
+    s: 1.0,
+    pupil: 0,
+    eye: {x : 0, y: 0},
+    legs: [{c: 4, r: 8}, {c :4, r: 8}]};
+  HEADSTART = 0;
+  pending = 0;
+
   camera.reset();
   camera.z *= 50;
-
+  recenterCamera();
   nextLevel();
 }
 
@@ -237,7 +231,10 @@ function escapeAlien() {
   target.final = true;
 
   return actAlien(target).delay(0.5).then(() => {
+    if (locked) return;
     one.setScore(LEVEL - 1);
+    locked = true;
+    console.log("CALLED");
     one.gameOver();
   });
 }
@@ -367,7 +364,6 @@ function update(tick) {
   }
 
   updateSky();
-
   if (locked) return;
   if (pending > 2) return;
   if (!mouse.click) return;
@@ -432,7 +428,7 @@ function renderSky(ctx) {
 }
 
 function render(ctx) {
-  renderSky(ctx);
+  // renderSky(ctx);
   ctx.save();
   camera.transform(ctx);
 
@@ -628,6 +624,11 @@ function connections(p) {
   return n;
 }
 
+const NEIGHT = [
+  [+1, +1], [+1, -1], [ 0, -2],
+  [-1, -1], [-1, +1], [ 0, +2],
+];
+
 function *neighbors(p, invalid = false) {
   for (const n of NEIGHT) {
     const v = get({c: p.c + n[0], r: p.r + n[1]});
@@ -635,11 +636,6 @@ function *neighbors(p, invalid = false) {
     if (invalid || v.v) yield v;
   }
 }
-
-var NEIGHT = [
-  [+1, +1], [+1, -1], [ 0, -2],
-  [-1, -1], [-1, +1], [ 0, +2],
-]
 
 function distanceHex(a, b) {
   const dx = Math.abs(a.c - b.c);

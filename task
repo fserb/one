@@ -2,7 +2,7 @@
 set -euo pipefail
 IFS=$'\n\t'
 
-GAMES=(wow)
+GAMES=(wow trap)
 
 function one {
   export GAME="$1"
