@@ -1,2 +1,0 @@
-import World_1 from '../body/World.js';
-export { default } from '../body/World.js';

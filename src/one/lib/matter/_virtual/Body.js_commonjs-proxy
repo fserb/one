@@ -1,2 +1,0 @@
-import Body_1 from '../body/Body.js';
-export { default } from '../body/Body.js';

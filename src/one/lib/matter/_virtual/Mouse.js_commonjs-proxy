@@ -1,2 +1,0 @@
-import Mouse_1 from '../core/Mouse.js';
-export { default } from '../core/Mouse.js';

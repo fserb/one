@@ -105,7 +105,9 @@ function _render() {
   ctx.fillStyle = opts.bgColor;
   ctx.fillRect(0, 0, 1024, 1024);
 
+  ctx.save();
   stages[stage].render(ctx);
+  ctx.restore();
 
   if (opts.hasScore) {
     _renderScore();

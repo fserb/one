@@ -3825,11 +3825,6 @@ math-random@^1.0.1:
   resolved "https://registry.yarnpkg.com/math-random/-/math-random-1.0.4.tgz#5dd6943c938548267016d4e34f057583080c514c"
   integrity sha512-rUxjysqif/BZQH2yhd5Aaq7vXMSx9NdEsQcyA07uEzIvxgI7zIr33gGsh+RU0/XjmQpCW7RsVof1vlkvQVCK5A==
 
-matter-js@^0.17.1:
-  version "0.17.1"
-  resolved "https://registry.yarnpkg.com/matter-js/-/matter-js-0.17.1.tgz#b30ac4c708116258fbcaacd2efd8a94e34a91c7f"
-  integrity sha512-pSquoENJgvSAlQGcA0s5UkmEohGXZaUww2g3B6qG87x0iEcVf+aigMXn5UkFPdnh6w3B+C4vXSLaYqhHwKrOLA==
-
 maxmin@^2.1.0:
   version "2.1.0"
   resolved "https://registry.yarnpkg.com/maxmin/-/maxmin-2.1.0.tgz#4d3b220903d95eee7eb7ac7fa864e72dc09a3166"
@@ -4237,6 +4232,13 @@ pkg-dir@^4.2.0:
   integrity sha512-HRDzbaKjC+AOWVXxAU/x54COGeIv9eb+6CkDSQoNTt4XyWoIJvuPsXizxu/Fr23EiekbtZwmh1IcIG/l/a10GQ==
   dependencies:
     find-up "^4.0.0"
+
+planck@^1.0.0-alpha.2:
+  version "1.0.0-alpha.2"
+  resolved "https://registry.yarnpkg.com/planck/-/planck-1.0.0-alpha.2.tgz#7328e80e8f9f06dae8d96a335e5e299a1eb18daf"
+  integrity sha512-rJegXAJEEsYwNyxHMJjtq5OPAU4SZm8eZ5eYhiM6J7B0O1IzLFFTnRxKfaecyVcpkJqW/u2s2va4bnJ64jK89w==
+  dependencies:
+    stage-js "^0.9.4"
 
 posix-character-classes@^0.1.0:
   version "0.1.1"
@@ -4910,6 +4912,11 @@ stable@~0.1.3:
   version "0.1.8"
   resolved "https://registry.yarnpkg.com/stable/-/stable-0.1.8.tgz#836eb3c8382fe2936feaf544631017ce7d47a3cf"
   integrity sha512-ji9qxRnOVfcuLDySj9qzhGSEFVobyt1kIOSkj1qZzYLzq7Tos/oUUWvotUPQLlrsidqsK6tBH89Bc9kL5zHA6w==
+
+stage-js@^0.9.4:
+  version "0.9.4"
+  resolved "https://registry.yarnpkg.com/stage-js/-/stage-js-0.9.4.tgz#5d31eb8f33f1ca8d21c2043c6d21e47794b715f5"
+  integrity sha512-fNN6rkYD55T4NUxJE71hixXYS9DoyHVX5S8sQcq5yiozX1kqHP/wnByZwFfdAGNZjb5rROJ90zwb0EbM9U2Jqg==
 
 static-extend@^0.1.1:
   version "0.1.2"

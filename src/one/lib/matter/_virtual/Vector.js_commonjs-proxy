@@ -1,2 +1,0 @@
-import Vector_1 from '../geometry/Vector.js';
-export { default } from '../geometry/Vector.js';

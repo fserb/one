@@ -1,2 +1,0 @@
-import Composites_1 from '../factory/Composites.js';
-export { default } from '../factory/Composites.js';

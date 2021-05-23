@@ -5,7 +5,7 @@ import commonjs from '@rollup/plugin-commonjs';
 // import ignore from "rollup-plugin-ignore";
 
 export default {
-  input: "node_modules/matter-js/src/module/main.js",
+  input: "node_modules/planck/dist/planck.js",
   plugins: [
     progress({}),
     resolve({
@@ -15,7 +15,7 @@ export default {
       // ignoreGlobal: true,
     //   esmExternals: true,
     //   transformMixedEsModules: true,
-    // //   include: 'node_modules/**',
+  // //   include: 'node_modules/**',
     }),
     // babel({
     //   exclude: /node_modules/,
@@ -23,12 +23,13 @@ export default {
     // }),
   ],
   preserveEntrySignatures: true,
-  preserveModules: true,
+  // preserveModules: true,
   output: {
     // inlineDynamicImports: true,
     format: 'esm',
-    name: 'matter',
+    name: 'planck',
     sourcemap: false,
-    dir: `src/one/lib/matter/`
+    file: 'src/one/lib/planck.js',
+    // dir: 'src/one/lib/plank/',
   }
 };

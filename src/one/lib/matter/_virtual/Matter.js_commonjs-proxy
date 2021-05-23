@@ -1,2 +1,0 @@
-import Matter_1 from '../core/Matter.js';
-export { default } from '../core/Matter.js';

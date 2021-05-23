@@ -1,2 +1,0 @@
-import Detector_1 from '../collision/Detector.js';
-export { default } from '../collision/Detector.js';

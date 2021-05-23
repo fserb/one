@@ -1,2 +1,0 @@
-import Contact_1 from '../collision/Contact.js';
-export { default } from '../collision/Contact.js';

@@ -1,2 +1,0 @@
-import Bounds_1 from '../geometry/Bounds.js';
-export { default } from '../geometry/Bounds.js';

@@ -15,15 +15,19 @@ function onMouseMove(ev) {
 }
 
 let inclick = false;
+let inrelease = false;
 
 function onMouseUp(ev) {
   ev.stopPropagation();
   ev.preventDefault();
   op.canvas.removeEventListener("mousemove", onMouseMove, { passive: false});
   op.canvas.removeEventListener("mouseup", onMouseUp, { passive: false });
+  op.canvas.removeEventListener("mouseout", onMouseUp, { passive: false });
   op.canvas.removeEventListener("touchmove", onMouseMove, { passive: false});
   op.canvas.removeEventListener("touchend", onMouseUp, { passive: false });
+  op.canvas.removeEventListener("touchcancel", onMouseUp, { passive: false });
   mouse.press = false;
+  inrelease = true;
   onMouseMove(ev);
 }
 
@@ -32,8 +36,10 @@ function onMouseDown(ev) {
   ev.preventDefault();
   op.canvas.addEventListener("mousemove", onMouseMove, { passive: false});
   op.canvas.addEventListener("mouseup", onMouseUp, { passive: false });
+  op.canvas.addEventListener("mouseout", onMouseUp, { passive: false });
   op.canvas.addEventListener("touchmove", onMouseMove, { passive: false});
   op.canvas.addEventListener("touchend", onMouseUp, { passive: false });
+  op.canvas.addEventListener("touchcancel", onMouseUp, { passive: false });
   inclick = true;
   mouse.press = true;
   onMouseMove(ev);
@@ -46,5 +52,7 @@ export function init() {
 
 export function update() {
   mouse.click = inclick;
+  mouse.release = inrelease;
   inclick = false;
+  inrelease = false;
 }

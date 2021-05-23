@@ -1,2 +1,0 @@
-import Constraint_1 from '../constraint/Constraint.js';
-export { default } from '../constraint/Constraint.js';

@@ -1,2 +1,0 @@
-import SAT_1 from '../collision/SAT.js';
-export { default } from '../collision/SAT.js';

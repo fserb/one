@@ -22,6 +22,10 @@ const data = {
   ogimage: `${BASEURL}/${GAME}/ogimage.png`,
   twitterimage: `${BASEURL}/${GAME}/twitterimage.png`,
   themecolor: C[opts.bgColor],
+  head: `
+  <script>window.goatcounter = { path: function(p) { return location.host + p } };</script>
+  <script data-goatcounter="https://stats.metaphora.co/count" async src="//stats.metaphora.co/count.js"></script>
+`,
 };
 
 const script = fs.readFileSync(`www/${GAME}/bundle.js`);

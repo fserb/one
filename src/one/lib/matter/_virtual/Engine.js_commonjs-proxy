@@ -1,2 +1,0 @@
-import Engine_1 from '../core/Engine.js';
-export { default } from '../core/Engine.js';

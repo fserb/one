@@ -33,6 +33,10 @@ export function rotate(a, rad) {
     y: a.x * s + a.y * c };
 }
 
+export function perp(a) {
+  return { x: -a.y, y: a.x};
+}
+
 export function angle(a) {
   return Math.atan2(a.y, a.x);
 }

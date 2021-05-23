@@ -1,2 +1,0 @@
-import Query_1 from '../collision/Query.js';
-export { default } from '../collision/Query.js';

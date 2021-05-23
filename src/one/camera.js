@@ -1,6 +1,7 @@
 // camera.js
 
 import {ease, act} from "./internal.js";
+import * as vec from "./vec.js";
 
 class Camera {
   constructor(x = 0, y = 0, angle = 0, z = 1024, cx = 512, cy = 512) {
@@ -36,6 +37,20 @@ class Camera {
     this.cy = c.cy;
   }
 
+  approach(target, inp = {}) {
+    const res = Object.assign({cx: 0.05, cy: 0.05, z: 0.05, angle: 0.05}, inp);
+    for (const dim of ["cx", "cy", "z", "angle"]) {
+      const a = this[dim];
+      const b = target[dim];
+
+      this[dim] = (1 - res[dim]) * a + res[dim] * b;
+    }
+
+    this.x = this.cx - 512;
+    this.y = this.cy - 512;
+
+  }
+
   lerp(target, duration, easing) {
     easing = easing ?? ease.linear;
 
@@ -63,8 +78,10 @@ class Camera {
 
   lookAt(x, y) {
     const c = this.copy();
-    c.x = (x - this.cx) * 1024 / this.z + this.cx - 512;
-    c.y = (y - this.cy) * 1024 / this.z + this.cy - 512;
+    c.cx = x;
+    c.cy = y;
+    c.x = c.cx - 512;
+    c.y = c.cy - 512;
     return c;
   }
 

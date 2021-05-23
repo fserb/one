@@ -1,2 +1,0 @@
-import Svg_1 from '../geometry/Svg.js';
-export { default } from '../geometry/Svg.js';

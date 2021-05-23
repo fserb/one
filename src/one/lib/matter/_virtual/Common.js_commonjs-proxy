@@ -1,2 +1,0 @@
-import Common_1 from '../core/Common.js';
-export { default } from '../core/Common.js';

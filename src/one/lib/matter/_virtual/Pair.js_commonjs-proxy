@@ -1,2 +1,0 @@
-import Pair_1 from '../collision/Pair.js';
-export { default } from '../collision/Pair.js';

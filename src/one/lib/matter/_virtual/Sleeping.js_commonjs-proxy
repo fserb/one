@@ -1,2 +1,0 @@
-import Sleeping_1 from '../core/Sleeping.js';
-export { default } from '../core/Sleeping.js';
