@@ -1,9 +1,11 @@
 /*
 Rope
 
+- horizontal/diagonal ropes
 - world progression
 - water
-- shot UI
+- eye look to free hand
+- don't allow shot with free hand
 */
 
 import * as one from "./one/one.js";
@@ -16,7 +18,7 @@ stay alive
 `);
 
 const L = {
-  bg: "#111",
+  bg: "#000000",
   fg: C[19],
   water: C[9],
   rope: C[20],
@@ -26,10 +28,11 @@ const L = {
   alien: C[7],
   body: C[5],
   grass: C[25],
+  shot: C[17],
 };
 
 one.options({
-  bgColor: "#000", // L.bg
+  bgColor: "#222", // L.bg
   fgColor: L.fg,
 });
 
@@ -53,7 +56,7 @@ function init() {
   world.on('pre-solve', preSolve);
 
   one.camera.reset();
-  one.camera.z = 10.24;
+  one.camera.z = 13;
   one.camera.set(one.camera.lookAt(0, 0));
 }
 
@@ -104,7 +107,7 @@ function createPlayer() {
   for (const a of PLAYER.arms) {
     a.hand = world.createDynamicBody({
       userData: "hand", bullet: true, linearDamping: 0.1});
-    a.hand.createFixture(pl.Circle(pl.Vec2(0, 0), 0.5),
+    a.hand.createFixture(pl.Circle(pl.Vec2(0, 0), 0.75),
       {isSensor: true});
     a.hand.createFixture(pl.Circle(pl.Vec2(0, 0), 0.1),
       {density: 0, filterGroupIndex: 3});
@@ -206,7 +209,11 @@ function preSolve(contact) {
     bodyB.getUserData() == "rope" ? bodyB : null;
 
   if (hand == null || rope == null) return;
+
   const arm = PLAYER.arms[0].hand === hand ? PLAYER.arms[0] : PLAYER.arms[1];
+  if (arm.hold !== null) {
+    contact.setEnabled(false);
+  }
   const now = performance.now();
   if (arm.holder != rope.parent) return;
   if (arm.holderTime == -1) return;
@@ -258,7 +265,19 @@ function updatePlayer(tick) {
       .attr("x", t.x, 0.5 + 0.3 * Math.random(), ease.quadIn)
       .attr("y", t.y, 0.5 + 0.3 * Math.random(), ease.quadIn);
   }
+}
 
+function updateCamera() {
+  const p = PLAYER.head.getPosition();
+  const target = one.camera.lookAt(p.x, p.y);
+  const d = vec.sub(target, one.camera);
+  let ang = Math.TAU * -d.x / 30;
+  if (Math.abs(ang) < Math.TAU / 30) ang = 0;
+  target.angle = ang;
+  one.camera.approach(target, {x: 0.02, y: 0.005, angle: 0.04});
+}
+
+function updateShot(tick) {
   if (mouse.click) {
     const p = one.camera.map(mouse);
     const aabb = pl.AABB({x: p.x - 0.001, y: p.y - 0.001},
@@ -269,44 +288,28 @@ function updatePlayer(tick) {
 
       shot = {
         hand: x.getBody(),
+        offset: 0,
         target: {x: mouse.x, y: mouse.y },
       };
       return false;
     });
   }
-}
-
-let x = 0;
-function updateCamera() {
-  const p = PLAYER.head.getPosition();
-  const target = one.camera.lookAt(p.x, p.y);
-
-  // const d = vec.sub(PLAYER.arms[0].hand.getPosition(), PLAYER.arms[1].hand.getPosition());
-  const d = vec.sub(target, one.camera);
-  let ang = Math.TAU * -d.x / 30;
-  if (Math.abs(ang) < Math.TAU / 30) ang = 0;
-  target.angle = ang;
-
-  if (x++ % 100 == 0) console.log(target.x, target.angle);
-  one.camera.approach(target, {x: 0.02, y: 0.005, angle: 0.04});
-}
-
-function update(tick) {
-  world.step(1/60);
-  for (const w of UPDATE) w();
-  UPDATE.length = 0;
-
-  updatePlayer(tick);
-  updateCamera();
 
   if (!shot) return;
+  shot.offset += 1;
 
   if (mouse.press) {
-    shot.target = one.camera.map(mouse);
+     const p = one.camera.map(mouse);
+     const o = shot.hand.getPosition();
+     const d = vec.clamp(vec.sub(p, o), 0, 3);
+
+     shot.target = vec.add(o, d);
+
   } else if (mouse.release) {
     const p = shot.hand.getPosition();
-    const d = vec.mul(vec.sub(p, shot.target), 100);
-    console.log(vec.len(d));
+    const v = vec.sub(p, shot.target);
+    const l = vec.len(v);
+    const d = vec.mul(v, 55 * l);
 
     const arm = PLAYER.arms[0].hand === shot.hand ? PLAYER.arms[0] : PLAYER.arms[1];
 
@@ -316,11 +319,20 @@ function update(tick) {
       arm.hold = null;
     }
 
-
     shot.hand.setDynamic();
     shot.hand.applyForceToCenter(d);
     shot = null;
   }
+}
+
+function update(tick) {
+  world.step(1/60);
+  for (const w of UPDATE) w();
+  UPDATE.length = 0;
+
+  updatePlayer(tick);
+  updateCamera();
+  updateShot(tick);
 }
 
 function render(ctx) {
@@ -329,29 +341,48 @@ function render(ctx) {
 
   one.camera.transform(ctx);
   ctx.fillStyle = L.bg;
-  const B = 0.5;
-  ctx.fillRect(B + one.camera.cx - 5.12, B + one.camera.cy - 5.12, 10.24 - 2 * B, 10.24 - 2 * B);
+  const B = 0;
+  const D = one.camera.z;
+  ctx.fillRect(B + one.camera.cx - D/2, B + one.camera.cy - D/2, D - 2 * B, D - 2 * B);
   ctx.beginPath();
-  ctx.rect(B + one.camera.cx - 5.12, B + one.camera.cy - 5.12, 10.24 - 2 * B, 10.24 - 2 * B);
+  ctx.rect(B + one.camera.cx - D/2, B + one.camera.cy - D/2, D - 2 * B, D - 2 * B);
   ctx.clip();
 
   for (const r of ropes) {
     renderRope(ctx, r);
   }
   renderPlayer(ctx);
-
-  if (shot) {
-    ctx.strokeStyle = C[17];
-    const p = shot.hand.getPosition();
-    const d = vec.len(vec.sub(shot.target, p));
-    ctx.lineWidth = d / 10;
-    ctx.beginPath();
-    ctx.moveTo(p.x, p.y);
-    ctx.lineTo(shot.target.x, shot.target.y);
-    ctx.stroke();
-  }
-
+  renderShot(ctx);
   // renderDebug(ctx);
+}
+
+function renderShot(ctx) {
+  if (!shot) return;
+  const p = shot.hand.getPosition();
+  const t = vec.sub(shot.target, p);
+  const v = vec.normalize(t);
+  const n = vec.perp(v);
+
+  ctx.save();
+  ctx.translate(p.x, p.y);
+  ctx.strokeStyle = L.shot;
+  ctx.lineWidth = 0.075;
+  ctx.setLineDash([0.2, 0.2]);
+  ctx.lineDashOffset = shot.offset / 150;
+
+  const BR = 0.4;
+  const SR = 0.05;
+  ctx.beginPath();
+  ctx.moveTo(t.x - n.x * SR, t.y - n.y * SR);
+  ctx.arcTo(t.x + 10 * v.x, t.y + 10 * v.y,
+    t.x + n.x * SR, t.y + n.y * SR, SR);
+  ctx.lineTo(BR * n.x, BR * n.y);
+  ctx.arcTo(-10 * v.x, -10 * v.y, -BR * n.x, -BR * n.y, BR);
+  ctx.closePath();
+  ctx.stroke();
+
+  ctx.setLineDash([]);
+  ctx.restore();
 }
 
 const BIGARM = 0.6;
@@ -379,9 +410,6 @@ function renderPlayer(ctx) {
     ctx.fillStyle = L.alien;
     ctx.fillCircle(p.x, p.y, arm.hold ? 0.22 : 0.3);
   }
-
-  // ctx.fillStyle = L.alien;
-  // ctx.fillCircle(h.x, h.y, 0.6);
 
   ctx.fillStyle = L.body;
 
@@ -506,6 +534,5 @@ function renderDebug(ctx) {
     ctx.restore();
   }
 }
-
 
 export default one.game(init, update, render);
