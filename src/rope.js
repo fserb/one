@@ -1,11 +1,9 @@
 /*
 Rope
 
-- horizontal/diagonal ropes
 - world progression
 - water
 - eye look to free hand
-- don't allow shot with free hand
 */
 
 import * as one from "./one/one.js";
@@ -48,9 +46,13 @@ function init() {
   world.setGravity({x: 0, y: 9.8});
 
   createPlayer();
-  addRope(-0.5, -4.5, 5);
-  addRope(-3, -6.5, 5);
-  addRope(3, -6.5, 5);
+
+  addRopeTwo({x: -2, y: 0}, {x: 2, y: 0});
+
+  // addRopeOne(-0.5, -4.5, 5);
+  addRopeTwo({x: -2, y: -4.5}, {x: 2, y: -4.5});
+  addRopeOne({x: -3, y: -4.5}, 5);
+  addRopeOne({x: 3, y: -4.5}, 5);
 
   world.on('post-solve', postSolve);
   world.on('pre-solve', preSolve);
@@ -119,7 +121,7 @@ function createPlayer() {
     });
     a.joint.createFixture(pl.Circle(pl.Vec2(0, 0), 0.1),
       {density: 0.1,});
-    a.hand.setStatic();
+    // a.hand.setStatic();
 
     if (first) {
       first = false;
@@ -150,17 +152,26 @@ function createPlayer() {
   }
 }
 
-function addRope(x, y, length) {
-  const parts =  Math.round(length);
-  const size = length / parts;
+function addRopeTwo(a, b, close=true) {
+  const r = vec.sub(b, a);
+  const v = vec.normalize(r);
+  const n = vec.perp(v);
+  const len = vec.len(r);
+  const length = len;
+  const parts = Math.ceil(length);
+  const size = 1;
+
+  const ang = vec.angle(v) - Math.PI / 2;
 
   const obj = [];
 
-  const h = world.createBody();
-  h.setPosition({x, y});
-  obj.push(h);
+  // point A
+  const ha = world.createBody();
+  ha.setPosition(a);
+  obj.push(ha);
 
-  const dir = Math.sign(Math.random()) * 0.25;
+  const dy = close ? 0 : size / 2;
+  const dir = close ? 1 : Math.sign(2 * Math.random() - 1);
   for (let i = 0; i < parts; ++i) {
     const p = world.createDynamicBody({
       userData: "rope",
@@ -173,28 +184,45 @@ function addRope(x, y, length) {
       filterCategoryBits: 4,
       filterMaskBits: 4,
     });
-    p.setPosition({x: x + dir * i, y: y + size / 2 + (size * 1.2) * i});
+    p.setPosition({
+      x: a.x + v.x * size * (i + 1) + dir * n.x * 0.5,
+      y: a.y + v.y * size * (i + 1) + dir * n.y * 0.5});
+    p.setAngle(ang);
     // p.setStatic();
     obj.push(p);
   }
 
+  // point B
+  if (close) {
+    const hb = world.createBody();
+    hb.setPosition(b);
+    obj.push(hb);
+  }
+
+  const aa = pl.Vec2(0, 0);
   for (let i = 0; i < obj.length - 1; ++i) {
+    const ab = (close && i == obj.length - 2) ? aa : pl.Vec2(0, -size);
     world.createJoint(pl.RopeJoint({
       maxLength: 0.1,
       collideConnected: false,
-      localAnchorA: pl.Vec2(0, 0),
-      localAnchorB: pl.Vec2(0, -size),
+      localAnchorA: aa,
+      localAnchorB: ab,
     }, obj[i], obj[i + 1]));
     world.createJoint(pl.DistanceJoint({
       length: 0.1,
       frequencyHz: 10, dampingRatio: size / 2,
       collideConnected: false,
-      localAnchorA: pl.Vec2(0, 0),
-      localAnchorB: pl.Vec2(0, -size),
+      localAnchorA: aa,
+      localAnchorB: ab,
     }, obj[i], obj[i + 1]));
   }
 
   ropes.push(obj);
+}
+
+function addRopeOne(a, length = 5) {
+  const b = {x : a.x, y: a.y + length};
+  addRopeTwo(a, b, false);
 }
 
 const UPDATE = [];
@@ -239,6 +267,9 @@ function postSolve(contact) {
   const p = wm.points[0];
 
   UPDATE.push(() => {
+    if (arm.hold) {
+      world.destroyJoint(arm.hold);
+    }
     arm.hold = pl.DistanceJoint({
       length: 0, collideConnected: false,
     }, hand, rope, hand.getPosition(), p);
@@ -284,10 +315,15 @@ function updateShot(tick) {
       {x: p.x + 0.001, y: p.y + 0.001});
 
     world.queryAABB(aabb, (x) => {
-      if (x.getBody().getUserData() != "hand") return;
+      const b = x.getBody();
+      if (b.getUserData() != "hand") return;
+
+      const vel = vec.len(b.getLinearVelocity());
+      const arm = PLAYER.arms[0].hand === b ? PLAYER.arms[0] : PLAYER.arms[1];
+      if (!arm.hold && vel > 5) return;
 
       shot = {
-        hand: x.getBody(),
+        hand: b,
         offset: 0,
         target: {x: mouse.x, y: mouse.y },
       };
@@ -309,7 +345,7 @@ function updateShot(tick) {
     const p = shot.hand.getPosition();
     const v = vec.sub(p, shot.target);
     const l = vec.len(v);
-    const d = vec.mul(v, 55 * l);
+    const d = vec.mul(v, 50 * l);
 
     const arm = PLAYER.arms[0].hand === shot.hand ? PLAYER.arms[0] : PLAYER.arms[1];
 
@@ -500,9 +536,15 @@ function renderRope(ctx, r) {
 
   ctx.lineTo(prev.x, prev.y);
   ctx.stroke();
+
   prev = r[0].getPosition();
   ctx.fillStyle = L.dark;
   ctx.fillCircle(prev.x, prev.y, 0.2);
+  prev = r[r.length - 1];
+  if (prev.getUserData() !== "rope") {
+    prev = prev.getPosition();
+    ctx.fillCircle(prev.x, prev.y, 0.2);
+  }
 }
 
 function renderDebug(ctx) {
