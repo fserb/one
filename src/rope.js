@@ -3,7 +3,6 @@ Rope
 
 - world progression
 - water
-- eye look to free hand
 */
 
 import * as one from "./one/one.js";
@@ -49,7 +48,7 @@ function init() {
 
   addRopeTwo({x: -2, y: 0}, {x: 2, y: 0});
 
-  // addRopeOne(-0.5, -4.5, 5);
+  addRopeTwo({x: -4, y: -10}, {x: 3, y: -6.5});
   addRopeTwo({x: -2, y: -4.5}, {x: 2, y: -4.5});
   addRopeOne({x: -3, y: -4.5}, 5);
   addRopeOne({x: 3, y: -4.5}, 5);
@@ -71,6 +70,8 @@ function createPlayer() {
     head: null,
     body: [],
     eye: {x: 0, y: 0},
+    focuson: null,
+    eyelook: {x: 0, y: 0},
     pupil: 0,
     blink: 0, blinking: 1, looking: 2, breath: 0,
   }
@@ -158,7 +159,7 @@ function addRopeTwo(a, b, close=true) {
   const n = vec.perp(v);
   const len = vec.len(r);
   const length = len;
-  const parts = Math.ceil(length);
+  const parts = Math.round(length);
   const size = 1;
 
   const ang = vec.angle(v) - Math.PI / 2;
@@ -271,12 +272,20 @@ function postSolve(contact) {
       world.destroyJoint(arm.hold);
     }
     arm.hold = pl.DistanceJoint({
-      length: 0, collideConnected: false,
+      length: 0, collideConnected: false,frequencyHz: 10, dampingRatio: 0.5,
     }, hand, rope, hand.getPosition(), p);
     world.createJoint(arm.hold);
   });
   arm.holder = rope.parent;
   arm.holderTime = -1;
+}
+
+function playerLook(p) {
+  PLAYER.looking = 2 + 10 * Math.random();
+  act(PLAYER.eye).stop()
+    .attr("x", p.x, 0.1, ease.quadIn)
+    .attr("y", p.y, 0.1, ease.quadIn);
+
 }
 
 function updatePlayer(tick) {
@@ -288,13 +297,37 @@ function updatePlayer(tick) {
       .attr("blink", 0.0, 0.15, ease.quadIn);
     PLAYER.blinking = 2 + 8 * Math.random();
   }
+
+  PLAYER.eye.x = Math.lerp(PLAYER.eye.x, PLAYER.eyelook.x, 0.15);
+  PLAYER.eye.y = Math.lerp(PLAYER.eye.y, PLAYER.eyelook.y, 0.15);
+
+  if (PLAYER.arms[0].hold === null && PLAYER.arms[1].hold === null) {
+    PLAYER.eyelook.x = 0;
+    PLAYER.eyelook.y = 0;
+    PLAYER.looking = 5 + Math.random();
+    return;
+  }
+
+  const h = PLAYER.arms[0].hold ? PLAYER.arms[1] : PLAYER.arms[0];
+  if (h.hold === null) {
+    PLAYER.focuson = h.hand;
+    PLAYER.looking = 5 + Math.random();
+  }
+  if (shot != null) {
+    PLAYER.focuson = shot.hand;
+    PLAYER.looking = 5 + Math.random();
+  }
+
   PLAYER.looking -= 1/60;
   if (PLAYER.looking <= 0) {
-    PLAYER.looking = 2 + 10 * Math.random();
-    const t = {x : -1 + 2 * Math.random(), y: -1 + 2 * Math.random()};
-    act(PLAYER.eye).stop()
-      .attr("x", t.x, 0.5 + 0.3 * Math.random(), ease.quadIn)
-      .attr("y", t.y, 0.5 + 0.3 * Math.random(), ease.quadIn);
+    PLAYER.looking = 5 + 3 * Math.random();
+    PLAYER.eyelook.x = -1 + 2 * Math.random();
+    PLAYER.eyelook.y = -1 + 2 * Math.random();
+  } else if (PLAYER.focuson) {
+    const d = vec.normalize(
+      vec.sub(PLAYER.focuson.getPosition(), PLAYER.head.getPosition()));
+    PLAYER.eyelook.x = d.x;
+    PLAYER.eyelook.y = d.y;
   }
 }
 
