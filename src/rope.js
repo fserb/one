@@ -1,8 +1,10 @@
 /*
 Rope
 
-- world progression
+- MAZE
 - water
+- background
+- zoom?
 */
 
 import * as one from "./one/one.js";
@@ -11,6 +13,7 @@ import {C, act, ease, mouse, vec, camera} from "./one/one.js";
 import pl from "./one/lib/planck.js";
 
 one.description("rope", `
+climb up
 stay alive
 `);
 
@@ -33,25 +36,44 @@ one.options({
   fgColor: L.fg,
 });
 
+const TEMPLATES = [
+  [ 0, 2, 3, 15, 8, 10, 5, 6, 12, 13 ],
+  [ 0, 2, 5, 7, 8, 10, 13, 15, 0, 4, 7, 11],
+  [ 0, 8, 5, 13, 2, 10, 7, 15, 13.5, 14.5, 0.5, 1.5],
+
+];
+
 let ropes;
 let PLAYER, world;
 let shot = null;
+const MAPSIZE = 13;
+const MAP = new Set();
+const MAPCENTER = {x: 0, y: 0};
+const MAPBORDER = 2;
+const MAPTILE = (MAPSIZE - MAPBORDER * 2) / 3;
 
-const FREE = {group: -1, mask: 0, category: 0};
+// INIT ///
 
 function init() {
-  ropes = [];
+  ropes = new Set();
   world = pl.World({});
   world.setGravity({x: 0, y: 9.8});
 
   createPlayer();
 
-  addRopeTwo({x: -2, y: 0}, {x: 2, y: 0});
+  MAP.clear();
+  MAPCENTER.x = MAPCENTER.y = 0;
+  const ro = [];
+  ro.push(addRopeTwo({x: -2, y: 0}, {x: 2, y: 0}));
 
-  addRopeTwo({x: -4, y: -10}, {x: 3, y: -6.5});
-  addRopeTwo({x: -2, y: -4.5}, {x: 2, y: -4.5});
-  addRopeOne({x: -3, y: -4.5}, 5);
-  addRopeOne({x: 3, y: -4.5}, 5);
+  ro.push(addRopeTwo({x: -6, y: 2}, {x: -3, y: 2}));
+  ro.push(addRopeTwo({x: -2, y: 5}, {x: 2, y: 5}));
+  ro.push(addRopeTwo({x: 3, y: 2}, {x: 6, y: 2}));
+  ro.push(addRopeOne({x: -3.5, y: -6}, 5));
+  ro.push(addRopeOne({x: 0, y: -6}, 4));
+  ro.push(addRopeOne({x: 3.5, y: -6}, 5));
+
+  MAP.add({x: 0, y: 0, ropes: ro, t: -1});
 
   world.on('post-solve', postSolve);
   world.on('pre-solve', preSolve);
@@ -218,12 +240,93 @@ function addRopeTwo(a, b, close=true) {
     }, obj[i], obj[i + 1]));
   }
 
-  ropes.push(obj);
+  ropes.add(obj);
+  return obj;
 }
 
 function addRopeOne(a, length = 5) {
   const b = {x : a.x, y: a.y + length};
-  addRopeTwo(a, b, false);
+  return addRopeTwo(a, b, false);
+}
+
+// UPDATE ///
+
+function updateMap() {
+  // - find current quadrant ID
+  const pos = PLAYER.head.getPosition();
+  const quad = {
+    x: Math.floor(0.5 + pos.x / MAPSIZE),
+    y: Math.floor(0.5 + pos.y / MAPSIZE)};
+
+  const missing = [];
+  for (let i = -2; i <= 2 ; ++i) {
+    const row = [];
+    missing[i] = row;
+    for (let j = -2; j <= 2; ++j) {
+      row[j] = true;
+    }
+  }
+
+  // - clean up two-adjacent-quadrants
+  for (const m of MAP) {
+    const dx = m.x - quad.x;
+    const dy = m.y - quad.y;
+    if (missing[dx] && missing[dx][dy]) missing[dx][dy] = false;
+    const d = Math.max(Math.abs(dx), Math.abs(dy));
+    if (d <= 2) continue;
+    for (const r of m.ropes) {
+      for (const p of r) {
+        for (let j = p.getJointList(); j; j = j.next) {
+          world.destroyJoint(j.joint);
+        }
+        world.destroyBody(p);
+      }
+      ropes.delete(r);
+    }
+    MAP.delete(m);
+  }
+
+  const miss = [];
+  for (let i = -2; i <= 2; ++i) {
+    for (let j = -2; j <= 2; ++j) {
+      if (!missing[i][j]) continue;
+      miss.push({x: i, y: j});
+    }
+  }
+
+  // - for each missing quadrant
+  const MB = {x: MAPBORDER, y: MAPBORDER};
+  for (const m of miss) {
+    //   - pick one of the building blocks, mirror
+    const t = Math.floor(TEMPLATES.length * Math.random());
+    const temp = TEMPLATES[t];
+    const mirrorX = Math.random() < 0.5;
+
+    const map = {x: quad.x + m.x, y: quad.y + m.y, t: t,
+      mirrorX, ropes: []};
+    const top = {
+      x: (map.x - 0.5) * MAPSIZE,
+      y: (map.y - 0.5) * MAPSIZE};
+
+    for (let i = 0; i < temp.length; i += 2) {
+      const ta = temp[i];
+      const tb = temp[i + 1];
+      const a = { x: ta % 4, y: Math.floor(ta / 4) };
+      const b = { x: tb % 4, y: Math.floor(tb / 4) };
+
+      if (mirrorX) {
+        a.x = 3 - a.x;
+        b.x = 3 - b.x;
+      }
+
+      const pa = vec.add(top, vec.add(MB, vec.mul(a, MAPTILE)));
+      const pb = vec.add(top, vec.add(MB, vec.mul(b, MAPTILE)));
+
+      const r = addRopeTwo(pa, pb, a.x != b.x);
+      map.ropes.push(r);
+    }
+    MAP.add(map);
+  }
 }
 
 const UPDATE = [];
@@ -402,7 +505,10 @@ function update(tick) {
   updatePlayer(tick);
   updateCamera();
   updateShot(tick);
+  updateMap();
 }
+
+// RENDER ///
 
 function render(ctx) {
   ctx.fillStyle = L.fg;
@@ -422,6 +528,15 @@ function render(ctx) {
   }
   renderPlayer(ctx);
   renderShot(ctx);
+
+  // ctx.strokeStyle = "#333";
+  // ctx.fillStyle = "white";
+  // ctx.lineWidth = 0.05;
+  // for (const m of MAP) {
+  //   ctx.strokeRect(-6.5 + m.x * MAPSIZE, -6.5 + m.y * MAPSIZE, 13, 13);
+  //   ctx.text(m.t + (m.mirrorX ? "X" :""),
+  //     6 + m.x * MAPSIZE, 6 + m.y * MAPSIZE, 0.5, {weight: 400});
+  // }
   // renderDebug(ctx);
 }
 
