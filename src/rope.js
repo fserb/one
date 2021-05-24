@@ -85,7 +85,7 @@ function init() {
   world.on('pre-solve', preSolve);
 
   one.camera.reset();
-  one.camera.z = 13 * 2;
+  one.camera.z = 13 * 6;
   one.camera.set(one.camera.lookAt(0, 0));
 }
 
@@ -341,8 +341,7 @@ function buildTemplate() {
   }
 
   const data = [];
-  let remove = Math.round(1 + (added - 8) * Math.random());
-  console.log(added, remove);
+  let remove = Math.round(2 + (added - 8) * Math.random());
   const keys = Object.keys(block);
   keys.shuffle();
   for (let i = 0; i < remove; ++i) {
@@ -374,9 +373,11 @@ function buildTemplate() {
 const DIR = {1: {x: 0, y: -1}, 2: {x: 1, y: 0}, 4: {x: 0, y: 1}, 8: {x:-1, y:0}};
 const OPP = {1: 4, 2: 8, 4: 1, 8: 2};
 function updateWalls(quad) {
+  if (!quad) return;
   const MAPA = Array.from(MAP);
   const room = MAPA.filter(m => m.x == quad.x && m.y == quad.y)[0];
   const exit = room.exit;
+  if (!exit) return;
   const dir = vec.add({x:quad.x, y:quad.y}, DIR[exit]);
   let newexit = [];
   let block = OPP[exit];
@@ -387,10 +388,22 @@ function updateWalls(quad) {
     return adj.length > 0 ? adj[0] : null;
   };
 
-  const adj = getneigh(dir);
-  if (!adj) return;
+  let adj = getneigh(dir);
+  if (!adj) {
+    const pos = PLAYER.head.getPosition();
+    const pquad = {
+      x: Math.floor(0.5 + pos.x / MAPSIZE),
+      y: Math.floor(0.5 + pos.y / MAPSIZE)};
+
+    const dx = dir.x - pquad.x;
+    const dy = dir.y - pquad.y;
+    const d = Math.max(Math.abs(dx), Math.abs(dy));
+    if (d > 3) return;
+    adj = addMapArea(dir);
+  }
 
   if (adj.exit != 0) return updateWalls(dir);
+  // console.log(quad, dir);
 
   for (let d = 1; d <= 8; d *= 2) {
     if (d == block) continue;
@@ -424,6 +437,44 @@ function updateWalls(quad) {
   updateWalls(dir);
 }
 
+function addMapArea(dir) {
+  const MB = {x: MAPBORDER, y: MAPBORDER};
+
+  //   - pick one of the building blocks, mirror
+  const {w, h, data} = buildTemplate();
+  // const t = Math.floor(TEMPLATES.length * Math.random());
+  // const temp = TEMPLATES[t];
+  const maptile = {
+    x: (MAPSIZE - MAPBORDER * 2) / (w - 1),
+    y: (MAPSIZE - MAPBORDER * 2) / (h - 1) };
+  const map = {x: dir.x, y: dir.y,
+    walls: [], exit: 0, ropes: []};
+  const top = {
+    x: (map.x - 0.5) * MAPSIZE,
+    y: (map.y - 0.5) * MAPSIZE};
+
+  for (let i = 0; i < data.length; i += 2) {
+    const ta = data[i];
+    const tb = data[i + 1];
+    const a = { x: Math.floor(ta) % w, y: Math.floor(ta / w) };
+    const b = { x: Math.floor(tb) % w, y: Math.floor(tb / w) };
+    const fa = Math.frac(ta);
+    const fb = Math.frac(tb);
+    if (fa == 0.25 || fa == 0.50) a.x += 0.5;
+    if (fa == 0.75 || fa == 0.50) a.y += 0.5;
+    if (fb == 0.25 || fb == 0.50) b.x += 0.5;
+    if (fb == 0.75 || fb == 0.50) b.y += 0.5;
+
+    const pa = vec.add(top, vec.add(MB, vec.mulv(a, maptile)));
+    const pb = vec.add(top, vec.add(MB, vec.mulv(b, maptile)));
+
+    const r = addRopeTwo(pa, pb, a.x != b.x);
+    map.ropes.push(r);
+  }
+  MAP.add(map);
+  return map;
+}
+
 function updateMap() {
   // - find current quadrant ID
   const pos = PLAYER.head.getPosition();
@@ -446,7 +497,7 @@ function updateMap() {
     const dy = m.y - quad.y;
     if (missing[dx] && missing[dx][dy]) missing[dx][dy] = false;
     const d = Math.max(Math.abs(dx), Math.abs(dy));
-    if (d <= 2) continue;
+    if (d <= 3) continue;
     for (const r of m.ropes) {
       for (const p of r) {
         for (let j = p.getJointList(); j; j = j.next) {
@@ -455,6 +506,10 @@ function updateMap() {
         world.destroyBody(p);
       }
       ropes.delete(r);
+    }
+    for (const w of m.walls) {
+      world.destroyBody(w);
+      walls.delete(w);
     }
     MAP.delete(m);
   }
@@ -470,41 +525,9 @@ function updateMap() {
   if (miss.length == 0) return;
 
   // - for each missing quadrant
-  const MB = {x: MAPBORDER, y: MAPBORDER};
-  for (const m of miss) {
-    //   - pick one of the building blocks, mirror
-    const {w, h, data} = buildTemplate();
-    // const t = Math.floor(TEMPLATES.length * Math.random());
-    // const temp = TEMPLATES[t];
-    const maptile = {
-      x: (MAPSIZE - MAPBORDER * 2) / (w - 1),
-      y: (MAPSIZE - MAPBORDER * 2) / (h - 1) };
-    const map = {x: quad.x + m.x, y: quad.y + m.y,
-      walls: [], exit: 0, ropes: []};
-    const top = {
-      x: (map.x - 0.5) * MAPSIZE,
-      y: (map.y - 0.5) * MAPSIZE};
-
-    for (let i = 0; i < data.length; i += 2) {
-      const ta = data[i];
-      const tb = data[i + 1];
-      const a = { x: Math.floor(ta) % w, y: Math.floor(ta / w) };
-      const b = { x: Math.floor(tb) % w, y: Math.floor(tb / w) };
-      const fa = Math.frac(ta);
-      const fb = Math.frac(tb);
-      if (fa == 0.25 || fa == 0.50) a.x += 0.5;
-      if (fa == 0.75 || fa == 0.50) a.y += 0.5;
-      if (fb == 0.25 || fb == 0.50) b.x += 0.5;
-      if (fb == 0.75 || fb == 0.50) b.y += 0.5;
-
-      const pa = vec.add(top, vec.add(MB, vec.mulv(a, maptile)));
-      const pb = vec.add(top, vec.add(MB, vec.mulv(b, maptile)));
-
-      const r = addRopeTwo(pa, pb, a.x != b.x);
-      map.ropes.push(r);
-    }
-    MAP.add(map);
-  }
+  // for (const m of miss) {
+  //   addMapArea({x: quad.x + m.x, y: quad.y + m.y});
+  // }
 
   updateWalls(quad);
 }
