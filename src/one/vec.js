@@ -12,8 +12,16 @@ export function mul(a, s) {
   return {x: a.x * s, y: a.y * s};
 }
 
+export function mulv(a, b) {
+  return {x: a.x * b.x, y: a.y * b.y};
+}
+
 export function div(a, s) {
   return {x: a.x / s, y: a.y / s};
+}
+
+export function divv(a, b) {
+  return {x: a.x / b.x, y: a.y / b.y};
 }
 
 export function len(a) {

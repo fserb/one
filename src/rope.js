@@ -1,7 +1,6 @@
 /*
 Rope
 
-- MAZE
 - water
 - background
 - zoom?
@@ -29,6 +28,7 @@ const L = {
   body: C[5],
   grass: C[25],
   shot: C[17],
+  wall: C[19],
 };
 
 one.options({
@@ -37,25 +37,25 @@ one.options({
 });
 
 const TEMPLATES = [
-  [ 0, 2, 3, 15, 8, 10, 5, 6, 12, 13 ],
-  [ 0, 2, 5, 7, 8, 10, 13, 15, 0, 4, 7, 11],
-  [ 0, 8, 5, 13, 2, 10, 7, 15, 13.5, 14.5, 0.5, 1.5],
-
+  // [ 0, 2, 3, 11, 8, 10, 5, 6, 12, 13, 14, 15 ],
+  // [ 1, 2, 5, 6, 8, 10, 13, 15, 0, 4, 3.75, 11],
+  // [ 0, 8, 5, 13, 2, 10, 7, 15, 13.25, 14.25, 0.25, 1.25],
 ];
 
-let ropes;
+let ropes, walls;
 let PLAYER, world;
 let shot = null;
 const MAPSIZE = 13;
 const MAP = new Set();
 const MAPCENTER = {x: 0, y: 0};
-const MAPBORDER = 2;
-const MAPTILE = (MAPSIZE - MAPBORDER * 2) / 3;
+const MAPBORDER = 1.75;
+let NEXTDIR = null;
 
 // INIT ///
 
 function init() {
   ropes = new Set();
+  walls = new Set();
   world = pl.World({});
   world.setGravity({x: 0, y: 9.8});
 
@@ -73,13 +73,18 @@ function init() {
   ro.push(addRopeOne({x: 0, y: -6}, 4));
   ro.push(addRopeOne({x: 3.5, y: -6}, 5));
 
-  MAP.add({x: 0, y: 0, ropes: ro, t: -1});
+  const wa = [];
+  wa.push(addWall({x: -6.5, y: -6.5}, {x: -6.5, y: 6.5}));
+  wa.push(addWall({x: -6.5, y: 6.5}, {x: 6.5, y: 6.5}));
+  wa.push(addWall({x: 6.5, y: -6.5}, {x: 6.5, y: 6.5}));
+
+  MAP.add({x: 0, y: 0, ropes: ro, walls: wa, exit: 1});
 
   world.on('post-solve', postSolve);
   world.on('pre-solve', preSolve);
 
   one.camera.reset();
-  one.camera.z = 13;
+  one.camera.z = 13 * 2;
   one.camera.set(one.camera.lookAt(0, 0));
 }
 
@@ -105,7 +110,7 @@ function createPlayer() {
   // @ts-ignore
   PLAYER.head.createFixture(pl.Circle(pl.Vec2(0, 0), 0.6),
     {density: density,
-      filterGroupIndex: -1, filterCategoryBits: 0 });
+      filterGroupIndex: 5, filterCategoryBits: 0 });
   // @ts-ignore
   PLAYER.head.setPosition({x: 0, y: 0});
 
@@ -173,6 +178,26 @@ function createPlayer() {
       collideConnected: false, frequencyHz: 10, dampingRatio: 0.5,
     }, a.joint, PLAYER.head));
   }
+}
+
+function addWall(a, b) {
+  const d = vec.sub(b, a);
+  const v = vec.normalize(vec.perp(d));
+
+  const width = vec.len(d) + 0.2;
+  const height = 0.2;
+
+  const w = world.createBody();
+  w.setPosition(a);
+  w.createFixture(pl.Box(width / 2, height / 2, {x: width/2 - 0.1, y: 0}), {
+    filterGroupIndex: 5,
+    filterCategoryBits: 4,
+    filterMaskBits: 4,
+  });
+  w.setAngle(vec.angle(d));
+
+  walls.add(w);
+  return w;
 }
 
 function addRopeTwo(a, b, close=true) {
@@ -251,6 +276,143 @@ function addRopeOne(a, length = 5) {
 
 // UPDATE ///
 
+function buildTemplate() {
+  const block = {};
+  let w = Math.floor(4 + 3 * Math.random());
+  let h = Math.floor(4 + 2 * Math.random());
+
+  const d = w * h;
+  const id = (a, b) => Math.min(a, b) + Math.max(a, b) * d;
+  const neigh = a => [ a - w, a + 1, a + w, a - 1];
+  const prop = (a, b) => {
+    if (block[id(a,b)] === null) {
+      block[id(a,b)] = false;
+    }
+  };
+  const order = [];
+  for (let i = 0; i < d; ++i) {
+    order.push(i);
+    const b = neigh(i);
+    const a = { x: i % w, y: Math.floor(i / w) };
+    if (a.x == 0) b[3] = -1;
+    if (a.y == 0) b[0] = -1;
+    if (a.x == w - 1) b[1] = -1;
+    if (a.y == h - 1) b[2] = -1;
+
+    for (const o of b) {
+      if (o < 0) continue;
+      block[id(i, o)] = null;
+    }
+  }
+
+  order.shuffle();
+  for (const a of order) {
+    const n = neigh(a).filter(b => block[id(a, b)] === null);
+
+    if (n.length == 0) continue;
+
+    const pick = n[Math.floor(Math.random() * n.length)];
+    // const pick = n[0];
+
+    const b = pick;
+    block[id(a, b)] = true;
+
+    const [f, l] = [Math.min(a, b), Math.max(a, b)];
+    const horiz = (l - f) == 1;
+
+    if (horiz) {
+      prop(a, a + w); prop(a, a - w);
+      prop(b, b + w); prop(b, b - w);
+      if (block[id(l, l + 1)] === true) { prop(f - 1, f); prop(l + 1, l + 2); }
+      if (block[id(f - 1, f)] === true) { prop(l, l + 1); prop(f -2 , f -1); }
+      if (block[id(l + 1, l + 2)] === true) prop(l, l + 1);
+      if (block[id(f - 1, f - 2)] === true) prop(f, f - 1);
+    } else {
+      prop(a, a + 1); prop(a, a - 1);
+      prop(b, b + 1); prop(b, b - 1);
+      if (block[id(l, l + w)] === true) { prop(f - w, f); prop(l + w, l + w * 2); }
+      if (block[id(f - w, f)] === true) { prop(l, l + w); prop(f - w, f - w * 2); }
+      if (block[id(l + w, l + w * 2)] === true) prop(l, l + w);
+      if (block[id(f - w, f - w * 2)] === true) prop(f, f - w);
+    }
+  }
+
+  const data = [];
+  for (const se of Object.keys(block)) {
+    const e = Number.parseInt(se);
+    if (!block[e]) continue;
+    const a = e % d;
+    let b = (e - a) / d;
+    const horiz = (b - a) == 1;
+
+    if (horiz) {
+      if (block[id(a, a - 1)] === true) continue;
+      if (block[id(b, b + 1)] === true) b += 1;
+    } else {
+      if (block[id(a, a - w)] === true) continue;
+      if (block[id(b, b + w)] === true) b += w;
+    }
+
+      data.push(a);
+      data.push(b);
+  }
+
+  return {w, h, data};
+}
+
+const DIR = {1: {x: 0, y: -1}, 2: {x: 1, y: 0}, 4: {x: 0, y: 1}, 8: {x:-1, y:0}};
+const OPP = {1: 4, 2: 8, 4: 1, 8: 2};
+function updateWalls(quad) {
+  const MAPA = Array.from(MAP);
+  const room = MAPA.filter(m => m.x == quad.x && m.y == quad.y)[0];
+  const exit = room.exit;
+  const dir = vec.add({x:quad.x, y:quad.y}, DIR[exit]);
+  let newexit = [];
+  let block = OPP[exit];
+
+  // argh...
+  const getneigh = (p) => {
+    const adj = MAPA.filter(m => m.x == p.x && m.y == p.y);
+    return adj.length > 0 ? adj[0] : null;
+  };
+
+  const adj = getneigh(dir);
+  if (!adj) return;
+
+  if (adj.exit != 0) return updateWalls(dir);
+
+  for (let d = 1; d <= 8; d *= 2) {
+    if (d == block) continue;
+    const n = getneigh(vec.add(adj, DIR[d]));
+    if (n && n.exit != 0 && OPP[d] != n.exit) continue;
+    newexit.push(d);
+  }
+
+  const pick = newexit[Math.floor(Math.random() * newexit.length)];
+
+  const S = MAPSIZE;
+  const px = (adj.x - 0.5) * S;
+  const py = (adj.y - 0.5) * S;
+  const wa = [];
+  for (let d = 1; d <= 8; d *= 2) {
+    if (d == pick || d == block) continue;
+
+    if (d == 1) {
+      wa.push(addWall({x: px, y: py}, {x: px + S, y: py}));
+    } else if (d == 2) {
+      wa.push(addWall({x: px + S, y: py}, {x: px + S, y: py + S}));
+    } else if (d == 4) {
+      wa.push(addWall({x: px, y: py + S}, {x: px + S, y: py + S}));
+    } else if (d == 8) {
+      wa.push(addWall({x: px, y: py}, {x: px, y: py + S}));
+    }
+  }
+
+  adj.exit = pick;
+  adj.walls = wa;
+  updateWalls(dir);
+}
+
 function updateMap() {
   // - find current quadrant ID
   const pos = PLAYER.head.getPosition();
@@ -259,10 +421,10 @@ function updateMap() {
     y: Math.floor(0.5 + pos.y / MAPSIZE)};
 
   const missing = [];
-  for (let i = -2; i <= 2 ; ++i) {
+  for (let i = -1; i <= 1 ; ++i) {
     const row = [];
     missing[i] = row;
-    for (let j = -2; j <= 2; ++j) {
+    for (let j = -1; j <= 1; ++j) {
       row[j] = true;
     }
   }
@@ -287,46 +449,53 @@ function updateMap() {
   }
 
   const miss = [];
-  for (let i = -2; i <= 2; ++i) {
-    for (let j = -2; j <= 2; ++j) {
+  for (let i = -1; i <= 1; ++i) {
+    for (let j = -1; j <= 1; ++j) {
       if (!missing[i][j]) continue;
       miss.push({x: i, y: j});
     }
   }
 
+  if (miss.length == 0) return;
+
   // - for each missing quadrant
   const MB = {x: MAPBORDER, y: MAPBORDER};
   for (const m of miss) {
     //   - pick one of the building blocks, mirror
-    const t = Math.floor(TEMPLATES.length * Math.random());
-    const temp = TEMPLATES[t];
-    const mirrorX = Math.random() < 0.5;
-
-    const map = {x: quad.x + m.x, y: quad.y + m.y, t: t,
-      mirrorX, ropes: []};
+    const {w, h, data} = buildTemplate();
+    // const t = Math.floor(TEMPLATES.length * Math.random());
+    // const temp = TEMPLATES[t];
+    const maptile = {
+      x: (MAPSIZE - MAPBORDER * 2) / (w - 1),
+      y: (MAPSIZE - MAPBORDER * 2) / (h - 1) };
+    const map = {x: quad.x + m.x, y: quad.y + m.y,
+      walls: [], exit: 0, ropes: []};
     const top = {
       x: (map.x - 0.5) * MAPSIZE,
       y: (map.y - 0.5) * MAPSIZE};
 
-    for (let i = 0; i < temp.length; i += 2) {
-      const ta = temp[i];
-      const tb = temp[i + 1];
-      const a = { x: ta % 4, y: Math.floor(ta / 4) };
-      const b = { x: tb % 4, y: Math.floor(tb / 4) };
+    for (let i = 0; i < data.length; i += 2) {
+      const ta = data[i];
+      const tb = data[i + 1];
+      const a = { x: Math.floor(ta) % w, y: Math.floor(ta / w) };
+      const b = { x: Math.floor(tb) % w, y: Math.floor(tb / w) };
+      const fa = Math.frac(ta);
+      const fb = Math.frac(tb);
+      if (fa == 0.25 || fa == 0.50) a.x += 0.5;
+      if (fa == 0.75 || fa == 0.50) a.y += 0.5;
+      if (fb == 0.25 || fb == 0.50) b.x += 0.5;
+      if (fb == 0.75 || fb == 0.50) b.y += 0.5;
 
-      if (mirrorX) {
-        a.x = 3 - a.x;
-        b.x = 3 - b.x;
-      }
-
-      const pa = vec.add(top, vec.add(MB, vec.mul(a, MAPTILE)));
-      const pb = vec.add(top, vec.add(MB, vec.mul(b, MAPTILE)));
+      const pa = vec.add(top, vec.add(MB, vec.mulv(a, maptile)));
+      const pb = vec.add(top, vec.add(MB, vec.mulv(b, maptile)));
 
       const r = addRopeTwo(pa, pb, a.x != b.x);
       map.ropes.push(r);
     }
     MAP.add(map);
   }
+
+  updateWalls(quad);
 }
 
 const UPDATE = [];
@@ -388,7 +557,6 @@ function playerLook(p) {
   act(PLAYER.eye).stop()
     .attr("x", p.x, 0.1, ease.quadIn)
     .attr("y", p.y, 0.1, ease.quadIn);
-
 }
 
 function updatePlayer(tick) {
@@ -438,9 +606,10 @@ function updateCamera() {
   const p = PLAYER.head.getPosition();
   const target = one.camera.lookAt(p.x, p.y);
   const d = vec.sub(target, one.camera);
-  let ang = Math.TAU * -d.x / 30;
-  if (Math.abs(ang) < Math.TAU / 30) ang = 0;
+  let ang = Math.TAU * -d.x / 40;
+  if (Math.abs(ang) < Math.TAU / 40) ang = 0;
   target.angle = ang;
+
   one.camera.approach(target, {x: 0.02, y: 0.005, angle: 0.04});
 }
 
@@ -526,17 +695,12 @@ function render(ctx) {
   for (const r of ropes) {
     renderRope(ctx, r);
   }
+  for (const w of walls) {
+    renderWall(ctx, w);
+  }
   renderPlayer(ctx);
   renderShot(ctx);
 
-  // ctx.strokeStyle = "#333";
-  // ctx.fillStyle = "white";
-  // ctx.lineWidth = 0.05;
-  // for (const m of MAP) {
-  //   ctx.strokeRect(-6.5 + m.x * MAPSIZE, -6.5 + m.y * MAPSIZE, 13, 13);
-  //   ctx.text(m.t + (m.mirrorX ? "X" :""),
-  //     6 + m.x * MAPSIZE, 6 + m.y * MAPSIZE, 0.5, {weight: 400});
-  // }
   // renderDebug(ctx);
 }
 
@@ -664,6 +828,23 @@ function renderPlayer(ctx) {
   ctx.restore();
 }
 
+function renderWall(ctx, w) {
+  const pos = w.getPosition();
+  ctx.save();
+  ctx.translate(pos.x, pos.y);
+  ctx.rotate(w.getAngle());
+
+  let fixture = w.getFixtureList().m_shape;
+  ctx.fillStyle = L.wall;
+  ctx.beginPath();
+  for (const v of fixture.m_vertices) {
+    ctx.lineTo(v.x, v.y);
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
 function renderRope(ctx, r) {
   let prev = r[0].getPosition();
 
@@ -718,10 +899,12 @@ function renderDebug(ctx) {
         ctx.closePath();
         ctx.stroke();
       }
-
       // console.log(shape.m_type);
     }
     ctx.restore();
+    const p = body.getWorldCenter();
+    ctx.fillStyle = "red";
+    ctx.fillCircle(p.x, p.y, 0.025);
   }
 }
 
