@@ -1,7 +1,6 @@
 /*
 Rope
 
-- don't hold right after release
 - water
 - zoom?
 */
@@ -87,8 +86,8 @@ function init() {
 function createPlayer() {
   PLAYER = {
     arms: [
-      {hold: null, hand: null, joint: null, holder: null, holderTime: 0},
-      {hold: null, hand: null, joint: null, holder: null, holderTime: 0},
+      {hold: null, hand: null, joint: null, holder: null, holderTime: -1},
+      {hold: null, hand: null, joint: null, holder: null, holderTime: -1},
     ],
     head: null,
     body: [],
@@ -445,9 +444,10 @@ function preSolve(contact) {
     contact.setEnabled(false);
   }
   const now = performance.now();
-  if (arm.holder != rope.parent) return;
   if (arm.holderTime == -1) return;
-  if (arm.holderTime < now) return;
+  const delta = now - arm.holderTime;
+  if (arm.holder == rope.parent && delta > 300) return;
+  if (arm.holder != rope.parent && delta > 50) return;
   contact.setEnabled(false);
 }
 
@@ -463,8 +463,10 @@ function postSolve(contact) {
   if (hand == null || rope == null) return;
   const arm = PLAYER.arms[0].hand === hand ? PLAYER.arms[0] : PLAYER.arms[1];
   const now = performance.now();
-  if (arm.holder == rope.parent &&
-    (arm.holderTime == -1 || arm.holderTime > now)) return;
+  const delta = now - arm.holderTime;
+  if (arm.holder == rope.parent && (arm.holderTime == -1 || delta < 300)) {
+    return;
+  }
   const wm = contact.getWorldManifold();
   const p = wm.points[0];
 
@@ -612,7 +614,7 @@ function updateShot(tick) {
 
     if (arm.hold) {
       world.destroyJoint(arm.hold);
-      arm.holderTime = performance.now() + 300;
+      arm.holderTime = performance.now();
       arm.hold = null;
     }
 
@@ -814,6 +816,7 @@ function renderRope(ctx, r) {
 }
 
 const BGZOOM = 4;
+const BGSEED = Math.random();
 
 function renderBG(ctx) {
   ctx.fillStyle = "#1D1515";
@@ -824,8 +827,8 @@ function renderBG(ctx) {
   const y1 = Math.round(one.camera.cy + 7.5 * ZOOM * BGZOOM);
 
   for (let x = x0; x <= x1; x++) {
-    for (let y = y0; y <= y1; y ++) {
-      const v = Math.floor(x + y * x + y + x * x * y);
+    for (let y = y0; y <= y1; y++) {
+      const v = Math.floor(BGSEED * (x + y * x + y + x * x * y));
       if (v % Math.floor(173 * 2) != 0) continue;
 
       let px = (x - one.camera.cx) / BGZOOM + one.camera.cx;
