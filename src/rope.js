@@ -85,7 +85,7 @@ function init() {
   world.on('pre-solve', preSolve);
 
   one.camera.reset();
-  one.camera.z = 13 * 6;
+  one.camera.z = 13 * 2;
   one.camera.set(one.camera.lookAt(0, 0));
 }
 
