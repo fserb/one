@@ -1,7 +1,6 @@
 /*
 Rope
 
-- only build maze path
 - water
 - background
 - zoom?
@@ -29,7 +28,6 @@ const L = {
   body: C[5],
   grass: C[25],
   shot: C[17],
-  wall: C[19],
 };
 
 one.options({
@@ -43,49 +41,46 @@ const TEMPLATES = [
   // [ 0, 8, 5, 13, 2, 10, 7, 15, 13.25, 14.25, 0.25, 1.25],
 ];
 
-let ropes, walls;
+let ropes;
 let PLAYER, world;
 let shot = null;
-const MAPSIZE = 13;
-const MAP = new Set();
-const MAPCENTER = {x: 0, y: 0};
-const MAPBORDER = 1.5;
 let NEXTDIR = null;
+const ZOOM = 1.5;
+let path = null;
+let pathDir = null;
+let pathVel = null;
+let pathHorizon = null;
 
 // INIT ///
 
 function init() {
   ropes = new Set();
-  walls = new Set();
+  path = [];
+  pathDir = {x: 0, y: -1};
+  pathVel = 0;
   world = pl.World({});
   world.setGravity({x: 0, y: 9.8});
 
   createPlayer();
+  path.push({x: 0, y: -6.5});
+  pathHorizon = [ 0, 0, 0, 0, 0, 0, 0, 0 ];
 
-  MAP.clear();
-  MAPCENTER.x = MAPCENTER.y = 0;
   const ro = [];
+
   ro.push(addRopeTwo({x: -2, y: 0}, {x: 2, y: 0}));
 
-  ro.push(addRopeTwo({x: -6, y: 2}, {x: -3, y: 2}));
-  ro.push(addRopeTwo({x: -2, y: 5}, {x: 2, y: 5}));
-  ro.push(addRopeTwo({x: 3, y: 2}, {x: 6, y: 2}));
+  ro.push(addRopeTwo({x: -4, y: 2}, {x: 4, y: 2}));
+
+
   ro.push(addRopeOne({x: -3.5, y: -6}, 5));
   ro.push(addRopeOne({x: 0, y: -6}, 4));
   ro.push(addRopeOne({x: 3.5, y: -6}, 5));
-
-  const wa = [];
-  wa.push(addWall({x: -6.5, y: -6.5}, {x: -6.5, y: 6.5}));
-  wa.push(addWall({x: -6.5, y: 6.5}, {x: 6.5, y: 6.5}));
-  wa.push(addWall({x: 6.5, y: -6.5}, {x: 6.5, y: 6.5}));
-
-  MAP.add({x: 0, y: 0, ropes: ro, walls: wa, exit: 1});
 
   world.on('post-solve', postSolve);
   world.on('pre-solve', preSolve);
 
   one.camera.reset();
-  one.camera.z = 13 * 2;
+  one.camera.z = 13 * ZOOM;
   one.camera.set(one.camera.lookAt(0, 0));
 }
 
@@ -138,7 +133,7 @@ function createPlayer() {
   for (const a of PLAYER.arms) {
     a.hand = world.createDynamicBody({
       userData: "hand", bullet: true, linearDamping: 0.1});
-    a.hand.createFixture(pl.Circle(pl.Vec2(0, 0), 0.75),
+    a.hand.createFixture(pl.Circle(pl.Vec2(0, 0), 0.8 * ZOOM),
       {isSensor: true});
     a.hand.createFixture(pl.Circle(pl.Vec2(0, 0), 0.1),
       {density: 0, filterGroupIndex: 3});
@@ -150,7 +145,6 @@ function createPlayer() {
     });
     a.joint.createFixture(pl.Circle(pl.Vec2(0, 0), 0.1),
       {density: 0.1,});
-    // a.hand.setStatic();
 
     if (first) {
       first = false;
@@ -181,34 +175,22 @@ function createPlayer() {
   }
 }
 
-function addWall(a, b) {
-  const d = vec.sub(b, a);
-  const v = vec.normalize(vec.perp(d));
-
-  const width = vec.len(d) + 0.2;
-  const height = 0.2;
-
-  const w = world.createBody();
-  w.setPosition(a);
-  w.createFixture(pl.Box(width / 2, height / 2, {x: width/2 - 0.1, y: 0}), {
-    filterGroupIndex: 5,
-    filterCategoryBits: 4,
-    filterMaskBits: 4,
-  });
-  w.setAngle(vec.angle(d));
-
-  walls.add(w);
-  return w;
-}
-
 function addRopeTwo(a, b, close=true) {
-  const r = vec.sub(b, a);
+  let r = vec.sub(b, a);
   const v = vec.normalize(r);
   const n = vec.perp(v);
-  const len = vec.len(r);
-  const length = len;
+  let len = vec.len(r);
+  let length = len;
   const parts = Math.round(length);
   const size = 1;
+  const total = parts * (size + 0.1) + 0.1;
+  let diff = len - total;
+  if (diff > -0.05) {
+    diff = Math.max(diff, 0.05);
+    a = vec.add(a, vec.mul(v, diff / 2));
+    b = vec.add(b, vec.mul(v, -diff / 2));
+    return addRopeTwo(a, b, close);
+  }
 
   const ang = vec.angle(v) - Math.PI / 2;
 
@@ -276,260 +258,173 @@ function addRopeOne(a, length = 5) {
 }
 
 // UPDATE ///
+function stepPath() {
+  const player = PLAYER.head.getPosition();
+  const last = path[path.length - 1];
+  const dist = vec.len(vec.sub(last, player));
+  if (dist > 13 * 2) return;
 
-function buildTemplate() {
-  const block = {};
-  let w = Math.floor(4 + 2 * Math.random());
-  let h = Math.floor(4 + 1 * Math.random());
+  // move path forward by pathDir
+  const step = 13 / (3 + 3 * Math.random());
+  const next = vec.add(last, vec.mul(pathDir, step));
 
-  const d = w * h;
-  const id = (a, b) => Math.min(a, b) + Math.max(a, b) * d;
-  const neigh = a => [ a - w, a + 1, a + w, a - 1];
-  const prop = (a, b) => {
-    if (block[id(a,b)] === null) {
-      block[id(a,b)] = false;
+  // move horizon down
+  const length = 13 + 7 * Math.random();
+  const yv = vec.mul(vec.normalize(pathDir), step);
+  const xv = vec.mul(vec.normalize(vec.perp(yv)), length);
+  // build path step
+  // granularity
+  const divs = Math.floor(length / (2 + 1 * Math.random()));
+  // map it to horizon
+  const horiz = [];
+
+  let lastDir = vec.sub(last, path[path.length - 2] ?? last);
+  if (lastDir.x == 0 && lastDir.y == 0) lastDir.y = -1;
+  const lastNorm = vec.mul(vec.normalize(vec.perp(lastDir)), length);
+
+  const xx = [];
+  for (let i = 0; i < pathHorizon.length; ++i) {
+    const p = (2 * (i / pathHorizon.length) - 1) / 2;
+    const a = vec.add(yv, vec.mul(xv, p));
+    const b = vec.mul(lastNorm, p);
+
+    const d = vec.len(vec.sub(a, b)) / step;
+    xx.push(d);
+
+    pathHorizon[i] -= d;
+  }
+  for (let i = 0; i < divs; ++i) {
+    const x0 = i / divs;
+    const x1 = (i + 1) / divs;
+    const h0 = Math.floor(pathHorizon.length * x0);
+    const h1 = Math.ceil(pathHorizon.length * x1);
+    let max = -1;
+    for (let x = h0; x < h1; x++) {
+      max = Math.max(max, pathHorizon[x] ?? -1);
     }
-  };
-  const order = [];
-  for (let i = 0; i < d; ++i) {
-    order.push(i);
-    const b = neigh(i);
-    const a = { x: i % w, y: Math.floor(i / w) };
-    if (a.x == 0) b[3] = -1;
-    if (a.y == 0) b[0] = -1;
-    if (a.x == w - 1) b[1] = -1;
-    if (a.y == h - 1) b[2] = -1;
+    horiz.push(max);
+  }
 
-    for (const o of b) {
-      if (o < 0) continue;
-      block[id(i, o)] = null;
+  const space = [];
+  for (let i = 0; i < divs; ++i) {
+    // region is blocked.
+    if (horiz[i] > -0.5) {
+      space.push(null);
+      continue;
+    }
+    const opts = [true];
+    if (horiz[i] < 0.25) opts.push(false);
+
+    space[i] = opts[Math.floor(opts.length * Math.random())];
+  }
+  let cut = Math.max(1, divs - 4);
+  for (let i = 0; i < divs - 2; ++i) {
+    if (space[i] === true && space[i + 1] === true && space[i + 2] === true) {
+      space[i + 2] = null;
+      cut--;
     }
   }
 
-  order.shuffle();
-  let added = 0;
-  for (const a of order) {
-    const n = neigh(a).filter(b => block[id(a, b)] === null);
+  for (let i = 0; i < cut; i++) {
+    const idx = Math.floor(divs * Math.random());
+    space[idx] = null;
+  }
 
-    if (n.length == 0) continue;
+  const line = [];
+  const norm = [];
+  for (let idx = 0; idx < divs; ++idx) {
+    if (space[idx] === null) continue;
+    if (space[idx] === false) {
+      const height = (0.5 + 1.5 * Math.random());
 
-    const pick = n[Math.floor(Math.random() * n.length)];
-    // const pick = n[0];
+      const end = horiz[idx] + 0.5;
+      norm.push([idx, end + height, end]);
+      horiz[idx] = end + height;
+      continue;
+    }
 
-    const b = pick;
-    block[id(a, b)] = true;
-    added++;
-
-    const [f, l] = [Math.min(a, b), Math.max(a, b)];
-    const horiz = (l - f) == 1;
-
-    if (horiz) {
-      prop(a, a + w); prop(a, a - w);
-      prop(b, b + w); prop(b, b - w);
-      if (block[id(l, l + 1)] === true) { prop(f - 1, f); prop(l + 1, l + 2); }
-      if (block[id(f - 1, f)] === true) { prop(l, l + 1); prop(f -2 , f -1); }
-      if (block[id(l + 1, l + 2)] === true) prop(l, l + 1);
-      if (block[id(f - 1, f - 2)] === true) prop(f, f - 1);
+    if (space[idx + 1] === true) {
+      horiz[idx] = 0;
+      horiz[idx + 1] = 0;
+      line.push([idx, idx + 1]);
+      idx++;
     } else {
-      prop(a, a + 1); prop(a, a - 1);
-      prop(b, b + 1); prop(b, b - 1);
-      if (block[id(l, l + w)] === true) { prop(f - w, f); prop(l + w, l + w * 2); }
-      if (block[id(f - w, f)] === true) { prop(l, l + w); prop(f - w, f - w * 2); }
-      if (block[id(l + w, l + w * 2)] === true) prop(l, l + w);
-      if (block[id(f - w, f - w * 2)] === true) prop(f, f - w);
+      line.push([idx, idx]);
+      horiz[idx] = 0;
     }
   }
 
-  const data = [];
-  let remove = Math.round(2 + (added - 8) * Math.random());
-  const keys = Object.keys(block);
-  keys.shuffle();
-  for (let i = 0; i < remove; ++i) {
-    block[keys[i]] = false;
+  const direc = Math.abs(vec.dot(vec.normalize(pathDir), {x: 0, y: -1}));
+  let lineclose = true;
+  let normclose = true;
+  if (direc < 0.25) lineclose = false;
+  if (direc > 0.75) normclose = false;
+
+  for (const n of norm) {
+    const x = ((n[0] + 0.5) / divs) - 0.5;
+    const y0 = n[1];
+    const y1 = n[2];
+
+    const p0 = vec.add(next, vec.add(vec.mul(xv, x), vec.mul(yv, y0)));
+    const p1 = vec.add(next, vec.add(vec.mul(xv, x), vec.mul(yv, y1)));
+
+    addRopeTwo(p0, p1, normclose);
   }
 
-  for (const se of Object.keys(block)) {
-    const e = Number.parseInt(se);
-    if (!block[e]) continue;
-    const a = e % d;
-    let b = (e - a) / d;
-    const horiz = (b - a) == 1;
+  for (const l of line) {
+    const y = 0;
+    const x0 = ((l[0]) / divs) - 0.5;
+    const x1 = ((l[1] + 1) / divs) - 0.5;
 
-    if (horiz) {
-      if (block[id(a, a - 1)] === true) continue;
-      if (block[id(b, b + 1)] === true) b += 1;
-    } else {
-      if (block[id(a, a - w)] === true) continue;
-      if (block[id(b, b + w)] === true) b += w;
-    }
+    const p0 = vec.add(next, vec.add(vec.mul(xv, x0), vec.mul(yv, y)));
+    const p1 = vec.add(next, vec.add(vec.mul(xv, x1), vec.mul(yv, y)));
 
-    data.push(a);
-    data.push(b);
+    addRopeTwo(p0, p1, lineclose);
   }
 
-  return {w, h, data};
-}
+  // remap horizon
+  for (let i = 0; i < divs; ++i) {
+    const h0 = Math.floor(pathHorizon.length * i / divs);
+    const h1 = Math.ceil(pathHorizon.length * (i + 1) / divs);
 
-const DIR = {1: {x: 0, y: -1}, 2: {x: 1, y: 0}, 4: {x: 0, y: 1}, 8: {x:-1, y:0}};
-const OPP = {1: 4, 2: 8, 4: 1, 8: 2};
-function updateWalls(quad) {
-  if (!quad) return;
-  const MAPA = Array.from(MAP);
-  const room = MAPA.filter(m => m.x == quad.x && m.y == quad.y)[0];
-  const exit = room.exit;
-  if (!exit) return;
-  const dir = vec.add({x:quad.x, y:quad.y}, DIR[exit]);
-  let newexit = [];
-  let block = OPP[exit];
-
-  // argh...
-  const getneigh = (p) => {
-    const adj = MAPA.filter(m => m.x == p.x && m.y == p.y);
-    return adj.length > 0 ? adj[0] : null;
-  };
-
-  let adj = getneigh(dir);
-  if (!adj) {
-    const pos = PLAYER.head.getPosition();
-    const pquad = {
-      x: Math.floor(0.5 + pos.x / MAPSIZE),
-      y: Math.floor(0.5 + pos.y / MAPSIZE)};
-
-    const dx = dir.x - pquad.x;
-    const dy = dir.y - pquad.y;
-    const d = Math.max(Math.abs(dx), Math.abs(dy));
-    if (d > 3) return;
-    adj = addMapArea(dir);
-  }
-
-  if (adj.exit != 0) return updateWalls(dir);
-  // console.log(quad, dir);
-
-  for (let d = 1; d <= 8; d *= 2) {
-    if (d == block) continue;
-    const n = getneigh(vec.add(adj, DIR[d]));
-    if (n && n.exit != 0 && OPP[d] != n.exit) continue;
-    newexit.push(d);
-  }
-
-  const pick = newexit[Math.floor(Math.random() * newexit.length)];
-
-  const S = MAPSIZE;
-  const px = (adj.x - 0.5) * S;
-  const py = (adj.y - 0.5) * S;
-  const wa = [];
-  for (let d = 1; d <= 8; d *= 2) {
-    if (d == pick || d == block) continue;
-
-    if (d == 1) {
-      wa.push(addWall({x: px, y: py}, {x: px + S, y: py}));
-    } else if (d == 2) {
-      wa.push(addWall({x: px + S, y: py}, {x: px + S, y: py + S}));
-    } else if (d == 4) {
-      wa.push(addWall({x: px, y: py + S}, {x: px + S, y: py + S}));
-    } else if (d == 8) {
-      wa.push(addWall({x: px, y: py}, {x: px, y: py + S}));
+    for (let x = h0; x <= h1; x++) {
+      pathHorizon[x] = Math.max(pathHorizon[x] ?? 0, horiz[i]);
     }
   }
 
-  adj.exit = pick;
-  adj.walls = wa;
-  updateWalls(dir);
-}
+  // update pathDir
+  path.push(next);
 
-function addMapArea(dir) {
-  const MB = {x: MAPBORDER, y: MAPBORDER};
+  const MAXV = 0.1;
+  const FLEX = 0.5;
+  pathVel += MAXV * (2 * Math.random() - 1) * FLEX;
+  pathVel = Math.clamp(pathVel, -MAXV, MAXV);
 
-  //   - pick one of the building blocks, mirror
-  const {w, h, data} = buildTemplate();
-  // const t = Math.floor(TEMPLATES.length * Math.random());
-  // const temp = TEMPLATES[t];
-  const maptile = {
-    x: (MAPSIZE - MAPBORDER * 2) / (w - 1),
-    y: (MAPSIZE - MAPBORDER * 2) / (h - 1) };
-  const map = {x: dir.x, y: dir.y,
-    walls: [], exit: 0, ropes: []};
-  const top = {
-    x: (map.x - 0.5) * MAPSIZE,
-    y: (map.y - 0.5) * MAPSIZE};
+  const n = vec.mul(vec.normalize(vec.perp(pathDir)), pathVel);
+  pathDir = vec.normalize(vec.add(pathDir, n));
 
-  for (let i = 0; i < data.length; i += 2) {
-    const ta = data[i];
-    const tb = data[i + 1];
-    const a = { x: Math.floor(ta) % w, y: Math.floor(ta / w) };
-    const b = { x: Math.floor(tb) % w, y: Math.floor(tb / w) };
-    const fa = Math.frac(ta);
-    const fb = Math.frac(tb);
-    if (fa == 0.25 || fa == 0.50) a.x += 0.5;
-    if (fa == 0.75 || fa == 0.50) a.y += 0.5;
-    if (fb == 0.25 || fb == 0.50) b.x += 0.5;
-    if (fb == 0.75 || fb == 0.50) b.y += 0.5;
-
-    const pa = vec.add(top, vec.add(MB, vec.mulv(a, maptile)));
-    const pb = vec.add(top, vec.add(MB, vec.mulv(b, maptile)));
-
-    const r = addRopeTwo(pa, pb, a.x != b.x);
-    map.ropes.push(r);
-  }
-  MAP.add(map);
-  return map;
+  stepPath();
 }
 
 function updateMap() {
   // - find current quadrant ID
   const pos = PLAYER.head.getPosition();
-  const quad = {
-    x: Math.floor(0.5 + pos.x / MAPSIZE),
-    y: Math.floor(0.5 + pos.y / MAPSIZE)};
 
-  const missing = [];
-  for (let i = -1; i <= 1 ; ++i) {
-    const row = [];
-    missing[i] = row;
-    for (let j = -1; j <= 1; ++j) {
-      row[j] = true;
-    }
-  }
+  stepPath();
 
-  // - clean up two-adjacent-quadrants
-  for (const m of MAP) {
-    const dx = m.x - quad.x;
-    const dy = m.y - quad.y;
-    if (missing[dx] && missing[dx][dy]) missing[dx][dy] = false;
-    const d = Math.max(Math.abs(dx), Math.abs(dy));
-    if (d <= 3) continue;
-    for (const r of m.ropes) {
-      for (const p of r) {
-        for (let j = p.getJointList(); j; j = j.next) {
-          world.destroyJoint(j.joint);
-        }
-        world.destroyBody(p);
+  for (const r of ropes) {
+    const p = r[0].getPosition();
+    const d = vec.len(vec.sub(p, pos));
+    if (d < 13 * 3) continue;
+
+    for (const x of r) {
+      for (let j = x.getJointList(); j; j = j.next) {
+        world.destroyJoint(j.joint);
       }
-      ropes.delete(r);
+      world.destroyBody(x);
     }
-    for (const w of m.walls) {
-      world.destroyBody(w);
-      walls.delete(w);
-    }
-    MAP.delete(m);
+    ropes.delete(r);
   }
-
-  const miss = [];
-  for (let i = -1; i <= 1; ++i) {
-    for (let j = -1; j <= 1; ++j) {
-      if (!missing[i][j]) continue;
-      miss.push({x: i, y: j});
-    }
-  }
-
-  if (miss.length == 0) return;
-
-  // - for each missing quadrant
-  // for (const m of miss) {
-  //   addMapArea({x: quad.x + m.x, y: quad.y + m.y});
-  // }
-
-  updateWalls(quad);
 }
 
 const UPDATE = [];
@@ -732,9 +627,6 @@ function render(ctx) {
   for (const r of ropes) {
     renderRope(ctx, r);
   }
-  for (const w of walls) {
-    renderWall(ctx, w);
-  }
   renderPlayer(ctx);
   renderShot(ctx);
 
@@ -862,23 +754,6 @@ function renderPlayer(ctx) {
     }
     ctx.fill();
   }
-  ctx.restore();
-}
-
-function renderWall(ctx, w) {
-  const pos = w.getPosition();
-  ctx.save();
-  ctx.translate(pos.x, pos.y);
-  ctx.rotate(w.getAngle());
-
-  let fixture = w.getFixtureList().m_shape;
-  ctx.fillStyle = L.wall;
-  ctx.beginPath();
-  for (const v of fixture.m_vertices) {
-    ctx.lineTo(v.x, v.y);
-  }
-  ctx.closePath();
-  ctx.fill();
   ctx.restore();
 }
 
