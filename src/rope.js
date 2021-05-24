@@ -1,8 +1,8 @@
 /*
 Rope
 
+- don't hold right after release
 - water
-- background
 - zoom?
 */
 
@@ -265,7 +265,7 @@ function stepPath() {
   if (dist > 13 * 2) return;
 
   // move path forward by pathDir
-  const step = 13 / (3 + 3 * Math.random());
+  const step = 13 / (4 + 2 * Math.random());
   const next = vec.add(last, vec.mul(pathDir, step));
 
   // move horizon down
@@ -308,7 +308,7 @@ function stepPath() {
   const space = [];
   for (let i = 0; i < divs; ++i) {
     // region is blocked.
-    if (horiz[i] > -0.5) {
+    if (horiz[i] > -0.4) {
       space.push(null);
       continue;
     }
@@ -335,7 +335,7 @@ function stepPath() {
   for (let idx = 0; idx < divs; ++idx) {
     if (space[idx] === null) continue;
     if (space[idx] === false) {
-      const height = (0.5 + 1.5 * Math.random());
+      const height = (0.75 + 1.5 * Math.random());
 
       const end = horiz[idx] + 0.5;
       norm.push([idx, end + height, end]);
@@ -543,11 +543,29 @@ function updateCamera() {
 }
 
 function updateShot(tick) {
+  // if (mouse.click) {
+  //   const p = one.camera.map(mouse);
+  //   PLAYER.head.setPosition(p);
+  //   for (let i = 0; i < 2; ++i) {
+  //     const a = PLAYER.arms[i];
+  //     a.hand.setPosition(p);
+  //     if (a.hold) { world.destroyJoint(a.hold); a.hold = null; }
+  //     a.joint.setPosition(p);
+  //   }
+  //   for (const b of PLAYER.body) {
+  //     b.setPosition(p);
+  //   }
+  //   return;
+  // }
+
+
   if (mouse.click) {
     const p = one.camera.map(mouse);
     const aabb = pl.AABB({x: p.x - 0.001, y: p.y - 0.001},
       {x: p.x + 0.001, y: p.y + 0.001});
 
+    let hand = null;
+    let dist = 1e99;
     world.queryAABB(aabb, (x) => {
       const b = x.getBody();
       if (b.getUserData() != "hand") return;
@@ -556,13 +574,19 @@ function updateShot(tick) {
       const arm = PLAYER.arms[0].hand === b ? PLAYER.arms[0] : PLAYER.arms[1];
       if (!arm.hold && vel > 5) return;
 
-      shot = {
-        hand: b,
-        offset: 0,
-        target: {x: mouse.x, y: mouse.y },
-      };
-      return false;
+      const d = vec.len(vec.sub(p, b.getPosition()));
+      if (d < dist) {
+        hand = b;
+        dist = d;
+      }
     });
+
+    if (hand !== null) {
+      shot = {
+        hand: hand,
+        offset: 0,
+        target: {x: mouse.x, y: mouse.y }};
+    }
   }
 
   if (!shot) return;
@@ -592,7 +616,6 @@ function updateShot(tick) {
       arm.hold = null;
     }
 
-    shot.hand.setDynamic();
     shot.hand.applyForceToCenter(d);
     shot = null;
   }
@@ -612,7 +635,7 @@ function update(tick) {
 // RENDER ///
 
 function render(ctx) {
-  ctx.fillStyle = L.fg;
+  ctx.fillStyle = "#1D1515";
   ctx.fillRect(0,0,1024,1024);
 
   one.camera.transform(ctx);
@@ -623,6 +646,8 @@ function render(ctx) {
   ctx.beginPath();
   ctx.rect(B + one.camera.cx - D/2, B + one.camera.cy - D/2, D - 2 * B, D - 2 * B);
   ctx.clip();
+
+  renderBG(ctx);
 
   for (const r of ropes) {
     renderRope(ctx, r);
@@ -785,6 +810,28 @@ function renderRope(ctx, r) {
   if (prev.getUserData() !== "rope") {
     prev = prev.getPosition();
     ctx.fillCircle(prev.x, prev.y, 0.2);
+  }
+}
+
+const BGZOOM = 4;
+
+function renderBG(ctx) {
+  ctx.fillStyle = "#1D1515";
+
+  const x0 = Math.round(one.camera.cx - 7.5 * ZOOM * BGZOOM);
+  const y0 = Math.round(one.camera.cy - 7.5 * ZOOM * BGZOOM);
+  const x1 = Math.round(one.camera.cx + 7.5 * ZOOM * BGZOOM);
+  const y1 = Math.round(one.camera.cy + 7.5 * ZOOM * BGZOOM);
+
+  for (let x = x0; x <= x1; x++) {
+    for (let y = y0; y <= y1; y ++) {
+      const v = Math.floor(x + y * x + y + x * x * y);
+      if (v % Math.floor(173 * 2) != 0) continue;
+
+      let px = (x - one.camera.cx) / BGZOOM + one.camera.cx;
+      let py = (y - one.camera.cy) / BGZOOM + one.camera.cy;
+      ctx.fillRoundRect(px, py, 2 , 1.24 , 2 * 0.1 );
+    }
   }
 }
 
