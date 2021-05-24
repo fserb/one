@@ -1,6 +1,7 @@
 /*
 Rope
 
+- only build maze path
 - water
 - background
 - zoom?
@@ -48,7 +49,7 @@ let shot = null;
 const MAPSIZE = 13;
 const MAP = new Set();
 const MAPCENTER = {x: 0, y: 0};
-const MAPBORDER = 1.75;
+const MAPBORDER = 1.5;
 let NEXTDIR = null;
 
 // INIT ///
@@ -278,8 +279,8 @@ function addRopeOne(a, length = 5) {
 
 function buildTemplate() {
   const block = {};
-  let w = Math.floor(4 + 3 * Math.random());
-  let h = Math.floor(4 + 2 * Math.random());
+  let w = Math.floor(4 + 2 * Math.random());
+  let h = Math.floor(4 + 1 * Math.random());
 
   const d = w * h;
   const id = (a, b) => Math.min(a, b) + Math.max(a, b) * d;
@@ -306,6 +307,7 @@ function buildTemplate() {
   }
 
   order.shuffle();
+  let added = 0;
   for (const a of order) {
     const n = neigh(a).filter(b => block[id(a, b)] === null);
 
@@ -316,6 +318,7 @@ function buildTemplate() {
 
     const b = pick;
     block[id(a, b)] = true;
+    added++;
 
     const [f, l] = [Math.min(a, b), Math.max(a, b)];
     const horiz = (l - f) == 1;
@@ -338,6 +341,14 @@ function buildTemplate() {
   }
 
   const data = [];
+  let remove = Math.round(1 + (added - 8) * Math.random());
+  console.log(added, remove);
+  const keys = Object.keys(block);
+  keys.shuffle();
+  for (let i = 0; i < remove; ++i) {
+    block[keys[i]] = false;
+  }
+
   for (const se of Object.keys(block)) {
     const e = Number.parseInt(se);
     if (!block[e]) continue;
@@ -353,8 +364,8 @@ function buildTemplate() {
       if (block[id(b, b + w)] === true) b += w;
     }
 
-      data.push(a);
-      data.push(b);
+    data.push(a);
+    data.push(b);
   }
 
   return {w, h, data};
@@ -651,7 +662,10 @@ function updateShot(tick) {
     const v = vec.sub(p, shot.target);
     const l = vec.len(v);
     const d = vec.mul(v, 50 * l);
-
+    if (l < 1) {
+      shot = null;
+      return;
+    }
     const arm = PLAYER.arms[0].hand === shot.hand ? PLAYER.arms[0] : PLAYER.arms[1];
 
     if (arm.hold) {
