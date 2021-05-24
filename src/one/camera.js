@@ -48,7 +48,6 @@ class Camera {
 
     this.x = this.cx - 512;
     this.y = this.cy - 512;
-
   }
 
   lerp(target, duration, easing) {

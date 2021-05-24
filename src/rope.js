@@ -2,7 +2,6 @@
 Rope
 
 - water
-- zoom?
 */
 
 import * as one from "./one/one.js";
@@ -536,12 +535,17 @@ function updatePlayer(tick) {
 function updateCamera() {
   const p = PLAYER.head.getPosition();
   const target = one.camera.lookAt(p.x, p.y);
+
+  const dist = Math.hypot(target.cx - one.camera.cx, target.cy - one.camera.cy);
+
   const d = vec.sub(target, one.camera);
   let ang = Math.TAU * -d.x / 40;
   if (Math.abs(ang) < Math.TAU / 40) ang = 0;
   target.angle = ang;
 
   one.camera.approach(target, {x: 0.02, y: 0.005, angle: 0.04});
+
+  // console.log(dist);
 }
 
 function updateShot(tick) {
@@ -816,7 +820,7 @@ function renderRope(ctx, r) {
 }
 
 const BGZOOM = 4;
-const BGSEED = Math.random();
+const BGSEED = 1 + Math.random();
 
 function renderBG(ctx) {
   ctx.fillStyle = "#1D1515";
