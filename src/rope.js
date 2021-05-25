@@ -43,9 +43,12 @@ let pathVel = null;
 let pathHorizon = null;
 let ENEMY = null;
 let enemyPath;
+let enemyNatural;
 let enemySpeed;
 let enemyPhase;
 let enemyRot;
+let enemyStep;
+let enemyReset;
 
 // INIT ///
 function init() {
@@ -79,7 +82,10 @@ function init() {
 
 function createEnemy() {
   enemyPath = 0;
+  enemyStep = 0;
+  enemyReset = 1800;
   enemySpeed = 1;
+  enemyNatural = 0;
   enemyPhase = 0;
   enemyRot = 50;
   ENEMY = world.createBody({userData: "enemy"});
@@ -658,7 +664,8 @@ function updateEnemy() {
   const a = ENEMY.getAngle();
 
   const mv = 0.001 * enemySpeed;
-  const dist = vec.clamp(vec.sub(target, p), -mv, mv);
+  const fulldist = vec.sub(target, p);
+  const dist = vec.clamp(fulldist, -mv, mv);
   ENEMY.setPosition(vec.add(p, dist));
 
   let da = (target.angle - a + Math.PI) % Math.TAU - Math.PI;
@@ -667,23 +674,25 @@ function updateEnemy() {
   da = Math.clamp(da, -ma, ma);
   ENEMY.setAngle(a + da);
 
-  if (vec.len(dist) < 0.001) {
+  if (vec.len(fulldist) < 0.001) {
     enemyPath++;
   }
 
-  // console.log(target);
-  // const s = 0.01 * enemySpeed;
-  // ENEMY.setAngle(Math.lerp(ENEMY.getAngle(), target.angle, s));
+  enemyStep++;
+  if (enemyStep > enemyReset) {
+    enemyStep -= enemyReset;
+    enemyReset = Math.max(300, enemyReset * 0.6);
+    enemyNatural++;
+    console.log(enemyNatural, enemyReset);
+  }
 
-  // const nx = Math.lerp(p.x, target.x, s);
-  // const ny = Math.lerp(p.y, target.y, s);
-  // ENEMY.setPosition({x: nx, y: ny});
-
-  // const dist = vec.len(vec.sub(target, p));
-  // if (dist < 0.1) {
-  //   // console.log("NEXT");
-  // }
-
+  // don't let the player get away
+  const player = vec.len(vec.sub(PLAYER.head.getPosition(), p));
+  if (player > 14) {
+    enemySpeed = 100;
+  } else {
+    enemySpeed = enemyNatural;
+  }
 }
 
 function update(tick) {
@@ -751,7 +760,7 @@ function renderEnemy(ctx) {
   const size = b * 2 / (steps - 1);
   const other = vec.perp(dir);
   const h = 1;
-  const dd = size * (enemyPhase / enemyRot) - (adv % size);
+  const dd = size * (-enemyPhase / enemyRot) - (adv % size);
   const a0 = vec.add(vec.add(p0, vec.mul(other, h / 3)), vec.mul(dir, dd));
   const b0 = vec.add(p1, vec.mul(other, h / 3));
   ctx.lineTo(a0.x, a0.y);
