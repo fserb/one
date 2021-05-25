@@ -25,7 +25,9 @@ export function update(tick) {
 }
 
 export function render(ctx) {
+  ctx.save();
   stages["game"].render(ctx);
+  ctx.restore();
 
   const h = Math.lerp(44, 512, state.t);
 

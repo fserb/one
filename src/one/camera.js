@@ -109,6 +109,12 @@ class Camera {
     return c;
   }
 
+  box() {
+    const a = this.map({x: 0, y: 0});
+    const b = this.map({x: 1024, y: 1024});
+    return {a, b};
+  }
+
   map(p) {
     const cos = Math.cos(this.angle);
     const sin = Math.sin(this.angle);

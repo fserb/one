@@ -1,7 +1,7 @@
 /*
 Rope
 
-- water
+- die when in the air for > X seconds
 */
 
 import * as one from "./one/one.js";
@@ -33,30 +33,30 @@ one.options({
   fgColor: L.fg,
 });
 
-const TEMPLATES = [
-  // [ 0, 2, 3, 11, 8, 10, 5, 6, 12, 13, 14, 15 ],
-  // [ 1, 2, 5, 6, 8, 10, 13, 15, 0, 4, 3.75, 11],
-  // [ 0, 8, 5, 13, 2, 10, 7, 15, 13.25, 14.25, 0.25, 1.25],
-];
-
 let ropes;
 let PLAYER, world;
 let shot = null;
-let NEXTDIR = null;
 const ZOOM = 1.5;
 let path = null;
 let pathDir = null;
 let pathVel = null;
 let pathHorizon = null;
+let ENEMY = null;
+let enemyPath;
+let enemySpeed;
+let enemyPhase;
+let enemyRot;
 
 // INIT ///
-
 function init() {
   ropes = new Set();
   path = [];
   pathDir = {x: 0, y: -1};
   pathVel = 0;
   world = pl.World({});
+  world.on('post-solve', postSolve);
+  world.on('pre-solve', preSolve);
+  world.on('begin-contact', beginContact);
   world.setGravity({x: 0, y: 9.8});
 
   createPlayer();
@@ -64,22 +64,32 @@ function init() {
   pathHorizon = [ 0, 0, 0, 0, 0, 0, 0, 0 ];
 
   const ro = [];
-
   ro.push(addRopeTwo({x: -2, y: 0}, {x: 2, y: 0}));
-
   ro.push(addRopeTwo({x: -4, y: 2}, {x: 4, y: 2}));
-
-
   ro.push(addRopeOne({x: -3.5, y: -6}, 5));
   ro.push(addRopeOne({x: 0, y: -6}, 4));
   ro.push(addRopeOne({x: 3.5, y: -6}, 5));
 
-  world.on('post-solve', postSolve);
-  world.on('pre-solve', preSolve);
+  createEnemy();
 
   one.camera.reset();
   one.camera.z = 13 * ZOOM;
   one.camera.set(one.camera.lookAt(0, 0));
+}
+
+function createEnemy() {
+  enemyPath = 0;
+  enemySpeed = 1;
+  enemyPhase = 0;
+  enemyRot = 50;
+  ENEMY = world.createBody({userData: "enemy"});
+  ENEMY.setPosition({x: 0, y: 5 * 1.5});
+  const dim = 6.5 * 2;
+  ENEMY.createFixture(pl.Box(dim, dim / 4, {x: 0, y: dim / 4}), {
+    isSensor: true, filterGroupIndex: 5,
+    filterCategoryBits: 4,
+    filterMaskBits: 4,
+  });
 }
 
 function createPlayer() {
@@ -99,6 +109,7 @@ function createPlayer() {
 
   PLAYER.head = world.createDynamicBody({
     // linearDamping: 0,
+    userData: "head",
   });
   const density = 1 / 10;
   // @ts-ignore
@@ -427,6 +438,22 @@ function updateMap() {
 
 const UPDATE = [];
 
+function beginContact(contact) {
+  const bodyA = contact.getFixtureA().getBody();
+  const bodyB = contact.getFixtureB().getBody();
+
+  let head = bodyA.getUserData() == "head" ? bodyA :
+    bodyB.getUserData() == "head" ? bodyB : null;
+  let enemy = bodyA.getUserData() == "enemy" ? bodyA :
+    bodyB.getUserData() == "enemy" ? bodyB : null;
+
+  if (head !== null && enemy !== null) {
+    console.log("GG");
+    one.gameOver();
+    return;
+  }
+}
+
 function preSolve(contact) {
   const bodyA = contact.getFixtureA().getBody();
   const bodyB = contact.getFixtureB().getBody();
@@ -480,13 +507,6 @@ function postSolve(contact) {
   });
   arm.holder = rope.parent;
   arm.holderTime = -1;
-}
-
-function playerLook(p) {
-  PLAYER.looking = 2 + 10 * Math.random();
-  act(PLAYER.eye).stop()
-    .attr("x", p.x, 0.1, ease.quadIn)
-    .attr("y", p.y, 0.1, ease.quadIn);
 }
 
 function updatePlayer(tick) {
@@ -564,7 +584,6 @@ function updateShot(tick) {
   //   return;
   // }
 
-
   if (mouse.click) {
     const p = one.camera.map(mouse);
     const aabb = pl.AABB({x: p.x - 0.001, y: p.y - 0.001},
@@ -627,6 +646,46 @@ function updateShot(tick) {
   }
 }
 
+function updateEnemy() {
+  enemyPhase = (enemyPhase + 1) % enemyRot;
+  if (enemyPath >= path.length) return;
+
+  const here = path[enemyPath];
+  const last = path[enemyPath - 1] ?? {x: 0, y: 0};
+  const dir = vec.sub(here, last);
+  const target = { x: here.x, y: here.y, angle: vec.angle(dir) + Math.TAU / 4};
+  const p = ENEMY.getPosition();
+  const a = ENEMY.getAngle();
+
+  const mv = 0.001 * enemySpeed;
+  const dist = vec.clamp(vec.sub(target, p), -mv, mv);
+  ENEMY.setPosition(vec.add(p, dist));
+
+  let da = (target.angle - a + Math.PI) % Math.TAU - Math.PI;
+  if (da < -Math.PI) da += Math.TAU;
+  const ma = 0.0035;
+  da = Math.clamp(da, -ma, ma);
+  ENEMY.setAngle(a + da);
+
+  if (vec.len(dist) < 0.001) {
+    enemyPath++;
+  }
+
+  // console.log(target);
+  // const s = 0.01 * enemySpeed;
+  // ENEMY.setAngle(Math.lerp(ENEMY.getAngle(), target.angle, s));
+
+  // const nx = Math.lerp(p.x, target.x, s);
+  // const ny = Math.lerp(p.y, target.y, s);
+  // ENEMY.setPosition({x: nx, y: ny});
+
+  // const dist = vec.len(vec.sub(target, p));
+  // if (dist < 0.1) {
+  //   // console.log("NEXT");
+  // }
+
+}
+
 function update(tick) {
   world.step(1/60);
   for (const w of UPDATE) w();
@@ -636,6 +695,7 @@ function update(tick) {
   updateCamera();
   updateShot(tick);
   updateMap();
+  updateEnemy();
 }
 
 // RENDER ///
@@ -660,8 +720,57 @@ function render(ctx) {
   }
   renderPlayer(ctx);
   renderShot(ctx);
+  renderEnemy(ctx);
 
   // renderDebug(ctx);
+}
+
+function renderEnemy(ctx) {
+  const pos = ENEMY.getPosition();
+  const ang = ENEMY.getAngle();
+
+  const center = {x:one.camera.cx, y:one.camera.cy};
+  const half = one.camera.z / 2;
+  const dir = vec.rotate({x: 1, y: 0}, ang);
+
+  const dist = distanceLinePoint(pos, dir, center);
+  const b = half * Math.SQRT2;
+  if (dist > b) return;
+
+  const adv = projectPointLine(pos, dir, center);
+  const best = vec.add(pos, vec.mul(dir, adv));
+  const p0 = vec.add(best, vec.mul(dir, -b));
+  const p1 = vec.add(best, vec.mul(dir, b));
+  const d = vec.perp(dir);
+  const p2 = vec.add(p1, vec.mul(d, half));
+  const p3 = vec.add(p0, vec.mul(d, half));
+
+  ctx.fillStyle = C[17];
+  ctx.beginPath();
+  const steps = 20;
+  const size = b * 2 / (steps - 1);
+  const other = vec.perp(dir);
+  const h = 1;
+  const dd = size * (enemyPhase / enemyRot) - (adv % size);
+  const a0 = vec.add(vec.add(p0, vec.mul(other, h / 3)), vec.mul(dir, dd));
+  const b0 = vec.add(p1, vec.mul(other, h / 3));
+  ctx.lineTo(a0.x, a0.y);
+  for (let i = 0; i < steps; ++i) {
+
+    const a = vec.add(a0, vec.mul(dir, size * i));
+    const m = vec.add(a0, vec.mul(dir, size * (i + 0.5)));
+    const u = vec.add(m, vec.mul(other, -h));
+    const b = vec.add(a0, vec.mul(dir, size * (i + 1)));
+
+    ctx.lineTo(a.x, a.y);
+    ctx.lineTo(u.x, u.y);
+    ctx.lineTo(b.x, b.y);
+
+  }
+  ctx.lineTo(b0.x, b0.y);
+  ctx.lineTo(p2.x, p2.y);
+  ctx.lineTo(p3.x, p3.y);
+  ctx.fill();
 }
 
 function renderShot(ctx) {
@@ -873,5 +982,17 @@ function renderDebug(ctx) {
     ctx.fillCircle(p.x, p.y, 0.025);
   }
 }
+
+function distanceLinePoint(a, ab, p) {
+  const u = ((p.x - a.x) * ab.x + (p.y - a.y) * ab.y) / vec.lsq(ab);
+  const pu = {x: a.x + u * ab.x - p.x, y: a.y + u * ab.y - p.y};
+  return vec.len(pu);
+}
+
+function projectPointLine(a, ab, p) {
+  return ((p.x - a.x) * ab.x + (p.y - a.y) * ab.y) /
+    (ab.x * ab.x + ab.y * ab.y);
+};
+
 
 export default one.game(init, update, render);

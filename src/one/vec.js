@@ -28,6 +28,10 @@ export function len(a) {
   return Math.sqrt(a.x * a.x + a.y * a.y);
 }
 
+export function lsq(a) {
+  return a.x * a.x + a.y * a.y;
+}
+
 export function normalize(a) {
   return div(a, len(a));
 }
@@ -52,7 +56,7 @@ export function angle(a) {
 export function clamp(a, minv, maxv) {
   const l = len(a);
   const nl = Math.clamp(l, minv, maxv);
-  return mul(a, nl / l);
+  return l != 0 ? mul(a, nl / l) : a;
 }
 
 export function polar(radius, angle) {
