@@ -28,7 +28,7 @@
   <meta name="apple-mobile-web-app-title" content="{{ title }}">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  {{ head }}
+  {{ head | safe }}
   <style>
 html { height: 100%; }
 #canvas { width: 100vmin; height: 100vmin; cursor: pointer; user-select: none; }
