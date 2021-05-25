@@ -24,17 +24,23 @@ export default {
     }),
     babel({
       exclude: /node_modules/,
-      babelHelpers: 'bundled'
+      babelHelpers: 'bundled',
+      compact: true,
     }),
-    // terser({
-    //   compress: {
-    //     passes: 3,
-    //     unsafe: true,
-    //   },
-    //   module: true,
-    //   toplevel: true
-    // }),
-    // strip({}),
+    terser({
+      compress: {
+        passes: 3,
+        unsafe: true,
+      },
+      format: {
+        comments: false,
+      },
+      module: true,
+      toplevel: true
+    }),
+    strip({
+
+    }),
     bundleSize(),
   ],
   preserveEntrySignatures: true,

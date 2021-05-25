@@ -1,7 +1,5 @@
 /*
 Rope
-
-- die when in the air for > X seconds
 */
 
 import * as one from "./one/one.js";
@@ -29,7 +27,7 @@ const L = {
 };
 
 one.options({
-  bgColor: "#222", // L.bg
+  bgColor: L.bg,
   fgColor: L.fg,
 });
 
@@ -63,7 +61,7 @@ function init() {
   world.setGravity({x: 0, y: 9.8});
 
   createPlayer();
-  path.push({x: 0, y: -6.5});
+  path.push({x: 0, y: -5});
   pathHorizon = [ 0, 0, 0, 0, 0, 0, 0, 0 ];
 
   const ro = [];
@@ -83,15 +81,15 @@ function init() {
 function createEnemy() {
   enemyPath = 0;
   enemyStep = 0;
-  enemyReset = 1800;
+  enemyReset = 1000;
   enemySpeed = 1;
   enemyNatural = 0;
   enemyPhase = 0;
   enemyRot = 50;
   ENEMY = world.createBody({userData: "enemy"});
   ENEMY.setPosition({x: 0, y: 5 * 1.5});
-  const dim = 6.5 * 2;
-  ENEMY.createFixture(pl.Box(dim, dim / 4, {x: 0, y: dim / 4}), {
+  const dim = 6.5 * 4;
+  ENEMY.createFixture(pl.Box(dim, dim / 8, {x: 0, y: dim / 8}), {
     isSensor: true, filterGroupIndex: 5,
     filterCategoryBits: 4,
     filterMaskBits: 4,
@@ -104,6 +102,7 @@ function createPlayer() {
       {hold: null, hand: null, joint: null, holder: null, holderTime: -1},
       {hold: null, hand: null, joint: null, holder: null, holderTime: -1},
     ],
+    onair: 0,
     head: null,
     body: [],
     eye: {x: 0, y: 0},
@@ -532,8 +531,16 @@ function updatePlayer(tick) {
     PLAYER.eyelook.x = 0;
     PLAYER.eyelook.y = 0;
     PLAYER.looking = 5 + Math.random();
+
+    PLAYER.onair += 1/60;
+    if (PLAYER.onair > 3) {
+      one.gameOver();
+    }
+
     return;
   }
+
+  PLAYER.onair = 0;
 
   const h = PLAYER.arms[0].hold ? PLAYER.arms[1] : PLAYER.arms[0];
   if (h.hold === null) {
@@ -570,8 +577,6 @@ function updateCamera() {
   target.angle = ang;
 
   one.camera.approach(target, {x: 0.02, y: 0.005, angle: 0.04});
-
-  // console.log(dist);
 }
 
 function updateShot(tick) {
@@ -654,7 +659,7 @@ function updateShot(tick) {
 
 function updateEnemy() {
   enemyPhase = (enemyPhase + 1) % enemyRot;
-  if (enemyPath >= path.length) return;
+  if (enemyPath >= path.length || path.length <= 12) return;
 
   const here = path[enemyPath];
   const last = path[enemyPath - 1] ?? {x: 0, y: 0};
@@ -681,14 +686,14 @@ function updateEnemy() {
   enemyStep++;
   if (enemyStep > enemyReset) {
     enemyStep -= enemyReset;
-    enemyReset = Math.max(300, enemyReset * 0.6);
+    enemyReset = Math.max(300, enemyReset * 0.9);
     enemyNatural++;
     console.log(enemyNatural, enemyReset);
   }
 
   // don't let the player get away
   const player = vec.len(vec.sub(PLAYER.head.getPosition(), p));
-  if (player > 14) {
+  if (player > 20) {
     enemySpeed = 100;
   } else {
     enemySpeed = enemyNatural;
@@ -699,6 +704,10 @@ function update(tick) {
   world.step(1/60);
   for (const w of UPDATE) w();
   UPDATE.length = 0;
+
+  if (path.length > 12) {
+    one.addScore(1/60);
+  }
 
   updatePlayer(tick);
   updateCamera();
@@ -751,8 +760,8 @@ function renderEnemy(ctx) {
   const p0 = vec.add(best, vec.mul(dir, -b));
   const p1 = vec.add(best, vec.mul(dir, b));
   const d = vec.perp(dir);
-  const p2 = vec.add(p1, vec.mul(d, half));
-  const p3 = vec.add(p0, vec.mul(d, half));
+  const p2 = vec.add(p1, vec.mul(d, half * 2));
+  const p3 = vec.add(p0, vec.mul(d, half * 2));
 
   ctx.fillStyle = C[17];
   ctx.beginPath();

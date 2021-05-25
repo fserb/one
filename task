@@ -10,8 +10,8 @@ function one {
   rm -rf "www/${GAME}"
   mkdir "www/${GAME}"
   echo "import main from './src/${GAME}.js'; main();" | npx rollup -c rollup.mjs
-  # node process.mjs
-  # rm -f "www/${GAME}/bundle.js"
+  node process.mjs
+  rm -f "www/${GAME}/bundle.js"
 }
 
 function rebuild {

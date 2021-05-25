@@ -1,7 +1,7 @@
 import "./lib/extend.js";
 import plus2d from "./lib/plus2d.js";
 
-import {stages, defaultOpts, C, opts, mouse, ease, setOpts, op,
+import {stages, C, opts, mouse, ease, setOpts, op,
   sysact, act} from "./internal.js";
 
 import * as utils from "./lib/utils.js";
@@ -75,7 +75,7 @@ function _renderScore() {
   let best = "";
   let soundstatus = "";
   if (bestScore !== null) {
-    best = ` BEST ${bestScore}`;
+    best = ` BEST ${Math.floor(bestScore)}`;
   }
   if (!sound.mute) {
     soundstatus = "♫";
@@ -87,7 +87,7 @@ function _renderScore() {
 
   if (score > 0) {
     ctx.fillStyle = opts.bgColor;
-    ctx.text("SCORE " + score, b * 1.5, b, fs,
+    ctx.text("SCORE " + Math.floor(score), b * 1.5, b, fs,
       {align: "left", valign: "top" });
   }
 
