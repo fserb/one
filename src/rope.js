@@ -31,6 +31,15 @@ one.options({
   fgColor: L.fg,
 });
 
+one.sound.make("hold", 0.05, (f, track) => {
+
+  track(f.karplus_strong, {b: 1, freq: 100, S: 0.5});
+  track(f.karplus_strong, {b: 0.5, freq: 50, S: 0.5});
+  track(f.biquad, {type: "lowpass", freq: 100});
+  track(f.envelope,
+    {env: f.ADSR({sustainv: 2, sustain: 0, release: 0.05, type: "linear"})});
+});
+
 let ropes;
 let PLAYER, world;
 let shot = null;
@@ -505,6 +514,7 @@ function postSolve(contact) {
     if (arm.hold) {
       world.destroyJoint(arm.hold);
     }
+    one.sound.play("hold", 800 * (2 * Math.random() - 1));
     arm.hold = pl.DistanceJoint({
       length: 0, collideConnected: false,frequencyHz: 10, dampingRatio: 0.5,
     }, hand, rope, hand.getPosition(), p);
