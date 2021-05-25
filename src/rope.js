@@ -462,7 +462,6 @@ function beginContact(contact) {
     bodyB.getUserData() == "enemy" ? bodyB : null;
 
   if (head !== null && enemy !== null) {
-    console.log("GG");
     one.gameOver();
     return;
   }
@@ -698,7 +697,7 @@ function updateEnemy() {
     enemyStep -= enemyReset;
     enemyReset = Math.max(300, enemyReset * 0.9);
     enemyNatural++;
-    console.log(enemyNatural, enemyReset);
+    // console.log(enemyNatural, enemyReset);
   }
 
   // don't let the player get away
