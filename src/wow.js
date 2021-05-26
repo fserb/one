@@ -1,4 +1,3 @@
-// wow.js
 /*
 based on ZOT
 https://www.cs.brandeis.edu/~storer/JimPuzzles/ZPAGES/zzzBullsEye.html
@@ -22,7 +21,7 @@ const L = {
 
 one.options({
   bgColor: L.bg,
-  fgColor: L.fg,
+fgColor: L.fg,
   scoreMax: false,
   finishGood: true,
 });
@@ -56,10 +55,10 @@ function init() {
     }
   }
 
-  // pieces[1].y = 2;
-  // pieces[4].y = 0;
-  // empty.y = 1;
-  // check();
+  pieces[1].y = 2;
+  pieces[4].y = 0;
+  empty.y = 1;
+  check();
 
   let c;
   [tiles, c] = one.utils.newCanvas(1404, 1872);

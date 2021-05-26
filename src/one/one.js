@@ -1,137 +1,87 @@
 import "./lib/extend.js";
 import plus2d from "./lib/plus2d.js";
 
-import {stages, C, opts, mouse, ease, setOpts, op,
-  sysact, act} from "./internal.js";
+import {C, opts, mouse, ease, setOpts, op, sysact, act} from "./internal.js";
 
-import * as utils from "./lib/utils.js";
-
-import camera from "./camera.js";
-import * as vec from "./vec.js";
-import * as sound from "./sound.js";
+export * as utils from "./lib/utils.js";
+export * as vec from "./vec.js";
 
 import * as input from "./input.js";
-import * as intro from "./intro.js";
-import * as finish from "./finish.js";
-stages['intro'] = intro;
-stages['finish'] = finish;
+import * as sound from "./sound.js";
+import camera from "./camera.js";
 
-let stage = "intro";
+export {C, mouse, act, ease, camera, sound};
 
-export let score = 0;
+import * as overlay from "./overlay.js";
+
 export function addScore(v = 1) {
-  score += v;
+  op.score += v;
 }
 export function setScore(v) {
-  score = v;
+  op.score = v;
 }
-export let bestScore = null;
 
 export let canvas = null;
 export let ctx = null;
 
 export let tick = 0;
 
-let topmsg = "";
-
-export { C, mouse, act, ease, utils, vec, camera, sound };
-
 export function msg(m) {
-  topmsg = m;
+  op.message = m;
 }
 
 export function startGame() {
-  tick = -1;
-  score = 0;
-  stage = "game";
+  overlay.startGame();
   sysact.reset();
-  stages[stage].init();
+  tick = -1;
+  op.inGame = true;
+  op.game.init();
 }
-op.startGame = startGame;
 
 export function gameOver() {
   sysact.reset();
-  stage = "finish";
-  stages[stage].init();
-
-  if (opts.scoreMax) {
-    bestScore = Math.max(bestScore ?? score, score);
-  } else {
-    bestScore = Math.min(bestScore ?? score, score);
-  }
-
-  localStorage.setItem("one#" + opts.name, bestScore);
-}
-
-function _renderScore() {
-  if (stage == "intro") return;
-
-  const b = 11;
-  const fs = 26;
-
-  ctx.fillStyle = opts.fgColor;
-  ctx.fillRect(0, 0, 1024, 44);
-
-  let best = "";
-  let soundstatus = "";
-  if (bestScore !== null) {
-    best = ` BEST ${Math.floor(bestScore)}`;
-  }
-  if (!sound.mute) {
-    soundstatus = "♫";
-  }
-
-  ctx.fillStyle = opts.bgColor;
-  ctx.text(`${soundstatus}${best}`, 1024 - b * 1.5, b, fs,
-    {align: "right", valign: "top" });
-
-  if (score > 0) {
-    ctx.fillStyle = opts.bgColor;
-    ctx.text("SCORE " + Math.floor(score), b * 1.5, b, fs,
-      {align: "left", valign: "top" });
-  }
-
-  if (topmsg) {
-    ctx.text(topmsg, 512, b, fs, {valign: "top" });
-  }
+  op.inGame = false;
+  overlay.gameOver();
 }
 
 function _render() {
   ctx.reset();
   ctx.save();
+
   const factor = canvas.width / 1024;
   ctx.scale(factor, factor);
 
   ctx.fillStyle = opts.bgColor;
   ctx.fillRect(0, 0, 1024, 1024);
 
-  ctx.save();
-  stages[stage].render(ctx);
-  ctx.restore();
-
-  if (opts.hasScore) {
-    _renderScore();
+  if (op.inGame) {
+    ctx.save();
+    op.game.render(ctx);
+    ctx.restore();
   }
+
+  overlay.render(ctx);
 
   ctx.restore();
 }
 
-let currentTime = 0;
 let accumulator = 0.0;
-const frameRate = 1 / 60.0;
 function _frame(now) {
-  const dt = (now - currentTime) / 1000;
-  currentTime = now;
-
-  sysact._actFrame(dt);
-  camera._update(dt);
-  accumulator += dt;
-  while (accumulator >= frameRate) {
+  op.dt = (now - op.currentTime) / 1000;
+  op.currentTime = now;
+  sysact._actFrame(op.dt);
+  camera._update(op.dt);
+  accumulator += op.dt;
+  while (accumulator >= opts.frameRate) {
     input.update();
     sound.update();
-    stages[stage].update(tick);
+    if (op.inGame) {
+      op.game.update(tick);
+    } else {
+      overlay.update(op.dt, startGame);
+    }
     tick++
-    accumulator -= frameRate;
+    accumulator -= opts.frameRate;
   }
 
   _render();
@@ -145,17 +95,16 @@ export function main(obj) {
   ctx = canvas.getContext("2d");
   plus2d(ctx);
 
-  const ro = new ResizeObserver(changes => {
+  const ro = new ResizeObserver(_changes => {
     canvas.width = Math.ceil(canvas.clientWidth * window.devicePixelRatio);
     canvas.height = Math.ceil(canvas.clientHeight * window.devicePixelRatio);
   });
   ro.observe(canvas);
 
-  // load score
-  bestScore = localStorage.getItem("one#" + opts.name);
+  op.inGame = false;
 
   input.init();
-  stages[stage].init();
+  overlay.init();
 
   _frame(0);
 }
@@ -165,9 +114,9 @@ export function options(o) {
 }
 
 export function game(init, update, render) {
-  stages['game']['init'] = init;
-  stages['game']['update'] = update;
-  stages['game']['render'] = render;
+  op.game.init = init;
+  op.game.update = update;
+  op.game.render = render;
   return main;
 }
 

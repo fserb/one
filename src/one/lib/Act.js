@@ -84,7 +84,6 @@ class Act {
     if (delay + duration == 0) {
       duration = 1.0;
     }
-
     const wait = delay / (delay + duration);
     const frac = duration / (delay + duration);
     let initial = undefined;
@@ -97,14 +96,12 @@ class Act {
       t = (t - wait) / frac;
       setDeepProperty(obj, attr, initial + (value - initial) * ease(t));
     };
-
     this.host._actions.push({
       func: func,
       time: 0.0,
       duration: duration + delay,
       object: this.object,
       hold: false});
-
     return this;
   }
 
@@ -157,6 +154,7 @@ export default class SysAct {
   constructor() {
     this._actions = [];
     this._waitAll = [];
+    this._reset = false;
   }
 
   act(obj) {
@@ -168,14 +166,23 @@ export default class SysAct {
   }
 
   reset() {
-    this._actions = [];
-    this._waitAll = [];
+    this._actions.length = 0;
+    this._waitAll.length = 0;
+    this._reset = true;
   }
 
   waitAll() {
     return new Promise((acc, _rej) => {
       this._waitAll.push(acc);
     });
+  }
+
+  removeAction(idx) {
+    if (this._reset) {
+      this._reset = false;
+      return;
+    }
+    this._actions.splice(idx - 1, 1);
   }
 
   _actFrame(dt) {
@@ -190,7 +197,7 @@ export default class SysAct {
       if (a.hold && b !== undefined) continue;
       if (a.duration == 0.0) {
         a.func(0.0);
-        this._actions.splice(i - 1, 1);
+        this.removeAction(i);
         i--;
         continue;
       }
@@ -198,13 +205,14 @@ export default class SysAct {
       a.time = Math.clamp(a.time + dt / a.duration, 0.0, 1.0);
       a.func(a.time);
       if (a.time >= 1.0) {
-        this._actions.splice(i - 1, 1);
+        this.removeAction(i);
         i--;
       }
     }
-
-    if (!this._actions) {
-      while (this._waitAll) (this._waitAll.pop())();
+    if (this._actions.length == 0) {
+      while (this._waitAll.length > 0) {
+        (this._waitAll.pop())();
+      }
     }
   }
 }

@@ -420,7 +420,7 @@ function renderSky(ctx) {
   ctx.rotate(Math.PI / 2);
   ctx.translate(-640, -640);
   ctx.globalAlpha = 0.25;
-  ctx.fillStyle = C.white;
+  ctx.fillStyle = C[0];
   for (const c of SKY) {
     ctx.fillRoundRect(c.x, c.y, c.w, c.h, 10);
   }
