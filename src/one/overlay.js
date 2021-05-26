@@ -9,6 +9,7 @@ const bar = {
   y: 512,
   height: 0,
   scorey: 0,
+  clear: false,
 }
 
 const intro = {
@@ -69,13 +70,13 @@ export function gameOver() {
   sctx.fillStyle = opts.bgColor;
   sctx.clearRect(0, 0, dim, Math.ceil(dim * 44 / 1024));
 
-  finish.clear = false;
+  bar.clear = false;
   finish.msg = opts.finishGood ? "WELL DONE" : "GAME OVER";
 
   state = "finish";
   act(bar)
-    .attr("y", 1024 - 44, 0.35, ease.fastOutSlowIn)
-    .attr("scorey", 1024 - 44, 0.35, ease.fastOutSlowIn);
+    .attr("y", 1024 - 44, 0.35, ease.fastInSlowOut)
+    .attr("scorey", 1024 - 44, 0.35, ease.fastInSlowOut);
 }
 
 export function update(dt, start) {
@@ -83,20 +84,21 @@ export function update(dt, start) {
   if (!mouse.click) return;
 
   if (state == "intro") {
-    act(bar).attr("y", 0, 0.15, ease.fastInSlowOut)
-      .attr("height", bar.height + bar.y, 0.15, ease.fastInSlowOut)
-      .then()
-      .attr("height", 44, 0.25, ease.fastInSlowOut)
+    const t = 0.35 * (980 - bar.y) / 980;
+    act(bar)
+      .attr("y", 1024 - 44, t, ease.quadIn)
+      .attr("height", 44, t, ease.quadIn)
+      .then(() => { bar.clear = true; })
       .then(start)
+      .attr("y", 0, 0.35, ease.fastInSlowOut)
       .then(() => {state = "game";});
   }
   if (state == "finish") {
-    finish.clear = true;
+    bar.clear = true;
     start();
     act(bar)
     .attr("y", 0, 0.35, ease.fastOutSlowIn)
     .attr("scorey", 2, 0.35, ease.fastOutSlowIn)
-    .delay(0.1)
     .then(() => {state = "game"});
   }
 }
@@ -105,7 +107,7 @@ export function render(ctx) {
   ctx.save();
 
   if (state == "finish") {
-    if (finish.clear) {
+    if (bar.clear) {
       ctx.drawImage(finish.shot,
         0, 0, ctx.canvas.width, ctx.canvas.width * bar.y / 1024,
         0, 0, 1024, bar.y);
@@ -125,11 +127,16 @@ export function render(ctx) {
   ctx.fillRect(0, bar.y, 1024, bar.height);
 
   if (state == "intro") {
-    ctx.fillStyle = opts.bgColor;
-    let y = intro.y;
-    for (const l of intro.lines) {
-      ctx.text(l, 512, y, intro.size, {valign: "middle"});
-      y += intro.size * 1.5;
+    if (bar.clear) {
+      ctx.fillStyle = opts.bgColor;
+      ctx.fillRect(0, 0, 1024, bar.y);
+    } else {
+      ctx.fillStyle = opts.bgColor;
+      let y = intro.y;
+      for (const l of intro.lines) {
+        ctx.text(l, 512, y, intro.size, {valign: "middle"});
+        y += intro.size * 1.5;
+      }
     }
   }
 
