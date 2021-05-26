@@ -2,7 +2,7 @@
 
 import {mouse} from "./internal.js";
 
-import * as fsfx from "./fsfx/fsfx.js";
+import * as fsfx from "./lib/fsfx/fsfx.js";
 
 let player;
 export let mute = true;

@@ -31,13 +31,13 @@ one.options({
   fgColor: L.fg,
 });
 
-one.sound.make("hold", 0.05, (f, track) => {
+one.sound.make("hold", 0.1, (f, track) => {
 
   track(f.karplus_strong, {b: 1, freq: 100, S: 0.5});
   track(f.karplus_strong, {b: 0.5, freq: 50, S: 0.5});
   track(f.biquad, {type: "lowpass", freq: 100});
   track(f.envelope,
-    {env: f.ADSR({sustainv: 2, sustain: 0, release: 0.05, type: "linear"})});
+    {env: f.ADSR({sustainv: 3, sustain: 0, release: 0.1, type: "linear"})});
 });
 
 let ropes;

@@ -4,7 +4,7 @@ import plus2d from "./lib/plus2d.js";
 import {C, opts, mouse, ease, setOpts, op, sysact, act} from "./internal.js";
 
 export * as utils from "./lib/utils.js";
-export * as vec from "./vec.js";
+export * as vec from "./lib/vec.js";
 
 import * as input from "./input.js";
 import * as sound from "./sound.js";

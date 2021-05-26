@@ -1,7 +1,6 @@
 // camera.js
 
 import {ease, act} from "./internal.js";
-import * as vec from "./vec.js";
 
 class Camera {
   constructor(x = 0, y = 0, angle = 0, z = 1024, cx = 512, cy = 512) {
