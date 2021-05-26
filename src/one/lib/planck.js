@@ -4,10 +4,7 @@ function getDefaultExportFromCjs (x) {
 	return x && x.__esModule && Object.prototype.hasOwnProperty.call(x, 'default') ? x['default'] : x;
 }
 
-function createCommonjsModule(fn) {
-  var module = { exports: {} };
-	return fn(module, module.exports), module.exports;
-}
+var planck$1 = {exports: {}};
 
 /**
  * Planck.js v1.0.0-alpha.2
@@ -33,7 +30,7 @@ function createCommonjsModule(fn) {
  * SOFTWARE.
  */
 
-var planck = createCommonjsModule(function (module, exports) {
+(function (module, exports) {
 (function (global, factory) {
     factory(exports) ;
 }(commonjsGlobal, (function (exports) {
@@ -6870,7 +6867,7 @@ var planck = createCommonjsModule(function (module, exports) {
                     break;
                 }
             }
-            var b, c;
+            var b, c; 
         };
         Solver.prototype.solveIslandTOI = function (subStep, toiA, toiB) {
             this.m_world;
@@ -6901,7 +6898,7 @@ var planck = createCommonjsModule(function (module, exports) {
                     break;
                 }
             }
-            var i, c;
+            var i, c; 
             // Leap of faith to new safe state.
             toiA.m_sweep.c0.set(toiA.c_position.c);
             toiA.m_sweep.a0 = toiA.c_position.a;
@@ -9072,7 +9069,7 @@ var planck = createCommonjsModule(function (module, exports) {
         // pRef is the reference point for forming triangles.
         // It's location doesn't change the result (except for rounding error).
         var pRef = Vec2.zero();
-        var i;
+        var i; 
         var inv3 = 1.0 / 3.0;
         for (var i = 0; i < count; ++i) {
             // Triangle vertices.
@@ -14748,8 +14745,9 @@ var planck = createCommonjsModule(function (module, exports) {
     Object.defineProperty(exports, '__esModule', { value: true });
 
 })));
-});
 
-var planck$1 = /*@__PURE__*/getDefaultExportFromCjs(planck);
+}(planck$1, planck$1.exports));
 
-export default planck$1;
+var planck = /*@__PURE__*/getDefaultExportFromCjs(planck$1.exports);
+
+export default planck;
