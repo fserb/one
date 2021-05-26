@@ -12,6 +12,8 @@ function build {
   echo "import main from './src/${GAME}.js'; main();" | npx rollup -c rollup.mjs
   node process.mjs
   rm -f "www/${GAME}/bundle.js"
+  echo "optimizing PNGs..."
+  optipng -quiet www/${GAME}/*.png
 }
 
 function rebuild {
@@ -36,6 +38,11 @@ function buildall {
 function sync {
   buildall
   rsync -a --partial --progress www/ metaphora.co:one/
+}
+
+function update-deps {
+  yarn upgrade-interactive --latest
+  rollup -c planck.rollup.js
 }
 
 function help {

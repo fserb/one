@@ -61,7 +61,7 @@ module.exports = {
     "space-in-parens": [ "error", "never"],
     "space-infix-ops": [ "error", {"int32Hint": true}],
   },
-  ignorePatterns: ["builder/solvecache.js", "server/static"],
+  ignorePatterns: ["src/one/lib/planck.js", "src/one/lib/fsfx"],
   env: {
     browser: true,
     es6: true

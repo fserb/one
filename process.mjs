@@ -9,11 +9,14 @@ import lzma from "lzma";
 
 const GAME = process.env.GAME ?? "";
 
-// this is the ugliest of the hacks.
+// this is the ugliest of the hacks. TS hates it, and so do it.
 // We import the actual game, to populate its BG colors.
 import {opts, C} from "./src/one/internal.js";
+// @ts-ignore
 global.window = new Proxy({}, {get: function() { return function() {} }});
+// @ts-ignore
 global.Path2D = class Path2D { constructor() { return new Proxy({}, {get: function() { return function() {} }})}};
+// @ts-ignore
 const x = await import(`./src/${GAME}.js`);
 
 const BASEURL = "https://one.fserb.com";
@@ -36,6 +39,7 @@ async function takeScreenshots(game) {
   await browser.close();
 
   async function buildImage(name, width, height) {
+    // @ts-ignore
     const obj = sharp(png);
 
     obj.resize(width, height, {

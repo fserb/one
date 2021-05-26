@@ -3,7 +3,7 @@ Rope
 */
 
 import * as one from "./one/one.js";
-import {C, act, ease, mouse, vec, camera} from "./one/one.js";
+import {C, act, ease, mouse, vec} from "./one/one.js";
 
 import pl from "./one/lib/planck.js";
 
@@ -295,6 +295,7 @@ function stepPath() {
   const length = 13 + 7 * Math.random();
   const yv = vec.mul(vec.normalize(pathDir), step);
   const xv = vec.mul(vec.normalize(vec.perp(yv)), length);
+
   // build path step
   // granularity
   const divs = Math.floor(length / (2 + 1 * Math.random()));
