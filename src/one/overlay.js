@@ -51,7 +51,6 @@ export function init() {
 
 export function startGame() {
   op.score = 0;
-  state = "game";
 }
 
 export function gameOver() {
@@ -88,15 +87,17 @@ export function update(dt, start) {
       .attr("height", bar.height + bar.y, 0.15, ease.fastInSlowOut)
       .then()
       .attr("height", 44, 0.25, ease.fastInSlowOut)
-      .then(start);
+      .then(start)
+      .then(() => {state = "game";});
   }
   if (state == "finish") {
     finish.clear = true;
+    start();
     act(bar)
     .attr("y", 0, 0.35, ease.fastOutSlowIn)
-    .attr("scorey", 0, 0.35, ease.fastOutSlowIn)
+    .attr("scorey", 2, 0.35, ease.fastOutSlowIn)
     .delay(0.1)
-    .then(start);
+    .then(() => {state = "game"});
   }
 }
 
@@ -104,19 +105,20 @@ export function render(ctx) {
   ctx.save();
 
   if (state == "finish") {
-    ctx.drawImage(finish.shot, 0, 0, 1024, 1024);
-    ctx.globalAlpha = 0.80;
+    if (finish.clear) {
+      ctx.drawImage(finish.shot,
+        0, 0, ctx.canvas.width, ctx.canvas.width * bar.y / 1024,
+        0, 0, 1024, bar.y);
+    } else {
+      ctx.drawImage(finish.shot, 0, 0, 1024, 1024);
+    }
+    ctx.globalAlpha = 0.85;
     ctx.fillStyle = opts.bgColor;
     ctx.fillRect(0, 0, 1024, bar.y);
     ctx.globalAlpha = 1.0;
 
     ctx.fillStyle = opts.fgColor;
     ctx.text(finish.msg, 512, bar.y - 800, 125);
-
-    if (finish.clear) {
-      ctx.fillStyle = opts.bgColor;
-      ctx.fillRect(0, bar.y + bar.height, 1024, 1024 - bar.y + bar.height);
-    }
   }
 
   ctx.fillStyle = opts.fgColor;

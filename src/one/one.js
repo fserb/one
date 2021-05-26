@@ -32,7 +32,6 @@ export function msg(m) {
 
 export function startGame() {
   overlay.startGame();
-  sysact.reset();
   tick = -1;
   op.inGame = true;
   op.game.init();

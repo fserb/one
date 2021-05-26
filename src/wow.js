@@ -55,10 +55,10 @@ function init() {
     }
   }
 
-  pieces[1].y = 2;
-  pieces[4].y = 0;
-  empty.y = 1;
-  check();
+  // pieces[1].y = 2;
+  // pieces[4].y = 0;
+  // empty.y = 1;
+  // check();
 
   let c;
   [tiles, c] = one.utils.newCanvas(1404, 1872);
