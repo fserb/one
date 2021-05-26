@@ -523,9 +523,9 @@ function postSolve(contact) {
   arm.holderTime = -1;
 }
 
-function updatePlayer(tick) {
-  PLAYER.breath = Math.sin(tick * 2 * Math.PI / 500);
-  PLAYER.pupil = Math.cos(333 + tick * 2 * Math.PI / 1713);
+function updatePlayer(dt) {
+  PLAYER.breath = Math.sin(Math.TAU * dt * 0.12);
+  PLAYER.pupil = Math.cos(333 + Math.TAU * dt * 0.035);
   PLAYER.blinking -= 1/60;
   if (PLAYER.blinking <= 0 && PLAYER.blink == 0) {
     act(PLAYER).attr("blink", 1.0, 0.15, ease.quadIn).then()
@@ -588,7 +588,7 @@ function updateCamera() {
   one.camera.approach(target, {x: 0.02, y: 0.005, angle: 0.04});
 }
 
-function updateShot(tick) {
+function updateShot() {
   // if (mouse.click) {
   //   const p = one.camera.map(mouse);
   //   PLAYER.head.setPosition(p);
@@ -709,8 +709,10 @@ function updateEnemy() {
   }
 }
 
-function update(tick) {
-  world.step(1/60);
+function update(dt) {
+  one.fixedUpdate(1 / 60, () => {
+    world.step(1/60);
+  });
   for (const w of UPDATE) w();
   UPDATE.length = 0;
 
@@ -718,9 +720,9 @@ function update(tick) {
     one.addScore(1/60);
   }
 
-  updatePlayer(tick);
+  updatePlayer(dt);
   updateCamera();
-  updateShot(tick);
+  updateShot();
   updateMap();
   updateEnemy();
 }

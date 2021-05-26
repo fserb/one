@@ -24,16 +24,15 @@ export function setScore(v) {
 export let canvas = null;
 export let ctx = null;
 
-export let tick = 0;
-
 export function msg(m) {
   op.message = m;
 }
 
 export function startGame() {
   overlay.startGame();
-  tick = -1;
   op.inGame = true;
+  lastFixedTime = op.currentTime;
+  accumulator = 0.0;
   op.game.init();
 }
 
@@ -65,22 +64,30 @@ function _render() {
 }
 
 let accumulator = 0.0;
+let lastFixedTime = 0;
+export function fixedUpdate(frameRate, func) {
+  const dt = (op.currentTime - lastFixedTime) / 1000;
+  accumulator += dt;
+  lastFixedTime = op.currentTime;
+  while (accumulator >= frameRate) {
+    func();
+    accumulator -= frameRate;
+  }
+}
+
 function _frame(now) {
-  op.dt = (now - op.currentTime) / 1000;
+  const dt = (now - op.currentTime) / 1000;
   op.currentTime = now;
-  sysact._actFrame(op.dt);
-  camera._update(op.dt);
-  accumulator += op.dt;
-  while (accumulator >= opts.frameRate) {
-    input.update();
-    sound.update();
-    if (op.inGame) {
-      op.game.update(tick);
-    } else {
-      overlay.update(op.dt, startGame);
-    }
-    tick++
-    accumulator -= opts.frameRate;
+
+  sysact._actFrame(dt);
+  camera._update(dt);
+  input.update();
+  sound.update();
+
+  if (op.inGame) {
+    op.game.update(dt);
+  } else {
+    overlay.update(dt, startGame);
   }
 
   _render();

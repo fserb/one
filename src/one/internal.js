@@ -1,6 +1,5 @@
 export const op = {
   currentTime: 0,
-  dt: 0,
   inGame: false,
 
   canvas: null,
@@ -13,7 +12,6 @@ export const op = {
 };
 
 export const defaultOpts = {
-  frameRate: 1 / 60.0,
   bgColor: 9,
   fgColor: 14,
   hasScore: true,

@@ -101,7 +101,7 @@ function check() {
   one.gameOver();
 }
 
-function update(tick) {
+function update() {
   // if (act.is()) return;
   if (!mouse.click) return;
 

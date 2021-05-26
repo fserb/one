@@ -346,9 +346,9 @@ function updateNext() {
   pending--;
 }
 
-function update(tick) {
-  ALIEN.breath = Math.sin(tick * 2 * Math.PI / 500);
-  ALIEN.pupil = Math.cos(333 + tick * 2 * Math.PI / 1713);
+function update(dt) {
+  ALIEN.breath = Math.sin(Math.TAU * dt * 0.12);
+  ALIEN.pupil = Math.cos(333 + Math.TAU * dt * 0.035);
   ALIEN.blinking -= 1/60;
   if (ALIEN.blinking <= 0) {
     blinkAlien();
@@ -383,11 +383,9 @@ function update(tick) {
 
 const SKY = [];
 const SKYR = [];
-let SKYANGLE = 0;
 function updateSky() {
   if (SKY.length == 0) {
     let y = 0;
-    let dir = 1;
 
     while (y < 1280) {
       SKYR.push(0.15 + 1.35 * Math.random());
@@ -410,8 +408,6 @@ function updateSky() {
     const v = SKYR[c.idx];
     c.x = (1280 + c.x + v) % 1280;
   }
-
-  SKYANGLE += 0.001;
 }
 
 function renderSky(ctx) {
