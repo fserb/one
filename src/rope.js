@@ -1021,5 +1021,4 @@ function projectPointLine(a, ab, p) {
     (ab.x * ab.x + ab.y * ab.y);
 };
 
-
 export default one.game(init, update, render);
