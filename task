@@ -2,9 +2,9 @@
 set -euo pipefail
 IFS=$'\n\t'
 
-GAMES=(wow trap)
+GAMES=(wow trap rope)
 
-function one {
+function build {
   export GAME="$1"
   echo "Building $GAME"
   rm -rf "www/${GAME}"
@@ -17,16 +17,16 @@ function one {
 function rebuild {
   rm -rf www/
   mkdir www/
-  build
+  buildall
 }
 
-function build {
+function buildall {
   \cp page.html www/index.html
   \cp icon.png www/
 
   for g in ${GAMES[@]}; do
     if [ ! -d "www/$g" ]; then
-      one "$g"
+      build "$g"
     else
       echo "Skipping $g"
     fi
@@ -34,6 +34,7 @@ function build {
 }
 
 function sync {
+  buildall
   rsync -a --partial --progress www/ metaphora.co:one/
 }
 
