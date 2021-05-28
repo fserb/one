@@ -95,7 +95,7 @@ function _frame(now) {
   requestAnimationFrame(_frame);
 }
 
-export function main(obj) {
+export function main({obj = null, forceStart = false}) {
   document.body.style.backgroundColor = "#222";
   canvas = op.canvas = obj ?? document.getElementById("canvas");
   ctx = canvas.getContext("2d");
@@ -110,7 +110,8 @@ export function main(obj) {
   op.inGame = false;
 
   input.init();
-  overlay.init();
+  overlay.init(forceStart);
+  if (forceStart) startGame();
 
   _frame(0);
 }

@@ -26,7 +26,7 @@ const finish = {
 
 let state = "";
 
-export function init() {
+export function init(forceStart = false) {
   // load score
   op.bestScore = localStorage.getItem("one#" + opts.name);
 
@@ -41,13 +41,18 @@ export function init() {
 
   intro.y = (1024 - (intro.lines.length - 1) * intro.size * 1.5) / 2;
 
-  act(bar)
-    .delay(1/60)
-    .attr("y", bary, 0.25, ease.fastOutSlowIn)
-    .attr("height", 1024 - bary, 0.25, ease.fastOutSlowIn).then()
-    .attr("height", height, 0.35, ease.fastOutSlowIn).then();
-
-  state = "intro";
+  if (forceStart) {
+    state = "game";
+    bar.y = 0;
+    bar.height = 44;
+  } else {
+    state = "init";
+    act(bar)
+      .delay(1/60)
+      .attr("y", bary, 0.25, ease.fastOutSlowIn)
+      .attr("height", 1024 - bary, 0.25, ease.fastOutSlowIn).then()
+      .attr("height", height, 0.35, ease.fastOutSlowIn).then();
+  }
 }
 
 export function startGame() {

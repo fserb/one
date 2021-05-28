@@ -1,5 +1,9 @@
 // vec.js
 
+export function vec(x, y) {
+  return {x, y};
+}
+
 export function add(a, b) {
   return {x: a.x + b.x, y: a.y + b.y};
 }
@@ -45,6 +49,7 @@ export function rotate(a, rad) {
     y: a.x * s + a.y * c };
 }
 
+// right hand 90deg rotation
 export function perp(a) {
   return { x: -a.y, y: a.x};
 }
@@ -59,6 +64,7 @@ export function clamp(a, minv, maxv) {
   return l != 0 ? mul(a, nl / l) : a;
 }
 
+// from polar to cartesian
 export function polar(radius, angle) {
   return {
     x: radius * Math.cos(angle),
@@ -66,14 +72,23 @@ export function polar(radius, angle) {
   };
 }
 
+export function floor(v) {
+  return {
+    x: Math.floor(v.x),
+    y: Math.floor(v.y)
+  };
+}
+
 export function dot(a, b) {
   return a.x * b.x + a.y * b.y;
 }
 
+// cross product to "3d"
 export function cross(a, b) {
   return b.y * a.x - b.x * a.y;
 }
 
+// project b into a
 export function project(a, v) {
   const lsq = a.x * a.x + a.y * a.y;
   if (lsq == 0) return {x:0 , y:0};
