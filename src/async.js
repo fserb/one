@@ -3,6 +3,17 @@ ASYNC Arcade
 
 - request belt
 
+- requests:
+  - number of individual blocks, generic or color
+  - certain shape, generic or color
+  - blocks per second
+  - sync creation
+  - request OR request
+
+- milestones:
+  - add color 3, 4
+  - add speed
+
 */
 
 import * as one from "./one/one.js";
@@ -37,8 +48,11 @@ const SELECTED = [null, null];
 const GRAVITY = {x: 1, y: 0};
 let NEEDS_MERGE = false;
 const BELT = [];
+let BELT_SPEED = 1;
+let COLORS = 2;
 
 function init() {
+  BELT.length = 0;
   BOARD.length = 0;
   SELECTED[0] = SELECTED[1] = null;
 
@@ -48,7 +62,7 @@ function init() {
 function createBlock(p) {
   const o = Object.assign({
     b: -1, x: -1, y: -1,
-    v: Math.floor(2 * Math.random()),
+    v: Math.floor(COLORS * Math.random()),
     w: 1, h: 1,
     d: {x: 0, y: 0},
     scale: 1,
@@ -159,83 +173,40 @@ function get(p) {
 return null;
 }
 
-function getMinAllowedExpansion(b) {
-  const expand = { x: 0, y: 0 };
-  if (b === null) return expand;
-  // on X
-  const x1 = b.x + b.w;
-  for (let y = b.y; y < b.y + b.h; y++) {
-    const n = get({b: b.b, x: x1, y});
-    if (!n) {
-      expand.x = 0;
-      break;
-    }
-    expand.x = Math.max(expand.x, n.w);
-    expand.y = Math.max(expand.y, n.y + n.h - (b.y + b.h));
-  }
-  // vert
-  const y1 = b.y + b.h;
-  for (let x = b.x; x < b.x + b.w; x++) {
-    const n = get({b: b.b, x, y: y1});
-    if (!n) {
-      expand.y = 0;
-      break;
-    }
-    expand.y = Math.max(expand.y, n.h);
-    expand.x = Math.max(expand.x, n.x + n.w - (b.x + b.w));
-  }
+function isValidResize(b, dx, dy) {
+  const maxx = b.x + b.w + dx;
+  const maxy = b.y + b.h + dy;
+  for (let x = b.x; x < maxx; ++x) {
+    for (let y = b.y; y < maxy; ++y) {
+      const n = get({b:b.b, x, y});
+      if (!n || n.v != b.v) return false;
 
-  for (let x = b.x + b.w; x < b.x + b.w + expand.x; ++x) {
-    for (let y = b.y + b.h; y < b.y + b.h + expand.y; ++y) {
-      const n = get({b: b.b, x, y});
-      if (!n) {
-        if (expand.x > expand.y) {
-          expand.y = 0;
-        } else {
-          expand.x = 0;
-        }
-        return expand;
-      }
+      if (n.x + n.w > maxx) return false;
+      if (n.y + n.h > maxy) return false;
 
-      expand.x = Math.max(expand.x, n.x + n.w - (b.x + b.w));
-      expand.y = Math.max(expand.y, n.y + n.h - (b.y + b.h));
+      if (n.x < b.x) return false;
+      if (n.y < b.y) return false;
     }
   }
-
-  return expand;
+  return true;
 }
 
 function getMaxSquare(b) {
-  const expand = getMinAllowedExpansion(b);
-  if (b === null) return expand;
+  const expand = {x: 0, y: 0};
+  let bestArea = 4;
 
-  for (let x = b.x; x < b.x + b.w + expand.x; x++) {
-    for (let y = b.y; y < b.y + b.h + expand.y; y++) {
-      const n = get({b: b.b, x, y});
-      if (!n || n.v != b.v) {
-        if (x >= b.x + b.w) {
-          expand.x = 0;
-        }
-        if (y >= b.y + b.h) {
-          expand.y = 0;
-        }
-        break;
-      }
-
-      if (n.x < b.x) {
-        expand.y = 0;
-      }
-      if (n.y < b.y) {
-        expand.x = 0;
-      }
+  for (let dx = 0; dx <= (WIDTH - (b.x + b.w)); dx++) {
+    for (let dy = 0; dy <= (HEIGHT - (b.y + b.h)); dy++) {
+      const area = (dx + b.w) * (dy + b.h);
+      if (dx + b.w == 1 || dy + b.h == 1) continue;
+      if (bestArea > area) continue;
+      if (bestArea == area && dy <= expand.y) continue;
+      if (!isValidResize(b, dx, dy)) continue;
+      expand.x = dx;
+      expand.y = dy;
+      bestArea = area;
     }
   }
-
-  // min block is 2x2
-  if (b.w == 1 && b.h == 1 && (expand.x == 0 || expand.y == 0)) {
-    expand.x = expand.y = 0;
-  }
-
   return expand;
 }
 
