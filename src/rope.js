@@ -543,7 +543,7 @@ function updatePlayer(dt) {
     PLAYER.looking = 5 + Math.random();
 
     PLAYER.onair += 1/60;
-    if (PLAYER.onair > 3) {
+    if (PLAYER.onair > 5) {
       one.gameOver();
     }
 

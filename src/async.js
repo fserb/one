@@ -6,7 +6,7 @@ ASYNC Arcade
 */
 
 import * as one from "./one/one.js";
-import {act, ease, mouse, vec, camera} from "./one/one.js";
+import {act, ease, mouse, vec} from "./one/one.js";
 
 one.description("async", `
 Swap blocks on each side
@@ -16,11 +16,11 @@ Clear the request train
 
 const C = {
   bg: "#FFFFFF",
-  fg: "#999999",
+  fg: "#424B54",
   // pink, blue, yellow
-  piece: [ "#F02299", "#26ABF6", "#FCFF00" ],
-  shadowR: [ "#B6187E", "#1D7ACA", "#BFB702" ],
-  shadowB: [ "#650B57", "#0F378C", "#6C5300" ],
+  piece: [ "#F02299", "#26ABF6", "#FCFF00", '#16DB93' ],
+  shadowR: [ "#B6187E", "#1D7ACA", "#BFB702", '#109E79' ],
+  shadowB: [ "#650B57", "#0F378C", "#6C5300", '#094754' ],
 };
 
 one.options({
@@ -31,11 +31,12 @@ one.options({
 const BOARD = [];
 const WIDTH = 4;
 const HEIGHT = 6;
-const SIZE = 115;
-const BOARDPOS = [ {x: 20, y: 270}, {x: 1024 - SIZE * 4 - 20, y: 270} ];
+const SIZE = 120;
+const BOARDPOS = [ {x: 10, y: 290}, {x: 1024 - SIZE * 4 - 10, y: 290} ];
 const SELECTED = [null, null];
 const GRAVITY = {x: 1, y: 0};
 let NEEDS_MERGE = false;
+const BELT = [];
 
 function init() {
   BOARD.length = 0;
@@ -45,16 +46,15 @@ function init() {
 }
 
 function createBlock(p) {
-  const o = {
-    b: p.b,
-    v: Math.floor(3 * Math.random()),
-    x: p.x, y: p.y,
+  const o = Object.assign({
+    b: -1, x: -1, y: -1,
+    v: Math.floor(2 * Math.random()),
     w: 1, h: 1,
     d: {x: 0, y: 0},
     scale: 1,
     selected: false,
     removed: false,
-  };
+  }, p);
   BOARD.push(o);
   return o;
 }
@@ -129,9 +129,10 @@ async function fallBlocks(fillstep = 0) {
   if (changed) {
     return await fallBlocks(fillstep);
   }
-  await Promise.sleep(0.05);
+  // await Promise.sleep(0.0);
   fillEmpty(fillstep);
-  await Promise.sleep(0.5);
+  await Promise.sleep(0.4);
+  one.camera.shake(0.05 + 0.05 * fillstep, 100);
   NEEDS_MERGE = true;
 }
 
@@ -184,6 +185,22 @@ function getMinAllowedExpansion(b) {
     expand.x = Math.max(expand.x, n.x + n.w - (b.x + b.w));
   }
 
+  for (let x = b.x + b.w; x < b.x + b.w + expand.x; ++x) {
+    for (let y = b.y + b.h; y < b.y + b.h + expand.y; ++y) {
+      const n = get({b: b.b, x, y});
+      if (!n) {
+        if (expand.x > expand.y) {
+          expand.y = 0;
+        } else {
+          expand.x = 0;
+        }
+        return expand;
+      }
+
+      expand.x = Math.max(expand.x, n.x + n.w - (b.x + b.w));
+      expand.y = Math.max(expand.y, n.y + n.h - (b.y + b.h));
+    }
+  }
 
   return expand;
 }
@@ -239,9 +256,9 @@ function tryMergeBlocks() {
         BOARD.remove(n);
       }
     }
-
     b.w += exp.x;
     b.h += exp.y;
+
     return tryMergeBlocks();
   }
 }
@@ -253,7 +270,7 @@ function isValidSwitch() {
 async function updateClick() {
   if (!mouse.click) return;
 
-  const m = camera.map(mouse);
+  const m = one.camera.map(mouse);
   let clickBoard = null;
   let mb = null;
   for (const b of [0, 1]) {
@@ -278,7 +295,6 @@ async function updateClick() {
   }
 
   if (ONE.w > 1 && ONE.h > 1) {
-    console.log("POP");
     ONE.removed = true;
     act(ONE).attr("scale", 0, 0.3, ease.quadIn)
       .then(() => {
@@ -358,6 +374,7 @@ function update(dt) {
 }
 
 function render(ctx) {
+  one.camera.transform(ctx);
   const pre = [], mid = [], post = [];
   for (const p of BOARD) {
     if (p.scale < 1) pre.push(p);

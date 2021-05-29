@@ -46,7 +46,7 @@ export function init(forceStart = false) {
     bar.y = 0;
     bar.height = 44;
   } else {
-    state = "init";
+    state = "intro";
     act(bar)
       .delay(1/60)
       .attr("y", bary, 0.25, ease.fastOutSlowIn)
