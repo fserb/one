@@ -2,11 +2,8 @@
 // ----
 //
 // This is a collection of commom ease functions.
-//
 // They all have the same `Float -> Float` signature.
-//
 // For a reference, check: http://easings.net/.
-//
 
 // import Bezier from "bezier-easing";
 

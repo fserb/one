@@ -1,6 +1,9 @@
 /*
 ASYNC Arcade
 
+- game over
+- balance
+
 */
 
 import * as one from "./one/one.js";
@@ -47,8 +50,8 @@ function init() {
   BELT.length = 0;
   BOARD.length = 0;
   COLORS = 2;
-  BELT_POS = 1;
   BELT_SPEED = 1;
+  BELT_POS = 1;
   BELT_DONE = 0;
   BELT_NEXT = 1;
   SELECTED[0] = SELECTED[1] = null;
@@ -245,6 +248,7 @@ function isValidSwitch() {
 
 async function updateClick() {
   if (!mouse.click) return;
+  console.log("CLICK");
 
   const m = one.camera.map(mouse);
   let clickBoard = null;
@@ -361,9 +365,10 @@ function actBeltMerge() {
 }
 
 function popBelt(b) {
+  console.log("POP", b.parent === undefined ? b.type: "parent");
   if (b.parent === undefined) {
     BELT_DONE++;
-    BELT.pop();
+    BELT.remove(b);
   } else {
     act(b.parent)
       .attr("t", 0, 0.3, ease.linear)
@@ -376,6 +381,7 @@ function actBelt(piece, b = null) {
 
   const area = piece.w * piece.h;
   b = b ?? BELT[BELT.length - 1];
+  console.log("ACT BELT", b.type);
 
   if (b.type == "blocks") {
     if (b.color == -1 || b.color == piece.v) {
@@ -422,7 +428,7 @@ function actBelt(piece, b = null) {
 }
 
 function makeBeltRequest(canBeOr = true) {
-  const maxtype = canBeOr ? 4 : 3;
+  const maxtype = canBeOr ? 5 : 4;
   const type = Math.floor(maxtype * Math.random());
 
   if (type == 0) {
@@ -436,13 +442,8 @@ function makeBeltRequest(canBeOr = true) {
   }
 
   if (type == 1) {
-    let w = Math.random() < 0.75 ? 2 : Math.random() < 0.75 ? 3 : 4;
-    let h = Math.random() < 0.75 ? 2 : Math.random() < 0.75 ? 3 : 4;
-    if (w * h > 12) {
-      if (w == 4) w = 3;
-      if (h == 4) h = 3;
-    }
-
+    let w = Math.random() < 0.75 ? 2 : 3;
+    let h = Math.random() < 0.75 ? 2 : 3;
     return {
       type: "shape",
       color: Math.random() < 0.5 ? -1 : Math.floor(COLORS * Math.random()),
@@ -458,7 +459,7 @@ function makeBeltRequest(canBeOr = true) {
       color: Math.random() < 0.5 ? -1 : Math.floor(COLORS * Math.random()),
       max: 10 + BELT_SPEED * 0.1,
       value: 0,
-      speed: 0.1 + 0.4 * Math.random(),
+      speed: BELT_SPEED * 0.05 + 0.4 * Math.random(),
       t: 1.0,
     };
   }
@@ -491,10 +492,7 @@ function makeBeltMilestone() {
 
   const o = {type: "milestone", color: -1, t: 1};
 
-  if (act == 0) return Object.assign(o, { action: () => BELT_SPEED++ });
-  if (act == 1) return Object.assign(o, { color: 2, action: () => COLORS++ });
-  if (act == 2) return Object.assign(o, { action: () => BELT_SPEED++ });
-  if (act == 3) return Object.assign(o, { color: 3, action: () => COLORS++ });
+  if (act == 7) return Object.assign(o, { color: 2, action: () => COLORS++ });
   return Object.assign(o, { action: () => BELT_SPEED++ });
 }
 
@@ -522,6 +520,7 @@ function updateBelt(dt) {
   if (b.type == "milestone") {
     b.action();
     act(b)
+      .delay(0.5)
       .attr("t", 0, 0.3, ease.quadIn)
       .then(() => popBelt(b));
     return;
@@ -605,7 +604,7 @@ function renderBeltUnit(ctx, b) {
 
 function renderMilestone(ctx, b) {
   ctx.globalAlpha = b.t;
-  ctx.fillStyle = b.color == -1 ? C.fg : C.piece[b.color];
+  ctx.fillStyle = b.color == -1 ? C.fg : C.shadowR[b.color];
 
   ctx.beginPath();
   for (let i = 0; i < 10; ++i) {
@@ -643,15 +642,14 @@ function renderBeltSync(ctx, b) {
   ctx.globalAlpha *= b.t;
   ctx.fillStyle = C.fg;
 
-  ctx.fillRect(11.21/51, 14.68/51, 13/51, 17/51);
-  ctx.fillRect(26.79/51, 19.93/51, 13/51, 17/51);
-  ctx.fillRect(23.32/51, 14.68/51, 9.97/51, 3/51);
-  ctx.fillRect(17.71/51, 33.93/51, 9.97/51, 3/51);
+  ctx.fillRect(8.35/51, 14.24/51, 13/51, 17/51);
+  ctx.fillRect(29.65/51, 19.76/51, 13/51, 17/51);
+  ctx.fillRect(22.49/51, 23.74/51, 6.03/51, 3.53/51);
 }
 
 function renderBeltBPS(ctx, b) {
   ctx.globalAlpha *= b.t;
-  ctx.fillStyle = ctx.strokeStyle = b.color == -1 ? C.fg : C.piece[b.color];
+  ctx.fillStyle = ctx.strokeStyle = b.color == -1 ? C.fg : C.shadowR[b.color];
 
   const v = b.value / b.max;
 
@@ -678,7 +676,7 @@ function renderBeltShape(ctx, b) {
 
 function renderBeltBlocks(ctx, b) {
   const base = ctx.globalAlpha;
-  ctx.fillStyle = ctx.strokeStyle = b.color == -1 ? C.fg : C.piece[b.color];
+  ctx.fillStyle = ctx.strokeStyle = b.color == -1 ? C.fg : C.shadowR[b.color];
 
   const dx = (1 - 0.25 * Math.ceil(b.total / 4)) / 2;
 
