@@ -1,7 +1,6 @@
 /*
 ASYNC Arcade
 
-- game over
 - balance
 
 */
@@ -41,7 +40,7 @@ const BELT = [];
 let BELT_POS;
 let BELT_SPEED;
 let COLORS;
-let BELT_DONE;
+let BELT_FLASH;
 let BELT_NEXT;
 const MERGE_COUNT = [0, 0];
 let BELT_MILESTONE = 0;
@@ -51,10 +50,15 @@ function init() {
   BOARD.length = 0;
   COLORS = 2;
   BELT_SPEED = 1;
-  BELT_POS = 1;
-  BELT_DONE = 0;
   BELT_NEXT = 1;
   SELECTED[0] = SELECTED[1] = null;
+  BELT_FLASH = 0;
+  BELT.unshift(createBeltRequest(0, -1));
+  BELT.unshift(createBeltRequest(0, 1));
+  BELT.unshift(createBeltRequest(1, -1));
+  BELT.unshift(createBeltRequest(1, 0));
+  BELT.unshift(createBeltRequest(2, -1));
+  BELT_POS = -BELT.length + 1;
 
   fillEmpty();
 }
@@ -248,7 +252,6 @@ function isValidSwitch() {
 
 async function updateClick() {
   if (!mouse.click) return;
-  console.log("CLICK");
 
   const m = one.camera.map(mouse);
   let clickBoard = null;
@@ -365,9 +368,8 @@ function actBeltMerge() {
 }
 
 function popBelt(b) {
-  console.log("POP", b.parent === undefined ? b.type: "parent");
   if (b.parent === undefined) {
-    BELT_DONE++;
+    one.addScore();
     BELT.remove(b);
   } else {
     act(b.parent)
@@ -381,7 +383,6 @@ function actBelt(piece, b = null) {
 
   const area = piece.w * piece.h;
   b = b ?? BELT[BELT.length - 1];
-  console.log("ACT BELT", b.type);
 
   if (b.type == "blocks") {
     if (b.color == -1 || b.color == piece.v) {
@@ -427,14 +428,14 @@ function actBelt(piece, b = null) {
   }
 }
 
-function makeBeltRequest(canBeOr = true) {
-  const maxtype = canBeOr ? 5 : 4;
-  const type = Math.floor(maxtype * Math.random());
-
+function createBeltRequest(type, color = null) {
+  if (color == null) {
+    color = Math.random() < 0.5 ? -1 : Math.floor(COLORS * Math.random());
+  }
   if (type == 0) {
     return {
       type: "blocks",
-      color: Math.random() < 0.5 ? -1 : Math.floor(COLORS * Math.random()),
+      color: color,
       total: Math.floor(4 + 12 * Math.random()),
       count: 0,
       t: 0.0,
@@ -446,7 +447,7 @@ function makeBeltRequest(canBeOr = true) {
     let h = Math.random() < 0.75 ? 2 : 3;
     return {
       type: "shape",
-      color: Math.random() < 0.5 ? -1 : Math.floor(COLORS * Math.random()),
+      color: color,
       width: w,
       height: h,
       t: 1.0,
@@ -456,7 +457,7 @@ function makeBeltRequest(canBeOr = true) {
   if (type == 2) {
     return {
       type: "bps",
-      color: Math.random() < 0.5 ? -1 : Math.floor(COLORS * Math.random()),
+      color: color,
       max: 10 + BELT_SPEED * 0.1,
       value: 0,
       speed: BELT_SPEED * 0.05 + 0.4 * Math.random(),
@@ -483,8 +484,13 @@ function makeBeltRequest(canBeOr = true) {
     a.parent = b.parent = x;
     return x;
   }
-
   return null;
+}
+
+function makeBeltRequest(canBeOr = true) {
+  const maxtype = canBeOr ? 5 : 4;
+  const type = Math.floor(maxtype * Math.random());
+  return createBeltRequest(type);
 }
 
 function makeBeltMilestone() {
@@ -497,8 +503,8 @@ function makeBeltMilestone() {
 }
 
 function updateBelt(dt) {
-  BELT_POS += (BELT.length <= 1 || (BELT.length == 2 && BELT_POS < 0.1) ?
-    dt * BELT_SPEED : (dt * BELT_SPEED / 100));
+  const LP = 1024 - 1.2 * SZ * (BELT.length + BELT_POS - 1 - 0.6);
+  BELT_POS += (LP > 1024 - SZ * 0.5) ? dt : (dt * BELT_SPEED / 100);
 
   if (BELT_POS >= 1) {
     BELT_POS -= 1;
@@ -514,6 +520,14 @@ function updateBelt(dt) {
   if (BELT.length == 0) return;
 
   if (act.is()) return;
+
+  if (LP <= 0) return one.gameOver();
+  if (LP <= 3 * SZ) {
+    const SP = 5 + 15 * (1 - LP / (3 * SZ));
+    BELT_FLASH = (BELT_FLASH + dt * SP) % 2;
+  } else {
+    BELT_FLASH = 0;
+  }
 
   const b = BELT[BELT.length - 1];
 
@@ -579,10 +593,11 @@ function renderBelt(ctx) {
   ctx.translate(0, (290 + 44 - SZ) / 2);
   ctx.scale(SZ, SZ);
 
-
   let p = (BELT_POS - 1) * 1.2;
-  for (const b of BELT) {
+  for (let i = 0; i < BELT.length; ++i) {
+    const b = BELT[i];
     if (b === null) continue;
+    if (i == BELT.length - 1 && Math.floor(BELT_FLASH) == 1) break;
     ctx.save();
     ctx.translate(p, 0);
     renderBeltUnit(ctx, b);
