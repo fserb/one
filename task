@@ -12,6 +12,9 @@ function build {
   echo "import main from './src/${GAME}.js'; main();" | npx rollup -c rollup.mjs
   node process.mjs
   rm -f "www/${GAME}/bundle.js"
+  PRESIZE=`cat www/${GAME}/index.html | wc -c`
+  GZIPSIZE=`gzip -9 -c www/${GAME}/index.html | wc -c`
+  echo "Final size: ${PRESIZE} -> ${GZIPSIZE}"
   echo "optimizing PNGs..."
   optipng -quiet www/${GAME}/*.png
 }

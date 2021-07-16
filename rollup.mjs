@@ -28,12 +28,22 @@ export default {
       compact: true,
     }),
     terser({
+      ecma: 2015,
       compress: {
-        passes: 3,
+        ecma: 2015,
+        passes: 10,
         unsafe: true,
+        unsafe_comps: true,
+        unsafe_Function: true,
+        unsafe_math: true,
+        unsafe_proto: true,
+        unsafe_regexp: true,
+        unsafe_undefined: true,
       },
       format: {
         comments: false,
+        ecma: 2015,
+
       },
       module: true,
       toplevel: true
