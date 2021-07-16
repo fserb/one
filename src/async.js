@@ -503,8 +503,8 @@ function makeBeltMilestone() {
 }
 
 function updateBelt(dt) {
-  const LP = 1024 - 1.2 * SZ * (BELT.length + BELT_POS - 1 - 0.6);
-  BELT_POS += (LP > 1024 - SZ * 0.5) ? dt : (dt * BELT_SPEED / 100);
+  const LP = 1024 - 1.2 * SZ * (BELT.length + BELT_POS - 1 - 0.3);
+  BELT_POS += (LP > 1024 - SZ * 0.9) ? dt : (dt * BELT_SPEED / 100);
 
   if (BELT_POS >= 1) {
     BELT_POS -= 1;
@@ -522,8 +522,8 @@ function updateBelt(dt) {
   if (act.is()) return;
 
   if (LP <= 0) return one.gameOver();
-  if (LP <= 3 * SZ) {
-    const SP = 5 + 15 * (1 - LP / (3 * SZ));
+  if (LP <= 2 * SZ) {
+    const SP = 1 + 19 * (1 - LP / (2 * SZ));
     BELT_FLASH = (BELT_FLASH + dt * SP) % 2;
   } else {
     BELT_FLASH = 0;
