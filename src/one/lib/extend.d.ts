@@ -3,7 +3,7 @@ interface Math {
   frac(float): float;
   SQRT3: float;
   TAU: float;
-  hash(...any): int;
+  bitfield(int, int, int?): int;
   log2int(int): int;
   lerp(float, float, float): float;
   sum(arr: float[]): float;

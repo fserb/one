@@ -21,14 +21,9 @@ if (Math.SQRT3 === undefined) {
   Math.SQRT3 = Math.sqrt(3);
 }
 
-if (Math.hash === undefined) {
-  Math.hash = function(...v) {
-    if (v.length === 0) return 0;
-    let h = 0;
-    for (const o of v) {
-      h = h ^ ((o * 0xdeece66d + 0xb) + 0x9e3779b9 + (h << 6) + (h >> 2));
-    }
-    return h;
+if (Math.bitfield === undefined) {
+  Math.bitfield = function(value, start, length = 1) {
+    return (value >> start) & ((1 << length) - 1);
   };
 }
 
