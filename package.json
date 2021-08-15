@@ -23,6 +23,7 @@
     "nunjucks": "^3.2.3",
     "planck": "^1.0.0-alpha.2",
     "puppeteer-core": "^10.1.0",
+    "regpack": "^5.0.1",
     "rollup": "^2.53.2",
     "rollup-plugin-bundle-size": "^1.0.3",
     "rollup-plugin-ignore": "^1.0.9",

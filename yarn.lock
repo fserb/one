@@ -4499,7 +4499,7 @@ minimatch@^2.0.3:
   dependencies:
     brace-expansion "^1.0.0"
 
-minimist@^1.1.0, minimist@^1.2.0, minimist@^1.2.3, minimist@^1.2.5:
+minimist@>=1.1.0, minimist@^1.1.0, minimist@^1.2.0, minimist@^1.2.3, minimist@^1.2.5:
   version "1.2.5"
   resolved "https://registry.yarnpkg.com/minimist/-/minimist-1.2.5.tgz#67d66014b66a6a8aaa0c083c5fd58df4e4e97602"
   integrity sha512-FM9nNUYrRBAELZQT3xeZQ7fmMOBg6nWNmJKTcgsJeaLstP/UODVpGsr5OhXhhXg6f+qtJ8uiZ+PUxkDWcgIXLw==
@@ -5159,6 +5159,13 @@ regjsparser@^0.6.4:
   integrity sha512-ZqbNRz1SNjLAiYuwY0zoXW8Ne675IX5q+YHioAGbCw4X96Mjl2+dcX9B2ciaeyYjViDAfvIjFpQjJgLttTEERQ==
   dependencies:
     jsesc "~0.5.0"
+
+regpack@^5.0.1:
+  version "5.0.1"
+  resolved "https://registry.yarnpkg.com/regpack/-/regpack-5.0.1.tgz#f43ab16c8c881dab0b8d3ac6590eb75a478e29d2"
+  integrity sha1-9DqxbIyIHasLjTrGWQ63WkeOKdI=
+  dependencies:
+    minimist ">=1.1.0"
 
 remove-trailing-separator@^1.0.1:
   version "1.1.0"

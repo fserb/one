@@ -3,18 +3,40 @@ set -euo pipefail
 IFS=$'\n\t'
 
 GAMES=(wow trap rope)
+DOJS13K=true
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+NC='\033[0m'
+
+function js13k {
+  echo "JS13K Packing..."
+  advzip -4 -i 100 -a www/${GAME}/pack.zip www/${GAME}/index.html
+  PRESIZE=`cat www/${GAME}/index.html | wc -c`
+  ZIPSIZE=`cat www/${GAME}/pack.zip | wc -c`
+  printf "Final size: ${PRESIZE} -> ${YELLOW}${ZIPSIZE}${NC}\n"
+  if (( $ZIPSIZE > 13312 )); then
+    printf "🚨 ${RED}Pack too big for JS13K${NC} 🚨\n"
+  fi
+}
 
 function build {
   export GAME="$1"
   echo "Building $GAME"
   rm -rf "www/${GAME}"
   mkdir "www/${GAME}"
-  echo "import main from './src/${GAME}.js'; main();" | npx rollup -c rollup.mjs
+  echo "import main from './src/${GAME}.js'; main();" | \
+    npx rollup -c rollup.mjs -o 'www/${GAME}/bundle.js'
   node process.mjs
-  rm -f "www/${GAME}/bundle.js"
-  PRESIZE=`cat www/${GAME}/index.html | wc -c`
-  GZIPSIZE=`gzip -9 -c www/${GAME}/index.html | wc -c`
-  echo "Final size: ${PRESIZE} -> ${GZIPSIZE}"
+  if [ $DOJS13K = true ]; then
+    js13k
+  else
+    PRESIZE=`cat www/${GAME}/index.html | wc -c`
+    GZIPSIZE=`gzip -9 -c www/${GAME}/index.html | wc -c`
+    printf "Final size: ${PRESIZE} -> ${YELLOW}${GZIPSIZE}${NC}\n"
+  fi
+  # rm -f "www/${GAME}/bundle.js"
   echo "optimizing PNGs..."
   optipng -quiet www/${GAME}/*.png
 }

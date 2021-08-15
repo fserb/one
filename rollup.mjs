@@ -2,14 +2,9 @@ import {terser} from 'rollup-plugin-terser';
 import strip from '@rollup/plugin-strip';
 import bundleSize from 'rollup-plugin-bundle-size';
 import progress from 'rollup-plugin-progress';
-import ignore from "rollup-plugin-ignore";
 import resolve from '@rollup/plugin-node-resolve';
 import commonjs from '@rollup/plugin-commonjs';
-import replace from '@rollup/plugin-replace';
-import alias from '@rollup/plugin-alias';
 import {babel} from '@rollup/plugin-babel';
-
-const GAME = process.env.GAME ?? "";
 
 export default {
   input: "-",
@@ -20,7 +15,6 @@ export default {
     }),
     commonjs({
       transformMixedEsModules: true,
-    //   include: 'node_modules/**',
     }),
     babel({
       exclude: /node_modules/,
@@ -28,10 +22,12 @@ export default {
       compact: true,
     }),
     terser({
-      ecma: 2015,
+      ecma: 2016,
       compress: {
-        ecma: 2015,
-        passes: 10,
+        toplevel: true,
+        module: true,
+        ecma: 2016,
+        passes: 5,
         unsafe: true,
         unsafe_comps: true,
         unsafe_Function: true,
@@ -40,13 +36,19 @@ export default {
         unsafe_regexp: true,
         unsafe_undefined: true,
       },
+      mangle: {
+        toplevel: true,
+        module: true,
+        eval: true,
+      },
       format: {
         comments: false,
-        ecma: 2015,
-
+        ecma: 2016,
       },
       module: true,
-      toplevel: true
+      toplevel: true,
+      keep_classnames: false,
+      keep_fnames: false,
     }),
     strip({
 
@@ -59,6 +61,5 @@ export default {
     format: 'esm',
     name: 'main',
     sourcemap: false,
-    file: `www/${GAME}/bundle.js`
   }
 };
