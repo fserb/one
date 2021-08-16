@@ -14750,4 +14750,4 @@ var planck$1 = {exports: {}};
 
 var planck = /*@__PURE__*/getDefaultExportFromCjs(planck$1.exports);
 
-export default planck;
+export { planck as default };

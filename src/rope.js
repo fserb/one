@@ -32,7 +32,6 @@ one.options({
 });
 
 one.sound.make("hold", 0.1, (f, track) => {
-
   track(f.karplus_strong, {b: 1, freq: 100, S: 0.5});
   track(f.karplus_strong, {b: 0.5, freq: 50, S: 0.5});
   track(f.biquad, {type: "lowpass", freq: 100});

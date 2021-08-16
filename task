@@ -3,7 +3,7 @@ set -euo pipefail
 IFS=$'\n\t'
 
 GAMES=(wow trap rope)
-JS13K_GAMES=(wow trap rope)
+JS13K_GAMES=()
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'

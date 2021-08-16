@@ -4959,13 +4959,6 @@ pkg-dir@^3.0.0:
   dependencies:
     find-up "^3.0.0"
 
-planck-js@^0.3.31:
-  version "0.3.31"
-  resolved "https://registry.yarnpkg.com/planck-js/-/planck-js-0.3.31.tgz#dc87a999f6d425633d7abd8c77078fcb5a9babd2"
-  integrity sha512-fwKYnL92pF2nXdMPeBq/Aipu+m8LztcEcNjdcrQm/sWKDR01Ej0g121KS1oO7NW23WnRzxw24a7V4KI2JlFpSg==
-  dependencies:
-    stage-js "^0.9.4"
-
 planck@^1.0.0-alpha.2:
   version "1.0.0-alpha.2"
   resolved "https://registry.yarnpkg.com/planck/-/planck-1.0.0-alpha.2.tgz#7328e80e8f9f06dae8d96a335e5e299a1eb18daf"

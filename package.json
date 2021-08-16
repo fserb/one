@@ -22,7 +22,6 @@
     "lzma": "^2.3.2",
     "nunjucks": "^3.2.3",
     "planck": "^1.0.0-alpha.2",
-    "planck-js": "^0.3.31",
     "puppeteer-core": "^10.2.0",
     "regpack": "^5.0.1",
     "rollup": "^2.56.2",
