@@ -87,24 +87,16 @@ function reset() {
   this.canvas.width = this.canvas.width;
 }
 
-const MAP = {
-  "reset": reset,
-  "roundRect": roundRect,
-  "strokeRoundRect": strokeRoundRect,
-  "fillRoundRect": fillRoundRect,
-  "text": text,
-  "mtext": mtext,
-  "strokeLine": strokeLine,
-  "fillCircle": fillCircle,
-  "strokeCircle": strokeCircle,
-};
+const MAP = [reset, roundRect, strokeRoundRect, fillRoundRect, text, mtext,
+  strokeLine, fillCircle, strokeCircle];
 
 export default function(obj) {
   const target = obj.getContext ? obj.getContext("2d") : obj;
 
-  for (const k of Object.keys(MAP)) {
-    if (target[k] !== undefined) continue;
-    target[k] = MAP[k].bind(target);
+  for (const func of MAP) {
+    const name = func.name;
+    if (target[name] !== undefined) continue;
+    target[name] = func.bind(target);
   }
 
   return obj;

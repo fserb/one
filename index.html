@@ -30,16 +30,26 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   {{ head | safe }}
   <style>
-html { height: 100%; }
-#canvas { width: 100vmin; height: 100vmin; cursor: pointer; user-select: none; }
-body { background-color: #000; margin: 0; height: 100%; overflow: hidden; touch-action: none; display: flex; justify-content: center; align-items: flex-start; background-color: {{ themecolor }}}
+#canvas {
+  width: 100vmin;
+  height: 100vmin;
+  cursor: pointer;
+  user-select: none;
+}
+body {
+  margin: 0;
+  touch-action: none;
+  text-align: center;
+  background-color: #222;
+  background-color: {{ themecolor }};
+}
   </style>
 </head>
 <body><canvas id="canvas"></canvas>
 {{ payload | safe }}{% set unpayload %}
 <style>body { font-size: 0; }</style>
 <script type="module">
-import main from "./src/async.js";
+import main from "./src/rope.js";
 
 main({forceStart: true});
 // main();

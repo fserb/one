@@ -4,7 +4,7 @@ import plus2d from "./plus2d.js";
 // be triggered. The function will be called after it stops being called for
 // N milliseconds. If `immediate` is passed, trigger the function on the
 // leading edge, instead of the trailing.
-function debounce(func, wait, immediate = false) {
+export function debounce(func, wait, immediate = false) {
   let timeout;
   return function(...args) {
     // eslint-disable-next-line no-invalid-this
@@ -20,7 +20,7 @@ function debounce(func, wait, immediate = false) {
   };
 }
 
-function newCanvas(width, height, forceElement = false) {
+export function newCanvas(width, height, forceElement = false) {
   let canvas, ctx;
   if (!forceElement) {
     try {
@@ -44,12 +44,12 @@ function newCanvas(width, height, forceElement = false) {
   return [canvas, ctx];
 }
 
-function rectHit(obj, x, y) {
+export function rectHit(obj, x, y) {
   return (x >= obj.x && x < (obj.x + obj.width) &&
     y >= obj.y && y < (obj.y + obj.height));
 }
 
-function mousepos(obj, x, y) {
+export function mousepos(obj, x, y) {
   if (!Array.isArray(obj)) obj = [obj];
   for (const o of obj) {
     const r = o.r ?? 1.0;
@@ -59,7 +59,7 @@ function mousepos(obj, x, y) {
   return [x, y];
 }
 
-function unmaps(objs, s) {
+export function unmaps(objs, s) {
   for (let i = objs.length - 1; i >= 0; --i) {
     const r = objs[i].r ?? 1.0;
     s *= r;
@@ -67,7 +67,7 @@ function unmaps(objs, s) {
   return s;
 }
 
-function unmap(objs, target) {
+export function unmap(objs, target) {
   const out = {x: target.x, y: target.y,
     width: target.width, height: target.height};
   for (let i = objs.length - 1; i >= 0; --i) {
@@ -82,7 +82,7 @@ function unmap(objs, target) {
   return out;
 }
 
-function uuid() {
+export function uuid() {
   const time = +Date.now();
   const timeLow = time % 4294967296;
   const timeHigh = (time - timeLow) / 4294967296;
@@ -107,11 +107,11 @@ function uuid() {
   ].join('').toLowerCase();
 }
 
-function loadImage(name) {
+export function loadImage(name) {
   return fetch(name).then(x => x.blob()).then(createImageBitmap);
 }
 
-function dayOfYear(y, m, d) {
+export function dayOfYear(y, m, d) {
   const now = new Date(y, m, d, 0, 0, 0, 0);
   const start = new Date(now.getFullYear(), 0, 1, 0, 0, 0, 0);
   const diff = now.getTime() - start.getTime() +
@@ -120,7 +120,7 @@ function dayOfYear(y, m, d) {
   return day;
 }
 
-function dayOfEpoch(y, m, d) {
+export function dayOfEpoch(y, m, d) {
   const now = new Date(y, m, d, 0, 0, 0, 0);
   const start = new Date(2021, 0, 1, 0, 0, 0, 0);
   const diff = now.getTime() - start.getTime() +
@@ -128,6 +128,3 @@ function dayOfEpoch(y, m, d) {
   const day = Math.floor(diff / (1000 * 60 * 60 * 24));
   return day;
 }
-
-export {newCanvas, loadImage, debounce, mousepos, rectHit, uuid,
-  unmap, unmaps, dayOfYear, dayOfEpoch};

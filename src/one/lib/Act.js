@@ -1,6 +1,8 @@
 // act
 // ---
 
+import {clamp} from "./extra.js";
+
 const easeLinear = t => t;
 
 function getDeepProperty(obj, name) {
@@ -202,7 +204,7 @@ export default class SysAct {
         continue;
       }
       if (a.duration < 0.0) continue;
-      a.time = Math.clamp(a.time + dt / a.duration, 0.0, 1.0);
+      a.time = clamp(a.time + dt / a.duration, 0.0, 1.0);
       a.func(a.time);
       if (a.time >= 1.0) {
         this.removeAction(i);

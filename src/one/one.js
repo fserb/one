@@ -1,7 +1,6 @@
-import "./lib/extend.js";
 import plus2d from "./lib/plus2d.js";
 
-import {C, opts, mouse, ease, setOpts, op, sysact, act} from "./internal.js";
+import {opts, mouse, ease, setOpts, op, sysact, act} from "./internal.js";
 
 export * as utils from "./lib/utils.js";
 export * as vec from "./lib/vec.js";
@@ -10,7 +9,7 @@ import * as input from "./input.js";
 import * as sound from "./sound.js";
 import camera from "./camera.js";
 
-export {C, mouse, act, ease, camera, sound};
+export {mouse, act, ease, camera, sound};
 
 import * as overlay from "./overlay.js";
 
@@ -96,7 +95,6 @@ function _frame(now) {
 }
 
 export function main({obj = null, forceStart = false} = {}) {
-  document.body.style.backgroundColor = "#222";
   canvas = op.canvas = obj ?? document.getElementById("canvas");
   ctx = canvas.getContext("2d");
   plus2d(ctx);

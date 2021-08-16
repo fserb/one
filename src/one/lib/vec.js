@@ -60,7 +60,7 @@ export function angle(a) {
 
 export function clamp(a, minv, maxv) {
   const l = len(a);
-  const nl = Math.clamp(l, minv, maxv);
+  const nl = l <= minv ? minv : (l >= maxv ? maxv : l);
   return l != 0 ? mul(a, nl / l) : a;
 }
 

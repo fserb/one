@@ -21,12 +21,6 @@ export const defaultOpts = {
   desc: null,
 };
 
-export const C = Object.assign({}, [ "#F2F0E5", "#B8B5B9", "#646365", "#45444F",
-"#212123", "#352B42", "#4B4158", "#5F556A", "#474969", "#4B80CA", "#669ECA",
-"#68C2D3", "#A2DCC7", "#EDE19E", "#D3A068", "#E2A084", "#B45252", "#C6424F",
-"#932C4B", "#402F2E", "#7E6352", "#B9A588", "#FFF18A", "#E6B951", "#C2D368",
-"#8AB060", "#567B79", "#4E584A", "#7B7243", "#B2B47E", "#EDC8C4", "#C990C6" ]);
-
 export let opts = defaultOpts;
 export function setOpts(op) {
   opts = Object.assign(opts, op);

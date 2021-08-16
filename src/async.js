@@ -5,6 +5,8 @@ ASYNC Arcade
 
 */
 
+import {promiseSleep, arrayRemove} from "./one/lib/extra.js";
+
 import * as one from "./one/one.js";
 import {act, ease, mouse, vec} from "./one/one.js";
 
@@ -18,9 +20,9 @@ const C = {
   bg: "#FFFFFF",
   fg: "#424B54",
   // pink, blue, yellow
-  piece: [ "#F02299", "#26ABF6", "#FCFF00", '#16DB93' ],
-  shadowR: [ "#B6187E", "#1D7ACA", "#BFB702", '#109E79' ],
-  shadowB: [ "#650B57", "#0F378C", "#6C5300", '#094754' ],
+  piece: ["#F02299", "#26ABF6", "#FCFF00", '#16DB93'],
+  shadowR: ["#B6187E", "#1D7ACA", "#BFB702", '#109E79'],
+  shadowB: ["#650B57", "#0F378C", "#6C5300", '#094754'],
 };
 
 one.options({
@@ -154,9 +156,9 @@ async function fallBlocks(fillstep = 0) {
   if (changed) {
     return await fallBlocks(fillstep);
   }
-  // await Promise.sleep(0.0);
+  // await promiseSleep(0.0);
   fillEmpty(fillstep);
-  await Promise.sleep(0.4);
+  await promiseSleep(0.4);
   one.camera.shake(0.05 + 0.05 * fillstep, 100);
   NEEDS_MERGE = true;
 }
@@ -235,7 +237,7 @@ function tryMergeBlocks() {
       for (let y = b.y; y < b.y + b.h + exp.y; y++) {
         const n = get({b: b.b, x, y});
         if (n === null || n === b) continue;
-        BOARD.remove(n);
+        arrayRemove(BOARD, n);
       }
     }
     b.w += exp.x;
@@ -281,10 +283,10 @@ async function updateClick() {
     ONE.removed = true;
     act(ONE).attr("scale", 0, 0.3, ease.quadIn)
       .then(() => {
-        BOARD.remove(ONE);
+        arrayRemove(BOARD, ONE);
       });
     actBelt(ONE);
-    await Promise.sleep(0.1);
+    await promiseSleep(0.1);
     fallBlocks();
     SELECTED[0] = SELECTED[1] = null;
   }
@@ -321,7 +323,7 @@ async function updateClick() {
       .attr("scale", 1.8, 0.35 * T, ease.linear).then()
       .attr("scale", 1, 0.65 * T, ease.linear);
 
-      await Promise.sleep(T);
+      await promiseSleep(T);
       NEEDS_MERGE = true;
     }
 
@@ -370,7 +372,7 @@ function actBeltMerge() {
 function popBelt(b) {
   if (b.parent === undefined) {
     one.addScore();
-    BELT.remove(b);
+    arrayRemove(BELT, b);
   } else {
     act(b.parent)
       .attr("t", 0, 0.3, ease.linear)

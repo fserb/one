@@ -4,7 +4,7 @@ https://www.cs.brandeis.edu/~storer/JimPuzzles/ZPAGES/zzzBullsEye.html
 */
 
 import * as one from "./one/one.js";
-import {C, act, ease, mouse} from "./one/one.js";
+import {act, ease, mouse} from "./one/one.js";
 
 one.description("wow", `
 move the small circle
@@ -12,11 +12,11 @@ inside the bigger circle
 `);
 
 const L = {
-  bg: C[1],
-  fg: C[6],
-  pp: C[13],
-  gr: C[25],
-  sh: C[5],
+  bg: "#B8B5B9",
+  fg: "#4B4158",
+  pp: "#EDE19E",
+  gr: "#8AB060",
+  sh: "#352B42",
 }
 
 one.options({
@@ -87,8 +87,8 @@ function init() {
   c.text("W", 234, 265, 350);
   c.text("W", 468 * 2 + 234, 265, 350);
 
-  ox = (1024 - (234*3)) / 2;
-  oy = (1024 - (234*4) - 28);
+  ox = (1024 - (234 * 3)) / 2;
+  oy = (1024 - (234 * 4) - 28);
 }
 
 function check() {
@@ -125,8 +125,8 @@ function update() {
 
   if (!target) return;
 
-  let nex = target.x;
-  let ney = target.y;
+  const nex = target.x;
+  const ney = target.y;
 
   one.addScore();
 

@@ -16,7 +16,7 @@ function js13k {
   echo "import main from './src/${GAME}.js'; main();" | \
     npx rollup -c tools/rollup.js13k.mjs -o "www/${GAME}/js13k.js"
   node tools/generate_js13k.mjs "${GAME}"
-  rm -f "www/${GAME}/js13k.js"
+  # rm -f "www/${GAME}/js13k.js"
   echo "Packing..."
   zip -q www/${GAME}/js13k.zip www/${GAME}/index.html
   advzip -q -4 -i 100 -z www/${GAME}/js13k.zip

@@ -2,8 +2,10 @@
 Rope
 */
 
+import {clamp, TAU, lerp} from "./one/lib/extra.js";
+
 import * as one from "./one/one.js";
-import {C, act, ease, mouse, vec} from "./one/one.js";
+import {act, ease, mouse, vec} from "./one/one.js";
 
 import pl from "./one/lib/planck.js";
 
@@ -14,16 +16,16 @@ stay alive
 
 const L = {
   bg: "#000000",
-  fg: C[19],
-  water: C[9],
-  rope: C[20],
-  dark: C[19],
-  eye: C[1],
-  iris: C[4],
-  alien: C[7],
-  body: C[5],
-  grass: C[25],
-  shot: C[17],
+  fg: "#402F2E",
+  water: "#4B80CA",
+  rope: "#7E6352",
+  dark: "#402F2E",
+  eye: "#B8B5B9",
+  iris: "#212123",
+  alien: "#5F556A",
+  body: "#352B42",
+  grass: "#8AB060",
+  shot: "#C6424F",
 };
 
 one.options({
@@ -421,7 +423,7 @@ function stepPath() {
   const MAXV = 0.1;
   const FLEX = 0.5;
   pathVel += MAXV * (2 * Math.random() - 1) * FLEX;
-  pathVel = Math.clamp(pathVel, -MAXV, MAXV);
+  pathVel = clamp(pathVel, -MAXV, MAXV);
 
   const n = vec.mul(vec.normalize(vec.perp(pathDir)), pathVel);
   pathDir = vec.normalize(vec.add(pathDir, n));
@@ -524,8 +526,8 @@ function postSolve(contact) {
 }
 
 function updatePlayer(dt) {
-  PLAYER.breath = Math.sin(Math.TAU * dt * 0.12);
-  PLAYER.pupil = Math.cos(333 + Math.TAU * dt * 0.035);
+  PLAYER.breath = Math.sin(TAU * dt * 0.12);
+  PLAYER.pupil = Math.cos(333 + TAU * dt * 0.035);
   PLAYER.blinking -= 1/60;
   if (PLAYER.blinking <= 0 && PLAYER.blink == 0) {
     act(PLAYER).attr("blink", 1.0, 0.15, ease.quadIn).then()
@@ -533,8 +535,8 @@ function updatePlayer(dt) {
     PLAYER.blinking = 2 + 8 * Math.random();
   }
 
-  PLAYER.eye.x = Math.lerp(PLAYER.eye.x, PLAYER.eyelook.x, 0.15);
-  PLAYER.eye.y = Math.lerp(PLAYER.eye.y, PLAYER.eyelook.y, 0.15);
+  PLAYER.eye.x = lerp(PLAYER.eye.x, PLAYER.eyelook.x, 0.15);
+  PLAYER.eye.y = lerp(PLAYER.eye.y, PLAYER.eyelook.y, 0.15);
 
   if (PLAYER.arms[0].hold === null && PLAYER.arms[1].hold === null) {
     PLAYER.eyelook.x = 0;
@@ -581,8 +583,8 @@ function updateCamera() {
   const dist = Math.hypot(target.cx - one.camera.cx, target.cy - one.camera.cy);
 
   const d = vec.sub(target, one.camera);
-  let ang = Math.TAU * -d.x / 40;
-  if (Math.abs(ang) < Math.TAU / 40) ang = 0;
+  let ang = TAU * -d.x / 40;
+  if (Math.abs(ang) < TAU / 40) ang = 0;
   target.angle = ang;
 
   one.camera.approach(target, {x: 0.02, y: 0.005, angle: 0.04});
@@ -673,7 +675,7 @@ function updateEnemy() {
   const here = path[enemyPath];
   const last = path[enemyPath - 1] ?? {x: 0, y: 0};
   const dir = vec.sub(here, last);
-  const target = { x: here.x, y: here.y, angle: vec.angle(dir) + Math.TAU / 4};
+  const target = { x: here.x, y: here.y, angle: vec.angle(dir) + TAU / 4};
   const p = ENEMY.getPosition();
   const a = ENEMY.getAngle();
 
@@ -682,10 +684,10 @@ function updateEnemy() {
   const dist = vec.clamp(fulldist, -mv, mv);
   ENEMY.setPosition(vec.add(p, dist));
 
-  let da = (target.angle - a + Math.PI) % Math.TAU - Math.PI;
-  if (da < -Math.PI) da += Math.TAU;
+  let da = (target.angle - a + Math.PI) % TAU - Math.PI;
+  if (da < -Math.PI) da += TAU;
   const ma = 0.0035;
-  da = Math.clamp(da, -ma, ma);
+  da = clamp(da, -ma, ma);
   ENEMY.setAngle(a + da);
 
   if (vec.len(fulldist) < 0.001) {
@@ -917,9 +919,9 @@ function renderPlayer(ctx) {
     ctx.beginPath();
     ctx.arc(0, 0, 39, Math.PI, 2 * Math.PI);
     if (PLAYER.blink < 0.5) {
-      ctx.ellipse(0, 0, 39, Math.lerp(39, 0, PLAYER.blink * 2), 0, 0, Math.PI, true);
+      ctx.ellipse(0, 0, 39, lerp(39, 0, PLAYER.blink * 2), 0, 0, Math.PI, true);
     } else {
-      ctx.ellipse(0, 0, 39, Math.lerp(0, 39, (PLAYER.blink - 0.5) * 2), 0, 0, Math.PI);
+      ctx.ellipse(0, 0, 39, lerp(0, 39, (PLAYER.blink - 0.5) * 2), 0, 0, Math.PI);
     }
     ctx.fill();
   }

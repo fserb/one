@@ -19,7 +19,9 @@ export default {
     babel({
       exclude: /node_modules/,
       babelHelpers: 'bundled',
+      // compact: true,
       compact: true,
+      minified: true,
       presets: [[
         "@babel/preset-env",
         {

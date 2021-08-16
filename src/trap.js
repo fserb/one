@@ -1,5 +1,7 @@
+import {clamp, arrayRemove, lerp, SQRT3, TAU} from "./one/lib/extra.js";
+
 import * as one from "./one/one.js";
-import {C, act, ease, mouse, vec, camera} from "./one/one.js";
+import {act, ease, mouse, vec, camera} from "./one/one.js";
 
 one.description("trap", `
 destroy blocks
@@ -7,12 +9,12 @@ don't let the eye escape
 `);
 
 const L = {
-  bg: C[11],
-  fg: C[19],
-  ground: C[20],
-  alien: C[18],
-  eye: C[0],
-  iris: C[4]
+  bg: "#68C2D3",
+  fg: "#402F2E",
+  ground: "#7E6352",
+  alien: "#932C4B",
+  eye: "#F2F0E5",
+  iris: "#212123",
 };
 
 one.options({
@@ -57,7 +59,7 @@ const WIDTH = 10;
 const HEIGHT = 17;
 const SIZE = 60;
 
-const H2 = Math.SQRT3 / 2;
+const H2 = SQRT3 / 2;
 
 let ALIEN = {};
 
@@ -123,7 +125,7 @@ function build(number) {
   while (dif < number) {
     const v = avail[Math.floor(Math.random() * avail.length)];
     v.v = false;
-    avail.remove(v);
+    arrayRemove(avail, v);
     const sc = 1 + v.astar;
     dif += sc;
   }
@@ -224,7 +226,7 @@ function escapeAlien() {
   else if (v.r == 15 || v.r == 16) target.y = corner11.y;
 
   const q = 2/3 * target.x / SIZE;
-  const r = (-1/3 * target.x + Math.SQRT3/3 * target.y) / SIZE;
+  const r = (-1/3 * target.x + SQRT3/3 * target.y) / SIZE;
 
   target.c = q;
   target.r = 2 * r + q;
@@ -314,8 +316,8 @@ function recenterCamera() {
 
     rect.minx = Math.min(rect.minx, x - SIZE);
     rect.maxx = Math.max(rect.maxx, x + SIZE);
-    rect.miny = Math.min(rect.miny, y - Math.SQRT3 * SIZE / 2);
-    rect.maxy = Math.max(rect.maxy, y + Math.SQRT3 * SIZE / 2);
+    rect.miny = Math.min(rect.miny, y - SQRT3 * SIZE / 2);
+    rect.maxy = Math.max(rect.maxy, y + SQRT3 * SIZE / 2);
   }
 
   const border = 30;
@@ -347,8 +349,8 @@ function updateNext() {
 }
 
 function update(dt) {
-  ALIEN.breath = Math.sin(Math.TAU * dt * 0.12);
-  ALIEN.pupil = Math.cos(333 + Math.TAU * dt * 0.035);
+  ALIEN.breath = Math.sin(TAU * dt * 0.12);
+  ALIEN.pupil = Math.cos(333 + TAU * dt * 0.035);
   ALIEN.blinking -= 1/60;
   if (ALIEN.blinking <= 0) {
     blinkAlien();
@@ -401,7 +403,7 @@ function updateSky() {
   }
 
   for (let i = 0; i < SKYR.length; ++i) {
-    SKYR[i] = Math.clamp(SKYR[i] + 0.01 * (Math.random() - 0.5), 0.15, 1.5);
+    SKYR[i] = clamp(SKYR[i] + 0.01 * (Math.random() - 0.5), 0.15, 1.5);
   }
 
   for (const c of SKY) {
@@ -523,9 +525,9 @@ function renderAlien(ctx, head, legs) {
     ctx.beginPath();
     ctx.arc(0, 0, 39, Math.PI, 2 * Math.PI);
     if (ALIEN.blink < 0.5) {
-      ctx.ellipse(0, 0, 39, Math.lerp(39, 0, ALIEN.blink * 2), 0, 0, Math.PI, true);
+      ctx.ellipse(0, 0, 39, lerp(39, 0, ALIEN.blink * 2), 0, 0, Math.PI, true);
     } else {
-      ctx.ellipse(0, 0, 39, Math.lerp(0, 39, (ALIEN.blink - 0.5) * 2), 0, 0, Math.PI);
+      ctx.ellipse(0, 0, 39, lerp(0, 39, (ALIEN.blink - 0.5) * 2), 0, 0, Math.PI);
     }
     ctx.fill();
   }
@@ -640,7 +642,7 @@ function distanceHex(a, b) {
 }
 
 function posHex(p) {
-  return { x: SIZE * 3/2 * p.c, y: SIZE * H2 * p.r };
+  return { x: SIZE * 3 / 2 * p.c, y: SIZE * H2 * p.r };
 }
 
 const hexPath = new Path2D();
@@ -673,8 +675,8 @@ function renderHex(ctx, c, r, size, fill = false, stroke = false, delta = 0) {
 function mouseHex() {
   const m = camera.map(mouse);
 
-  const q = 2/3 * m.x / SIZE;
-  const r = (-1/3 * m.x + Math.SQRT3/3 * m.y) / SIZE;
+  const q = 2 / 3 * m.x / SIZE;
+  const r = (-1 / 3 * m.x + SQRT3 / 3 * m.y) / SIZE;
 
   let rx = Math.round(q);
   let ry = Math.round(-q-r);

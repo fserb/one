@@ -1,7 +1,7 @@
-import "../src/one/lib/extend.js";
+import {promiseSleep} from "../src/one/lib/extra.js";
 import puppeteer from "puppeteer-core";
 import sharp from "sharp";
-import {GAME, opts, C} from "./gameinfo.mjs";
+import {GAME, opts} from "./gameinfo.mjs";
 
 async function takeScreenshots(game) {
   const browser = await puppeteer.launch({
@@ -16,7 +16,7 @@ async function takeScreenshots(game) {
 
   await page.goto(url);
   await page.click("#canvas");
-  await Promise.sleep(1.5);
+  await promiseSleep(1.5);
   const png = await page.screenshot({type: "png"});
   await browser.close();
 
@@ -26,7 +26,7 @@ async function takeScreenshots(game) {
 
     obj.resize(width, height, {
       fit: "contain",
-      background: C[opts.bgColor]}).png().toFile(name);
+      background: opts.bgColor}).png().toFile(name);
   }
 
   await buildImage(`www/${game}/ogimage.png`, 1200, 627);

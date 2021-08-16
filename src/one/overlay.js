@@ -31,7 +31,7 @@ export function init(forceStart = false) {
   op.bestScore = localStorage.getItem("one#" + opts.name);
 
   // set up intro message
-  intro.lines =  opts.desc.strip().split('\n');
+  intro.lines =  opts.desc.trim().split('\n');
   intro.size = Math.min(800 / (intro.lines.length * 1.5),
     800 / (Math.max(...intro.lines.map(x => x.length)) * 0.6));
 
