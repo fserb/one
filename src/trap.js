@@ -15,6 +15,7 @@ const L = {
   alien: "#932C4B",
   eye: "#F2F0E5",
   iris: "#212123",
+  extra: "#B9A588",
 };
 
 one.options({
@@ -418,7 +419,7 @@ function renderSky(ctx) {
   ctx.rotate(Math.PI / 2);
   ctx.translate(-640, -640);
   ctx.globalAlpha = 0.25;
-  ctx.fillStyle = C[0];
+  ctx.fillStyle = L.eye;
   for (const c of SKY) {
     ctx.fillRoundRect(c.x, c.y, c.w, c.h, 10);
   }
@@ -433,16 +434,16 @@ function render(ctx) {
   for (const v of all(true)) {
     if (v.s == 0.0) continue;
     ctx.lineWidth = 1;
-    ctx.strokeStyle = C[19];
-    ctx.fillStyle = C[19];
+    ctx.strokeStyle = L.fg;
+    ctx.fillStyle = L.fg;
     renderHex(ctx, v.c, v.r, SIZE * v.s, true, true, 10 * v.s);
   }
 
   for (const v of all(true)) {
     if (v.s == 0.0) continue;
     ctx.lineWidth = 5 * v.s;
-    ctx.strokeStyle = C[19];
-    ctx.fillStyle = v.border ? C[21] : L.ground;
+    ctx.strokeStyle = L.fg;
+    ctx.fillStyle = v.border ? L.extra : L.ground;
     renderHex(ctx, v.c, v.r, SIZE * v.s, true, true);
   }
 

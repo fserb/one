@@ -776,7 +776,7 @@ function renderEnemy(ctx) {
   const p2 = vec.add(p1, vec.mul(d, half * 2));
   const p3 = vec.add(p0, vec.mul(d, half * 2));
 
-  ctx.fillStyle = C[17];
+  ctx.fillStyle = L.shot;
   ctx.beginPath();
   const steps = 20;
   const size = b * 2 / (steps - 1);
