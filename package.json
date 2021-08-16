@@ -17,7 +17,6 @@
     "@rollup/plugin-node-resolve": "^13.0.4",
     "@rollup/plugin-replace": "^3.0.0",
     "@rollup/plugin-strip": "^2.1.0",
-    "cjs-to-es6": "^1.1.1",
     "core-js": "^3.16.1",
     "lzma": "^2.3.2",
     "nunjucks": "^3.2.3",
