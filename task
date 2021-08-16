@@ -3,7 +3,7 @@ set -euo pipefail
 IFS=$'\n\t'
 
 GAMES=(wow trap rope)
-JS13K_GAMES=(-)
+JS13K_GAMES=(wow)
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -23,7 +23,7 @@ function js13k {
   mv www/${GAME}/index.html www/${GAME}/js13k.html
   PRESIZE=`cat www/${GAME}/js13k.html | wc -c`
   ZIPSIZE=`cat www/${GAME}/js13k.zip | wc -c`
-  printf "JS13K size: ${PRESIZE} -> ${YELLOW}${ZIPSIZE}${NC}\n"
+  printf "JS13K size: ${PRESIZE} -> ${YELLOW}${ZIPSIZE}${GREEN} ($((100*ZIPSIZE/13312))%%)${NC}\n"
   if (( $ZIPSIZE > 13312 )); then
     printf "🚨 ${RED}Pack too big for JS13K${NC} 🚨\n"
   fi
