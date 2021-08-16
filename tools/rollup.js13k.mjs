@@ -20,6 +20,15 @@ export default {
       exclude: /node_modules/,
       babelHelpers: 'bundled',
       compact: true,
+      presets: [[
+        "@babel/preset-env",
+        {
+          "targets": "last 1 chrome version, last 1 android version",
+          "useBuiltIns": "usage",
+          "corejs": "3.16",
+          "modules": false,
+        }
+      ]],
     }),
     terser({
       ecma: 2016,

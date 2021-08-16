@@ -3,7 +3,7 @@ set -euo pipefail
 IFS=$'\n\t'
 
 GAMES=(wow trap rope)
-DOJS13K=true
+JS13K_GAMES=(wow trap rope)
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -11,32 +11,41 @@ YELLOW='\033[0;33m'
 NC='\033[0m'
 
 function js13k {
-  echo "JS13K Packing..."
-  advzip -4 -i 100 -a www/${GAME}/pack.zip www/${GAME}/index.html
-  PRESIZE=`cat www/${GAME}/index.html | wc -c`
-  ZIPSIZE=`cat www/${GAME}/pack.zip | wc -c`
-  printf "Final size: ${PRESIZE} -> ${YELLOW}${ZIPSIZE}${NC}\n"
+  printf "${GREEN}JS13K${NC}\n"
+  echo "Building..."
+  echo "import main from './src/${GAME}.js'; main();" | \
+    npx rollup -c tools/rollup.js13k.mjs -o "www/${GAME}/js13k.js"
+  node tools/generate_js13k.mjs "${GAME}"
+  rm -f "www/${GAME}/js13k.js"
+  echo "Packing..."
+  zip -q www/${GAME}/js13k.zip www/${GAME}/index.html
+  advzip -q -4 -i 100 -z www/${GAME}/js13k.zip
+  mv www/${GAME}/index.html www/${GAME}/js13k.html
+  PRESIZE=`cat www/${GAME}/js13k.html | wc -c`
+  ZIPSIZE=`cat www/${GAME}/js13k.zip | wc -c`
+  printf "JS13K size: ${PRESIZE} -> ${YELLOW}${ZIPSIZE}${NC}\n"
   if (( $ZIPSIZE > 13312 )); then
     printf "🚨 ${RED}Pack too big for JS13K${NC} 🚨\n"
   fi
 }
 
 function build {
-  export GAME="$1"
+  GAME="$1"
   echo "Building $GAME"
   rm -rf "www/${GAME}"
   mkdir "www/${GAME}"
+
+  if echo ${JS13K_GAMES[@]} | grep -ow "${GAME}"; then js13k; fi
+
   echo "import main from './src/${GAME}.js'; main();" | \
-    npx rollup -c rollup.mjs -o 'www/${GAME}/bundle.js'
-  node process.mjs
-  if [ $DOJS13K = true ]; then
-    js13k
-  else
-    PRESIZE=`cat www/${GAME}/index.html | wc -c`
-    GZIPSIZE=`gzip -9 -c www/${GAME}/index.html | wc -c`
-    printf "Final size: ${PRESIZE} -> ${YELLOW}${GZIPSIZE}${NC}\n"
-  fi
-  # rm -f "www/${GAME}/bundle.js"
+    npx rollup -c tools/rollup.mjs -o "www/${GAME}/bundle.js"
+  node tools/generate_page.mjs "${GAME}"
+  rm -f "www/${GAME}/bundle.js"
+  node tools/take_screenshots.mjs "${GAME}"
+  PRESIZE=`cat www/${GAME}/index.html | wc -c`
+  GZIPSIZE=`gzip -9 -c www/${GAME}/index.html | wc -c`
+  printf "Final size: ${PRESIZE} -> ${YELLOW}${GZIPSIZE}${NC}\n"
+
   echo "optimizing PNGs..."
   optipng -quiet www/${GAME}/*.png
 }
@@ -67,7 +76,7 @@ function sync {
 
 function update-deps {
   yarn upgrade-interactive --latest
-  rollup -c planck.rollup.js
+  rollup -c tools/planck.rollup.js
 }
 
 function help {

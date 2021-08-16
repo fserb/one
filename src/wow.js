@@ -21,7 +21,7 @@ const L = {
 
 one.options({
   bgColor: L.bg,
-fgColor: L.fg,
+  fgColor: L.fg,
   scoreMax: false,
   finishGood: true,
 });
