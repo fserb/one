@@ -9,35 +9,35 @@
 
 import {clamp} from "./extra.js";
 
-const ease = {
-  linear: t => t,
-  reverse: t => 1 - t,
-  hold: _ => 1,
-  pow: (f, p) => t => Math.pow(f(t), p),
-  mix: (a, b, r) => t => (1 - r) * a(t) + r * b(t),
-  cross: (a, b) => (t => (1 - t) * a(t) + t * b(t)),
-  reversed: f => t => 1 - f(1 - t),
-  mirrored: f => t => t <= 0.5 ? f(2 * t) / 2 : (2 - f(2 * (1 - t))) / 2,
-  abs: f => t => {
+export const linear = t => t;
+export const reverse = t => 1 - t;
+export const hold = _ => 1;
+export const pow = (f, p) => t => Math.pow(f(t), p);
+export const mix = (a, b, r) => t => (1 - r) * a(t) + r * b(t);
+export const cross = (a, b) => (t => (1 - t) * a(t) + t * b(t));
+export const reversed = f => t => 1 - f(1 - t);
+export const mirrored = f => t => t <= 0.5 ? f(2 * t) / 2 : (2 - f(2 * (1 - t))) / 2;
+export function abs(f) {
+  return t => {
     const v = f(t);
     if (v < 0) return -v;
     if (v > 1) return 1 - v;
     return v;
-  },
+  }
+};
+export const bezier = (p1, p2) => t => 3 * t * (1 - t) * (1 - t) * p1 +
+  3 * t * t * (1 - t) * p2 + t * t * t;
 
-  bezier: (p1, p2) => t => 3 * t * (1 - t) * (1 - t) * p1 +
-  3 * t * t * (1 - t) * p2 + t * t * t,
-
-  interp: data => t => {
+export function interp(data) {
+  return t => {
     if (t <= 0) return 0.0;
     if (t >= 1) return 1.0;
     const p = t * (data.length - 1);
     const i = Math.floor(p);
     const d = p - i;
     return data[i] + d * (data[i + 1] - data[i]);
-  },
+  }
 };
-export default ease;
 
 function makeStep(inc2, step5) {
   return steps => t => {
@@ -46,77 +46,78 @@ function makeStep(inc2, step5) {
   };
 }
 
-ease.stepNone = makeStep(0, -1);
-ease.stepBoth = makeStep(1, 1);
-ease.stepStart = makeStep(1, 0);
-ease.stepEnd = makeStep(0, 0);
+export const stepNone = makeStep(0, -1);
+export const stepBoth = makeStep(1, 1);
+export const stepStart = makeStep(1, 0);
+export const stepEnd = makeStep(0, 0);
 
 // CSS Ease functions.
-// ease.Bezier = Bezier;
-// ease.CSSeaseIn = Bezier(0.42, 0, 1, 1);
-// ease.CSSeaseOut = Bezier(0, 0, 0.58, 1);
-// ease.CSSeaseInOut = Bezier(0.42, 0, 0.58, 1);
+// export const Bezier = Bezier;
+// export const CSSeaseIn = Bezier(0.42, 0, 1, 1);
+// export const CSSeaseOut = Bezier(0, 0, 0.58, 1);
+// export const CSSeaseInOut = Bezier(0.42, 0, 0.58, 1);
 
 // Exp approximations of CSS Ease functions.
-ease.easeIn = t => t ** 1.66908;
-ease.easeOut = ease.reversed(t => t ** 1.66908);
-ease.easeInOut = ease.mirrored(t => t ** 1.92023);
+export const easeIn = t => t ** 1.66908;
+export const easeOut = reversed(t => t ** 1.66908);
+export const easeInOut = mirrored(t => t ** 1.92023);
 
-ease.quadIn = t => t ** 2;
-ease.quadOut = ease.reversed(ease.quadIn);
-ease.quadInOut = ease.mirrored(ease.quadIn);
+export const quadIn = t => t ** 2;
+export const quadOut = reversed(quadIn);
+export const quadInOut = mirrored(quadIn);
 
-ease.cubicIn = t => t ** 3;
-ease.cubicOut = ease.reversed(ease.cubicIn);
-ease.cubicInOut = ease.mirrored(ease.cubicIn);
+export const cubicIn = t => t ** 3;
+export const cubicOut = reversed(cubicIn);
+export const cubicInOut = mirrored(cubicIn);
 
-ease.quartIn = t => t ** 4;
-ease.quartOut = ease.reversed(ease.quartIn);
-ease.quartInOut = ease.mirrored(ease.quartIn);
+export const quartIn = t => t ** 4;
+export const quartOut = reversed(quartIn);
+export const quartInOut = mirrored(quartIn);
 
-ease.quintIn = t => t ** 5;
-ease.quintOut = ease.reversed(ease.quintIn);
-ease.quintInOut = ease.mirrored(ease.quintIn);
+export const quintIn = t => t ** 5;
+export const quintOut = reversed(quintIn);
+export const quintInOut = mirrored(quintIn);
 
-ease.polyIn = n => t => t ** n;
-ease.polyOut = n => ease.reversed(ease.polyIn(n));
-ease.polyInOut = n => ease.mirrored(ease.polyIn(n));
+export const polyIn = n => t => t ** n;
+export const polyOut = n => reversed(polyIn(n));
+export const polyInOut = n => mirrored(polyIn(n));
 
-ease.sinIn = t => 1 - Math.cos(t * Math.PI / 2);
-ease.sinOut = ease.reversed(ease.sinIn);
-ease.sinInOut = ease.mirrored(ease.sinIn);
+export const sinIn = t => 1 - Math.cos(t * Math.PI / 2);
+export const sinOut = reversed(sinIn);
+export const sinInOut = mirrored(sinIn);
 
-ease.expIn = t => 2 ** (10 * (t - 1));
-ease.expOut = ease.reversed(ease.expIn);
-ease.expInOut = ease.mirrored(ease.expIn);
+export const expIn = t => 2 ** (10 * (t - 1));
+export const expOut = reversed(expIn);
+export const expInOut = mirrored(expIn);
 
-ease.circIn = t => 1 - Math.sqrt(1 - t ** 2);
-ease.circOut = ease.reversed(ease.circIn);
-ease.circInOut = ease.mirrored(ease.circIn);
+export const circIn = t => 1 - Math.sqrt(1 - t ** 2);
+export const circOut = reversed(circIn);
+export const circInOut = mirrored(circIn);
 
 // default s = 1.70158;
-ease.backIn = s => t => t * t * (s * (t - 1) + t);
-ease.backOut = s => ease.reversed(ease.backIn(s));
-ease.backInOut = s => ease.mirrored(ease.backIn(s));
+export const backIn = s => t => t * t * (s * (t - 1) + t);
+export const backOut = s => reversed(backIn(s));
+export const backInOut = s => mirrored(backIn(s));
 
 const c4 = (2 * Math.PI) / 3;
-ease.elasticIn = t => t <= 0 ? 0 : t >= 1 ? 1 :
+export const elasticIn = t => t <= 0 ? 0 : t >= 1 ? 1 :
   -Math.pow(2, 10 * t - 10) * Math.sin((t * 10 - 10.75) * c4);
-// ease.elasticIn = t => Math.sin(13 * t * Math.PI / 2) * 2 ** (10 * (t - 1));
-ease.elasticOut = ease.reversed(ease.elasticIn);
-ease.elasticInOut = ease.mirrored(ease.elasticIn);
+// export const elasticIn = t => Math.sin(13 * t * Math.PI / 2) * 2 ** (10 * (t - 1));
+export const elasticOut = reversed(elasticIn);
+export const elasticInOut = mirrored(elasticIn);
 
-ease.bounceOut = t => {
+export const bounceOut = t => {
   if (t < 1 / 2.75) return 7.5625 * (t ** 2);
   if (t < 2 / 2.75) return 7.5625 * ((t - 1.5 / 2.75) ** 2) + 0.75;
   if (t < 2.5 / 2.75) return 7.5625 * ((t - 2.25 / 2.75) ** 2) + 0.9375;
   return 7.5625 * ((t - 2.625 / 2.75) ** 2) + 0.984375;
 };
-ease.bounceIn = ease.reversed(ease.bounceOut);
-ease.bounceInOut = ease.mirrored(ease.bounceIn);
+export const bounceIn = reversed(bounceOut);
+export const bounceInOut = mirrored(bounceIn);
 
 // cubic-bezier(0.4, 0., 0.2, 1.0)
-// ease.fastOutSlowIn = ease.interp([0, 0.0001, 0.0002, 0.0005, 0.0009, 0.0014,
+// expoort const fastOutSlowIn = ease.interp([
+//   0, 0.0001, 0.0002, 0.0005, 0.0009, 0.0014,
 //   0.002, 0.0028, 0.0037, 0.0047, 0.0058, 0.0071, 0.0086, 0.0102, 0.0119,
 //   0.0139, 0.016, 0.0182, 0.0207, 0.0233, 0.0262, 0.0292, 0.0324, 0.0359,
 //   0.0396, 0.0435, 0.0476, 0.052, 0.0567, 0.0616, 0.0668, 0.0722, 0.078,
@@ -139,6 +140,7 @@ ease.bounceInOut = ease.mirrored(ease.bounceIn);
 //   0.993, 0.9937, 0.9943, 0.9949, 0.9954, 0.9959, 0.9964, 0.9969, 0.9973,
 //   0.9977, 0.998, 0.9983, 0.9986, 0.9989, 0.9991, 0.9993, 0.9995, 0.9997,
 //   0.9998, 0.9999, 0.9999, 1, 1, 1]);
+
 const fastOutSlowInDATA = `545344434443344244242432333223231231212122022022121232333354546657667777877787877878687786777777676776766766766675757657657567476566575575575574755665656557466565565655656556564746565556565556555656465`;
 const arr = [];
 let last = 0;
@@ -150,7 +152,7 @@ for (const a of fastOutSlowInDATA) {
   const x = last / 10000;
   arr.push(x);
 }
-ease.fastOutSlowIn = ease.interp(arr);
+export const fastOutSlowIn = interp(arr);
 
 // HOW TO BUILD DATA
 

@@ -80,8 +80,8 @@ export function gameOver() {
 
   state = "finish";
   act(bar)
-    .attr("y", 1024 - 44, 0.35, ease.fastInSlowOut)
-    .attr("scorey", 1024 - 44, 0.35, ease.fastInSlowOut);
+    .attr("y", 1024 - 44, 0.35, ease.fastOutSlowIn)
+    .attr("scorey", 1024 - 44, 0.35, ease.fastOutSlowIn);
 }
 
 export function update(dt, start) {
@@ -95,7 +95,7 @@ export function update(dt, start) {
       .attr("height", 44, t, ease.quadIn)
       .then(() => { bar.clear = true; })
       .then(start)
-      .attr("y", 0, 0.35, ease.fastInSlowOut)
+      .attr("y", 0, 0.35, ease.fastOutSlowIn)
       .then(() => {state = "game";});
   }
   if (state == "finish") {

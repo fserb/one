@@ -33,8 +33,8 @@ export const mouse = {
   release: false,
 };
 
-import _ease from "./lib/ease.js";
-export const ease = _ease;
+import * as ease from "./lib/ease.js";
+export {ease};
 
 import Act from "./lib/Act.js";
 export const sysact = new Act();

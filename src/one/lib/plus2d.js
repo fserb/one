@@ -87,17 +87,22 @@ function reset() {
   this.canvas.width = this.canvas.width;
 }
 
-const MAP = [reset, roundRect, strokeRoundRect, fillRoundRect, text, mtext,
-  strokeLine, fillCircle, strokeCircle];
+const MAP = {
+  'reset': reset, 'roundRect': roundRect,
+  'strokeRoundRect': strokeRoundRect,
+  'fillRoundRect': fillRoundRect,
+  'text': text,
+  'mtext': mtext,
+  'strokeLine': strokeLine,
+  'fillCircle': fillCircle,
+  'strokCircle': strokeCircle };
 
 export default function(obj) {
   const target = obj.getContext ? obj.getContext("2d") : obj;
 
-  for (const func of MAP) {
-    const name = func.name;
+  for (const name of Object.keys(MAP)) {
     if (target[name] !== undefined) continue;
-    target[name] = func.bind(target);
+    target[name] = MAP[name].bind(target);
   }
-
   return obj;
 }

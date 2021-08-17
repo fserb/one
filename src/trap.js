@@ -1,4 +1,4 @@
-import {clamp, arrayRemove, lerp, SQRT3, TAU} from "./one/lib/extra.js";
+import {clamp, arrayRemove, lerp, SQRT3, TAU, promiseSleep} from "./one/lib/extra.js";
 
 import * as one from "./one/one.js";
 import {act, ease, mouse, vec, camera} from "./one/one.js";
@@ -276,7 +276,7 @@ async function finishGame() {
 
   await Promise.all(wait);
 
-  await Promise.sleep(0.1);
+  await promiseSleep(0.1);
 
   one.sound.play("fall");
   await act(ALIEN).attr("s", 0.0, 0.5, ease.backIn(3));
@@ -284,7 +284,7 @@ async function finishGame() {
   camera.reset();
   camera.z *= 100;
 
-  await Promise.sleep(0.3);
+  await promiseSleep(0.3);
 
   nextLevel();
 }

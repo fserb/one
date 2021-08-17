@@ -25,24 +25,29 @@ export default {
       presets: [[
         "@babel/preset-env",
         {
-          "targets": "last 1 chrome version, last 1 android version",
+          "targets": "last 1 chrome version, last 1 firefox version",
           "useBuiltIns": "usage",
           "corejs": "3.16",
           "modules": false,
         }
       ]],
     }),
+    strip({
+    }),
     terser({
-      ecma: 2016,
+      ecma: 2020,
       compress: {
+        booleans_as_integers: true,
+        keep_fargs: false,
         toplevel: true,
         module: true,
-        ecma: 2016,
+        ecma: 2020,
         passes: 5,
         unsafe: true,
         unsafe_comps: true,
         unsafe_Function: true,
         unsafe_math: true,
+        unsafe_methods: true,
         unsafe_proto: true,
         unsafe_regexp: true,
         unsafe_undefined: true,
@@ -54,15 +59,14 @@ export default {
       },
       format: {
         comments: false,
-        ecma: 2016,
+        ecma: 2020,
+        indent_level: 0,
+
       },
       module: true,
       toplevel: true,
       keep_classnames: false,
       keep_fnames: false,
-    }),
-    strip({
-
     }),
     bundleSize(),
   ],
