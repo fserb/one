@@ -3,8 +3,6 @@ export function newCanvas(width: int, height: int, context?: string, opts?: obje
 
 export function debounce(func: (any?) => any, wait: float, immediate?: boolean): ((any?) => any);
 
-export function uuid(): string;
-
 export function loadImage(name: string): ImageBitmap;
 
 export function rectHit(obj: any, x: float, y: float): boolean;

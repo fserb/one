@@ -25,7 +25,6 @@ export function newCanvas(width, height, forceElement = false) {
   if (!forceElement) {
     try {
       canvas = new OffscreenCanvas(width, height);
-      // @ts-ignore
       ctx = canvas.getContext("2d");
     } catch (ex) {
       canvas = null;
@@ -80,31 +79,6 @@ export function unmap(objs, target) {
     out.height *= r;
   }
   return out;
-}
-
-export function uuid() {
-  const time = +Date.now();
-  const timeLow = time % 4294967296;
-  const timeHigh = (time - timeLow) / 4294967296;
-  const tim = [
-    (timeHigh >>> 8) & 0b11111111,
-    (timeHigh >>> 0) & 0b11111111,
-    (timeLow >>> 24) & 0b11111111,
-    (timeLow >>> 16) & 0b11111111,
-    (timeLow >>> 8) & 0b11111111,
-    (timeLow >>> 0) & 0b11111111];
-
-  const cry = new Uint8Array(10);
-  window.crypto.getRandomValues(cry);
-
-  const t = i => (tim[i] + 0x100).toString(16).substr(1);
-  const c = i => (cry[i] + 0x100).toString(16).substr(1);
-
-  return [
-    c(0), c(1), c(2), c(3), '-',
-    c(4), c(5), c(6), c(7), '-', c(8), c(9), '-',
-    t(0), t(1), t(2), t(3), '-', t(4), t(5),
-  ].join('').toLowerCase();
 }
 
 export function loadImage(name) {

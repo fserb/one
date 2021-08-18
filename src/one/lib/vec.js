@@ -65,10 +65,10 @@ export function clamp(a, minv, maxv) {
 }
 
 // from polar to cartesian
-export function polar(radius, angle) {
+export function polar(radius, ang) {
   return {
-    x: radius * Math.cos(angle),
-    y: radius * Math.sin(angle)
+    x: radius * Math.cos(ang),
+    y: radius * Math.sin(ang)
   };
 }
 
@@ -90,14 +90,14 @@ export function cross(a, b) {
 
 // project b into a
 export function project(a, v) {
-  const lsq = a.x * a.x + a.y * a.y;
-  if (lsq == 0) return {x:0 , y:0};
-  const dp = dot(a, v) / lsq;
+  const _lsq = a.x * a.x + a.y * a.y;
+  if (_lsq == 0) return {x: 0, y: 0};
+  const dp = dot(a, v) / _lsq;
   return { x: dp * a.x, y: dp * a.y};
 }
 
 export function partial(a, v) {
-  const lsq = a.x * a.x + a.y * a.y;
-  if (lsq == 0) return {x:0 , y:0};
-  return dot(a, v) / lsq;
+  const _lsq = a.x * a.x + a.y * a.y;
+  if (_lsq == 0) return {x: 0, y: 0};
+  return dot(a, v) / _lsq;
 }
