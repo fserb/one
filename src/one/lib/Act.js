@@ -3,7 +3,7 @@
 
 import {clamp} from "./extra.js";
 
-const easeLinear = t => t;
+import {linear as easeLinear} from "./ease.js";
 
 function getDeepProperty(obj, name) {
   const p = name.indexOf(".");

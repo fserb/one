@@ -88,7 +88,8 @@ function reset() {
 }
 
 const MAP = {
-  'reset': reset, 'roundRect': roundRect,
+  'reset': reset,
+  'roundRect': roundRect,
   'strokeRoundRect': strokeRoundRect,
   'fillRoundRect': fillRoundRect,
   'text': text,
