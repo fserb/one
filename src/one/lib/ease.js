@@ -16,7 +16,8 @@ export const pow = (f, p) => t => Math.pow(f(t), p);
 export const mix = (a, b, r) => t => (1 - r) * a(t) + r * b(t);
 export const cross = (a, b) => (t => (1 - t) * a(t) + t * b(t));
 export const reversed = f => t => 1 - f(1 - t);
-export const mirrored = f => t => t <= 0.5 ? f(2 * t) / 2 : (2 - f(2 * (1 - t))) / 2;
+export const mirrored = f =>
+  t => t <= 0.5 ? f(2 * t) / 2 : (2 - f(2 * (1 - t))) / 2;
 export function abs(f) {
   return t => {
     const v = f(t);
@@ -102,7 +103,8 @@ export const backInOut = s => mirrored(backIn(s));
 const c4 = (2 * Math.PI) / 3;
 export const elasticIn = t => t <= 0 ? 0 : t >= 1 ? 1 :
   -Math.pow(2, 10 * t - 10) * Math.sin((t * 10 - 10.75) * c4);
-// export const elasticIn = t => Math.sin(13 * t * Math.PI / 2) * 2 ** (10 * (t - 1));
+// export const elasticIn =
+//   t => Math.sin(13 * t * Math.PI / 2) * 2 ** (10 * (t - 1));
 export const elasticOut = reversed(elasticIn);
 export const elasticInOut = mirrored(elasticIn);
 
@@ -141,65 +143,71 @@ export const bounceInOut = mirrored(bounceIn);
 //   0.9977, 0.998, 0.9983, 0.9986, 0.9989, 0.9991, 0.9993, 0.9995, 0.9997,
 //   0.9998, 0.9999, 0.9999, 1, 1, 1]);
 
-const fastOutSlowInDATA = `545344434443344244242432333223231231212122022022121232333354546657667777877787877878687786777777676776766766766675757657657567476566575575575574755665656557466565565655656556564746565556565556555656465`;
-const arr = [];
-let last = 0;
-let vel = 0;
-for (const a of fastOutSlowInDATA) {
-  const dv = parseInt(a, 36) - 5;
-  vel += dv;
-  last -= vel;
-  const x = last / 10000;
-  arr.push(x);
+function fastOutSlowInData() {
+  const data = `545344434443344244242432333223231231212122022022121232333354546\
+6576677778777878778786877867777776767767667667666757576576575674765665755755755\
+74755665656557466565565655656556564746565556565556555656465`;
+  const arr = [];
+  let last = 0;
+  let vel = 0;
+  for (const a of data) {
+    const dv = parseInt(a, 36) - 5;
+    vel += dv;
+    last -= vel;
+    const x = last / 10000;
+    arr.push(x);
+  }
 }
-export const fastOutSlowIn = interp(arr);
-
-// HOW TO BUILD DATA
-
-// const prec = 10000;
-// let last = 0;
-// let vel = 0;
-// let add = "";
-// for (const v of arr) {
-//   const n = Math.round((v - last) * prec);
-//   const dv = vel - n + 5;
-//   add += dv.toString(36);
-//   vel = n;
-//   last = v;
-// }
+export const fastOutSlowIn = interp(fastOutSlowInData());
 
 
 // HOW TO BUILD DISCRETIZE BEZIERS
 
-// function cubicBezier(p0, p1, p2, p3) {
-//   return t => {
-//     const ti = 1 - t;
-//     return (ti * ti * ti * p0 +
-//       3 * ti * ti * t * p1 +
-//       3 * ti * t * t * p2 +
-//       t * t * t * p3);
-//   };
-// }
+function cubicBezier(p0, p1, p2, p3) {
+  return t => {
+    const ti = 1 - t;
+    return (ti * ti * ti * p0 +
+      3 * ti * ti * t * p1 +
+      3 * ti * t * t * p2 +
+      t * t * t * p3);
+  };
+}
 
-// function cubicBezier2D(p0, p1, p2, p3) {
-//   const cbx = cubicBezier(p0[0], p1[0], p2[0], p3[0]);
-//   const cby = cubicBezier(p0[1], p1[1], p2[1], p3[1]);
-//   return t => [cbx(t), cby(t)];
-// }
+function cubicBezier2D(p0, p1, p2, p3) {
+  const cbx = cubicBezier(p0[0], p1[0], p2[0], p3[0]);
+  const cby = cubicBezier(p0[1], p1[1], p2[1], p3[1]);
+  return t => [cbx(t), cby(t)];
+}
 
-// function cubicBezierCSS(a, b, c, d) {
-//   return cubicBezier2D([0, 0], [a, b], [c, d], [1, 1]);
-// }
+function cubicBezierCSS(a, b, c, d) {
+  return cubicBezier2D([0, 0], [a, b], [c, d], [1, 1]);
+}
 
-// function discretize(func, samples = 200, precision = 10000) {
-//   const data = new Array(samples);
-//   const T = samples * precision / 10;
-//   for (let i = 0; i <= T; ++i) {
-//     const [x, y] = f(i / T);
-//     const idx = Math.floor(x * (samples - 1));
-//     if (!data[idx]) data[idx] = 1;
-//     data[idx] = Math.round(precision * Math.min(data[idx], y))) / precision;
-//   }
-//   data[samples] = data[samples - 1];
-//   return data;
-// }
+function discretize(func, samples = 200, precision = 10000) {
+  const data = new Array(samples);
+  const T = samples * precision / 10;
+  for (let i = 0; i <= T; ++i) {
+    const [x, y] = f(i / T);
+    const idx = Math.floor(x * (samples - 1));
+    if (!data[idx]) data[idx] = 1;
+    data[idx] = Math.round(precision * Math.min(data[idx], y)) / precision;
+  }
+  data[samples] = data[samples - 1];
+  return data;
+}
+
+// HOW TO BUILD DATA
+
+function compress(data, precision = 10000) {
+  let last = 0;
+  let vel = 0;
+  let add = "";
+  for (const v of data) {
+    const n = Math.round((v - last) * precision);
+    const dv = vel - n + 5;
+    add += dv.toString(36);
+    vel = n;
+    last = v;
+  }
+  return add;
+}
