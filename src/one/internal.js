@@ -37,8 +37,4 @@ import * as ease from "./lib/ease.js";
 export {ease};
 
 import Act from "./lib/Act.js";
-export const sysact = new Act();
-export function act(obj) {
-  return sysact.act(obj);
-}
-act.is = () => sysact.isActing();
+export const act = new Act();

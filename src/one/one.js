@@ -1,6 +1,6 @@
 import plus2d from "./lib/plus2d.js";
 
-import {opts, mouse, ease, setOpts, op, sysact, act} from "./internal.js";
+import {opts, mouse, ease, setOpts, op, act} from "./internal.js";
 
 export * as utils from "./lib/utils.js";
 export * as vec from "./lib/vec.js";
@@ -36,7 +36,7 @@ export function startGame() {
 }
 
 export function gameOver() {
-  sysact.reset();
+  act.reset();
   op.inGame = false;
   overlay.gameOver();
 }
@@ -78,7 +78,7 @@ function _frame(now) {
   const dt = (now - op.currentTime) / 1000;
   op.currentTime = now;
 
-  sysact._actFrame(dt);
+  act._frame(dt);
   camera._update(dt);
   input.update();
   sound.update();

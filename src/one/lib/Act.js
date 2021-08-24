@@ -2,7 +2,6 @@
 // ---
 
 import {clamp} from "./extra.js";
-
 import {linear as easeLinear} from "./ease.js";
 
 function getDeepProperty(obj, name) {
@@ -22,196 +21,147 @@ function setDeepProperty(obj, name, value) {
   }
 }
 
-class Act {
+class Track {
   constructor(host, obj) {
     this.host = host;
-    this.object = (obj !== undefined) ? obj : this;
-    this.lastDuration = 1.0;
-    this.lastEase = easeLinear;
+    this.object = obj;
+    this._actions = [[]];
+  }
+
+  #addPass(f) {
+    let t = 0;
+    this._actions[this._actions.length - 1].push(dt => f(t += dt));
+    return this;
+  }
+
+  #addHold(f) {
+    let t = 0;
+    this._actions.push([dt => f(t += dt)]);
+    this._actions.push([]);
+    return this;
   }
 
   is() {
-    return this.host._actions.some(a => a.object === this.object);
-  }
-
-  stop() {
-    let next = 0;
-    for (const a of this.host._actions) {
-      if (a.object !== this.object) {
-        this.host._actions[next++] = a;
-      }
-    }
-    this.host._actions.splice(next);
-    return this;
-  }
-
-  resume() {
-    let i = 0;
-    while (i < this.host._actions.length) {
-      const a = this.host._actions[i++];
-      if (a.object == this.object && a.duration < 0 && a.hold == true) {
-        this.host._actions.splice(i - 1, 1);
-        i--;
-      }
-    }
-    return this;
-  }
-
-  pause() {
-    this.host._actions.unshift({
-      func: function(_t) {},
-      time: 0,
-      duration: -1,
-      object: this.object,
-      hold: true
-    });
-    return this;
-  }
-
-  delay(t, v = 0) {
-    this.host._actions.push({
-      func: function(_t) { return true; },
-      time: 0,
-      duration: t + v * Math.random(),
-      object: this.object,
-      hold: true});
-    return this;
-  }
-
-  attr(attr, value, duration, ease, delay = 0.0) {
-    ease = ease || this.lastEase;
-    duration = duration === undefined ? this.lastDuration : duration;
-    this.lastDuration = duration;
-    this.lastEase = ease;
-    if (delay + duration == 0) {
-      duration = 1.0;
-    }
-    const wait = delay / (delay + duration);
-    const frac = duration / (delay + duration);
-    let initial = undefined;
-    const obj = this.object;
-    const func = function(t) {
-      if (initial === undefined) {
-        initial = getDeepProperty(obj, attr);
-      }
-      if (t < wait) return;
-      t = (t - wait) / frac;
-      setDeepProperty(obj, attr, initial + (value - initial) * ease(t));
-    };
-    this.host._actions.push({
-      func: func,
-      time: 0.0,
-      duration: duration + delay,
-      object: this.object,
-      hold: false});
-    return this;
-  }
-
-  set(attr, value) {
-    this.host._actions.push({
-      func: function(_t) { setDeepProperty(this.object, attr, value); },
-      time: 0,
-      duration: 0,
-      object: this.object,
-      hold: true});
-    return this;
-  }
-
-  incr(attr, value) {
-    this.host._actions.push({
-      func: function(_t) {
-        const v = getDeepProperty(this.object, attr);
-        setDeepProperty(this.object, attr, v + value);
-      },
-      time: 0,
-      duration: 0,
-      object: this.object,
-      hold: true});
-    return this;
-  }
-
-  then(func) {
-    this.host._actions.push({
-      func: function(_t) { if (func != null) func(this); },
-      time: 0,
-      duration: 0,
-      object: this.object,
-      hold: true});
-    return this;
-  }
-
-  tween(func, duration, ease) {
-    ease = ease || easeLinear;
-    this.host._actions.push({
-      func: function(t) { func(ease(t)); },
-      time: 0,
-      duration: duration,
-      object: this.object,
-      hold: false});
-    return this;
-  }
-}
-
-export default class SysAct {
-  constructor() {
-    this._actions = [];
-    this._waitAll = [];
-    this._reset = false;
-  }
-
-  act(obj) {
-    return new Act(this, obj);
-  }
-
-  isActing() {
-    return this._actions.length != 0;
+    return this._actions.length > 1 || this._actions[0].length > 0;
   }
 
   reset() {
     this._actions.length = 0;
-    this._waitAll.length = 0;
-    this._reset = true;
+    this._actions.push([]);
   }
 
-  waitAll() {
+  delay(t, v = 0) {
+    const duration = t + v * Math.random();
+    return this.#addHold(t => t < duration);
+  }
+
+  attr(attr, value, duration, ease = easeLinear, delay = 0.0) {
+    let initial = undefined;
+    return this.#addPass(t => {
+      if (initial === undefined) {
+        initial = getDeepProperty(this.object, attr);
+      }
+      if (t < delay) return true;
+      const rt = clamp((t - delay) / duration, 0.0, 1.0);
+      setDeepProperty(this.object, attr,
+        initial + (value - initial) * ease(rt));
+      return rt < 1.0;
+    });
+  }
+
+  set(attr, value) {
+    return this.#addHold(_t => {
+      setDeepProperty(this.object, attr, value);
+      return false;
+    });
+  }
+
+  incr(attr, value) {
+    return this.#addHold(_t => {
+      const v = getDeepProperty(this.object, attr);
+      setDeepProperty(this.object, attr, v + value);
+      return false;
+    });
+  }
+
+  then(func) {
+    return this.#addHold(_t => {
+      if (func !== undefined) func();
+      return false;
+    });
+  }
+
+  tween(func, duration, ease = easeLinear) {
+    return this.#addPass(t => {
+      func(ease(clamp(t / duration, 0.0, 1.0)));
+      return t < duration;
+    });
+  }
+}
+
+export default class Act extends Function {
+  constructor() {
+    super();
+    this._tracks = new Map();
+    this._waitAll = [];
+
+    // eslint-disable-next-line
+    return this.proxy = new Proxy(this, {
+      apply: (target, _that, args) => target.__call__(...args)
+    });
+  }
+
+  __call__(obj) {
+    let t = this._tracks.get(obj);
+    if (!t) {
+      t = new Track(this, obj);
+      this._tracks.set(obj, t);
+    }
+    return t;
+  }
+
+  is() {
+    for (const [_obj, track] of this._tracks) {
+      if (track.is()) return true;
+    }
+    return false;
+  }
+
+  reset() {
+    this._tracks.clear();
+    this._waitAll.length = 0;
+  }
+
+  wait() {
     return new Promise((acc, _rej) => {
       this._waitAll.push(acc);
     });
   }
 
-  removeAction(idx) {
-    if (this._reset) {
-      this._reset = false;
-      return;
-    }
-    this._actions.splice(idx - 1, 1);
-  }
-
-  _actFrame(dt) {
-    const blocked = new WeakMap();
-
-    let i = 0;
-    while (i < this._actions.length) {
-      const a = this._actions[i++];
-      const b = blocked.get(a.object);
-      if (b == true) continue;
-      blocked.set(a.object, a.hold);
-      if (a.hold && b !== undefined) continue;
-      if (a.duration == 0.0) {
-        a.func(0.0);
-        this.removeAction(i);
-        i--;
-        continue;
+  _frame(dt) {
+    for (const [obj, track] of this._tracks) {
+      const actions = track._actions;
+      for (const epoch of actions) {
+        if (epoch.length == 0) continue;
+        let i = 0;
+        while (i < epoch.length) {
+          if (!epoch[i++](dt)) {
+            epoch.splice(i - 1, 1);
+          }
+        }
+        break;
       }
-      if (a.duration < 0.0) continue;
-      a.time = clamp(a.time + dt / a.duration, 0.0, 1.0);
-      a.func(a.time);
-      if (a.time >= 1.0) {
-        this.removeAction(i);
-        i--;
+      let next = 0;
+      for (let i = 0; i < actions.length - 1; ++i) {
+        if (actions[i].length != 0) actions[next++] = actions[i];
+      }
+      actions[next++] = actions[actions.length - 1];
+      actions.splice(next);
+      if (actions.length == 1 && actions[0].length == 0) {
+        this._tracks.delete(obj);
       }
     }
-    if (this._actions.length == 0) {
+    if (this._tracks.size == 0) {
       while (this._waitAll.length > 0) {
         (this._waitAll.pop())();
       }
