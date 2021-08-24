@@ -38,12 +38,11 @@ function mtext(txt, size, opts) {
 }
 
 function text(txt, x, y, size, opts) {
-  const split = size < 10;
-  if (split) {
+  // @ts-ignore
+  this.save();
+  if (size < 10) {
     const r = size / 10;
     size = 10;
-    // @ts-ignore
-    this.save();
     // @ts-ignore
     this.scale(r, r);
     x /= r;
@@ -54,13 +53,12 @@ function text(txt, x, y, size, opts) {
   this.font = opts.weight + " " + size + "px Verdana";
   this.textAlign = opts.align;
   this.textBaseline = opts.valign;
+
   // @ts-ignore
   this.fillText(txt, x, y);
 
-  if (split) {
-    // @ts-ignore
-    this.restore();
-  }
+  // @ts-ignore
+  this.restore();
 }
 
 function strokeLine(ax, ay, bx, by) {
