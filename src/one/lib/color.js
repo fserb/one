@@ -1,19 +1,13 @@
 /*
 A good color library
 
-- theme:
-  - complementary
-  - triad
-  - tetrad
-  - monochromatic
-  - split complementary
-  - analogous
-
 - tools:
   - getConstrast of 2 colors
   - deltaE ?
   - WCAG luminosity
   - WCAG contrast ratio
+
+- step palettes
 
 pex-color: https://github.com/pex-gl/pex-color/blob/master/index.js
 qix-color: https://github.com/Qix-/color
@@ -24,15 +18,10 @@ chroma: https://gka.github.io/chroma.js
 tinyColor: https://bgrins.github.io/TinyColor/
 colorJS: https://colorjs.io/
 color2k: https://color2k.com/
+ArtColors: https://github.com/ProfJski/ArtColors
 
 RGB mix: https://github.com/ricokahler/color2k/blob/main/src/mix.ts
 spaces: https://colorjs.io/docs/spaces.html
-*/
-
-
-/*
-
-color("#FFF").
 
 */
 
@@ -51,11 +40,6 @@ function vec3Scale(vec, s) {
   return [vec[0] * s, vec[1] * s, vec[2] * s];
 }
 
-function vec3Lerp(v1, v2, w) {
-  return [v1[0] + (v2[0] - v1[0]) * w, v1[1] + (v2[1] - v1[1]) * w,
-    v1[2] + (v2[2] - v1[2]) * w];
-}
-
 function fromRGB(rgb) {
   const lin = [];
   for (let i = 0; i < 3; ++i) {
@@ -69,14 +53,13 @@ function toRGB(lin) {
   const rgb = [];
   for (let i = 0; i < 3; ++i) {
     const l = lin[i];
-    const abs = Math.abs(l);
-    const v = abs <= 0.0031308 ? l * 12.92 :
-      Math.sign(l) * 1.055 * (abs ** (1 / 2.4)) - 0.055;
+    const v = l <= 0.0031308 ? l * 12.92 : 1.055 * Math.pow(l, 1 / 2.4) - 0.055;
     rgb[i] = Math.round(Math.min(1.0, Math.max(0.0, v)) * 255);
   }
   return rgb;
 }
 
+// from https://bottosson.github.io/posts/oklab/
 const OKLAB_to_m1 = [
   0.4122214708, 0.5363325363, 0.0514459929,
   0.2119034982, 0.6806995451, 0.1073969566,
@@ -170,7 +153,6 @@ function fromHSV(hsv) {
   return fromRGB([r * 255, g * 255, b * 255]);
 }
 
-
 // Values from: https://github.com/ProfJski/ArtColors
 const RYB_RYBCornersInRGB = [
   [0.0, 0.0, 0.0],  // Black
@@ -202,17 +184,8 @@ function fromRYB(ryb) {
   return fromRGB(vec3Scale(
     vec3Add(vec3Scale(c0, 1.0 - ryb[2]), vec3Scale(c1, ryb[2])), 255));
 }
-color.fromRYB = fromRYB;
 
-const fromPSV_pieces = [
-  [-0.010632956090946805, 1.2128926862946168, 0.35611418711755777],
-  [-0.006521826622978523, 0.7813828384407733, 36.02797549736357],
-  [-0.020607685719692636, 2.465587836660755, 58.75669745898428],
-  [-0.033224525523286016, 3.4085067722243476, 129.60812529337136],
-  [-0.020472063077856345, 2.1635961550112306, 217.30612754214098],
-  [-0.0315572853062677, 3.2350413044306565, 274.9987208038884],
-];
-
+// optimized by tools/find_color_wheel.js
 const toPSV_pieces = [
   [0.04513311857837293,  -0.20445167202360698, 4.072364105530735],
   [0.09682738527979295, -0.19147360443289188, 64.63334805364067],
@@ -221,20 +194,21 @@ const toPSV_pieces = [
   [0.01951117387355343, -0.28747300742491044, 245.4069206257945],
   [0.010107710529561314, -0.299485457933696, 306.9429275617285],
 ];
-const fromPSV_steps = [36, 60, 133.304347826086, 218.35294117647, 276];
+const toPSV_steps = [36, 60, 133.304347826086, 218.35294117647, 276];
 
 function toPSV(lin) {
   const hsv = toHSV(lin);
 
   let m = 0;
   let h = hsv[0];
-  while (m < 5 && h > fromPSV_steps[m]) m++;
+  while (m < 5 && h > toPSV_steps[m]) m++;
   const abc = toPSV_pieces[m];
-  h -= m > 0 ? fromPSV_steps[m - 1] : 0;
+  h -= m > 0 ? toPSV_steps[m - 1] : 0;
 
   return [abc[0] * h * h + abc[1] * h + abc[2], hsv[1], hsv[2]];
 }
 
+// based on https://github.com/ProfJski/ArtColors/blob/master/RYB.cpp
 function step2(deg) {
   while (deg < 0.0) deg += 360;
   deg %= 360;
@@ -269,9 +243,33 @@ function fromPSV(psv) {
   return fromHSV([hsv[0], psv[1], psv[2]]);
 }
 
-color.toHSV = toHSV;
-color.fromPSV = fromPSV;
-color.toPSV = toPSV;
+function fromOKLCP(lcp) {
+  let p = lcp[2];
+  while (p < 0) p += 360;
+  p %= 360;
+  const ryb = [step2(p), step2(p - 120), step2(p - 240)];
+  const lch = toOKLCH(fromRYB(ryb));
+
+  return fromOKLCH([lcp[0], lcp[1], lch[2]]);
+}
+
+function toOKLCP(lin) {
+  const lch = toOKLCH(lin);
+
+  const hsv = toHSV(lin);
+  let m = 0;
+  let h = hsv[0];
+  while (m < 5 && h > toPSV_steps[m]) m++;
+  const abc = toPSV_pieces[m];
+  h -= m > 0 ? toPSV_steps[m - 1] : 0;
+
+  return [lch[0], lch[1], abc[0] * h * h + abc[1] * h + abc[2]];
+}
+
+function lerp(a, b, w) {
+  const w1 = 1 - w;
+  return [w1 * a[0] + w * b[0], w1 * a[1] + w * b[1], w1 * a[2] + w * b[2]];
+}
 
 let parseCtx;
 
@@ -299,19 +297,30 @@ function cssParse(input) {
     return null;
   }
   const {type, data} = parsed.groups;
-  let rgba;
+  let lin;
+  let alpha = 1.0;
   if (type == '#') {
     const d = data;
-    rgba = [parseInt(d.substr(0, 2), 16), parseInt(d.substr(2, 2), 16),
-      parseInt(d.substr(4, 2), 16), 1];
-  } else if (type == 'rgba') {
-    rgba = data.split(',').map(parseFloat);
+    lin = fromRGB([parseInt(d.substr(0, 2), 16), parseInt(d.substr(2, 2), 16),
+      parseInt(d.substr(4, 2), 16)]);
   } else {
-    console.error("Invalid color", parsed.groups);
-    return null;
+    const f = data.split(',').map(parseFloat);
+    alpha = f[3] ?? 1.0;
+    if (type == 'rgba') {
+      lin = fromRGB(f);
+    } else if (type == 'hsv') {
+      lin = fromHSV(f);
+    } else if (type == 'oklcp') {
+      lin = fromOKLCP(f);
+    } else if (type == 'oklch') {
+      lin = fromOKLCH(f);
+    } else {
+      console.error("Invalid color", parsed.groups);
+      return null;
+    }
   }
 
-  return [fromRGB(rgba), rgba[3]];
+  return [lin, alpha];
 }
 
 /*
@@ -340,10 +349,10 @@ class Color {
     return new Color(fromOKLCH(lch), this.alpha);
   }
 
-  rotate(h) {
-    const lch = toOKLCH(this.lin);
-    lch[2] = h;
-    return new Color(fromOKLCH(lch), this.alpha);
+  rotate(p) {
+    const lcp = toOKLCP(this.lin);
+    lcp[2] = (lcp[2] + p) % 360;
+    return new Color(fromOKLCP(lcp), this.alpha);
   }
 
   grayscale() {
@@ -358,27 +367,75 @@ class Color {
 
   mixlab(other, weight) {
     if (other.constructor !== this.constructor) other = color(other);
-    const alphaDelta = other.alpha - this.alpha;
-    const x = weight * 2 - 1;
-    const y = x * alphaDelta === -1 ? x : x + alphaDelta;
-    const z = 1 + x * alphaDelta;
-    const w1 = (y / z + 1) / 2.0;
-    const w0 = 1 - w1;
     const lab = toOKLAB(this.lin);
     const olab = toOKLAB(other.lin);
-    lab[0] = lab[0] * w0 + olab[0] * w1;
-    lab[1] = lab[1] * w0 + olab[1] * w1;
-    lab[2] = lab[2] * w0 + olab[2] * w1;
-    return new Color(fromOKLAB(lab),
-      other.alpha * weight + this.alpha * (1 - weight));
+    return color(fromOKLAB(lerp(lab, olab, weight)));
   }
 
-  makeComplementary() {
-    const usv = toUSV(this.lin);
+  mixlin(other, weight) {
+    if (other.constructor !== this.constructor) other = color(other);
+    return color(lerp(this.lin, other.lin, weight));
+  }
 
-    usv[0] = (usv[0] + 180) % 360;
-    // console.log(usv, fromUSV(usv));
-    return new Color(fromUSV(usv), this.alpha);
+  mixrgb(other, weight) {
+    if (other.constructor !== this.constructor) other = color(other);
+    return color(fromRGB(lerp(toRGB(this.lin), toRGB(other.lin), weight)));
+  }
+
+  mixquad(other, weight) {
+    if (other.constructor !== this.constructor) other = color(other);
+
+    const ra = toRGB(this.lin);
+    const rb = toRGB(other.lin);
+
+    const out = [];
+    for (let i = 0; i < 3; ++i) {
+      const a = Math.max(0, Math.min(255, ra[i]));
+      const b = Math.max(0, Math.min(255, rb[i]));
+
+      out.push(Math.sqrt((1 - weight) * a * a + weight * b * b));
+    }
+    return color(fromRGB(out));
+  }
+
+  mixsub(other, weight) {
+    if (other.constructor !== this.constructor) other = color(other);
+
+    const a = toRGB(this.lin);
+    const b = toRGB(other.lin);
+
+    const f = [
+      Math.max(0, 255 - (255 - a[0]) - (255 - b[0])),
+      Math.max(0, 255 - (255 - a[1]) - (255 - b[1])),
+      Math.max(0, 255 - (255 - a[2]) - (255 - b[2]))];
+
+    const dist = Math.hypot(a[0] - b[0],
+      a[1] - b[1],
+      a[2] - b[2])/(Math.sqrt(3) * 255);
+
+    const cd = 4 * weight * (1 - weight) * dist;
+
+    return color(fromRGB(lerp(lerp(a, b, weight), f, cd)));
+  }
+
+  makeComplement() {
+    return this.rotate(180);
+  }
+
+  makeTriad() {
+    return [this, this.rotate(120), this.rotate(240)];
+  }
+
+  makeTetrad(d=90) {
+    return [this, this.rotate(d), this.rotate(180), this.rotate(180+d)];
+  }
+
+  makeAnalogous(d = 45) {
+    return [this.rotate(-d), this, this.rotate(d)];
+  }
+
+  makeSplitComplement(d = 30) {
+    return [this, this.rotate(180 - d), this.rotate(180 + d)];
   }
 }
 
