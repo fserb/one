@@ -36,138 +36,45 @@ color("#FFF").
 
 */
 
-let parseCtx;
-
-/*
-We store all colors as [0, 1] linear sRGB.
-*/
-class Color {
-  constructor(input, alpha) {
-    if (alpha !== undefined) {
-      this.v = [input[0], input[1], input[2], alpha];
-    } else {
-      this.v = cssParse(input);
-    }
-  }
-
-  toString() {
-    const r = linearTosRGB(this.v[0]);
-    const g = linearTosRGB(this.v[1]);
-    const b = linearTosRGB(this.v[2]);
-    return `rgba(${r}, ${g}, ${b}, ${this.v[3]})`;
-  }
-
-  inRGB(func) {
-    const rgb = [linearTosRGB(this.v[0]), linearTosRGB(this.v[1]),
-      linearTosRGB(this.v[2])];
-    const a = func(rgb, this.v[3]) ?? this.v[3];
-    rgb[0] = sRGBToLinear(rgb[0] / 255);
-    rgb[1] = sRGBToLinear(rgb[1] / 255);
-    rgb[2] = sRGBToLinear(rgb[2] / 255);
-    return new Color(rgb, a);
-  }
-
-  inOKLAB(func) {
-    const _mto = matrix3Multiply(OKLAB_to_m1, this.v);
-    _mto[0] = Math.cbrt(_mto[0]);
-    _mto[1] = Math.cbrt(_mto[1]);
-    _mto[2] = Math.cbrt(_mto[2]);
-    const lab = matrix3Multiply(OKLAB_to_m2, _mto);
-    const a = func(lab, this.v[3]) ?? this.v[3];
-    const _mfrom = matrix3Multiply(OKLAB_from_m1, lab);
-    _mfrom[0] = _mfrom[0] * _mfrom[0] * _mfrom[0];
-    _mfrom[1] = _mfrom[1] * _mfrom[1] * _mfrom[1];
-    _mfrom[2] = _mfrom[2] * _mfrom[2] * _mfrom[2];
-    const rgb = matrix3Multiply(OKLAB_from_m2, _mfrom);
-    return new Color(rgb, a);
-  }
-
-  inOKLCH(func) {
-    return this.inOKLAB((lab, alpha)=> {
-      const lch = [lab[0],
-        Math.hypot(lab[1], lab[2]),
-        (Math.atan2(lab[2], lab[1]) * 180 / Math.PI + 360) % 360];
-      if (Math.round(lch[1] * 10000) === 0) {
-        lch[2] = Number.NaN;
-      }
-      const a = func(lch, alpha);
-      const h = isNaN(lch[2]) ? 0 : lch[2] * Math.PI / 180;
-      lab[0] = lch[0];
-      lab[1] = Math.cos(h) * lch[1];
-      lab[2] = Math.sin(h) * lch[1];
-      return a;
-    });
-  }
-
-  lighten(amount = 0.25) {
-    return this.inOKLAB(lch => {
-      lch[0] *= (1 + amount);
-    });
-  }
-
-  saturate(amount = 0.25) {
-    return this.inOKLCH(lch => {
-      lch[1] *= (1 + amount);
-    });
-  }
-
-  hue(h) {
-    return this.inOKLCH(lch => {
-      lch[2] = h;
-    });
-  }
-
-  grayscale() {
-    return this.inOKLCH(lch => {
-      lch[1] = lch[2] = 0;
-    });
-  }
-
-  alpha(a) {
-    return new Color(this.v, a);
-  }
-
-  mixlab(other, weight) {
-    if (other.constructor !== this.constructor) other = new Color(other);
-    return this.inOKLAB((lab, a) => {
-      let outAlpha = 0;
-      other.inOKLAB((olab, oa) => {
-        const alphaDelta = oa - a;
-        const x = weight * 2 - 1;
-        const y = x * alphaDelta === -1 ? x : x + alphaDelta;
-        const z = 1 + x * alphaDelta;
-        const w1 = (y / z + 1) / 2.0;
-        const w0 = 1 - w1;
-        lab[0] = lab[0] * w0 + olab[0] * w1;
-        lab[1] = lab[1] * w0 + olab[1] * w1;
-        lab[2] = lab[2] * w0 + olab[2] * w1;
-        outAlpha = oa * weight + a * (1 - weight);
-      });
-      return outAlpha;
-    });
-  }
-
-
-
-
-  // makeComplementary() {
-  //   const out = this.inOKLCH(lch => {
-  //       lch[2] = (lch[2] + 180) % 360;
-  //     });
-
-  //   if (!hsv) return out;
-
-  //   return out.inHSV(outhsv => {
-  //     this.inHSV(inhsv => {
-  //       outhsv[1] = inhsv[1];
-  //       outhsv[2] = inhsv[2];
-  //     });
-  //   });
-  // }
+function vec3Multiply(matrix, vec) {
+  return [
+    matrix[0] * vec[0] + matrix[1] * vec[1] + matrix[2] * vec[2],
+    matrix[3] * vec[0] + matrix[4] * vec[1] + matrix[5] * vec[2],
+    matrix[6] * vec[0] + matrix[7] * vec[1] + matrix[8] * vec[2]];
 }
 
-export default function color(input) {
-  return new Color(input);
+function vec3Add(v1, v2) {
+  return [v1[0] + v2[0], v1[1] + v2[1], v1[2] + v2[2]];
+}
+
+function vec3Scale(vec, s) {
+  return [vec[0] * s, vec[1] * s, vec[2] * s];
+}
+
+function vec3Lerp(v1, v2, w) {
+  return [v1[0] + (v2[0] - v1[0]) * w, v1[1] + (v2[1] - v1[1]) * w,
+    v1[2] + (v2[2] - v1[2]) * w];
+}
+
+function fromRGB(rgb) {
+  const lin = [];
+  for (let i = 0; i < 3; ++i) {
+    const s = rgb[i] / 255;
+    lin[i] = s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+  }
+  return lin;
+}
+
+function toRGB(lin) {
+  const rgb = [];
+  for (let i = 0; i < 3; ++i) {
+    const l = lin[i];
+    const abs = Math.abs(l);
+    const v = abs <= 0.0031308 ? l * 12.92 :
+      Math.sign(l) * 1.055 * (abs ** (1 / 2.4)) - 0.055;
+    rgb[i] = Math.round(Math.min(1.0, Math.max(0.0, v)) * 255);
+  }
+  return rgb;
 }
 
 const OKLAB_to_m1 = [
@@ -194,23 +101,179 @@ const OKLAB_from_m2 = [
   -0.0041960863, -0.7034186147, +1.7076147010,
 ];
 
-function matrix3Multiply(matrix, vec) {
-  return [
-    matrix[0] * vec[0] + matrix[1] * vec[1] + matrix[2] * vec[2],
-    matrix[3] * vec[0] + matrix[4] * vec[1] + matrix[5] * vec[2],
-    matrix[6] * vec[0] + matrix[7] * vec[1] + matrix[8] * vec[2]];
+function toOKLAB(lin) {
+  const _mto = vec3Multiply(OKLAB_to_m1, lin);
+  _mto[0] = Math.cbrt(_mto[0]);
+  _mto[1] = Math.cbrt(_mto[1]);
+  _mto[2] = Math.cbrt(_mto[2]);
+  return vec3Multiply(OKLAB_to_m2, _mto);
 }
 
-function sRGBToLinear(s) {
-  return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+function fromOKLAB(oklab) {
+  const _mfrom = vec3Multiply(OKLAB_from_m1, oklab);
+  _mfrom[0] = _mfrom[0] * _mfrom[0] * _mfrom[0];
+  _mfrom[1] = _mfrom[1] * _mfrom[1] * _mfrom[1];
+  _mfrom[2] = _mfrom[2] * _mfrom[2] * _mfrom[2];
+  return vec3Multiply(OKLAB_from_m2, _mfrom);
 }
 
-function linearTosRGB(l) {
-  const abs = Math.abs(l);
-  const v = abs <= 0.0031308 ? l * 12.92 :
-    Math.sign(l) * 1.055 * (abs ** (1 / 2.4)) - 0.055;
-  return Math.round(Math.min(1.0, Math.max(0.0, v)) * 255);
+function toOKLCH(lin) {
+  const oklab = toOKLAB(lin);
+  const lch = [oklab[0],
+    Math.hypot(oklab[1], oklab[2]),
+    (Math.atan2(oklab[2], oklab[1]) * 180 / Math.PI + 360) % 360];
+  if (Math.round(lch[1] * 10000) === 0) lch[2] = Number.NaN;
+  return lch;
 }
+
+function fromOKLCH(oklch) {
+  const h = isNaN(oklch[2]) ? 0 : oklch[2] * Math.PI / 180;
+  const oklab = [oklch[0], Math.cos(h) * oklch[1], Math.sin(h) * oklch[1]];
+  return fromOKLAB(oklab);
+}
+
+function toHSV(lin) {
+  const rgb = vec3Scale(toRGB(lin), 1 / 255);
+  const max = Math.max(...rgb);
+  const min = Math.min(...rgb);
+  const d = max - min;
+  let h = 0;
+  const s = max === 0 ? 0 : d / max;
+  const v = max;
+
+  if(max != min) {
+    switch(max) {
+    case rgb[0]: h = (rgb[1] - rgb[2]) / d + (rgb[1] < rgb[2] ? 6 : 0); break;
+    case rgb[1]: h = (rgb[2] - rgb[0]) / d + 2; break;
+    case rgb[2]: h = (rgb[0] - rgb[1]) / d + 4; break;
+    }
+    h /= 6;
+  }
+  return [h * 360, s * 100, v * 100];
+}
+
+function fromHSV(hsv) {
+  const h = (hsv[0] / 360) * 6;
+  const s = hsv[1] / 100;
+  const v = hsv[2] / 100;
+
+  const i = Math.floor(h);
+  const f = h - i;
+  const p = v * (1 - s);
+  const q = v * (1 - f * s);
+  const t = v * (1 - (1 - f) * s);
+  const mod = i % 6;
+  const r = [v, q, p, p, t, v][mod];
+  const g = [t, v, v, q, p, p][mod];
+  const b = [p, p, t, v, v, q][mod];
+
+  return fromRGB([r * 255, g * 255, b * 255]);
+}
+
+
+// Values from: https://github.com/ProfJski/ArtColors
+const RYB_RYBCornersInRGB = [
+  [0.0, 0.0, 0.0],  // Black
+  [1.0, 0.0, 0.0],  // Red
+  [0.9, 0.9, 0.0],  // Yellow = RGB Red+Green.  Still a bit high, but helps
+  // Yellow compete against Green.  Lower gives murky yellows.
+  [0.0, 0.36, 1.0],  // Blue: Green boost of 0.36 helps eliminate flatness of
+  // spectrum around pure Blue
+  [0.0, 0.9, 0.2],  // Green: A less intense green than {0,1,0}, which tends to
+  // dominate.
+  [1.0, 0.6, 0.0],  // Orange = RGB full Red, 60% Green
+  [0.6, 0.0, 1.0],  // Purple = 60% Red, full Blue
+  [1.0, 1.0, 1.0],  // White
+];
+
+function fromRYB(ryb) {
+  const c00 = vec3Add(vec3Scale(RYB_RYBCornersInRGB[0], 1.0 - ryb[0]),
+    vec3Scale(RYB_RYBCornersInRGB[1], ryb[0]));
+  const c01 = vec3Add(vec3Scale(RYB_RYBCornersInRGB[3], 1.0 - ryb[0]),
+    vec3Scale(RYB_RYBCornersInRGB[6], ryb[0]));
+  const c10 = vec3Add(vec3Scale(RYB_RYBCornersInRGB[2], 1.0 - ryb[0]),
+    vec3Scale(RYB_RYBCornersInRGB[5], ryb[0]));
+  const c11 = vec3Add(vec3Scale(RYB_RYBCornersInRGB[4], 1.0 - ryb[0]),
+    vec3Scale(RYB_RYBCornersInRGB[7], ryb[0]));
+
+  const c0 = vec3Add(vec3Scale(c00, 1.0 - ryb[1]), vec3Scale(c10, ryb[1]));
+  const c1 = vec3Add(vec3Scale(c01, 1.0 - ryb[1]), vec3Scale(c11, ryb[1]));
+
+  return fromRGB(vec3Scale(
+    vec3Add(vec3Scale(c0, 1.0 - ryb[2]), vec3Scale(c1, ryb[2])), 255));
+}
+color.fromRYB = fromRYB;
+
+const fromPSV_pieces = [
+  [-0.010632956090946805, 1.2128926862946168, 0.35611418711755777],
+  [-0.006521826622978523, 0.7813828384407733, 36.02797549736357],
+  [-0.020607685719692636, 2.465587836660755, 58.75669745898428],
+  [-0.033224525523286016, 3.4085067722243476, 129.60812529337136],
+  [-0.020472063077856345, 2.1635961550112306, 217.30612754214098],
+  [-0.0315572853062677, 3.2350413044306565, 274.9987208038884],
+];
+
+const toPSV_pieces = [
+  [0.04513311857837293,  -0.20445167202360698, 4.072364105530735],
+  [0.09682738527979295, -0.19147360443289188, 64.63334805364067],
+  [0.009391601336911106, -0.015287010703255346, 124.53193364354047],
+  [0.008683435998464753, -0.2040624514457089, 185.96338453951356],
+  [0.01951117387355343, -0.28747300742491044, 245.4069206257945],
+  [0.010107710529561314, -0.299485457933696, 306.9429275617285],
+];
+const fromPSV_steps = [36, 60, 133.304347826086, 218.35294117647, 276];
+
+function toPSV(lin) {
+  const hsv = toHSV(lin);
+
+  let m = 0;
+  let h = hsv[0];
+  while (m < 5 && h > fromPSV_steps[m]) m++;
+  const abc = toPSV_pieces[m];
+  h -= m > 0 ? fromPSV_steps[m - 1] : 0;
+
+  return [abc[0] * h * h + abc[1] * h + abc[2], hsv[1], hsv[2]];
+}
+
+function step2(deg) {
+  while (deg < 0.0) deg += 360;
+  deg %= 360;
+
+  if (deg <= 60.0) {
+    return 1.0;
+  }
+
+  if (deg <= 120.0) {
+    const sc = (deg - 60.0) / 60.0;
+    return 1.0 - 2.0 * sc / Math.sqrt(1.0 + 3.0 * sc * sc);
+  }
+
+  if (deg <= 240.0) {
+    return 0.0;
+  }
+
+  if (deg <= 300.0) {
+    const sc = (deg - 240.0) / 60.0;
+    return 2.0 * sc / Math.sqrt(1.0 + 3.0 * sc * sc);
+  }
+
+  return 1.0;
+}
+
+function fromPSV(psv) {
+  let p = psv[0];
+  while (p < 0) p += 360;
+  p %= 360;
+  const ryb = [step2(p), step2(p - 120), step2(p - 240)];
+  const hsv = toHSV(fromRYB(ryb));
+  return fromHSV([hsv[0], psv[1], psv[2]]);
+}
+
+color.toHSV = toHSV;
+color.fromPSV = fromPSV;
+color.toPSV = toPSV;
+
+let parseCtx;
 
 function cssParse(input) {
   // The first thing we do is let canvas parse the input.
@@ -248,6 +311,80 @@ function cssParse(input) {
     return null;
   }
 
-  return [sRGBToLinear(rgba[0] / 255), sRGBToLinear(rgba[1] / 255),
-    sRGBToLinear(rgba[2] / 255), rgba[3]];
+  return [fromRGB(rgba), rgba[3]];
+}
+
+/*
+We store all colors as [0, 1] linear sRGB.
+*/
+class Color {
+  constructor(input, alpha = 1.0) {
+    this.lin = input;
+    this.alpha = alpha;
+  }
+
+  toString() {
+    const rgb = toRGB(this.lin);
+    return `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${this.alpha})`;
+  }
+
+  lighten(amount = 0.25) {
+    const lab = toOKLAB(this.lin);
+    lab[0] *= (1 + amount);
+    return new Color(fromOKLAB(lab), this.alpha);
+  }
+
+  saturate(amount = 0.25) {
+    const lch = toOKLCH(this.lin);
+    lch[1] *= (1 + amount);
+    return new Color(fromOKLCH(lch), this.alpha);
+  }
+
+  rotate(h) {
+    const lch = toOKLCH(this.lin);
+    lch[2] = h;
+    return new Color(fromOKLCH(lch), this.alpha);
+  }
+
+  grayscale() {
+    const lch = toOKLCH(this.lin);
+    lch[1] = lch[2] = 0;
+    return new Color(fromOKLCH(lch), this.alpha);
+  }
+
+  alpha(a) {
+    return new Color(this.lin, a);
+  }
+
+  mixlab(other, weight) {
+    if (other.constructor !== this.constructor) other = color(other);
+    const alphaDelta = other.alpha - this.alpha;
+    const x = weight * 2 - 1;
+    const y = x * alphaDelta === -1 ? x : x + alphaDelta;
+    const z = 1 + x * alphaDelta;
+    const w1 = (y / z + 1) / 2.0;
+    const w0 = 1 - w1;
+    const lab = toOKLAB(this.lin);
+    const olab = toOKLAB(other.lin);
+    lab[0] = lab[0] * w0 + olab[0] * w1;
+    lab[1] = lab[1] * w0 + olab[1] * w1;
+    lab[2] = lab[2] * w0 + olab[2] * w1;
+    return new Color(fromOKLAB(lab),
+      other.alpha * weight + this.alpha * (1 - weight));
+  }
+
+  makeComplementary() {
+    const usv = toUSV(this.lin);
+
+    usv[0] = (usv[0] + 180) % 360;
+    // console.log(usv, fromUSV(usv));
+    return new Color(fromUSV(usv), this.alpha);
+  }
+}
+
+export default function color(input) {
+  if (Array.isArray(input)) {
+    return new Color(input);
+  }
+  return new Color(...cssParse(input));
 }
