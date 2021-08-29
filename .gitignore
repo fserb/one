@@ -3,3 +3,4 @@ ONE
 orig/
 www/
 node_modules/
+src/test.*js
