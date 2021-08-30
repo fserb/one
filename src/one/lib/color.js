@@ -1,13 +1,9 @@
 /*
 A good color library
 
-- tools:
-  - getConstrast of 2 colors
-  - deltaE ?
-  - WCAG luminosity
-  - WCAG contrast ratio
-
-- step palettes
+- add mix operations:
+  - multiply %
+  - luminosity
 
 pex-color: https://github.com/pex-gl/pex-color/blob/master/index.js
 qix-color: https://github.com/Qix-/color
@@ -20,7 +16,6 @@ colorJS: https://colorjs.io/
 color2k: https://color2k.com/
 ArtColors: https://github.com/ProfJski/ArtColors
 
-RGB mix: https://github.com/ricokahler/color2k/blob/main/src/mix.ts
 spaces: https://colorjs.io/docs/spaces.html
 
 */
@@ -320,7 +315,7 @@ function cssParse(input) {
     }
   }
 
-  return [lin, alpha];
+  return new Color(lin, alpha);
 }
 
 /*
@@ -329,40 +324,110 @@ We store all colors as [0, 1] linear sRGB.
 class Color {
   constructor(input, alpha = 1.0) {
     this.lin = input;
-    this.alpha = alpha;
+    this.a = alpha;
   }
 
   toString() {
     const rgb = toRGB(this.lin);
-    return `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${this.alpha})`;
+    return `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${this.a})`;
   }
 
   lighten(amount = 0.25) {
     const lab = toOKLAB(this.lin);
     lab[0] *= (1 + amount);
-    return new Color(fromOKLAB(lab), this.alpha);
+    return new Color(fromOKLAB(lab), this.a);
   }
 
   saturate(amount = 0.25) {
     const lch = toOKLCH(this.lin);
     lch[1] *= (1 + amount);
-    return new Color(fromOKLCH(lch), this.alpha);
+    return new Color(fromOKLCH(lch), this.a);
   }
 
   rotate(p) {
     const lcp = toOKLCP(this.lin);
     lcp[2] = (lcp[2] + p) % 360;
-    return new Color(fromOKLCP(lcp), this.alpha);
+    return new Color(fromOKLCP(lcp), this.a);
+  }
+
+  delta(hue = 0, saturation = 0, light = 0) {
+    const lcp = toOKLCP(this.lin);
+    lcp[0] *= (1 + light);
+    lcp[1] *= (1 + saturation);
+    lcp[2] = (lcp[2] + hue) % 360;
+    return new Color(fromOKLCP(lcp), this.a);
+  }
+
+  steps(n, ...others) {
+    others.unshift(this);
+    others = others.map(x => x.constructor !== this.constructor ? color(x) : x);
+    const ret = [];
+    for (let i = 0; i < n; ++i) {
+      const pct = n == 1 ? 0 : i / (n - 1);
+      const idx = (others.length - 1) * pct;
+      const x = Math.floor(idx);
+      const first = others[Math.min(others.length - 1, x)];
+      const second = others[Math.min(others.length - 1, x + 1)];
+      const r = idx - x;
+      ret.push(first.mixlab(second, r));
+    }
+    return ret;
   }
 
   grayscale() {
     const lch = toOKLCH(this.lin);
     lch[1] = lch[2] = 0;
-    return new Color(fromOKLCH(lch), this.alpha);
+    return new Color(fromOKLCH(lch), this.a);
   }
 
   alpha(a) {
     return new Color(this.lin, a);
+  }
+
+  luminance(lum) {
+    const BLACK = new Color([0, 0, 0], this.a);
+    const WHITE = new Color([1, 1, 1], this.a);
+    if (lum <= 0) return BLACK;
+    if (lum >= 1) return WHITE;
+
+    let low, mid, high;
+    const clum = this.getLuminance();
+    if (clum > lum) {
+      low = BLACK;
+      high = this;
+    } else {
+      low = this;
+      high = WHITE;
+    }
+
+    for (let i = 0; i < 20; ++i) {
+      mid = low.mixlab(high, 0.5);
+      const cur = mid.getLuminance();
+      const d = lum - cur;
+      if (Math.abs(d) < 1e-7) break;
+      if (d > 0) {
+        low = mid;
+      } else {
+        high = mid;
+      }
+    }
+
+    mid.a = this.a;
+    return mid;
+  }
+
+  getLuminance() {
+    return 0.2126 * this.lin[0] + 0.7152 * this.lin[1] + 0.0722 * this.lin[2];
+  }
+
+  // contrast >= 7 AAA
+  // contrast >= 4.5 AA
+  // contrast >= 3 AA Large
+  getConstrastRatio(other) {
+    if (other.constructor !== this.constructor) other = color(other);
+    const a = this.getLuminance();
+    const b = other.getLuminance();
+    return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
   }
 
   mixlab(other, weight) {
@@ -443,5 +508,5 @@ export default function color(input) {
   if (Array.isArray(input)) {
     return new Color(input);
   }
-  return new Color(...cssParse(input));
+  return cssParse(input);
 }
