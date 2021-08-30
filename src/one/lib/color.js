@@ -1,10 +1,6 @@
 /*
 A good color library
 
-- add mix operations:
-  - multiply %
-  - luminosity
-
 pex-color: https://github.com/pex-gl/pex-color/blob/master/index.js
 qix-color: https://github.com/Qix-/color
 compass: https://github.com/chriseppstein/compass-colors
@@ -356,6 +352,14 @@ class Color {
     lcp[1] *= (1 + saturation);
     lcp[2] = (lcp[2] + hue) % 360;
     return new Color(fromOKLCP(lcp), this.a);
+  }
+
+  multiply(other) {
+    return new Color([
+      this.lin[0] * (1 - other.a) + other.a * this.lin[0] * other.lin[0],
+      this.lin[1] * (1 - other.a) + other.a * this.lin[1] * other.lin[1],
+      this.lin[2] * (1 - other.a) + other.a * this.lin[2] * other.lin[2],
+      ], this.a);
   }
 
   steps(n, ...others) {
