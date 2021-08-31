@@ -31,6 +31,12 @@ export const mouse = {
   click: false,
   press: false,
   release: false,
+  swipe: 0,
+
+  UP: 1,
+  RIGHT: 2,
+  DOWN: 3,
+  LEFT: 4,
 };
 
 import * as ease from "./lib/ease.js";
