@@ -7,6 +7,14 @@ export function frac(x) {
   return x - Math.floor(x);
 }
 
+// if (Math.frac === undefined) {
+//   Math.frac = frac;
+// }
+
+// if (Math.TAU === undefined) {
+  // Math.TAU = 2 * Math.PI;
+// }
+
 export const TAU = 2 * Math.PI;
 export const SQRT3 = Math.sqrt(3);
 

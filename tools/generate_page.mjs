@@ -12,10 +12,7 @@ function generatePage(game) {
     ogimage: `${BASEURL}/${game}/ogimage.png`,
     twitterimage: `${BASEURL}/${game}/twitterimage.png`,
     themecolor: opts.bgColor,
-    head: `
-    <script>window.goatcounter = { path: function(p) { return location.host + p } };</script>
-    <script data-goatcounter="https://stats.metaphora.co/count" async src="//stats.metaphora.co/count.js"></script>
-  `,
+    head: ``,
   };
 
   const script = fs.readFileSync(`www/${game}/bundle.js`);

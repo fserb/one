@@ -3,7 +3,7 @@ set -euo pipefail
 IFS=$'\n\t'
 
 GAMES=(wow trap rope)
-JS13K_GAMES=(-)
+JS13K_GAMES=(none)
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -71,7 +71,7 @@ function buildall {
 
 function sync {
   buildall
-  rsync -a --partial --progress www/ metaphora.co:one/
+  rsync -a --partial --progress www/ metaphora:one/
 }
 
 function update-deps {

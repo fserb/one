@@ -6,6 +6,7 @@
   <meta name='viewport' content='width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover'>
   <meta name="description" content="">
   <link rel="canonical" href="{{ url }}">
+  <script defer data-domain="one.fserb.com" src="https://metaphora.co/plausible.js"></script>
   <meta property="og:title" content="{{ title }}">
   <meta property="og:type" content="website">
   <meta property="og:description" content="Press to play!">
@@ -49,7 +50,7 @@ body {
 {{ payload | safe }}{% set unpayload %}
 <style>body { font-size: 0; }</style>
 <script type="module">
-import main from "./src/test.js";
+import main from "./src/tentacles.js";
 
 main({forceStart: true});
 // main();

@@ -68,6 +68,7 @@ export default {
     bundleSize(),
   ],
   preserveEntrySignatures: true,
+  treeshake: "smallest",
   output: {
     inlineDynamicImports: true,
     format: 'esm',

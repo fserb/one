@@ -5,11 +5,13 @@ import {opts, mouse, ease, setOpts, op, act} from "./internal.js";
 export * as utils from "./lib/utils.js";
 export * as vec from "./lib/vec.js";
 
+import color from "./lib/color.js";
+
 import * as input from "./input.js";
 import * as sound from "./sound.js";
 import camera from "./camera.js";
 
-export {mouse, act, ease, camera, sound};
+export {mouse, act, ease, camera, sound, color};
 
 import * as overlay from "./overlay.js";
 

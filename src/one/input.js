@@ -74,18 +74,19 @@ function onMouseDown(ev) {
   onMouseMove(ev);
 }
 
-function onKeyUp(ev) {
+function onKeyDown(ev) {
   const kc = ev.keyCode;
   if (kc == 38 || kc == 87) inswipe = 1;
   if (kc == 39 || kc == 68) inswipe = 2;
   if (kc == 40 || kc == 83) inswipe = 3;
   if (kc == 37 || kc == 65) inswipe = 4;
+  if (kc == 32) inclick = true;
 }
 
 export function init() {
   op.canvas.addEventListener("mousedown", onMouseDown, { passive: false });
   op.canvas.addEventListener("touchstart", onMouseDown, { passive: false });
-  window.addEventListener("keyup", onKeyUp, { passive: false });
+  window.addEventListener("keydown", onKeyDown, { passive: false });
 }
 
 export function update() {
