@@ -30,7 +30,8 @@ function fillRoundRect(x, y, width, height, radius = 0) {
 }
 
 function mtext(txt, size, opts) {
-  opts = Object.assign({ weight: "bold", align: "center", valign: "middle"}, opts);
+  opts = Object.assign(
+    { weight: "bold", align: "center", valign: "middle"}, opts);
   this.font = opts.weight + " " + size + "px Verdana";
   this.textAlign = opts.align;
   this.textBaseline = opts.valign;
@@ -50,7 +51,8 @@ function text(txt, x, y, size, opts) {
     y /= r;
   }
 
-  opts = Object.assign({ weight: "bold", align: "center", valign: "middle"}, opts);
+  opts = Object.assign(
+    { weight: "bold", align: "center", valign: "middle"}, opts);
   this.font = opts.weight + " " + size + "px Verdana";
   this.textAlign = opts.align;
   this.textBaseline = opts.valign;
@@ -97,15 +99,14 @@ const MAP = {
   'fillCircle': fillCircle,
   'strokCircle': strokeCircle };
 
-export default function(obj) {
-  const target = obj.getContext ? obj.getContext("2d") : obj;
+for (const ctxproto of
+  [window.CanvasRenderingContext2D, window.OffscreenCanvasRenderingContext2D]) {
+  if (!ctxproto) continue;
 
   for (const name of Object.keys(MAP)) {
-    if (target[name] !== undefined) {
-      console.log("ALREADY EXISTS", name);
+    if (ctxproto.prototype[name] !== undefined) {
       continue;
     }
-    target[name] = MAP[name].bind(target);
+    ctxproto.prototype[name] = MAP[name];
   }
-  return obj;
 }

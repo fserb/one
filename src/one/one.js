@@ -1,4 +1,4 @@
-import plus2d from "./lib/plus2d.js";
+import "./lib/plus2d.js";
 
 import {opts, mouse, ease, setOpts, op, act} from "./internal.js";
 
@@ -24,6 +24,9 @@ export function setScore(v) {
 
 export let canvas = null;
 export let ctx = null;
+
+let accumulator = 0.0;
+let lastFixedTime = 0;
 
 export function msg(m) {
   op.message = m;
@@ -64,8 +67,6 @@ function _render() {
   ctx.restore();
 }
 
-let accumulator = 0.0;
-let lastFixedTime = 0;
 export function fixedUpdate(frameRate, func) {
   const dt = (op.currentTime - lastFixedTime) / 1000;
   accumulator += dt;
@@ -99,7 +100,6 @@ function _frame(now) {
 export function main({obj = null, forceStart = false} = {}) {
   canvas = op.canvas = obj ?? document.getElementById("canvas");
   ctx = canvas.getContext("2d");
-  plus2d(ctx);
 
   const ro = new ResizeObserver(_changes => {
     canvas.width = Math.ceil(canvas.clientWidth * window.devicePixelRatio);

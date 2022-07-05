@@ -1,4 +1,4 @@
-import plus2d from "./plus2d.js";
+import "./plus2d.js";
 
 // Returns a function, that, as long as it continues to be invoked, will not
 // be triggered. The function will be called after it stops being called for
@@ -37,7 +37,7 @@ export function newCanvas(width, height, forceElement = false) {
     canvas.height = height;
     ctx = canvas.getContext("2d");
   }
-  plus2d(ctx);
+  // plus2d(ctx);
   // @ts-ignore
   canvas.ctx = ctx;
   return [canvas, ctx];
