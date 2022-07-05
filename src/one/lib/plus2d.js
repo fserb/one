@@ -4,7 +4,6 @@ function roundRect(x, y, width, height, radius) {
   if (!radius.length) {
     radius = [radius, radius, radius, radius];
   }
-  this.beginPath();
   this.moveTo(x + radius[0], y);
   this.lineTo(x + width - radius[1], y);
   this.arcTo(x + width, y, x + width, y + radius[1], radius[1]);
@@ -19,11 +18,13 @@ function roundRect(x, y, width, height, radius) {
 }
 
 function strokeRoundRect(x, y, width, height, radius = 0) {
+  this.beginPath();
   this.roundRect(x, y, width, height, radius);
   this.stroke();
 }
 
 function fillRoundRect(x, y, width, height, radius = 0) {
+  this.beginPath();
   this.roundRect(x, y, width, height, radius);
   this.fill();
 }
@@ -100,7 +101,10 @@ export default function(obj) {
   const target = obj.getContext ? obj.getContext("2d") : obj;
 
   for (const name of Object.keys(MAP)) {
-    if (target[name] !== undefined) continue;
+    if (target[name] !== undefined) {
+      console.log("ALREADY EXISTS", name);
+      continue;
+    }
     target[name] = MAP[name].bind(target);
   }
   return obj;

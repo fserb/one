@@ -708,7 +708,6 @@ function renderBeltBlocks(ctx, b) {
   }
 }
 
-
 const B = 0.04347826 * 1.5;
 const S = 0.04347826 * 1.3;
 function renderPiece(ctx, p) {

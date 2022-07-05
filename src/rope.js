@@ -977,7 +977,7 @@ function renderBG(ctx) {
 
       let px = (x - one.camera.cx) / BGZOOM + one.camera.cx;
       let py = (y - one.camera.cy) / BGZOOM + one.camera.cy;
-      ctx.fillRoundRect(px, py, 2 , 1.24 , 2 * 0.1 );
+      ctx.fillRoundRect(px, py, 2, 1.24, 2 * 0.1);
     }
   }
 }

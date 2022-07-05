@@ -50,10 +50,10 @@ body {
 <body><canvas id="canvas"></canvas>
 {{ payload | safe }}{% set unpayload %}
 <script type="module">
-import main from "./src/trap.js";
+import main from "./src/async.js";
 
-// main({forceStart: true});
-main();
+main({forceStart: true});
+// main();
 </script>
 {% endset %}
 </body>
