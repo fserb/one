@@ -48,6 +48,7 @@ class Track {
   reset() {
     this._actions.length = 0;
     this._actions.push([]);
+    return this;
   }
 
   delay(t, v = 0) {

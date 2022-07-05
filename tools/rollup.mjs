@@ -21,12 +21,11 @@ export default {
       babelrc: false,
       babelHelpers: 'bundled',
       compact: true,
-      minified: true,
       presets: [
         ["@babel/preset-env", {
           "targets": "defaults, not IE <= 11, not safari < 14",
           "useBuiltIns": "usage",
-          "corejs": "3.16",
+          "corejs": "3.23",
           "modules": false,
         }]
       ],
@@ -35,13 +34,13 @@ export default {
     strip({
     }),
     terser({
-      ecma: 2019,
+      ecma: 2020,
       compress: {
         booleans_as_integers: true,
         keep_fargs: false,
         toplevel: true,
         module: true,
-        ecma: 2019,
+        ecma: 2020,
         passes: 5,
         unsafe: true,
         unsafe_comps: true,
@@ -59,7 +58,7 @@ export default {
       },
       format: {
         comments: false,
-        ecma: 2019,
+        ecma: 2020,
         indent_level: 0,
       },
       module: true,
@@ -70,6 +69,7 @@ export default {
     bundleSize(),
   ],
   preserveEntrySignatures: true,
+  treeshake: "smallest",
   output: {
     inlineDynamicImports: true,
     format: 'esm',

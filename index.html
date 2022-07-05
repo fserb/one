@@ -39,6 +39,7 @@
 }
 body {
   margin: 0;
+  font-size: 0;
   touch-action: none;
   text-align: center;
   background-color: #222;
@@ -48,12 +49,11 @@ body {
 </head>
 <body><canvas id="canvas"></canvas>
 {{ payload | safe }}{% set unpayload %}
-<style>body { font-size: 0; }</style>
 <script type="module">
-import main from "./src/tentacles.js";
+import main from "./src/trap.js";
 
-main({forceStart: true});
-// main();
+// main({forceStart: true});
+main();
 </script>
 {% endset %}
 </body>

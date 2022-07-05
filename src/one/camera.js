@@ -17,10 +17,10 @@ class Camera {
   }
 
   reset() {
+    act(this).reset();
     this.x = this.y = this.angle = 0;
     this.z = 1024;
     this.cx = this.cy = 512;
-    if (this.act) this.act.stop();
   }
 
   copy() {
@@ -51,16 +51,13 @@ class Camera {
 
   lerp(target, duration, easing) {
     easing = easing ?? ease.linear;
-
-    if (!this.act) this.act = act(this);
-
-    return this.act
+    return act(this)
       .attr("x", target.x, duration, easing)
-      .attr("y", target.y)
-      .attr("angle", target.angle)
-      .attr("z", target.z)
-      .attr("cx", target.cx)
-      .attr("cy", target.cy);
+      .attr("y", target.y, duration)
+      .attr("angle", target.angle, duration)
+      .attr("z", target.z, duration)
+      .attr("cx", target.cx, duration)
+      .attr("cy", target.cy, duration);
   }
 
   lookRect(x, y, w, h, ang) {

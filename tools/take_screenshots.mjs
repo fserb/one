@@ -12,7 +12,7 @@ async function takeScreenshots(game) {
 
   await page.setViewport({width: 800, height: 800, deviceScaleFactor: 2});
 
-  const url = `https://dev.metaphora.co/games/one/www/${game}/index.html`;
+  const url = `https://dev.metaphora.co/one/www/${game}/index.html`;
 
   await page.goto(url);
   await page.click("#canvas");

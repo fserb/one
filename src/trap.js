@@ -74,7 +74,7 @@ const PROG = [0, 50, 45, 40, 35, 30,
   20, 20, 20,
   15, 15, 15, 15,
   10, 10, 10, 10, 10,
-  9, 8, 7, 6, 5 ];
+  9, 8, 7, 6, 5];
 
 function init() {
   locked = true;
@@ -237,7 +237,6 @@ function escapeAlien() {
     if (locked) return;
     one.setScore(LEVEL - 1);
     locked = true;
-    console.log("CALLED");
     one.gameOver();
   });
 }
@@ -259,7 +258,7 @@ function blinkAlien() {
 }
 
 async function finishGame() {
-  camera.act.stop();
+  act(camera).reset();
   pending = 100;
   const wait = [];
   let delay = 0.5;
@@ -327,7 +326,6 @@ function recenterCamera() {
   rect.maxx += border;
   rect.maxy += border;
 
-
   const dur = camera.z > 1024 ? 1 : 0.25;
   return camera.lerp(camera.lookRect(rect.minx, rect.miny,
     rect.maxx - rect.minx,
@@ -341,7 +339,7 @@ function updateNext() {
   if (HEADSTART > 0) {
     setHeadstart(HEADSTART - 1);
   }
-  camera.act.delay(1).then(() => recenterCamera());
+  act(camera).delay(1).then(() => recenterCamera());
   recenterCamera();
   if (HEADSTART == 0 || get(ALIEN).astar == -1) {
     moveAlien();
@@ -361,7 +359,7 @@ function update(dt) {
   if (ALIEN.looking <= 0) {
     ALIEN.looking = 2 + 10 * Math.random();
     const t = {x : -1 + 2 * Math.random(), y: -1 + 2 * Math.random()};
-    act(ALIEN.eye).stop()
+    act(ALIEN.eye).reset()
       .attr("x", t.x, 0.5 + 0.3 * Math.random(), ease.quadIn)
       .attr("y", t.y, 0.5 + 0.3 * Math.random(), ease.quadIn);
   }
