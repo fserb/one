@@ -20,9 +20,7 @@
  * overlay handles everything after that, including starting the next one.
  */
 
-import "../alma/extend.js";
-import { register as registerPlus2d } from "../alma/gfx/plus2d.js";
-import { Screen } from "../alma/screen.js";
+import { registerPlus2d, Screen } from "../alma/src/index.js";
 import { Camera } from "./camera.js";
 import * as input from "./input.js";
 import * as overlay from "./overlay.js";
@@ -45,8 +43,6 @@ export { act, DOWN, LEFT, meta, mouse, RIGHT, score, SIZE, sound, UP };
 export const camera = new Camera();
 
 let ctx = null;
-let frameDt = 0;
-let fixedAcc = 0;
 
 export function run(game, { target = null, forceStart = false } = {}) {
   registerPlus2d();
@@ -56,7 +52,6 @@ export function run(game, { target = null, forceStart = false } = {}) {
   const el = target ?? document.getElementById("canvas") ?? document.body;
   const screen = new Screen(el, { logical: [SIZE, SIZE] });
   op.screen = screen;
-  op.canvas = screen.canvas;
   ctx = screen.canvas.getContext("2d");
 
   document.title = meta.title;
@@ -72,7 +67,6 @@ export function run(game, { target = null, forceStart = false } = {}) {
 
 export function start() {
   overlay.startGame();
-  fixedAcc = 0;
   op.playing = true;
   op.game.init?.();
 }
@@ -83,14 +77,10 @@ export function gameOver() {
   overlay.gameOver();
 }
 
-// Runs `func` a whole number of times per second, draining whatever the last
-// frame was worth. Call it from update(); it reads that frame's dt.
-export function fixed(step, func) {
-  fixedAcc += frameDt;
-  while (fixedAcc >= step) {
-    func(step);
-    fixedAcc -= step;
-  }
+// Runs `func` `rate` times a second, whole steps per frame. Call it from
+// update(), so the steps see this frame's input.
+export function fixed(rate, func) {
+  return op.screen.fixed(rate, func);
 }
 
 // A line of text in the middle of the top bar.
@@ -99,8 +89,6 @@ export function msg(m) {
 }
 
 function frame(dt) {
-  frameDt = dt;
-
   act._frame(dt);
   camera._update(dt);
   input.poll();

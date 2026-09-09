@@ -3,8 +3,7 @@
  * https://www.cs.brandeis.edu/~storer/JimPuzzles/ZPAGES/zzzBullsEye.html
  */
 
-import * as ease from "./alma/ease.js";
-import * as utils from "./alma/utils/utils.js";
+import { ease, utils } from "./alma/src/index.js";
 import { act, gameOver, mouse, score, SIZE } from "./lib/one.js";
 
 export const meta = {

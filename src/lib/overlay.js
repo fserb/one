@@ -13,8 +13,7 @@
  * overlay owns the screen, and render() after the game has drawn.
  */
 
-import * as ease from "../alma/ease.js";
-import * as utils from "../alma/utils/utils.js";
+import { ease, utils } from "../alma/src/index.js";
 import { act, meta, mouse, op, score, SIZE } from "./state.js";
 import * as sound from "./sound.js";
 
@@ -90,9 +89,9 @@ export function gameOver() {
   localStorage.setItem(`one#${meta.title}`, score.best);
 
   // Freeze the last frame, minus the bar, and slide the bar back down over it.
-  const dim = op.canvas.width;
+  const dim = op.screen.width;
   const [shot, sctx] = utils.newCanvas(dim, dim);
-  sctx.drawImage(op.canvas, 0, 0);
+  sctx.drawImage(op.screen.canvas, 0, 0);
   sctx.clearRect(0, 0, dim, Math.ceil(dim * BAR / SIZE));
   finish.shot = shot;
   finish.msg = meta.finishGood ? "WELL DONE" : "GAME OVER";

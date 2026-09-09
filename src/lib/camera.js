@@ -14,7 +14,7 @@
  * ```
  */
 
-import * as ease from "../alma/ease.js";
+import { ease } from "../alma/src/index.js";
 import { act, SIZE } from "./state.js";
 
 const HALF = SIZE / 2;

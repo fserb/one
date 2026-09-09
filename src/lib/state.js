@@ -6,7 +6,7 @@
  * make the import graph a cycle.
  */
 
-import Act from "../alma/Act.js";
+import { Act } from "../alma/src/index.js";
 
 // Every game draws into a 1024x1024 box, whatever the canvas ends up being.
 export const SIZE = 1024;
@@ -54,7 +54,6 @@ export const mouse = {
 export const op = {
   game: null,
   screen: null,
-  canvas: null,
   playing: false,
   topmsg: null,
 };
