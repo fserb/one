@@ -46,9 +46,8 @@
  *   and switching still want a keyboard.
  * - The `Scorer` box and the `Message` that slid "you are a metro car" across
  *   the bottom are the shell's score bar and `meta.desc`.
- * - A hit shape does not turn with the drawing here, and a car is a 34x16 box
- *   that spends most of its time diagonal. Three circles down the middle of it
- *   cover the same ground and are moved back onto the heading each frame.
+ * - A car collides as the 34x16 box it is drawn as. A car spends most of its
+ *   time diagonal, and hitPoly() is the shape that turns with `angle`.
  */
 
 import * as ent from "./lib/entity.js";
@@ -109,9 +108,8 @@ const ACC = 200;
 const ETURN = 1.5;
 const EACC = 80;
 
-// The car is 34x16, so three circles this wide at this spacing fill it.
-const CAR = 8;
-const AXLE = 9;
+// The car, as the four corners of the 34x16 box it is drawn as.
+const CAR = [-17, -8, 17, -8, 17, 8, -17, 8];
 
 // Seconds from the crash to the freeze-frame, on top of the hitstop.
 const DEATH = 0.5;
@@ -406,7 +404,7 @@ class Train extends ent.Entity {
     this.next = null;
     this.dying = 0;
     this.gfx.fill(GREEN).rect(0, 0, 34, 16);
-    body(this);
+    this.hitPoly(CAR);
     this.aim();
   }
 
@@ -423,7 +421,6 @@ class Train extends ent.Entity {
     const dy = this.to.y - this.pos.y;
     const full = Math.hypot(dx, dy);
     const aligned = turn(this, dx, dy, TURN);
-    bodyTurn(this);
 
     if (key.just.left) {
       sound.play("switch");
@@ -523,7 +520,7 @@ class Enemy extends ent.Entity {
     this.pos.y = at.y;
     this.angle = Math.atan2(this.to.y - at.y, this.to.x - at.x);
     this.gfx.fill(BLACK).line(2, BLACK).rect(0, 0, 34, 16);
-    body(this);
+    this.hitPoly(CAR);
   }
 
   update() {
@@ -531,7 +528,6 @@ class Enemy extends ent.Entity {
     const dy = this.to.y - this.pos.y;
     const full = Math.hypot(dx, dy);
     const aligned = turn(this, dx, dy, ETURN);
-    bodyTurn(this);
     if (!aligned) return;
 
     const step = Math.min(full, EACC * ent.game.time);
@@ -665,24 +661,6 @@ class Target extends ent.Entity {
     this.pos.x = Math.max(10, Math.min(W - 10, x));
     this.pos.y = Math.max(TOP + 10, Math.min(W - 10, y));
   }
-}
-
-// Three circles down the middle of a 34x16 car, since a hit shape does not
-// turn with the drawing. The middle one sits on the entity; the ends are put
-// back on the heading by bodyTurn() once a frame.
-function body(e) {
-  e.hitCircle(CAR, -AXLE, 0);
-  e.hitCircle(CAR);
-  e.hitCircle(CAR, AXLE, 0);
-}
-
-function bodyTurn(e) {
-  const x = Math.cos(e.angle) * AXLE;
-  const y = Math.sin(e.angle) * AXLE;
-  e.hits[0].x = -x;
-  e.hits[0].y = -y;
-  e.hits[2].x = x;
-  e.hits[2].y = y;
 }
 
 // Turn `e` towards (dx, dy), at most `rate` half-turns a second, and say
