@@ -46,7 +46,7 @@
  */
 
 import * as ent from "./lib/entity.js";
-import { gameOver, score } from "./lib/one.js";
+import { gameOver, hint, score } from "./lib/one.js";
 import * as sfxr from "./lib/sfxr.js";
 import * as sound from "./lib/sound.js";
 
@@ -101,8 +101,6 @@ const GR = 10;
 const BR = 6;
 // Seconds a fresh ghost cannot hurt you and will not shoot, over the speed.
 const GRACE = 1.5;
-// What the four the round opens with hold instead.
-const OPEN = 3;
 // Pink's stand-off, and the radius its bullet swings at.
 const KEEP = 128;
 // Yellow's distance from the centre, and how far purple throws.
@@ -534,10 +532,13 @@ export function init() {
   hook = new Hook();
 
   // One in every corner, and the one wearing the floor's colour leaves again
-  // on the first frame. They hold OPEN rather than the usual grace because the
-  // shell opens on the running game: at 1.5/speed yellow's first shot lands at
-  // 2.9 seconds, before the hint has finished fading, and a player who is
-  // still reading is dead. The Haxe had a title card and a click to begin.
+  // on the first frame. These four hold for as long as the hint stands when
+  // that is longer than the usual grace, because the shell opens on the
+  // running game: at 1.5/speed yellow's first shot lands 2.9 seconds in,
+  // before the hint has finished fading, and a player who is still reading is
+  // dead. The Haxe had a title card and a click to begin. hint() is already 0
+  // on the second round, and from the first input of the first one, so the
+  // extra grace ends when the reading does.
   const corners = [
     [YELLOW, EDGE, TOP + EDGE],
     [PURPLE, W - EDGE, TOP + EDGE],
@@ -546,7 +547,7 @@ export function init() {
   ];
   for (const [color, x, y] of corners) {
     const g = new Ghost(color, x, y);
-    g.wait = OPEN;
+    g.wait = Math.max(g.wait, hint());
   }
 }
 

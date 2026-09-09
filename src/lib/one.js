@@ -88,6 +88,13 @@ export function fixed(rate, func) {
   return op.screen.fixed(rate, func);
 }
 
+// Seconds the meta.desc hint has left on screen, and 0 once the player has
+// dismissed it or it has gone. A game's opening move waits this out when it
+// would otherwise land on a player who is still reading.
+export function hint() {
+  return overlay.hint();
+}
+
 // A line of text in the middle of the top bar.
 export function msg(m) {
   op.topmsg = m;
@@ -97,7 +104,7 @@ function frame(dt) {
   act._frame(dt);
   camera._update(dt);
   input.poll();
-  overlay.poll();
+  overlay.poll(dt);
 
   if (op.playing) {
     op.game.update?.(dt);

@@ -47,7 +47,7 @@
  */
 
 import * as ent from "./lib/entity.js";
-import { gameOver, msg, score } from "./lib/one.js";
+import { gameOver, hint, msg, score } from "./lib/one.js";
 import * as sfxr from "./lib/sfxr.js";
 import * as sound from "./lib/sound.js";
 
@@ -107,12 +107,12 @@ const REPOINT = 12;
 
 const ENEMY_R = 17;
 const ENEMY_TURN = 10;
+// Seconds before the turret's first shot, or as long as the hint stands when
+// that is longer. On ENEMY_FIRST alone the opening shot lands at 2.2s and the
+// one that gets through the shield at 3.3s, both while the hint is still on
+// screen and a player who is reading cannot answer either. hint() is 0 from
+// the second level on, so only the first level pays for it.
 const ENEMY_FIRST = 1.5;
-// What the turret waits instead on the first level. Its opening shot lands at
-// 2.2s and the one that gets through the shield at 3.3s, both while the hint
-// is still on screen: overlay.js holds meta.desc for 3s and finishes fading it
-// at 3.6s. Same pairing as grab's OPEN, and neither is linked to the shell.
-const OPEN = 3;
 // Frames of the player's angle the turret averages to lead its shot.
 const HISTORY = 60;
 
@@ -482,7 +482,7 @@ class Level extends ent.Entity {
     }
 
     this.repoint = REPOINT / this.want.length;
-    new Enemy(n === 0 ? OPEN : ENEMY_FIRST);
+    new Enemy(Math.max(ENEMY_FIRST, hint()));
   }
 
   update() {

@@ -6,6 +6,8 @@
  *   game    the bar is 44px of score, best score and the mute toggle. On the
  *           first round meta.desc sits on top of the running game and fades,
  *           on the first input or a few seconds in, whichever lands first.
+ *           hint() is how long that hint has left, which is what a game whose
+ *           opening move would kill a player who is still reading waits out.
  *   finish  a frozen screenshot of the last frame, with the bar sliding back
  *           down over it. A click starts the next round.
  *
@@ -26,6 +28,7 @@ const FONT = 26;
 
 // meta.desc holds this long, then fades on its own. Input cuts it short with
 // the quicker fade, so the hint leaves as soon as the player does not need it.
+// A game reads the sum off hint() rather than either number.
 const DESC_HOLD = 3;
 const DESC_FADE = 0.6;
 const DESC_DISMISS = 0.2;
@@ -45,6 +48,9 @@ const desc = {
   alpha: 0,
   // Faded out, or on its way there: input has nothing left to dismiss.
   gone: true,
+  // Seconds until the hint is off the screen, counted down every frame and
+  // dropped to zero the moment the player dismisses it. What hint() answers.
+  left: 0,
 };
 
 const finish = {
@@ -67,6 +73,7 @@ export function init() {
   desc.lines = meta.desc.trim().split("\n").filter((l) => l.trim() !== "");
   desc.alpha = 0;
   desc.gone = desc.lines.length === 0;
+  desc.left = desc.gone ? 0 : DESC_HOLD + DESC_FADE;
   if (desc.gone) return;
 
   const longest = Math.max(...desc.lines.map((x) => x.length));
@@ -99,6 +106,7 @@ export function gameOver() {
   // frozen on top of the screenshot.
   desc.alpha = 0;
   desc.gone = true;
+  desc.left = 0;
 
   // Freeze the last frame, minus the bar, and slide the bar back down over it.
   const dim = op.screen.width;
@@ -117,9 +125,12 @@ export function gameOver() {
 
 // Runs every frame, in game or not: the mute toggle lives in the bar, and the
 // desc listens for the first input of the round.
-export function poll() {
+export function poll(dt) {
+  desc.left = Math.max(0, desc.left - dt);
+
   if (!desc.gone && (mouse.click || mouse.swipe)) {
     desc.gone = true;
+    desc.left = 0;
     act(desc).reset().attr("alpha", 0, DESC_DISMISS);
   }
 
@@ -129,6 +140,15 @@ export function poll() {
   if (!op.sound?.available()) return;
   if (state !== "game" || mouse.x < SIZE / 2 || mouse.y >= BAR) return;
   op.sound.toggle();
+}
+
+// Seconds of meta.desc still on the screen, fade included, and zero once the
+// player has dismissed it, once it has faded, once the round is over and on
+// every round after the first. A game whose opening would kill a player who is
+// still reading holds off for this long, which also means the hold ends the
+// moment the player starts playing.
+export function hint() {
+  return desc.left;
 }
 
 // Only called between rounds, so the one state left to leave is "finish".
