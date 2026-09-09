@@ -12,7 +12,7 @@
  * seconds of playing costs less than an editor does.
  *
  * "keep" downloads a zip of PNG frames at a constant rate. `./task media
- * <game>` turns that into media/<game>.mp4, .gif and .png, which
+ * <game>` turns that into media/<game>/card.mp4, .gif and .png, which
  * tools/build.js copies into the gallery.
  */
 

@@ -14,7 +14,7 @@ function rebuild {
   build "$@"
 }
 
-# Turn the newest recorder zip for a game into media/<game>.{mp4,gif,png}.
+# Turn the newest recorder zip for a game into media/<game>/card.{mp4,gif,png}.
 # src/dev/rec.js downloads the zip; this is the other half of that.
 function media {
   local game="${1:?usage: task media <game>}"
