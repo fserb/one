@@ -24,6 +24,16 @@ import {
   SIZE,
   UP,
 } from "./lib/one.js";
+import {
+  ADSR,
+  biquad,
+  bitcrush,
+  envelope,
+  linear,
+  oscillator,
+  ringmod,
+  VSAJ,
+} from "./lib/fsfx/fsfx.js";
 import * as sound from "./lib/sound.js";
 
 const { arrayShuffle, TAU } = extra;
@@ -85,36 +95,36 @@ let tentacles;
 let turn;
 let dead;
 
-sound.make("step", 0.09, (f, track) => {
-  track(f.oscillator, { type: "sine", freq: f.linear(320, -140) });
-  track(f.envelope, {
-    env: f.ADSR({ attack: 0.005, release: 0.07, sustainv: 1, type: "exp" }),
+sound.make("step", 0.09, (track) => {
+  track(oscillator, { type: "sine", freq: linear(320, -140) });
+  track(envelope, {
+    env: ADSR({ attack: 0.005, release: 0.07, sustainv: 1, type: "exp" }),
   });
 });
 
-sound.make("push", 0.18, (f, track) => {
-  track(f.oscillator, { type: "brown", amp: 0.7 });
-  track(f.biquad, { type: "lowpass", freq: 700 });
-  track(f.envelope, {
-    env: f.ADSR({ attack: 0.01, release: 0.15, sustainv: 1, type: "linear" }),
+sound.make("push", 0.18, (track) => {
+  track(oscillator, { type: "brown", amp: 0.7 });
+  track(biquad, { type: "lowpass", freq: 700 });
+  track(envelope, {
+    env: ADSR({ attack: 0.01, release: 0.15, sustainv: 1, type: "linear" }),
   });
 });
 
-sound.make("crunch", 0.3, (f, track) => {
-  track(f.oscillator, { type: "brown", amp: 1 });
-  track(f.bitcrush, { sample: 6, bits: 6 });
-  track(f.biquad, { type: "lowpass", freq: 1600 });
-  track(f.envelope, {
-    env: f.ADSR({ attack: 0.005, release: 0.28, sustainv: 1, type: "exp" }),
+sound.make("crunch", 0.3, (track) => {
+  track(oscillator, { type: "brown", amp: 1 });
+  track(bitcrush, { sample: 6, bits: 6 });
+  track(biquad, { type: "lowpass", freq: 1600 });
+  track(envelope, {
+    env: ADSR({ attack: 0.005, release: 0.28, sustainv: 1, type: "exp" }),
   });
 });
 
-sound.make("caught", 0.6, (f, track) => {
-  track(f.oscillator, { type: "saw", freq: f.VSAJ(220, -160) });
-  track(f.ringmod, { wet: 0.6, freq: 60 });
-  track(f.biquad, { type: "lowpass", freq: 900 });
-  track(f.envelope, {
-    env: f.ADSR({ attack: 0.02, release: 0.5, sustainv: 1, type: "linear" }),
+sound.make("caught", 0.6, (track) => {
+  track(oscillator, { type: "saw", freq: VSAJ(220, -160) });
+  track(ringmod, { wet: 0.6, freq: 60 });
+  track(biquad, { type: "lowpass", freq: 900 });
+  track(envelope, {
+    env: ADSR({ attack: 0.02, release: 0.5, sustainv: 1, type: "linear" }),
   });
 });
 

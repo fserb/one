@@ -8,6 +8,18 @@
 
 import { ease, extra, vec } from "./alma/src/index.js";
 import { act, camera, gameOver, mouse, msg, score, SIZE } from "./lib/one.js";
+import {
+  ADSR,
+  biquad,
+  bitcrush,
+  compressor,
+  envelope,
+  karplus_strong,
+  linear,
+  oscillator,
+  ringmod,
+  VSAJ,
+} from "./lib/fsfx/fsfx.js";
 import * as sound from "./lib/sound.js";
 
 const { arrayRemove, lerp, promiseSleep, SQRT3, TAU } = extra;
@@ -34,31 +46,31 @@ const RIM = "#B9A588";
 // The shared score bar the board has to stay clear of.
 const BAR = 44;
 
-sound.make("hit", 0.3, (f, track) => {
-  track(f.karplus_strong, { b: 0.5, freq: 40, S: 0.1 });
-  track(f.biquad, { type: "lowpass", freq: 1500 });
-  track(f.bitcrush, { sample: 4, bits: 24 });
-  track(f.compressor);
-  track(f.envelope, {
-    env: f.ADSR({ sustainv: 2, sustain: 0.1, release: 0.2, type: "linear" }),
+sound.make("hit", 0.3, (track) => {
+  track(karplus_strong, { b: 0.5, freq: 40, S: 0.1 });
+  track(biquad, { type: "lowpass", freq: 1500 });
+  track(bitcrush, { sample: 4, bits: 24 });
+  track(compressor);
+  track(envelope, {
+    env: ADSR({ sustainv: 2, sustain: 0.1, release: 0.2, type: "linear" }),
   });
 });
 
-sound.make("drop", 0.3, (f, track) => {
-  track(f.oscillator, { type: "saw", freq: f.linear(100, -300) });
-  track(f.oscillator, { type: "brown", amp: 0.5 });
-  track(f.ringmod, { wet: 1, freq: 120 });
-  track(f.biquad, { type: "lowpass", freq: 1000 });
-  track(f.envelope, {
-    env: f.ADSR({ sustainv: 1, sustain: 0.05, release: 0.25, type: "linear" }),
+sound.make("drop", 0.3, (track) => {
+  track(oscillator, { type: "saw", freq: linear(100, -300) });
+  track(oscillator, { type: "brown", amp: 0.5 });
+  track(ringmod, { wet: 1, freq: 120 });
+  track(biquad, { type: "lowpass", freq: 1000 });
+  track(envelope, {
+    env: ADSR({ sustainv: 1, sustain: 0.05, release: 0.25, type: "linear" }),
   });
 });
 
-sound.make("move", 0.65, (f, track) => {
-  track(f.oscillator, { type: "sine", freq: f.VSAJ(400, 400, -4000) });
-  track(f.ringmod, { wet: 0.5, freq: 200 });
-  track(f.envelope, {
-    env: f.ADSR({
+sound.make("move", 0.65, (track) => {
+  track(oscillator, { type: "sine", freq: VSAJ(400, 400, -4000) });
+  track(ringmod, { wet: 0.5, freq: 200 });
+  track(envelope, {
+    env: ADSR({
       attack: 0.3,
       sustain: 0.2,
       release: 0.25,
@@ -68,11 +80,11 @@ sound.make("move", 0.65, (f, track) => {
   });
 });
 
-sound.make("fall", 0.5, (f, track) => {
-  track(f.oscillator, { type: "sine", freq: f.VSAJ(400, -200) });
-  track(f.ringmod, { wet: 0.5, freq: 200 });
-  track(f.envelope, {
-    env: f.ADSR({ attack: 0.1, release: 0.4, sustainv: 1, type: "linear" }),
+sound.make("fall", 0.5, (track) => {
+  track(oscillator, { type: "sine", freq: VSAJ(400, -200) });
+  track(ringmod, { wet: 0.5, freq: 200 });
+  track(envelope, {
+    env: ADSR({ attack: 0.1, release: 0.4, sustainv: 1, type: "linear" }),
   });
 });
 

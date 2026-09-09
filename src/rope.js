@@ -14,6 +14,7 @@
 import { ease, extra, vec } from "./alma/src/index.js";
 import { act, camera, fixed, gameOver, mouse, score, SIZE } from "./lib/one.js";
 import pl from "./lib/planck.js";
+import { ADSR, biquad, envelope, karplus_strong } from "./lib/fsfx/fsfx.js";
 import * as sound from "./lib/sound.js";
 
 const { clamp, lerp, TAU } = extra;
@@ -47,12 +48,12 @@ const ZOOM = 1.5;
 const REACH = VIEW * 2;
 const CULL = VIEW * 3;
 // Two plucked strings an octave apart, cut short: a rope going taut.
-sound.make("hold", 0.1, (f, track) => {
-  track(f.karplus_strong, { b: 1, freq: 100, S: 0.5 });
-  track(f.karplus_strong, { b: 0.5, freq: 50, S: 0.5 });
-  track(f.biquad, { type: "lowpass", freq: 100 });
-  track(f.envelope, {
-    env: f.ADSR({ sustainv: 3, sustain: 0, release: 0.1, type: "linear" }),
+sound.make("hold", 0.1, (track) => {
+  track(karplus_strong, { b: 1, freq: 100, S: 0.5 });
+  track(karplus_strong, { b: 0.5, freq: 50, S: 0.5 });
+  track(biquad, { type: "lowpass", freq: 100 });
+  track(envelope, {
+    env: ADSR({ sustainv: 3, sustain: 0, release: 0.1, type: "linear" }),
   });
 });
 

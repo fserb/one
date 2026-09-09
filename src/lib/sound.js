@@ -13,13 +13,19 @@
  * stays muted, and the overlay hides the ♫ toggle.
  *
  * A Track is callable: pass it a module and its parameters, once per stage, and
- * each stage processes the buffer the one before it left.
+ * each stage processes the buffer the one before it left. The game imports the
+ * stages it wants by name, so its bundle carries those and not the other forty:
+ * make() handing its callback the whole `fsfx` namespace instead would pin
+ * every module in the directory, since nothing can be shaken out of a namespace
+ * object that is passed around at runtime.
  *
  * ```js
- * sound.make("drop", 0.3, (f, track) => {
- *   track(f.oscillator, { type: "saw", freq: f.linear(100, -300) });
- *   track(f.biquad, { type: "lowpass", freq: 1000 });
- *   track(f.envelope, { env: f.ADSR({ sustainv: 1, release: 0.25 }) });
+ * import { ADSR, biquad, envelope, linear, oscillator } from "./lib/fsfx/fsfx.js";
+ *
+ * sound.make("drop", 0.3, (track) => {
+ *   track(oscillator, { type: "saw", freq: linear(100, -300) });
+ *   track(biquad, { type: "lowpass", freq: 1000 });
+ *   track(envelope, { env: ADSR({ sustainv: 1, release: 0.25 }) });
  * });
  * sound.play("drop", 800 * (2 * Math.random() - 1));
  * ```
@@ -27,7 +33,7 @@
 
 import { Audio } from "../alma/src/index.js";
 import { op } from "./state.js";
-import * as fsfx from "./fsfx/fsfx.js";
+import { Track } from "./fsfx/fsfx.js";
 
 const SAMPLE_RATE = 48000;
 
@@ -74,8 +80,8 @@ export function arm(target) {
 }
 
 export function make(name, duration, func) {
-  const track = new fsfx.Track(duration, SAMPLE_RATE, 1);
-  func(fsfx, track);
+  const track = new Track(duration, SAMPLE_RATE, 1);
+  func(track);
   add(name, track.build(), SAMPLE_RATE);
 }
 
