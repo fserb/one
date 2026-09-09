@@ -2,13 +2,15 @@
  * camera.js - a view onto the 1024-space.
  *
  * The camera is a rectangle of side `z` centred on (cx, cy), rotated by
- * `angle`. z == SIZE shows the whole board; smaller zooms in. Most methods
- * return a new Camera rather than moving this one, so they compose into a
- * target to lerp() or approach() towards.
+ * `angle`. z == SIZE shows the whole board; smaller zooms in. Those four
+ * numbers are the whole camera: where it is, is cx/cy, and there is no pan
+ * offset beside them, so cx, cy, z and angle are also the dimensions lerp()
+ * and approach() move. Most methods return a new Camera rather than moving
+ * this one, so they compose into a target to lerp() or approach() towards.
  *
  * ```js
  * camera.reset();
- * camera.lerp(camera.lookAt(px, py).distance(2), 0.5, ease.quadOut);
+ * camera.lerp(camera.lookRect(x, y, w), 0.5, ease.quadOut);
  * // in render():
  * camera.transform(ctx);
  * ```
@@ -20,9 +22,7 @@ import { act, SIZE } from "./state.js";
 const HALF = SIZE / 2;
 
 export class Camera {
-  constructor(x = 0, y = 0, angle = 0, z = SIZE, cx = HALF, cy = HALF) {
-    this.x = x;
-    this.y = y;
+  constructor(angle = 0, z = SIZE, cx = HALF, cy = HALF) {
     this.angle = angle;
     this.z = z;
     this.cx = cx;
@@ -33,7 +33,7 @@ export class Camera {
 
   reset() {
     act(this).reset();
-    this.x = this.y = this.angle = 0;
+    this.angle = 0;
     this.z = SIZE;
     this.cx = this.cy = HALF;
     this.shaking = 0;
@@ -41,12 +41,10 @@ export class Camera {
   }
 
   copy() {
-    return new Camera(this.x, this.y, this.angle, this.z, this.cx, this.cy);
+    return new Camera(this.angle, this.z, this.cx, this.cy);
   }
 
   set(c) {
-    this.x = c.x;
-    this.y = c.y;
     this.angle = c.angle;
     this.z = c.z;
     this.cx = c.cx;
@@ -61,15 +59,11 @@ export class Camera {
     for (const dim of ["cx", "cy", "z", "angle"]) {
       this[dim] = (1 - r[dim]) * this[dim] + r[dim] * target[dim];
     }
-    this.x = this.cx - HALF;
-    this.y = this.cy - HALF;
     return this;
   }
 
   lerp(target, duration, easing = ease.linear) {
     return act(this)
-      .attr("x", target.x, duration, easing)
-      .attr("y", target.y, duration, easing)
       .attr("angle", target.angle, duration, easing)
       .attr("z", target.z, duration, easing)
       .attr("cx", target.cx, duration, easing)
@@ -77,55 +71,14 @@ export class Camera {
   }
 
   lookRect(x, y, w, h = w, angle = this.angle) {
-    const s = Math.max(w, h);
-    return new Camera(
-      x - HALF + w / 2,
-      y - HALF + h / 2,
-      angle,
-      s,
-      x + w / 2,
-      y + h / 2,
-    );
+    return new Camera(angle, Math.max(w, h), x + w / 2, y + h / 2);
   }
 
   lookAt(x, y) {
     const c = this.copy();
     c.cx = x;
     c.cy = y;
-    c.x = c.cx - HALF;
-    c.y = c.cy - HALF;
     return c;
-  }
-
-  rotate(angle) {
-    const c = this.copy();
-    c.angle += angle;
-    return c;
-  }
-
-  // dz > 1 zooms in.
-  distance(dz) {
-    const c = this.copy();
-    c.z /= dz;
-    return c;
-  }
-
-  height(dz) {
-    const c = this.copy();
-    c.z += dz;
-    return c;
-  }
-
-  translate(x, y) {
-    const c = this.copy();
-    c.x += x;
-    c.y += y;
-    return c;
-  }
-
-  // The visible box, in game coordinates.
-  box() {
-    return { a: this.map({ x: 0, y: 0 }), b: this.map({ x: SIZE, y: SIZE }) };
   }
 
   // Screen point to game point.
@@ -133,8 +86,8 @@ export class Camera {
     const cos = Math.cos(this.angle);
     const sin = Math.sin(this.angle);
 
-    const ax = p.x + this.x - this.cx;
-    const ay = p.y + this.y - this.cy;
+    const ax = p.x - HALF;
+    const ay = p.y - HALF;
 
     return {
       x: (ax * cos - ay * sin) * this.z / SIZE + this.cx,
@@ -156,7 +109,7 @@ export class Camera {
       );
     }
 
-    ctx.translate(this.cx - this.x, this.cy - this.y);
+    ctx.translate(HALF, HALF);
     ctx.rotate(-this.angle);
     ctx.scale(SIZE / this.z, SIZE / this.z);
     ctx.translate(-this.cx, -this.cy);

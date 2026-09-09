@@ -615,12 +615,10 @@ function updateCamera() {
   const p = player.head.getPosition();
   const target = camera.lookAt(p.x, p.y);
 
-  const d = vec.sub(target, camera);
-  const ang = TAU * -d.x / 40;
+  const ang = TAU * -(target.cx - camera.cx) / 40;
   target.angle = Math.abs(ang) < TAU / 40 ? 0 : ang;
 
-  // approach() only reads cx, cy, z and angle. The original also passed x and
-  // y, which it has never looked at, so the pan rate is the 0.05 default.
+  // The pan is approach()'s 0.05 default in both axes.
   camera.approach(target, { angle: 0.04 });
 }
 
