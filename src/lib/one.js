@@ -58,6 +58,7 @@ export function run(game, { target = null, forceStart = false } = {}) {
   document.body.style.backgroundColor = meta.bg;
 
   input.init(screen.canvas);
+  sound.arm(document);
   overlay.init(forceStart);
   if (forceStart) start();
 

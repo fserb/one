@@ -41,9 +41,6 @@ High level:
 
 */
 
-import Player from "./player.js";
-export {Player};
-
 export * from "./synth.js";
 export * from "./signal.js";
 export * from "./basic.js";
