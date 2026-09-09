@@ -29,7 +29,70 @@
       -webkit-user-select: none;
       -webkit-tap-highlight-color: transparent;
     }
-    #help {
+    /* The list of games, when there is no ?game=. */
+    body.index {
+      display: block;
+      overflow: auto;
+      padding: 32px 20px;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    .index main {
+      max-width: 54em;
+      margin: 0 auto;
+    }
+    .index h1 {
+      font-size: 14px;
+      margin: 0 0 16px;
+    }
+    .index ul {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+    .index li {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      padding: 8px 4px;
+      border-top: 1px solid #0002;
+    }
+    .index a {
+      color: inherit;
+      font-weight: bold;
+      min-width: 8em;
+    }
+    .swatch {
+      width: 16px;
+      height: 16px;
+      flex: none;
+    }
+    .desc {
+      flex: 1;
+      color: #0009;
+    }
+    .date {
+      color: #0006;
+      font-variant-numeric: tabular-nums;
+    }
+    /* Always in the row, empty for a game that ships, so the dates line up. */
+    .flag {
+      flex: none;
+      min-width: 4em;
+      text-align: right;
+    }
+    .flag b {
+      font: 11px Verdana, sans-serif;
+      color: #a33;
+      border: 1px solid #a33;
+      border-radius: 3px;
+      padding: 1px 4px;
+    }
+    .flag b.broken {
+      color: #f2f0e5;
+      background: #a33;
+    }
+    p.help {
       font-size: 14px;
       line-height: 1.8;
       text-align: center;
@@ -46,8 +109,12 @@
       same ES modules the bundler does. ~/web is served at
       https://marx.giraffe-yo.ts.net/, so this is one.fserb.com's source, live.
 
+        dev.html               every game in src/, listed
         dev.html?game=wow      the intro screen, like the built page
         dev.html?game=wow&go   skip the intro, start playing immediately
+
+      A game page also loads src/dev/rec.js, the recorder behind the "rec"
+      button in the corner. It records a ten second clip for the gallery card.
 
       The built pages under www/ are what actually ships. `./task build` makes them.
     -->
@@ -55,18 +122,93 @@
     const params = new URLSearchParams(location.search);
     const name = params.get("game") ?? location.hash.slice(1);
 
-    if (!name) {
-      document.body.innerHTML =
-        `<p id=help>pick a game: <code>dev.html?game=&lt;name&gt;</code><br>` +
-        `add <code>&amp;go</code> to skip the intro</p>`;
-    } else {
+    if (name) {
       const canvas = document.createElement("canvas");
       canvas.id = "canvas";
       document.body.append(canvas);
 
       const game = await import(`./src/${name}.js`);
       const { run } = await import("./src/lib/one.js");
-      run(game, { forceStart: params.has("go") });
+      const screen = run(game, { forceStart: params.has("go") });
+
+      // After run(), so the recorder's frame callback lands after the game's.
+      const rec = await import("./src/dev/rec.js");
+      rec.init(screen, name);
+    } else {
+      await index();
+    }
+
+    // The list, with no build step behind it: Caddy's `file_server browse`
+    // answers a directory with JSON when the request asks for JSON, and meta
+    // comes from importing each module, the same way tools/build.js reads it.
+    async function index() {
+      document.body.className = "index";
+
+      let names;
+      try {
+        names = await list();
+      } catch (err) {
+        document.body.innerHTML = `<p class=help>no directory listing here: ` +
+          `${esc(err.message)}<br>pick a game: ` +
+          `<code>dev.html?game=&lt;name&gt;</code></p>`;
+        return;
+      }
+
+      const games = await Promise.all(names.map(async (name) => {
+        try {
+          const { meta } = await import(`./src/${name}.js`);
+          return { name, ...meta };
+        } catch (err) {
+          return { name, desc: String(err), broken: true };
+        }
+      }));
+      games.sort((a, b) => (b.date ?? "").localeCompare(a.date ?? ""));
+
+      document.body.innerHTML = `<main>
+        <h1>one · dev <span class=date>${games.length} games</span></h1>
+        <ul>${games.map(card).join("")}</ul>
+        <p class=help>add <code>&amp;go</code> to skip the intro</p>
+      </main>`;
+    }
+
+    // Names of the game modules, from the server's directory listing. Same two
+    // rules as the build: no directories, nothing starting with _.
+    async function list() {
+      const res = await fetch("./src/", { headers: { accept: "application/json" } });
+      if (!res.ok) throw new Error(`src/ gave ${res.status}`);
+      const entries = await res.json();
+      return entries
+        .filter((e) => !e.is_dir && e.name.endsWith(".js"))
+        .map((e) => e.name.slice(0, -3))
+        .filter((n) => !n.startsWith("_"));
+    }
+
+    function card(g) {
+      const bg = g.bg ?? "#f2f0e5";
+      const fg = g.fg ?? "#212123";
+      return `<li>
+        <span class=swatch style="background:${esc(bg)};border:3px solid ${
+        esc(fg)
+      }"></span>
+        <a href="?game=${encodeURIComponent(g.name)}">${esc(g.name)}</a>
+        <span class=desc>${esc((g.desc ?? "").trim().replace(/\n/g, " · "))}</span>
+        <span class=flag>${flag(g)}</span>
+        <span class=date>${esc(g.date ?? "")}</span>
+      </li>`;
+    }
+
+    // draft says the build skips this game: no page under www/, no gallery card.
+    function flag(g) {
+      if (g.broken) return `<b class=broken>error</b>`;
+      if (g.draft) return `<b>draft</b>`;
+      return "";
+    }
+
+    function esc(s) {
+      return String(s).replace(
+        /[&<>"]/g,
+        (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c],
+      );
     }
     </script>
   </body>
