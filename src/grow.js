@@ -50,7 +50,7 @@
  *   left at 1.0, so the number never moved and nothing read it anyway. What is
  *   measured now is the box round the loop and the gold, and the view is a
  *   translate and a scale round `ent.render()`, the way cable does it. That
- *   makes two games moving a view by hand and entity.js still has no screen
+ *   makes three games moving a view by hand and entity.js still has no screen
  *   space of its own.
  * - The size of the loop sets the scale for everything else: the thrust, the
  *   travel, the gap two nodes are kept apart. So the picture holds its size
