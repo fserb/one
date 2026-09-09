@@ -109,13 +109,18 @@ const CRAWL = 5;
 // Depth the scroll starts multiplying at, and how fast it climbs from there.
 const NEAR = 240;
 const NEARRATE = 9 / 70;
-// The same again for the top of the chain, from higher up the board.
+// The same again for the top of the chain, except that it snaps on rather than
+// ramping in: the Haxe tests the top of the chain against 122 and then measures
+// it from 240, so the multiplier is already 4.4 on the frame it starts to
+// apply. Left as found.
 const HIGH = 122;
 const HIGHRATE = 5 / 172;
 // Difficulty is a flat ramp: this much a minute, for ever.
 const RAMP = 0.4;
-// Chance of a hole in an incoming row, which arrives with the difficulty and
-// then stops growing. A dense board is the game; the holes are a mercy.
+// Chance of a hole in an incoming row, per cell: a tenth of the difficulty,
+// capped here, which it reaches a minute in. So it starts at zero and stops
+// getting commoner at one cell in twenty-five. A dense board is the game; the
+// holes are the mercy.
 const HOLE = 0.04;
 
 // A box. The outline is black, the corners a shade, and the two eye whites sit
@@ -360,7 +365,7 @@ class Tray extends ent.Entity {
     this.counts = counts;
     const order = [0, 1, 2, 3, 4].sort((a, b) => counts[b] - counts[a]);
 
-    this.gfx.clear().fill(BLACK);
+    this.gfx.clear();
     let row = 0;
     for (const i of order) {
       if (counts[i] === 0) continue;
