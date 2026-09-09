@@ -348,13 +348,14 @@ export class Art {
 
   dot(x, y) {
     if (this.disabled) return this;
-    x = Math.trunc(x);
-    y = Math.trunc(y);
 
+    // The dither reads the whole pixel the dot falls in and the run keeps the
+    // coordinate it was given: ugl drew every dot at x*px with no rounding, so
+    // `rect(0, 1.5, 4, 1)` is a one-pixel bar centred on a four-pixel box.
     let v = 0;
-    if (this.xpat > 0) v += x % this.xpat;
-    if (this.ypat > 0) v += y % this.ypat;
-    if (this.xypat > 0) v += (x + y) % this.xypat;
+    if (this.xpat > 0) v += Math.trunc(x) % this.xpat;
+    if (this.ypat > 0) v += Math.trunc(y) % this.ypat;
+    if (this.xypat > 0) v += Math.trunc(x + y) % this.xypat;
     const c = v % 2 === 0 ? this.color1 : this.color2;
 
     // Shapes emit left-to-right along a row, so most dots extend the last run.
