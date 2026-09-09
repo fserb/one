@@ -569,9 +569,9 @@ export class Art {
  * turns either off. mt()/lt() draw a path where the four shape calls will not.
  *
  * Flash's Graphics, which the ported games were written against, ran every
- * shape between beginFill and endFill into a single path,
- * so two overlapping shapes in one fill came out as their union. Here each
- * shape is its own path, which looks the same unless the fill is translucent.
+ * shape between beginFill and endFill into a single path, so two overlapping
+ * shapes in one fill came out as their union. Here each shape is its own path,
+ * which looks the same unless the fill is translucent.
  */
 export class Gfx {
   constructor() {
