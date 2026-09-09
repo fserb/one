@@ -29,11 +29,14 @@
  *   wrap in is 480x459 and everything the Haxe scattered over 480 scatters
  *   over that. Wrapping needs the whole field visible: an edge under the bar
  *   is an edge a ship can shoot you from unseen.
- * - `final()` flashed the score and SUPER / HOT / ASTEROID at each other once
- *   a second, forever. The shell owns the end screen, so that is gone. The 2.5
- *   seconds before it are not: the player is removed, the clock comes off the
- *   brake, and you watch the board you were picking your way through fly at
- *   full speed. That is where the joke lands.
+ * - The death is the Haxe's, over 2.5 seconds it holds the screen for: the
+ *   player is removed, the clock comes off the brake, the board you were
+ *   picking your way through flies at full speed, and the title and the score
+ *   swap places over the top of it once a second, the title first. The one
+ *   thing that cannot carry over is the wait: the Haxe flipped forever and
+ *   took any key to leave, and here the click that starts the next round is
+ *   the shell's finish screen, so holding the flip until input would cost the
+ *   player two clicks. It runs for the holdback and then hands over.
  * - The in-game score label is gone; the bar carries the score.
  * - An enemy lands on the aim it wants instead of stopping a step short of it.
  *   The Haxe turned by a whole step or not at all, so a lined-up ship rocked
@@ -82,8 +85,13 @@ const TOP = 21;
 // What the clock is divided by while you are neither thrusting nor shooting.
 const SLOW = 50;
 // Seconds the board runs at full speed with the player gone, before the shell
-// takes the screen.
+// takes the screen. ugl's `holdback`, which is how long the Haxe ignored input
+// for, and here it is the whole length of the end screen.
 const DYING = 2.5;
+// The end screen swaps at this rate, and its three lines sit this far apart,
+// centred on the field rather than on the Haxe's unshifted 480 box.
+const FLIP = 1;
+const FLIP_GAP = 120;
 
 // The triangle both ships collide as: the shape dart() draws, moved from the
 // corner of the sprite's 24x24 box onto the centre it is drawn about.
@@ -109,6 +117,7 @@ const ROCK_MIN = 30;
 const ROCK_VAR = 20;
 const ROCK_SPEED = 100;
 const SPLIT_SPEED = 50;
+const ROCK_FIRST = 2;
 const ROCK_EVERY = 23;
 
 // The first wave lands at once, the next in five seconds, and each is a tenth
@@ -155,6 +164,11 @@ let wave = 1;
 let alive = 0;
 // Seconds of full-speed board left before the shell takes over, or 0.
 let dying = 0;
+// The end screen: which face is up, when it turns, and the labels drawn for
+// it, which are rebuilt rather than edited because that is all `Text` offers.
+let flip = false;
+let flipTime = 0;
+let flipped = [];
 
 class Player extends ent.Entity {
   begin() {
@@ -225,7 +239,8 @@ class Bullet extends ent.Entity {
   }
 }
 
-// What the wave clock counts. Ball in the Haxe, and a rock everywhere here.
+// What the wave clock counts: a rock or a ship, the two things on the board
+// the player has to answer.
 class Target extends ent.Entity {
   constructor() {
     super();
@@ -238,6 +253,7 @@ class Target extends ent.Entity {
   }
 }
 
+// `Ball` in the Haxe, which is what ugl's circle primitive called it.
 class Rock extends Target {
   // A fresh rock drifts in off an edge and a split one is placed by the rock
   // it came out of, so both arrive through the constructor.
@@ -333,7 +349,10 @@ class Enemy extends Target {
       ? 0
       : Math.atan2(p.pos.y - this.pos.y, p.pos.x - this.pos.x);
 
-    if (p !== null && speed >= CRUISE && between(tx, ty, this.vel) <= CONE) {
+    if (
+      p !== null && speed >= CRUISE &&
+      between(tx, ty, this.vel.x, this.vel.y) <= CONE
+    ) {
       // Already flying where it wants to go, so the nose is free to aim.
       steer(this, toPlayer, AIM_TURN);
     } else {
@@ -437,6 +456,28 @@ function explode(p) {
   sound.play("player");
   p.remove();
   dying = DYING;
+  // The Haxe set `flip` true and then turned it over on its first frame, so
+  // the title is the face the player sees first. Kept, including the order.
+  flip = true;
+  flipTime = 0;
+}
+
+// Turn the end screen over: the score on one face, the game's name on the
+// other. The Haxe removed and remade the labels every second, and `Text` has
+// no way to move or retext one, so this does too.
+function turnOver() {
+  for (const t of flipped) t.remove();
+  flip = !flip;
+  const mid = (TOP + W) / 2;
+  flipped = flip ? [label(mid, 12, Math.floor(score.value))] : [
+    label(mid - FLIP_GAP, 9, "SUPER"),
+    label(mid, 9, "HOT"),
+    label(mid + FLIP_GAP, 9, "ASTEROID"),
+  ];
+}
+
+function label(y, size, text) {
+  return new ent.Text().text(text).color(WHITE).size(size).xy(W / 2, y);
 }
 
 // What a ship leaves. A rock throws its own, in chunks the size it was.
@@ -467,8 +508,9 @@ function newRock() {
   new Rock(size, x, TOP + (W - TOP) * Math.random(), angle, ROCK_SPEED);
 }
 
-// Off one edge and back on at the other, a unit inside it. `s` is how far past
-// the edge the entity is let run first, which the Haxe read as its width.
+// Off one edge and back on at the other, a unit short of the threshold it
+// would leave by. `s` is how far past the edge the entity is let run before it
+// goes, which the Haxe read as its width.
 function wrap(e, s) {
   const { pos } = e;
   if (pos.x < -s / 2) pos.x = W + s / 2 - 1;
@@ -486,12 +528,12 @@ function fold(a) {
   return x;
 }
 
-// The angle between a vector and a velocity, 0 to PI. A standing entity has no
-// heading to compare, and PI is the answer that sends it to the other branch.
-function between(ax, ay, v) {
-  const l = Math.hypot(ax, ay) * Math.hypot(v.x, v.y);
+// The angle between two vectors, 0 to PI. A standing ship has no heading to
+// compare, and PI is the answer that sends it to the steering branch.
+function between(ax, ay, bx, by) {
+  const l = Math.hypot(ax, ay) * Math.hypot(bx, by);
   if (l === 0) return Math.PI;
-  return Math.acos(Math.max(-1, Math.min(1, (ax * v.x + ay * v.y) / l)));
+  return Math.acos(Math.max(-1, Math.min(1, (ax * bx + ay * by) / l)));
 }
 
 export function init() {
@@ -500,11 +542,14 @@ export function init() {
   ent.order([Rock, Enemy, ent.Particle, Player, Bullet, ent.Text]);
 
   realtime = 0;
-  rockTime = 2;
+  rockTime = ROCK_FIRST;
   waveTime = 0;
   wave = 1;
   alive = 0;
   dying = 0;
+  flip = false;
+  flipTime = 0;
+  flipped = [];
   new Player();
 }
 
@@ -516,6 +561,11 @@ export function update(dt) {
   // this runs out.
   if (dying > 0) {
     dying -= dt;
+    flipTime -= dt;
+    if (flipTime <= 0) {
+      flipTime += FLIP;
+      turnOver();
+    }
     ent.update(dt);
     if (dying <= 0) gameOver();
     return;
