@@ -25,14 +25,19 @@
  * The games think in a 480x480 box. world() sets that box and render() scales
  * it onto one's 1024, so ported code keeps the constants it was written with.
  *
+ * Overlap is opt-in: an entity that calls hitCircle() or hitBox() can then ask
+ * hitGroup(Other) what it is touching. ugl put those shapes in the sprite's own
+ * coordinates and ran them through the sprite matrix; here they are relative to
+ * the entity's position, so a port has to move the numbers over by hand.
+ *
  * One thing does not carry over from Haxe: begin() cannot run from the
  * constructor, because a subclass's field initialisers run after super()
  * returns and would overwrite whatever begin() had set. So begin() runs at the
  * top of the entity's first frame instead, still before its first update().
  */
 
-import { Art, glyphs } from "./art.js";
-import { mouse, SIZE } from "./state.js";
+import { Art, Gfx, glyphs } from "./art.js";
+import { key, mouse, SIZE } from "./state.js";
 
 export const game = {
   // Seconds since the last frame, and since reset().
@@ -42,6 +47,9 @@ export const game = {
   height: 480,
   // The pointer, in world coordinates.
   mouse: { x: 0, y: 0, click: false, press: false, release: false },
+  // The held directions and the two buttons. The shell's own object, since
+  // unlike the pointer there is nothing to convert.
+  key,
 };
 
 // Class -> {layer, list}. A group holds every live instance of exactly that
@@ -87,6 +95,24 @@ export function reset() {
   groups.clear();
   game.time = 0;
   game.totalTime = 0;
+  shaking = held = 0;
+}
+
+/*
+ * The two things ugl let a hit do to the whole screen. shake() jitters the
+ * world under render(); delay() is hitstop, holding every entity still while
+ * the clock runs on, so a blow lands before the game answers it. Each takes
+ * the longer of what is asked for and what is already running.
+ */
+let shaking = 0;
+let held = 0;
+
+export function shake(t = 0.4) {
+  shaking = Math.max(shaking, t);
+}
+
+export function delay(t) {
+  held = Math.max(held, t);
 }
 
 export class Entity {
@@ -100,6 +126,11 @@ export class Entity {
     this.ticks = 0;
     this.dead = false;
     this.art = new Art();
+    this.gfx = new Gfx();
+    // Mirror the drawing left to right, which is how the games turn a sprite
+    // around: ugl set sprite.scaleX = -1.
+    this.flipX = false;
+    this.hits = [];
     this.started = false;
     groupOf(this.constructor).list.push(this);
   }
@@ -109,8 +140,12 @@ export class Entity {
   update() {}
   postUpdate() {}
 
+  // Each of the two centres itself on its own bounding box. ugl centred the
+  // union of them, so an entity drawing with both at once sits differently
+  // here unless the two are centred on the same point.
   render(ctx) {
     this.art.render(ctx);
+    this.gfx.render(ctx);
   }
 
   remove() {
@@ -121,6 +156,48 @@ export class Entity {
   accelerate(x, y) {
     this.acc.x += x;
     this.acc.y += y;
+  }
+
+  // Drops every shape, so nothing can touch this entity and it can touch
+  // nothing. ugl's clearHitBox().
+  clearHits() {
+    this.hits.length = 0;
+    return this;
+  }
+
+  // Overlap shapes, offset from the entity's position. A box is axis-aligned
+  // and stays that way: `angle` turns the drawing, not the box.
+  //
+  // These centre on the position; `art` and `gfx` centre on their own bounding
+  // box. So a drawing lopsided about the origin, a turret with a barrel out one
+  // side, sits off its own hit shape, and `gfx.size(w, h)` is the empty box
+  // that puts it back.
+  hitCircle(r, x = 0, y = 0) {
+    this.hits.push({ r, x, y });
+    return this;
+  }
+
+  hitBox(w, h = w, x = 0, y = 0) {
+    this.hits.push({ w, h, x, y });
+    return this;
+  }
+
+  hit(e) {
+    if (e === null || e === this || this.dead || e.dead) return false;
+    for (const a of this.hits) {
+      for (const b of e.hits) {
+        if (overlap(this, a, e, b)) return true;
+      }
+    }
+    return false;
+  }
+
+  // The first live `cls` this touches, or null.
+  hitGroup(cls) {
+    for (const e of get(cls)) {
+      if (this.hit(e)) return e;
+    }
+    return null;
   }
 
   _step() {
@@ -142,6 +219,7 @@ export class Entity {
     ctx.save();
     ctx.translate(this.pos.x, this.pos.y);
     if (this.angle !== 0) ctx.rotate(this.angle);
+    if (this.flipX) ctx.scale(-1, 1);
     this.render(ctx);
     ctx.restore();
   }
@@ -407,11 +485,41 @@ export class Timer extends Entity {
   }
 }
 
+function overlap(ea, a, eb, b) {
+  const ax = ea.pos.x + a.x;
+  const ay = ea.pos.y + a.y;
+  const bx = eb.pos.x + b.x;
+  const by = eb.pos.y + b.y;
+
+  if (a.r !== undefined && b.r !== undefined) {
+    return Math.hypot(bx - ax, by - ay) <= a.r + b.r;
+  }
+  if (a.r !== undefined) return circleBox(ax, ay, a.r, bx, by, b.w, b.h);
+  if (b.r !== undefined) return circleBox(bx, by, b.r, ax, ay, a.w, a.h);
+  return Math.abs(ax - bx) <= (a.w + b.w) / 2 &&
+    Math.abs(ay - by) <= (a.h + b.h) / 2;
+}
+
+// The circle reaches the box when the box's nearest point is inside it.
+function circleBox(cx, cy, r, bx, by, w, h) {
+  const dx = Math.max(Math.abs(cx - bx) - w / 2, 0);
+  const dy = Math.max(Math.abs(cy - by) - h / 2, 0);
+  return dx * dx + dy * dy <= r * r;
+}
+
 function ordered() {
   return [...groups.values()].sort((a, b) => a.layer - b.layer);
 }
 
 export function update(dt) {
+  shaking = Math.max(0, shaking - dt);
+  // A held frame still runs, at a dt of zero: entities read input and each
+  // other, and nothing moves.
+  if (held > 0) {
+    held -= dt;
+    dt = 0;
+  }
+
   game.time = dt;
   game.totalTime += dt;
 
@@ -447,6 +555,12 @@ export function update(dt) {
 export function render(ctx) {
   ctx.save();
   ctx.scale(SIZE / game.width, SIZE / game.height);
+  if (shaking > 0) {
+    // In world units, so a shake is the same size whatever the box is. The
+    // background goes with it, and meta.bg shows along the edge it leaves.
+    const mag = 5 + 10 * shaking;
+    ctx.translate(mag * (2 * Math.random() - 1), mag * (2 * Math.random() - 1));
+  }
   for (const g of ordered()) {
     for (const e of g.list) {
       if (!e.dead) e._draw(ctx);

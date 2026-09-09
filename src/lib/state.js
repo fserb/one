@@ -51,6 +51,27 @@ export const mouse = {
   swipe: 0,
 };
 
+// Buttons, in the shape ugl's Game.key had: what is held now, plus what went
+// down this frame. A game reads key.left and key.just.b1. b1 is the action
+// button and doubles as the pointer, so every game stays playable with a mouse
+// or a finger alone.
+export const key = {
+  up: false,
+  right: false,
+  down: false,
+  left: false,
+  b1: false,
+  b2: false,
+  just: {
+    up: false,
+    right: false,
+    down: false,
+    left: false,
+    b1: false,
+    b2: false,
+  },
+};
+
 export const op = {
   game: null,
   screen: null,
