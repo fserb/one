@@ -8,7 +8,7 @@
  *   deno run --allow-read tools/loop_test.js     # or ./task test
  */
 
-import { findLoop } from "../src/dev/rec.js";
+import { findLoop, motion } from "../src/dev/rec.js";
 
 const N = 256; // signature cells, as in rec.js (16x16)
 const LO = 105, HI = 210; // 3.5s .. 7s at 30fps
@@ -86,13 +86,52 @@ for (const p of [60, 90]) {
   check("no loop exists -> shortest", len(c) === LO, `len ${len(c)}`);
 }
 
-// A frozen take loops anywhere, so take the longest clip on offer.
+// A frozen take has no gameplay in it at any length, so what matters is not
+// which cut comes back but that the cut has no motion and `keep` refuses it.
 {
   const c = findLoop(flat(300), LO, HI);
+  const m = motion(flat(300).slice(c.in, c.out));
+  check("static -> nothing to keep", m === 0, `motion ${m}`);
+}
+
+// A round that ends early: one.js freezes the picture on game over and the
+// recorder keeps capturing it, so the take is live frames then identical ones.
+// The frozen span costs nothing to cut across and is the longest thing going,
+// so the search used to land inside it and hand back a still.
+{
+  const live = (i) => {
+    const v = new Float32Array(N);
+    for (let c = 0; c < N; c++) {
+      v[c] = 128 + 100 * Math.sin(i / 6) * Math.cos(c);
+    }
+    return v;
+  };
+  const endsEarly = (n, frozen) => {
+    const out = [];
+    for (let i = 0; i < n; i++) out.push(live(i));
+    const last = out[out.length - 1];
+    for (let i = 0; i < frozen; i++) out.push(Float32Array.from(last));
+    return out;
+  };
+
+  for (const [n, frozen] of [[90, 210], [180, 120], [240, 60]]) {
+    const sig = endsEarly(n, frozen);
+    const c = findLoop(sig, LO, HI);
+    const m = motion(sig.slice(c.in, c.out));
+    check(
+      `ends at ${n} of ${n + frozen}: cut is all gameplay`,
+      m === 1 && c.out <= n,
+      `in ${c.in} out ${c.out} motion ${m.toFixed(3)}`,
+    );
+  }
+
+  // The take as a whole moves, so measuring it instead of the cut is what let
+  // a frozen cut through.
+  const sig = endsEarly(90, 210);
   check(
-    "static -> longest",
-    len(c) === HI && c.in === 0,
-    `len ${len(c)} in ${c.in}`,
+    "measuring the take, not the cut, would miss it",
+    motion(sig) > 0,
+    motion(sig).toFixed(3),
   );
 }
 
@@ -116,6 +155,25 @@ for (const p of [60, 90]) {
     }
   }
   check("every cut stays inside the take", ok);
+}
+
+// A take the game never received input for is a still, whatever findLoop
+// makes of it. This is the check that would have stopped a frozen wow clip
+// reaching a commit.
+check("frozen take -> no motion", motion(flat(300)) === 0, `${motion(flat(300))}`);
+check(
+  // Not exactly 1: a smooth sine has bit-identical neighbours at its peaks.
+  // Real footage only repeats a frame when the game is genuinely frozen.
+  "moving take -> nearly all motion",
+  motion(take(300, 90)) > 0.95,
+  motion(take(300, 90)).toFixed(3),
+);
+check("one frame -> no motion", motion(flat(1)) === 0);
+{
+  // Moving for a third of its length, idle for the rest.
+  const sig = [...take(100, 90), ...flat(200)];
+  const m = motion(sig);
+  check("part moving -> in between", m > 0.3 && m < 0.4, m.toFixed(3));
 }
 
 console.log(fail === 0 ? "\nall passed" : `\n${fail} failed`);

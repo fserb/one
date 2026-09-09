@@ -106,6 +106,22 @@ function dist(p, q) {
   return s;
 }
 
+// How much of the take actually changed, as a fraction of its frames.
+//
+// A take the game never received any input for is ten seconds of an idle
+// board, and findLoop will cut a perfect loop out of it without complaint,
+// because a still frame matches a still frame exactly. That happened once and
+// the result reached a commit. Nothing downstream can tell the difference, so
+// it gets caught here.
+export function motion(sig) {
+  if (sig.length < 2) return 0;
+  let moved = 0;
+  for (let i = 1; i < sig.length; i++) {
+    if (dist(sig[i - 1], sig[i]) > 0) moved++;
+  }
+  return moved / (sig.length - 1);
+}
+
 // The clip plays [in, out) and jumps back, so the cut disappears when frame
 // `out` looks like frame `in`. Scoring WINDOW frames from each stops one
 // coincidental match from winning.
@@ -119,7 +135,13 @@ function dist(p, q) {
 //
 // Exported and pure so it can be run on signatures that never saw a canvas.
 export function findLoop(sig, lo, hi) {
-  const n = sig.length;
+  // A round that ends early leaves one.js's frozen game-over frame repeating
+  // to the end of the take. That is not gameplay, and leaving it in breaks the
+  // search two ways: a frozen span costs nothing to cut across at any length,
+  // so it wins on length, and its zero-cost steps drag the median down until
+  // the budget admits nothing else. Drop it before looking at anything.
+  let n = sig.length;
+  while (n > 1 && dist(sig[n - 2], sig[n - 1]) === 0) n--;
 
   const steps = [];
   for (let i = 1; i < n; i++) steps.push(dist(sig[i - 1], sig[i]));
@@ -141,6 +163,7 @@ export function findLoop(sig, lo, hi) {
       }
     }
   }
+  // Nothing long enough to loop: hand back the gameplay, minus the freeze.
   return best ?? least ?? { d: 0, in: 0, out: n };
 }
 
@@ -170,10 +193,12 @@ async function finish() {
     Math.round(MAX_LOOP * FPS),
   );
 
-  await showPreview(cut);
+  // The cut, not the take: a round that ends at 3s leaves seven seconds of
+  // frozen frames that the take as a whole still counts as movement.
+  await showPreview(cut, motion(sigs.slice(cut.in, cut.out)));
 }
 
-async function showPreview(cut) {
+async function showPreview(cut, moved) {
   const bmp = await Promise.all(
     frames.slice(cut.in, cut.out).map((b) => createImageBitmap(b)),
   );
@@ -186,9 +211,14 @@ async function showPreview(cut) {
   const pctx = pv.getContext("2d");
 
   const secs = (bmp.length / FPS).toFixed(1);
-  box.querySelector("p").textContent = `${secs}s · ${bmp.length} frames · from ${
-    (cut.in / FPS).toFixed(1)
-  }s`;
+  const pct = Math.round(moved * 100);
+  box.querySelector("p").textContent = moved === 0
+    ? "nothing moved: ten seconds of an idle game"
+    : `${secs}s · ${bmp.length} frames · from ${(cut.in / FPS).toFixed(1)}s` +
+      (pct < 90 ? ` · ${pct}% moving` : "");
+  // A frozen take is never worth keeping, and that is not a judgement call.
+  // Anything above it is, so the number is shown and the button stays live.
+  ui.keep.disabled = moved === 0;
   box.hidden = false;
   ui.note.textContent = "";
 
@@ -262,7 +292,7 @@ function buildBar() {
   el("canvas", {}, box);
   el("p", {}, box);
   const row = el("div", {}, box);
-  el("button", { textContent: "keep", onclick: keep }, row);
+  ui.keep = el("button", { textContent: "keep", onclick: keep }, row);
   el("button", { textContent: "again", onclick: () => ui.done() }, row);
 }
 
@@ -294,4 +324,5 @@ const CSS = `
 #rec-preview p { margin: 0; opacity: .7; }
 #rec-preview div { display: flex; gap: 8px; }
 #rec-preview button { background: #fff; color: #000; padding: 6px 18px; }
+#rec-preview button:disabled { opacity: .35; cursor: not-allowed; }
 `;
