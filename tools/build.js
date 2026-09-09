@@ -18,9 +18,10 @@
  * card, and any page a previous build left behind is deleted. Play it with
  * dev.html, which loads src/ directly and never asks the build anything.
  *
- * media/<game>.mp4/.gif/.png are optional, and come from `./task media <game>`
- * after recording a clip in dev.html. They become the moving gallery card and
- * the page's og:image. A game without them gets the flat colour card.
+ * media/<game>/card.mp4/.gif/.png are optional, and come from
+ * `./task media <game>` after recording a clip in dev.html. They become the
+ * moving gallery card and the page's og:image. A game without them gets the
+ * flat colour card.
  *
  *   deno run -A tools/build.js            # every game, plus the gallery
  *   deno run -A tools/build.js wow trap   # just these
@@ -121,11 +122,12 @@ async function exists(url) {
   }
 }
 
-// What `./task media <game>` left behind, keyed by extension.
+// What `./task media <game>` left in media/<game>/, keyed by extension. The
+// names match www/<game>/, so copyShot is a copy and nothing is renamed.
 async function shot(game) {
   const out = {};
   for (const ext of ["mp4", "gif", "png"]) {
-    const from = new URL(`${game}.${ext}`, MEDIA);
+    const from = new URL(`${game}/card.${ext}`, MEDIA);
     if (await exists(from)) out[ext] = from;
   }
   return out;
