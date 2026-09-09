@@ -68,8 +68,8 @@ import * as sound from "./lib/sound.js";
 export const meta = {
   title: "wall",
   desc: `
-take the coins, keep the orange in sight
-it only moves while you cannot see it
+coins feed the light, which is going out
+the orange moves only while you cannot see it
 `,
   bg: "#303030",
   fg: "#1EBED8",
@@ -249,6 +249,7 @@ let hold = 0;
 let dying = 0;
 let beat = 0;
 let taken = 0;
+let hunting = 0;
 
 const css = (c) => `#${c.toString(16).padStart(6, "0")}`;
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -693,10 +694,11 @@ function addCoin() {
 }
 
 function addHunter() {
-  if (ent.get(Hunter).length >= HUNTERS) return;
+  if (hunting >= HUNTERS) return;
+  hunting += 1;
   new Hunter(pick(HUNT_GAP, ent.get(Hunter)));
   sound.play("more");
-  msg(`${ent.get(Hunter).length + 1} HUNTING`);
+  msg(`${hunting} HUNTING`);
 }
 
 function die() {
@@ -737,10 +739,10 @@ export function init() {
   dying = 0;
   beat = 0;
   taken = 0;
+  hunting = 0;
 
   for (let i = 0; i < COINS; ++i) addCoin();
-  new Hunter(pick(HUNT_GAP, []));
-  msg("1 HUNTING");
+  addHunter();
 
   cam.x = clamp(W / 2 - player.pos.x, W - RW, 0);
   poly = sight.cast(player.pos.x, player.pos.y);
