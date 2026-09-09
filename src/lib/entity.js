@@ -35,10 +35,14 @@
  * constructor, because a subclass's field initialisers run after super()
  * returns and would overwrite whatever begin() had set. So begin() runs at the
  * top of the entity's first frame instead, still before its first update().
- * An entity built inside another entity's update() therefore does not step on
- * the frame it was made: it begins and updates on the next one. It is drawn on
- * the frame it was made, so whatever the constructor set is on screen at once
- * and whatever begin() sets is not.
+ *
+ * The part of that a port has to watch: an entity is drawn on the frame it was
+ * made, so whatever its constructor set is on screen at once and whatever
+ * begin() set is not there yet. ugl ran begin() from the constructor and a
+ * Haxe game puts the drawing there freely, so moving that drawing into begin()
+ * on the way over costs it a frame. An entity built inside another entity's
+ * update() also does not step on the frame it was made: it begins and updates
+ * on the next one.
  */
 
 import { Art, Gfx, glyphs } from "./art.js";
