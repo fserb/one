@@ -7,7 +7,8 @@
  */
 
 import { ease, extra, vec } from "./alma/src/index.js";
-import { act, camera, gameOver, mouse, msg, score, SIZE } from "./lib/one.js";
+import { camera } from "./lib/camera.js";
+import { act, gameOver, mouse, msg, score, SIZE } from "./lib/one.js";
 import {
   ADSR,
   biquad,
@@ -168,8 +169,7 @@ export function init() {
     pupil: 0,
   };
 
-  camera.reset();
-  camera.z *= 50;
+  camera.moveTo({ scale: 1 / 50 });
   recenter();
   nextLevel();
 }
@@ -251,6 +251,7 @@ function setHeadstart(n) {
 }
 
 async function finishGame() {
+  camera.stop();
   act(camera).reset();
   pending = 100;
 
@@ -272,8 +273,7 @@ async function finishGame() {
   sound.play("fall");
   await act(alien).attr("s", 0, 0.5, ease.backIn(3));
 
-  camera.reset();
-  camera.z *= 100;
+  camera.moveTo({ x: SIZE / 2, y: SIZE / 2, angle: 0, scale: 1 / 100 });
   await promiseSleep(0.3);
 
   nextLevel();
@@ -361,8 +361,8 @@ function escapeAlien() {
 
   const target = posHex(v);
   const b = 1.1 * HEX;
-  const near = camera.map({ x: -b, y: -b });
-  const far = camera.map({ x: SIZE + b, y: SIZE + b });
+  const near = camera.toWorld(-b, -b);
+  const far = camera.toWorld(SIZE + b, SIZE + b);
   if (v.c === 0) target.x = near.x;
   else if (v.c === WIDTH - 1) target.x = far.x;
   else if (v.r <= 1) target.y = near.y;
@@ -408,18 +408,19 @@ function recenter() {
   rect.maxy += border;
 
   // The first framing of a level flies in from far out, so give it longer.
-  const dur = camera.z > SIZE ? 1 : 0.25;
-  return camera.lerp(
-    camera.lookRect(
-      rect.minx,
-      rect.miny,
-      rect.maxx - rect.minx,
-      rect.maxy - rect.miny,
-      camera.angle,
-    ),
-    dur,
-    ease.quadOut,
+  const dur = camera.scale < 1 ? 1 : 0.25;
+  camera.glide(
+    camera.fit({
+      x: rect.minx,
+      y: rect.miny,
+      width: rect.maxx - rect.minx,
+      height: rect.maxy - rect.miny,
+    }),
+    { duration: dur, ease: ease.quadOut },
   );
+  // The glide is the camera's own, so hand back a clock of the same length for
+  // whatever waits on the framing.
+  return act(camera).delay(dur);
 }
 
 // UPDATE ///
@@ -476,7 +477,7 @@ export function update(dt) {
 
 export function render(ctx) {
   ctx.save();
-  camera.transform(ctx);
+  camera.apply(ctx);
 
   // Pass one is the drop shadow, offset down-right and shrinking with the hex.
   for (const v of all(true)) {
@@ -657,7 +658,7 @@ function renderHex(ctx, p, size, delta = 0) {
 // Pointer to hex: into cube coordinates, round all three, then fix up whichever
 // moved furthest so they still sum to zero.
 function mouseHex() {
-  const m = camera.map(mouse);
+  const m = camera.toWorld(mouse.x, mouse.y);
   const q = 2 / 3 * m.x / HEX;
   const r = (-1 / 3 * m.x + SQRT3 / 3 * m.y) / HEX;
 

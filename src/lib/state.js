@@ -80,4 +80,7 @@ export const op = {
   // sound.js writes itself here when a game imports it. A silent game never
   // does, and then nothing in the bundle pulls in fsfx or alma's Audio.
   sound: null,
+  // camera.js the same: one.js steps it and resets it between rounds when a
+  // game has asked for one, and nothing carries Camera2D when none has.
+  camera: null,
 };

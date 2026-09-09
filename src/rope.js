@@ -12,7 +12,8 @@
  */
 
 import { ease, extra, vec } from "./alma/src/index.js";
-import { act, camera, fixed, gameOver, mouse, score, SIZE } from "./lib/one.js";
+import { camera } from "./lib/camera.js";
+import { act, fixed, gameOver, mouse, score, SIZE } from "./lib/one.js";
 import pl from "./lib/planck.js";
 import { ADSR, biquad, envelope, karplus_strong } from "./lib/fsfx/fsfx.js";
 import * as sound from "./lib/sound.js";
@@ -112,9 +113,7 @@ export function init() {
 
   createEnemy();
 
-  camera.reset();
-  camera.z = VIEW * ZOOM;
-  camera.set(camera.lookAt(0, 0));
+  camera.moveTo({ x: 0, y: 0, scale: SIZE / (VIEW * ZOOM) });
 }
 
 // BODIES ///
@@ -612,22 +611,22 @@ function updatePlayer(dt) {
 }
 
 // Follows the head, and leans into whichever way it is drifting.
-function updateCamera() {
+function updateCamera(dt) {
   const p = player.head.getPosition();
-  const target = camera.lookAt(p.x, p.y);
 
-  const ang = TAU * -(target.cx - camera.cx) / 40;
-  target.angle = Math.abs(ang) < TAU / 40 ? 0 : ang;
+  const ang = TAU * -(p.x - camera.x) / 40;
+  const angle = Math.abs(ang) < TAU / 40 ? 0 : ang;
 
-  // The pan is approach()'s 0.05 default in both axes.
-  camera.approach(target, { angle: 0.04 });
+  // approach()'s rates are per second, not per frame: 3 is its own default
+  // for the pan, and the lean follows a little slower.
+  camera.approach({ x: p.x, y: p.y, angle }, dt, { angle: 2.45 });
 }
 
 // Press near a hand to take it, drag to aim, release to fling. The pull is
 // backwards: the hand flies away from where you dragged it, like a slingshot.
 function updateShot() {
   if (mouse.click) {
-    const p = camera.map(mouse);
+    const p = camera.toWorld(mouse.x, mouse.y);
     const aabb = pl.AABB(
       { x: p.x - 0.001, y: p.y - 0.001 },
       { x: p.x + 0.001, y: p.y + 0.001 },
@@ -657,7 +656,7 @@ function updateShot() {
   shot.offset += 1;
 
   if (mouse.press) {
-    const p = camera.map(mouse);
+    const p = camera.toWorld(mouse.x, mouse.y);
     const o = shot.hand.getPosition();
     shot.target = vec.add(o, vec.clamp(vec.sub(p, o), 0, 3));
     return;
@@ -735,7 +734,7 @@ export function update(dt) {
   if (path.length > 12) score.value += dt;
 
   updatePlayer(dt);
-  updateCamera();
+  updateCamera(dt);
   updateShot();
   updateMap();
 }
@@ -746,13 +745,13 @@ export function render(ctx) {
   ctx.fillStyle = CAVE;
   ctx.fillRect(0, 0, SIZE, SIZE);
 
-  camera.transform(ctx);
+  camera.apply(ctx);
 
   // The camera rotates, so clip to the square it actually covers: outside it
   // is cave wall, not background.
-  const d = camera.z;
-  const x = camera.cx - d / 2;
-  const y = camera.cy - d / 2;
+  const d = SIZE / camera.scale;
+  const x = camera.x - d / 2;
+  const y = camera.y - d / 2;
   ctx.fillStyle = meta.bg;
   ctx.fillRect(x, y, d, d);
   ctx.beginPath();
@@ -775,10 +774,10 @@ function renderBG(ctx) {
   ctx.fillStyle = CAVE;
 
   const half = 7.5 * ZOOM * BGZOOM;
-  const x0 = Math.round(camera.cx - half);
-  const y0 = Math.round(camera.cy - half);
-  const x1 = Math.round(camera.cx + half);
-  const y1 = Math.round(camera.cy + half);
+  const x0 = Math.round(camera.x - half);
+  const y0 = Math.round(camera.y - half);
+  const x1 = Math.round(camera.x + half);
+  const y1 = Math.round(camera.y + half);
 
   for (let x = x0; x <= x1; x++) {
     for (let y = y0; y <= y1; y++) {
@@ -787,8 +786,8 @@ function renderBG(ctx) {
 
       ctx.beginPath();
       ctx.roundRect(
-        (x - camera.cx) / BGZOOM + camera.cx,
-        (y - camera.cy) / BGZOOM + camera.cy,
+        (x - camera.x) / BGZOOM + camera.x,
+        (y - camera.y) / BGZOOM + camera.y,
         2,
         1.24,
         0.2,
@@ -981,9 +980,9 @@ const TEETH_PHASE = 50;
 function renderEnemy(ctx) {
   const pos = enemy.getPosition();
   const dir = vec.rotate({ x: 1, y: 0 }, enemy.getAngle());
-  const centre = { x: camera.cx, y: camera.cy };
+  const centre = { x: camera.x, y: camera.y };
 
-  const half = camera.z / 2;
+  const half = SIZE / camera.scale / 2;
   const b = half * Math.SQRT2;
   if (distanceLinePoint(pos, dir, centre) > b) return;
 

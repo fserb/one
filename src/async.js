@@ -11,7 +11,8 @@
  */
 
 import { ease, extra, vec } from "./alma/src/index.js";
-import { act, camera, gameOver, mouse, score, SIZE } from "./lib/one.js";
+import { camera } from "./lib/camera.js";
+import { act, gameOver, mouse, score, SIZE } from "./lib/one.js";
 
 const { arrayRemove, promiseSleep, TAU } = extra;
 
@@ -484,7 +485,7 @@ function updateBelt(dt) {
 async function updateClick() {
   if (!mouse.click) return;
 
-  const m = camera.map(mouse);
+  const m = camera.toWorld(mouse.x, mouse.y);
   let hit = null;
   for (const b of [0, 1]) {
     const v = vec.floor(vec.div(vec.sub(m, BOARDPOS[b]), TILE));
@@ -581,7 +582,7 @@ export function update(dt) {
 // RENDER ///
 
 export function render(ctx) {
-  camera.transform(ctx);
+  camera.apply(ctx);
 
   // Shrinking blocks go under, growing ones on top, so a swap reads correctly.
   for (const p of board) {

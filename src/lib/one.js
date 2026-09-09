@@ -15,8 +15,9 @@
  * The build reads `meta` by importing the module under Deno, so nothing in it
  * may touch the DOM at module scope.
  *
- * Sound is opt-in: a game that wants it imports lib/sound.js directly, and one
- * that does not never pays for the synth.
+ * Sound and the camera are opt-in: a game that wants either imports
+ * lib/sound.js or lib/camera.js directly, and one that does not never pays for
+ * the synth or for alma's Camera2D.
  *
  * run() owns the canvas, the frame loop, input, the score and the game-over
  * screen. There is no intro: the round starts on frame one and the first input
@@ -25,7 +26,6 @@
  */
 
 import { registerPlus2d, Screen } from "../alma/src/index.js";
-import { Camera } from "./camera.js";
 import * as input from "./input.js";
 import * as overlay from "./overlay.js";
 import {
@@ -42,8 +42,6 @@ import {
 } from "./state.js";
 
 export { act, DOWN, LEFT, meta, mouse, RIGHT, score, SIZE, UP };
-
-export const camera = new Camera();
 
 let ctx = null;
 
@@ -71,6 +69,9 @@ export function run(game, { target = null } = {}) {
 }
 
 export function start() {
+  // Only there if the game imported lib/camera.js itself. Back on the whole
+  // board, so a game sets only what it wants different in init().
+  op.camera?.moveTo({ x: SIZE / 2, y: SIZE / 2, scale: 1, angle: 0 }).settle();
   overlay.startGame();
   op.playing = true;
   op.game.init?.();
@@ -102,7 +103,7 @@ export function msg(m) {
 
 function frame(dt) {
   act._frame(dt);
-  camera._update(dt);
+  op.camera?.update(dt);
   input.poll();
   overlay.poll(dt);
 
