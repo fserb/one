@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>one · dev</title>
+    <meta name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover">
+    <style>
+    html,
+    body {
+      margin: 0;
+      height: 100%;
+      overflow: hidden;
+    }
+    body {
+      background: #f2f0e5;
+      color: #212123;
+      font-family: Verdana, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      touch-action: none;
+    }
+    canvas {
+      display: block;
+      cursor: pointer;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    #help {
+      font-size: 14px;
+      line-height: 1.8;
+      text-align: center;
+    }
+    code {
+      background: #0001;
+      padding: 2px 6px;
+    }
+    </style>
+  </head>
+  <body>
+    <!--
+      Runs a game straight from src/, with no build step: the browser loads the
+      same ES modules the bundler does. ~/web is served at
+      https://marx.giraffe-yo.ts.net/, so this is one.fserb.com's source, live.
+
+        dev.html?game=wow      the intro screen, like the built page
+        dev.html?game=wow&go   skip the intro, start playing immediately
+
+      The built pages under www/ are what actually ships. `./task build` makes them.
+    -->
+    <script type="module">
+    const params = new URLSearchParams(location.search);
+    const name = params.get("game") ?? location.hash.slice(1);
+
+    if (!name) {
+      document.body.innerHTML =
+        `<p id=help>pick a game: <code>dev.html?game=&lt;name&gt;</code><br>` +
+        `add <code>&amp;go</code> to skip the intro</p>`;
+    } else {
+      const canvas = document.createElement("canvas");
+      canvas.id = "canvas";
+      document.body.append(canvas);
+
+      const game = await import(`./src/${name}.js`);
+      const { run } = await import("./src/lib/one.js");
+      run(game, { forceStart: params.has("go") });
+    }
+    </script>
+  </body>
+</html>

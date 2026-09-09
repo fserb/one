@@ -1,0 +1,9 @@
+{
+  "fmt": {
+    "lineWidth": 85,
+    "exclude": ["src/alma", "src/lib/fsfx", "www"]
+  },
+  "lint": {
+    "exclude": ["src/alma", "src/lib/fsfx", "www"]
+  }
+}

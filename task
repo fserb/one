@@ -1,0 +1,37 @@
+#!/bin/bash
+set -euo pipefail
+IFS=$'\n\t'
+
+cd "$(dirname "$0")"
+
+# Build every game, or just the ones named, into www/.
+function build {
+  deno run -A tools/build.js "$@"
+}
+
+function rebuild {
+  rm -rf www
+  build "$@"
+}
+
+function fmt {
+  deno fmt
+}
+
+function lint {
+  deno lint
+}
+
+function deploy {
+  rebuild
+  rsync -a --partial --progress www/ metaphora:one/
+}
+
+function help {
+  echo "$0 <task> <args>"
+  echo "Tasks:"
+  compgen -A function | grep -v "^_" | cat -n
+}
+
+TIMEFORMAT="Task completed in %3lR"
+time "${@:-help}"
