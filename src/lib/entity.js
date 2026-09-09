@@ -25,6 +25,10 @@
  * The games think in a 480x480 box. world() sets that box and render() scales
  * it onto one's 1024, so ported code keeps the constants it was written with.
  *
+ * Every entity owns an `art`, the chunky-pixel renderer. It owns a `gfx`, the
+ * vector one, only in a game that imports lib/gfx.js; otherwise that is null
+ * and the class stays out of the bundle.
+ *
  * Overlap is opt-in: an entity that calls hitCircle(), hitBox() or hitPoly()
  * can then ask hitGroup(Other) what it is touching. ugl put those shapes in the
  * sprite's own coordinates and ran them through the sprite matrix; here they
@@ -45,7 +49,7 @@
  * on the next one.
  */
 
-import { Art, Gfx, glyphs } from "./art.js";
+import { Art, glyphs } from "./art.js";
 import { key, mouse, SIZE } from "./state.js";
 
 export const game = {
@@ -64,6 +68,16 @@ export const game = {
 // Class -> {layer, list}. A group holds every live instance of exactly that
 // class, in construction order.
 const groups = new Map();
+
+// The vector renderer is a module a game opts into: gfx.js hands its class over
+// on the way in, and an entity built without it has a null `gfx`, so a game
+// that draws only pixels leaves the class out of its bundle. Nothing races
+// here, since a game imports at module scope and builds nothing until init().
+let Gfx = null;
+
+export function useGfx(cls) {
+  Gfx = cls;
+}
 
 export function world(w = 480, h = w) {
   game.width = w;
@@ -135,7 +149,7 @@ export class Entity {
     this.ticks = 0;
     this.dead = false;
     this.art = new Art();
-    this.gfx = new Gfx();
+    this.gfx = Gfx === null ? null : new Gfx();
     // Mirror the drawing left to right, which is how the games turn a sprite
     // around: ugl set sprite.scaleX = -1.
     this.flipX = false;
@@ -159,7 +173,7 @@ export class Entity {
   // here unless the two are centred on the same point.
   render(ctx) {
     this.art.render(ctx);
-    this.gfx.render(ctx);
+    this.gfx?.render(ctx);
   }
 
   remove() {

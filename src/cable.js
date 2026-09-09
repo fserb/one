@@ -56,6 +56,7 @@
  */
 
 import * as ent from "./lib/entity.js";
+import "./lib/gfx.js";
 import { gameOver, msg, score, SIZE } from "./lib/one.js";
 import * as sfxr from "./lib/sfxr.js";
 import * as sound from "./lib/sound.js";
