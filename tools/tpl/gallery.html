@@ -44,7 +44,20 @@ li > a {
   font-size: 2.4em;
   font-weight: bold;
   text-decoration: none;
+  position: relative;
+  overflow: hidden;
 }
+/* The recorded clip, under the title. A game without one is flat --bg, which
+   is also what the clip's own background is, so the title reads either way. */
+li > a > video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+li > a > span { position: relative; }
 @media (max-width: 480px) { :root { --card: 100%; } body { padding: 20px 0; } }
 </style>
 </head>
@@ -60,6 +73,17 @@ li > a {
 // One game runs at a time: opening a second puts the first card back.
 const list = document.getElementById("games");
 let playing = null;
+
+// Cards play only while they are on screen. The videos carry preload="none",
+// so a card below the fold costs its poster and nothing else until you reach
+// it, and a page of twenty is not decoding twenty loops at once.
+const onscreen = new IntersectionObserver((es) => {
+  for (const e of es) {
+    if (e.isIntersecting) e.target.play().catch(() => {});
+    else e.target.pause();
+  }
+}, { rootMargin: "200px" });
+for (const v of list.querySelectorAll("video")) onscreen.observe(v);
 
 list.addEventListener("click", ev => {
   const a = ev.target.closest("a[data-game]");

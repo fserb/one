@@ -14,12 +14,21 @@
  * That works because a game module has no side effects and alma does not touch
  * the DOM at import time. Keep it that way.
  *
+ * `meta.draft: true` keeps a game out of www/ entirely: no page, no gallery
+ * card, and any page a previous build left behind is deleted. Play it with
+ * dev.html, which loads src/ directly and never asks the build anything.
+ *
+ * media/<game>.mp4/.gif/.png are optional, and come from `./task media <game>`
+ * after recording a clip in dev.html. They become the moving gallery card and
+ * the page's og:image. A game without them gets the flat colour card.
+ *
  *   deno run -A tools/build.js            # every game, plus the gallery
  *   deno run -A tools/build.js wow trap   # just these
  */
 
 const SRC = new URL("../src/", import.meta.url);
 const WWW = new URL("../www/", import.meta.url);
+const MEDIA = new URL("../media/", import.meta.url);
 const BASE = "https://one.fserb.com";
 
 // The gallery's own colours, and what a game gets when meta leaves them out.
@@ -103,31 +112,96 @@ async function bundle(game) {
   return js.replaceAll("</script", "<\\/script");
 }
 
+async function exists(url) {
+  try {
+    await Deno.stat(url);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// What `./task media <game>` left behind, keyed by extension.
+async function shot(game) {
+  const out = {};
+  for (const ext of ["mp4", "gif", "png"]) {
+    const from = new URL(`${game}.${ext}`, MEDIA);
+    if (await exists(from)) out[ext] = from;
+  }
+  return out;
+}
+
+// Copied rather than inlined: a game page is one file, but the gallery is a
+// page plus its clips, and a base64 video in the HTML would be read whole
+// before anything drew.
+async function copyShot(game, s) {
+  if (Object.keys(s).length === 0) return;
+  await Deno.mkdir(new URL(`${game}/`, WWW), { recursive: true });
+  for (const [ext, from] of Object.entries(s)) {
+    await Deno.copyFile(from, new URL(`${game}/card.${ext}`, WWW));
+  }
+}
+
 const esc = (s) =>
   String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;")
     .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
+// What the server sends, which is the size that matters: a game is one HTML
+// file of mostly minified JS, and it compresses about 4:1. CompressionStream is
+// built into Deno, so this costs no subprocess and no dependency. It runs at
+// the default level, about 0.5% above `gzip -9`; close enough to watch, not the
+// number to quote.
+async function gzipped(text) {
+  const stream = new Blob([text]).stream()
+    .pipeThrough(new CompressionStream("gzip"));
+  return (await new Response(stream).arrayBuffer()).byteLength;
+}
+
+const kb = (bytes) => `${(bytes / 1024).toFixed(1)} KB`;
+
+// The mark, in the game's own two colours: a disc with a round-capped bar cut
+// out of the bottom, which reads as an "n". Measured off the 2021 artwork,
+// ~/web/games/one/icon.png, and normalised from its 512 box to a 32 one: disc
+// r=180.9, bar half-width 49, cap centre y=259, all about x=255.5.
 function favicon(m) {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">` +
     `<rect width="32" height="32" fill="${m.bg}"/>` +
-    `<circle cx="16" cy="16" r="9" fill="${m.fg}"/></svg>`;
+    `<circle cx="16" cy="16" r="11.3" fill="${m.fg}"/>` +
+    `<path d="M16 16.2V32" stroke="${m.bg}" stroke-width="6.1" ` +
+    `stroke-linecap="round"/></svg>`;
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
 
-function page(game, m, js) {
+function page(game, m, js, s) {
+  // The templates have no conditionals, so an absent image is an empty hole.
+  const image = s.png
+    ? `<meta property="og:image" content="${BASE}/${game}/card.png">\n` +
+      `<meta name="twitter:card" content="summary_large_image">`
+    : "";
   return fill(TEMPLATE.game, {
     title: esc(m.title),
     desc: esc(m.desc.trim().replace(/\s*\n\s*/g, " ")),
     url: `${BASE}/${game}/`,
     bg: m.bg,
     icon: favicon(m),
+    image,
     script: js,
   });
 }
 
 function gallery(entries) {
-  const cards = entries.map(([game, m]) =>
-    fill(TEMPLATE.card, { game, title: esc(m.title), bg: m.bg, fg: m.fg })
+  const cards = entries.map(([game, m, s]) =>
+    fill(TEMPLATE.card, {
+      game,
+      title: esc(m.title),
+      bg: m.bg,
+      fg: m.fg,
+      media: s.mp4
+        ? `<video src="./${game}/card.mp4"${
+          s.png ? ` poster="./${game}/card.png"` : ""
+        } loop muted playsinline preload="none"></video>`
+        : "",
+    })
   ).join("\n");
 
   return fill(TEMPLATE.gallery, {
@@ -139,12 +213,23 @@ function gallery(entries) {
 
 async function build(game) {
   const m = await meta(game);
+  if (m.draft) {
+    // A game can become a draft after it has shipped, so drop the old page.
+    await Deno.remove(new URL(`${game}/`, WWW), { recursive: true }).catch(
+      () => {},
+    );
+    console.log(`  ${game.padEnd(12)} ${"draft".padStart(7)}`);
+    return [game, m];
+  }
   const js = await bundle(game);
-  const html = page(game, m, js);
+  const html = page(game, m, js, await shot(game));
   await Deno.mkdir(new URL(`${game}/`, WWW), { recursive: true });
   await Deno.writeTextFile(new URL(`${game}/index.html`, WWW), html);
-  const kb = (new Blob([html]).size / 1024).toFixed(1);
-  console.log(`  ${game.padEnd(12)} ${kb.padStart(7)} KB`);
+  const raw = new Blob([html]).size;
+  console.log(
+    `  ${game.padEnd(12)} ${kb(raw).padStart(10)} ` +
+      `${kb(await gzipped(html)).padStart(10)} gz`,
+  );
   return [game, m];
 }
 
@@ -152,11 +237,18 @@ const wanted = Deno.args.length > 0 ? Deno.args : await games();
 const entries = [];
 for (const game of wanted) entries.push(await build(game));
 
-// The gallery lists every game, not only the ones just rebuilt.
+// The gallery lists every game, not only the ones just rebuilt. Drafts are
+// not games as far as the site is concerned.
 const all = [];
 for (const game of await games()) {
   const found = entries.find(([g]) => g === game);
-  all.push(found ?? [game, await meta(game)]);
+  const entry = found ?? [game, await meta(game)];
+  if (entry[1].draft) continue;
+  // Every listed game, not only the rebuilt ones, so `build <one game>` still
+  // leaves the gallery pointing at clips that are actually there.
+  const s = await shot(game);
+  await copyShot(game, s);
+  all.push([...entry, s]);
 }
 // Newest first; undated games fall to the end, alphabetically.
 all.sort(([ga, a], [gb, b]) =>

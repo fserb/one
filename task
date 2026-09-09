@@ -14,6 +14,49 @@ function rebuild {
   build "$@"
 }
 
+# Turn the newest recorder zip for a game into media/<game>.{mp4,gif,png}.
+# src/dev/rec.js downloads the zip; this is the other half of that.
+function media {
+  local game="${1:?usage: task media <game>}"
+  local zip
+  zip=$(ls -t "$HOME"/Downloads/one-"$game"-*.zip 2>/dev/null | head -1 || true)
+  if [[ -z "$zip" ]]; then
+    echo "no ~/Downloads/one-$game-*.zip. record one: dev.html?game=$game&go"
+    exit 1
+  fi
+  echo "  $zip"
+
+  local dir
+  dir=$(mktemp -d)
+  # Expanded now, not at exit: $dir is local and gone by the time this runs.
+  trap "rm -rf '$dir'" EXIT
+  unzip -q "$zip" -d "$dir"
+  local fps
+  fps=$(cat "$dir/fps.txt")
+  local in=(-framerate "$fps" -start_number 0 -i "$dir/%04d.png")
+
+  mkdir -p media
+
+  # The card. h264 rather than the gif because the same clip costs about a
+  # tenth as many bytes, and every browser that runs the games plays it.
+  ffmpeg -v error -y "${in[@]}" \
+    -c:v libx264 -crf 20 -pix_fmt yuv420p -movflags +faststart \
+    "media/$game.mp4"
+
+  # For anywhere a video will not go. Two passes: the palette has to see the
+  # whole clip before any frame is quantised against it.
+  ffmpeg -v error -y "${in[@]}" \
+    -vf "scale=240:240:flags=lanczos,palettegen=stats_mode=diff" "$dir/pal.png"
+  ffmpeg -v error -y "${in[@]}" -i "$dir/pal.png" -filter_complex \
+    "[0]scale=240:240:flags=lanczos[x];[x][1]paletteuse=dither=bayer:bayer_scale=3" \
+    "media/$game.gif"
+
+  # The <video> poster, so a card shows something before the clip loads.
+  cp "$dir/0000.png" "media/$game.png"
+
+  ls -l "media/$game".* | awk '{printf "  %-24s %8.1f KB\n", $NF, $5/1024}'
+}
+
 function fmt {
   deno fmt
 }
