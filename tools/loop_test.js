@@ -177,3 +177,4 @@ check("one frame -> no motion", motion(flat(1)) === 0);
 }
 
 console.log(fail === 0 ? "\nall passed" : `\n${fail} failed`);
+Deno.exit(fail === 0 ? 0 : 1);

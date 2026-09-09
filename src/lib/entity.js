@@ -35,6 +35,10 @@
  * constructor, because a subclass's field initialisers run after super()
  * returns and would overwrite whatever begin() had set. So begin() runs at the
  * top of the entity's first frame instead, still before its first update().
+ * An entity built inside another entity's update() therefore does not step on
+ * the frame it was made: it begins and updates on the next one. It is drawn on
+ * the frame it was made, so whatever the constructor set is on screen at once
+ * and whatever begin() sets is not.
  */
 
 import { Art, Gfx, glyphs } from "./art.js";
@@ -643,10 +647,13 @@ export function update(dt) {
   }
 
   for (const g of ordered()) {
-    // Snapshot: entities constructed during this pass wait for the next frame,
-    // so every entity sees the same dt.
+    // Entities constructed during this pass wait for the next frame, so every
+    // entity sees the same dt and none steps before its begin(). The snapshot
+    // alone does not do it: a new entity lands in a group this loop may not
+    // have reached, and that group's snapshot is taken after it arrives, so
+    // `started` is what holds it back.
     for (const e of [...g.list]) {
-      if (!e.dead) e._step();
+      if (!e.dead && e.started) e._step();
     }
   }
 
