@@ -1,9 +1,15 @@
 {
   "fmt": {
     "lineWidth": 85,
-    "exclude": ["src/alma", "src/lib/fsfx", "tools/tpl", "www"]
+    "exclude": [
+      "src/alma",
+      "src/lib/fsfx",
+      "src/lib/planck.js",
+      "tools/tpl",
+      "www"
+    ]
   },
   "lint": {
-    "exclude": ["src/alma", "src/lib/fsfx", "www"]
+    "exclude": ["src/alma", "src/lib/fsfx", "src/lib/planck.js", "www"]
   }
 }
