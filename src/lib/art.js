@@ -567,6 +567,8 @@ export class Art {
  *
  * fill() and line() set what every shape after them uses, and passing null
  * turns either off. mt()/lt() draw a path where the four shape calls will not.
+ * text() is the exception: it carries its own colour, as ugl's did, and paints
+ * the same bitmap font Art does.
  *
  * Flash's Graphics, which the ported games were written against, ran every
  * shape between beginFill and endFill into a single path, so two overlapping
@@ -671,6 +673,24 @@ export class Gfx {
     return this;
   }
 
+  // One line of the bitmap font, centred on (x, y) and measured in screen
+  // units. The colour is an argument rather than the standing fill(), which is
+  // the signature ugl's gfx.text had and the ported games call.
+  text(x, y, s, color, size = 1) {
+    if (this.disabled) return this;
+    this.cmds.push({
+      kind: "text",
+      args: [x, y],
+      text: String(s),
+      size,
+      color,
+      fill: null,
+      line: null,
+    });
+    this.dirty = true;
+    return this;
+  }
+
   // Screen-unit bounding box of everything drawn, as [x, y, w, h].
   bounds() {
     if (!this.dirty) return this.box;
@@ -695,6 +715,10 @@ export class Gfx {
         at(x + r, y + r);
       } else if (c.kind === "poly") {
         for (let i = 0; i < c.args.length; i += 2) at(c.args[i], c.args[i + 1]);
+      } else if (c.kind === "text") {
+        const g = glyphs(c.text);
+        at(x - g.width * c.size / 2, y - g.height * c.size / 2);
+        at(x + g.width * c.size / 2, y + g.height * c.size / 2);
       } else {
         const [, , r1, r2, b, e] = c.args;
         arcAt(at, x, y, r1, -b, b - e);
@@ -730,6 +754,10 @@ export class Gfx {
     ctx.translate(-bx - bw / 2, -by - bh / 2);
 
     for (const c of this.cmds) {
+      if (c.kind === "text") {
+        write(ctx, c);
+        continue;
+      }
       ctx.beginPath();
       trace(ctx, c);
       if (c.fill !== null) {
@@ -747,6 +775,20 @@ export class Gfx {
 
     ctx.globalAlpha = 1;
     ctx.restore();
+  }
+}
+
+function write(ctx, c) {
+  const [x, y] = c.args;
+  const g = glyphs(c.text);
+  const s = c.size;
+  const tx = x - g.width * s / 2;
+  const ty = y - g.height * s / 2;
+
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = css(c.color);
+  for (let i = 0; i < g.dots.length; i += 2) {
+    ctx.fillRect(tx + g.dots[i] * s, ty + g.dots[i + 1] * s, s, s);
   }
 }
 

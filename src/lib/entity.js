@@ -25,10 +25,11 @@
  * The games think in a 480x480 box. world() sets that box and render() scales
  * it onto one's 1024, so ported code keeps the constants it was written with.
  *
- * Overlap is opt-in: an entity that calls hitCircle() or hitBox() can then ask
- * hitGroup(Other) what it is touching. ugl put those shapes in the sprite's own
- * coordinates and ran them through the sprite matrix; here they are relative to
- * the entity's position, so a port has to move the numbers over by hand.
+ * Overlap is opt-in: an entity that calls hitCircle(), hitBox() or hitPoly()
+ * can then ask hitGroup(Other) what it is touching. ugl put those shapes in the
+ * sprite's own coordinates and ran them through the sprite matrix; here they
+ * are relative to the entity's position, so a port has to move the numbers over
+ * by hand, and a polygon is the only one of the three that still turns.
  *
  * One thing does not carry over from Haxe: begin() cannot run from the
  * constructor, because a subclass's field initialisers run after super()
@@ -130,6 +131,11 @@ export class Entity {
     // Mirror the drawing left to right, which is how the games turn a sprite
     // around: ugl set sprite.scaleX = -1.
     this.flipX = false;
+    // ugl's sprite.scaleX/scaleY and sprite.alpha, which is how a game pops a
+    // sprite in or fades one out. Uniform, because no port has wanted the two
+    // axes to differ.
+    this.scale = 1;
+    this.alpha = 1;
     this.hits = [];
     this.started = false;
     groupOf(this.constructor).list.push(this);
@@ -166,7 +172,8 @@ export class Entity {
   }
 
   // Overlap shapes, offset from the entity's position. A box is axis-aligned
-  // and stays that way: `angle` turns the drawing, not the box.
+  // and stays that way: `angle` turns the drawing, not the box. hitPoly() is
+  // the one that turns.
   //
   // These centre on the position; `art` and `gfx` centre on their own bounding
   // box. So a drawing lopsided about the origin, a turret with a barrel out one
@@ -179,6 +186,15 @@ export class Entity {
 
   hitBox(w, h = w, x = 0, y = 0) {
     this.hits.push({ w, h, x, y });
+    return this;
+  }
+
+  // A convex polygon, as a flat list of x, y pairs, and the one shape that
+  // turns with `angle`. A box was defined axis-aligned and a circle has no
+  // heading to lose; a polygon is what a game reaches for when the heading of
+  // the shape is the point, so a ship drawn as a triangle collides as one.
+  hitPoly(p) {
+    this.hits.push({ p });
     return this;
   }
 
@@ -219,7 +235,9 @@ export class Entity {
     ctx.save();
     ctx.translate(this.pos.x, this.pos.y);
     if (this.angle !== 0) ctx.rotate(this.angle);
+    if (this.scale !== 1) ctx.scale(this.scale, this.scale);
     if (this.flipX) ctx.scale(-1, 1);
+    if (this.alpha !== 1) ctx.globalAlpha = this.alpha;
     this.render(ctx);
     ctx.restore();
   }
@@ -486,6 +504,8 @@ export class Timer extends Entity {
 }
 
 function overlap(ea, a, eb, b) {
+  if (a.p !== undefined || b.p !== undefined) return polyOverlap(ea, a, eb, b);
+
   const ax = ea.pos.x + a.x;
   const ay = ea.pos.y + a.y;
   const bx = eb.pos.x + b.x;
@@ -505,6 +525,89 @@ function circleBox(cx, cy, r, bx, by, w, h) {
   const dx = Math.max(Math.abs(cx - bx) - w / 2, 0);
   const dy = Math.max(Math.abs(cy - by) - h / 2, 0);
   return dx * dx + dy * dy <= r * r;
+}
+
+// A polygon against anything. The box fast path above cannot answer it, so a
+// box comes in here as its four corners instead.
+function polyOverlap(ea, a, eb, b) {
+  if (a.r !== undefined) {
+    return circlePoly(ea.pos.x + a.x, ea.pos.y + a.y, a.r, corners(eb, b));
+  }
+  if (b.r !== undefined) {
+    return circlePoly(eb.pos.x + b.x, eb.pos.y + b.y, b.r, corners(ea, a));
+  }
+  return sat(corners(ea, a), corners(eb, b));
+}
+
+// Shape `s` in world coordinates: a polygon turned onto the entity's heading,
+// a box as the four points it would have if it were one.
+function corners(e, s) {
+  if (s.p === undefined) {
+    const x = e.pos.x + s.x;
+    const y = e.pos.y + s.y;
+    const w = s.w / 2;
+    const h = s.h / 2;
+    return [x - w, y - h, x + w, y - h, x + w, y + h, x - w, y + h];
+  }
+
+  const cos = Math.cos(e.angle);
+  const sin = Math.sin(e.angle);
+  const out = [];
+  for (let i = 0; i < s.p.length; i += 2) {
+    const x = s.p[i];
+    const y = s.p[i + 1];
+    out.push(e.pos.x + x * cos - y * sin, e.pos.y + x * sin + y * cos);
+  }
+  return out;
+}
+
+// The separating axis theorem: two convex polygons miss exactly when one of
+// their own edge normals has a gap between the two shadows cast on it.
+function sat(a, b) {
+  for (const p of [a, b]) {
+    for (let i = 0; i < p.length; i += 2) {
+      const j = (i + 2) % p.length;
+      // The normal does not have to be a unit vector: only the order of the
+      // shadows along it is read.
+      const nx = p[j + 1] - p[i + 1];
+      const ny = p[i] - p[j];
+      if (apart(a, b, nx, ny)) return false;
+    }
+  }
+  return true;
+}
+
+function apart(a, b, nx, ny) {
+  let amin = Infinity, amax = -Infinity, bmin = Infinity, bmax = -Infinity;
+  for (let i = 0; i < a.length; i += 2) {
+    const d = a[i] * nx + a[i + 1] * ny;
+    if (d < amin) amin = d;
+    if (d > amax) amax = d;
+  }
+  for (let i = 0; i < b.length; i += 2) {
+    const d = b[i] * nx + b[i + 1] * ny;
+    if (d < bmin) bmin = d;
+    if (d > bmax) bmax = d;
+  }
+  return amax < bmin || bmax < amin;
+}
+
+// Inside the polygon, or within r of one of its edges. The crossings all come
+// out the same sign only for a point inside, whichever way the points wind.
+function circlePoly(cx, cy, r, p) {
+  let sides = 0;
+  let near = Infinity;
+  for (let i = 0; i < p.length; i += 2) {
+    const j = (i + 2) % p.length;
+    const ex = p[j] - p[i];
+    const ey = p[j + 1] - p[i + 1];
+    const dx = cx - p[i];
+    const dy = cy - p[i + 1];
+    sides |= ex * dy - ey * dx < 0 ? 1 : 2;
+    const t = Math.max(0, Math.min(1, (dx * ex + dy * ey) / (ex * ex + ey * ey)));
+    near = Math.min(near, Math.hypot(dx - ex * t, dy - ey * t));
+  }
+  return sides !== 3 || near <= r;
 }
 
 function ordered() {
