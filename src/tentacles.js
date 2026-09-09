@@ -22,9 +22,9 @@ import {
   RIGHT,
   score,
   SIZE,
-  sound,
   UP,
 } from "./lib/one.js";
+import * as sound from "./lib/sound.js";
 
 const { arrayShuffle, TAU } = extra;
 

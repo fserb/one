@@ -7,7 +7,8 @@
  */
 
 import { ease, extra, vec } from "./alma/src/index.js";
-import { act, camera, gameOver, mouse, msg, score, SIZE, sound } from "./lib/one.js";
+import { act, camera, gameOver, mouse, msg, score, SIZE } from "./lib/one.js";
+import * as sound from "./lib/sound.js";
 
 const { arrayRemove, lerp, promiseSleep, SQRT3, TAU } = extra;
 

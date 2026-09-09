@@ -19,7 +19,6 @@
 
 import { ease, utils } from "../alma/src/index.js";
 import { act, meta, mouse, op, score, SIZE } from "./state.js";
-import * as sound from "./sound.js";
 
 const BAR = 44;
 const PAD = 11;
@@ -125,9 +124,11 @@ export function poll() {
   }
 
   if (!mouse.click) return;
-  if (!sound.available()) return;
+  // op.sound is null unless the game imported lib/sound.js, so a silent game
+  // costs nothing here and shows no toggle.
+  if (!op.sound?.available()) return;
   if (state !== "game" || mouse.x < SIZE / 2 || mouse.y >= BAR) return;
-  sound.toggle();
+  op.sound.toggle();
 }
 
 // Only called between rounds, so the one state left to leave is "finish".
@@ -183,7 +184,7 @@ function renderScore(ctx) {
   ctx.fillStyle = meta.bg;
 
   const best = score.best === null ? "" : ` BEST ${Math.floor(score.best)}`;
-  const music = !sound.available() ? "" : sound.isMuted() ? "♪" : "♫";
+  const music = !op.sound?.available() ? "" : op.sound.isMuted() ? "♪" : "♫";
   ctx.text(`${music}${best}`, SIZE - PAD * 1.5, bar.scorey + PAD, FONT, {
     align: "right",
     valign: "top",

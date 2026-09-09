@@ -15,6 +15,9 @@
  * The build reads `meta` by importing the module under Deno, so nothing in it
  * may touch the DOM at module scope.
  *
+ * Sound is opt-in: a game that wants it imports lib/sound.js directly, and one
+ * that does not never pays for the synth.
+ *
  * run() owns the canvas, the frame loop, input, the score and the game-over
  * screen. There is no intro: the round starts on frame one and the first input
  * goes to the game. A game calls gameOver() when the round ends; the overlay
@@ -25,7 +28,6 @@ import { registerPlus2d, Screen } from "../alma/src/index.js";
 import { Camera } from "./camera.js";
 import * as input from "./input.js";
 import * as overlay from "./overlay.js";
-import * as sound from "./sound.js";
 import {
   act,
   DOWN,
@@ -39,7 +41,7 @@ import {
   UP,
 } from "./state.js";
 
-export { act, DOWN, LEFT, meta, mouse, RIGHT, score, SIZE, sound, UP };
+export { act, DOWN, LEFT, meta, mouse, RIGHT, score, SIZE, UP };
 
 export const camera = new Camera();
 
@@ -59,7 +61,8 @@ export function run(game, { target = null } = {}) {
   document.body.style.backgroundColor = meta.bg;
 
   input.init(screen.canvas);
-  sound.arm(document);
+  // Only there if the game imported lib/sound.js itself.
+  op.sound?.arm(document);
   overlay.init();
   start();
 

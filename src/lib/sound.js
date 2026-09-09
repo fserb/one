@@ -6,7 +6,11 @@
  * arm() listens for; nothing here touches the DOM before that, so the build can
  * import a game module under Deno to read its `meta`.
  *
- * A game with no make() call stays muted, and the overlay hides the ♫ toggle.
+ * The shell does not import this module. A game that wants sound imports it
+ * itself, and the module registers what the overlay needs into `op.sound` on
+ * the way in; a silent game leaves that null, and the bundler drops fsfx and
+ * alma's Audio out of its page. A game that imports it but never calls make()
+ * stays muted, and the overlay hides the ♫ toggle.
  *
  * A Track is callable: pass it a module and its parameters, once per stage, and
  * each stage processes the buffer the one before it left.
@@ -22,6 +26,7 @@
  */
 
 import { Audio } from "../alma/src/index.js";
+import { op } from "./state.js";
 import * as fsfx from "./fsfx/fsfx.js";
 
 const SAMPLE_RATE = 48000;
@@ -100,3 +105,6 @@ export function toggle() {
 export function setVolume(v) {
   if (audio) audio.volume = v;
 }
+
+// What one.js and overlay.js call, and the only way they reach this module.
+op.sound = { arm, available, isMuted, toggle };

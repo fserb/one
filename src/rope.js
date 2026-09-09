@@ -12,17 +12,9 @@
  */
 
 import { ease, extra, vec } from "./alma/src/index.js";
-import {
-  act,
-  camera,
-  fixed,
-  gameOver,
-  mouse,
-  score,
-  SIZE,
-  sound,
-} from "./lib/one.js";
+import { act, camera, fixed, gameOver, mouse, score, SIZE } from "./lib/one.js";
 import pl from "./lib/planck.js";
+import * as sound from "./lib/sound.js";
 
 const { clamp, lerp, TAU } = extra;
 

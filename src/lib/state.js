@@ -56,4 +56,7 @@ export const op = {
   screen: null,
   playing: false,
   topmsg: null,
+  // sound.js writes itself here when a game imports it. A silent game never
+  // does, and then nothing in the bundle pulls in fsfx or alma's Audio.
+  sound: null,
 };
