@@ -6,6 +6,10 @@
  * any static host. `deno bundle` (esbuild underneath) does the tree-shaking, so
  * a game only pays for the parts of alma it imports.
  *
+ * The HTML lives in tools/tpl/ as plain files with {{name}} holes this script
+ * fills in. They are excluded from `deno fmt`: it formats HTML now, and it
+ * rewrites {{bg}} inside a stylesheet into a nested block.
+ *
  * The gallery reads each game's `meta` by importing the module under Deno.
  * That works because a game module has no side effects and alma does not touch
  * the DOM at import time. Keep it that way.
@@ -18,7 +22,29 @@ const SRC = new URL("../src/", import.meta.url);
 const WWW = new URL("../www/", import.meta.url);
 const BASE = "https://one.fserb.com";
 
+// The gallery's own colours, and what a game gets when meta leaves them out.
+const SITE = { bg: "#f2f0e5", fg: "#212123" };
+
 const src = (name) => new URL(name, SRC).href;
+
+const tpl = (name) =>
+  Deno.readTextFile(new URL(`tpl/${name}.html`, import.meta.url));
+
+const TEMPLATE = {
+  game: await tpl("game"),
+  gallery: await tpl("gallery"),
+  // Joined with newlines into the gallery's list, so no trailing one.
+  card: (await tpl("card")).trimEnd(),
+};
+
+// {{name}} becomes vars.name. One pass over the template, so a value that
+// happens to contain {{...}} itself is left alone.
+function fill(template, vars) {
+  return template.replace(/\{\{(\w+)\}\}/g, (_, name) => {
+    if (!(name in vars)) throw new Error(`template has no ${name}`);
+    return vars[name];
+  });
+}
 
 // Files under src/ that are not games.
 const NOT_GAMES = new Set(["alma", "lib"]);
@@ -37,7 +63,7 @@ async function games() {
 async function meta(game) {
   const mod = await import(src(`${game}.js`));
   if (!mod.meta) throw new Error(`src/${game}.js has no "meta" export`);
-  return { title: game, desc: "", bg: "#f2f0e5", fg: "#212123", ...mod.meta };
+  return { title: game, desc: "", ...SITE, ...mod.meta };
 }
 
 async function bundle(game) {
@@ -89,142 +115,26 @@ function favicon(m) {
 }
 
 function page(game, m, js) {
-  const desc = esc(m.desc.trim().replace(/\s*\n\s*/g, " "));
-  return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>${esc(m.title)}</title>
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover">
-<meta name="description" content="${desc}">
-<link rel="canonical" href="${BASE}/${game}/">
-<meta property="og:title" content="${esc(m.title)}">
-<meta property="og:type" content="website">
-<meta property="og:description" content="${desc}">
-<meta property="og:url" content="${BASE}/${game}/">
-<meta name="theme-color" content="${m.bg}">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="${esc(m.title)}">
-<link rel="icon" href="${favicon(m)}">
-<style>
-html, body { margin: 0; height: 100%; overflow: hidden; }
-body {
-  background: ${m.bg};
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  touch-action: none;
-}
-canvas {
-  display: block;
-  cursor: pointer;
-  touch-action: none;
-  user-select: none;
-  -webkit-user-select: none;
-  -webkit-tap-highlight-color: transparent;
-}
-</style>
-</head>
-<body>
-<canvas id="canvas"></canvas>
-<script type="module">${js}</script>
-</body>
-</html>
-`;
+  return fill(TEMPLATE.game, {
+    title: esc(m.title),
+    desc: esc(m.desc.trim().replace(/\s*\n\s*/g, " ")),
+    url: `${BASE}/${game}/`,
+    bg: m.bg,
+    icon: favicon(m),
+    script: js,
+  });
 }
 
 function gallery(entries) {
   const cards = entries.map(([game, m]) =>
-    `  <li>
-    <a href="./${game}/" data-game="${game}" style="--bg:${m.bg};--fg:${m.fg}">
-      <span>${esc(m.title)}</span>
-    </a>
-  </li>`
+    fill(TEMPLATE.card, { game, title: esc(m.title), bg: m.bg, fg: m.fg })
   ).join("\n");
 
-  return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>one tiny game</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="a collection of tiny web games">
-<link rel="canonical" href="${BASE}/">
-<meta property="og:title" content="one tiny game">
-<meta property="og:type" content="website">
-<meta property="og:description" content="a collection of tiny web games">
-<meta property="og:url" content="${BASE}/">
-<meta name="theme-color" content="#f2f0e5">
-<link rel="icon" href="${favicon({ bg: "#f2f0e5", fg: "#212123" })}">
-<style>
-:root { --card: 400px; }
-html { background: #f2f0e5; }
-body {
-  margin: 0;
-  padding: 20px;
-  font-family: Verdana, sans-serif;
-  color: #212123;
-}
-h1 { font-size: 250%; line-height: 1; margin: 0 0 .2em; }
-p.by { font-size: 75%; margin: 0; }
-a { color: inherit; }
-ul {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(var(--card), 1fr));
-  gap: 40px;
-  list-style: none;
-  margin: 40px 0 0;
-  padding: 0;
-}
-li { aspect-ratio: 1; }
-li > * { width: 100%; height: 100%; border: 0; display: block; }
-li > a {
-  background: var(--bg);
-  color: var(--fg);
-  display: flex;
-  align-items: flex-end;
-  padding: .5em;
-  box-sizing: border-box;
-  font-size: 2.4em;
-  font-weight: bold;
-  text-decoration: none;
-}
-@media (max-width: 480px) { :root { --card: 100%; } body { padding: 20px 0; } }
-</style>
-</head>
-<body>
-<header>
-  <h1>one tiny game</h1>
-  <p class="by">by <a href="https://fserb.com">fserb</a></p>
-</header>
-<ul id="games">
-${cards}
-</ul>
-<script type="module">
-// One game runs at a time: opening a second puts the first card back.
-const list = document.getElementById("games");
-let playing = null;
-
-list.addEventListener("click", ev => {
-  const a = ev.target.closest("a[data-game]");
-  if (!a || ev.metaKey || ev.ctrlKey || ev.shiftKey) return;
-  ev.preventDefault();
-
-  playing?.replaceWith(playing.card);
-
-  const frame = document.createElement("iframe");
-  frame.src = a.getAttribute("href");
-  frame.card = a;
-  frame.allow = "autoplay; fullscreen; gamepad";
-  a.replaceWith(frame);
-  playing = frame;
-});
-</script>
-</body>
-</html>
-`;
+  return fill(TEMPLATE.gallery, {
+    url: `${BASE}/`,
+    icon: favicon(SITE),
+    cards,
+  });
 }
 
 async function build(game) {

@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>one tiny game</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="a collection of tiny web games">
+<link rel="canonical" href="{{url}}">
+<meta property="og:title" content="one tiny game">
+<meta property="og:type" content="website">
+<meta property="og:description" content="a collection of tiny web games">
+<meta property="og:url" content="{{url}}">
+<meta name="theme-color" content="#f2f0e5">
+<link rel="icon" href="{{icon}}">
+<style>
+:root { --card: 400px; }
+html { background: #f2f0e5; }
+body {
+  margin: 0;
+  padding: 20px;
+  font-family: Verdana, sans-serif;
+  color: #212123;
+}
+h1 { font-size: 250%; line-height: 1; margin: 0 0 .2em; }
+p.by { font-size: 75%; margin: 0; }
+a { color: inherit; }
+ul {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--card), 1fr));
+  gap: 40px;
+  list-style: none;
+  margin: 40px 0 0;
+  padding: 0;
+}
+li { aspect-ratio: 1; }
+li > * { width: 100%; height: 100%; border: 0; display: block; }
+li > a {
+  background: var(--bg);
+  color: var(--fg);
+  display: flex;
+  align-items: flex-end;
+  padding: .5em;
+  box-sizing: border-box;
+  font-size: 2.4em;
+  font-weight: bold;
+  text-decoration: none;
+}
+@media (max-width: 480px) { :root { --card: 100%; } body { padding: 20px 0; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>one tiny game</h1>
+  <p class="by">by <a href="https://fserb.com">fserb</a></p>
+</header>
+<ul id="games">
+{{cards}}
+</ul>
+<script type="module">
+// One game runs at a time: opening a second puts the first card back.
+const list = document.getElementById("games");
+let playing = null;
+
+list.addEventListener("click", ev => {
+  const a = ev.target.closest("a[data-game]");
+  if (!a || ev.metaKey || ev.ctrlKey || ev.shiftKey) return;
+  ev.preventDefault();
+
+  playing?.replaceWith(playing.card);
+
+  const frame = document.createElement("iframe");
+  frame.src = a.getAttribute("href");
+  frame.card = a;
+  frame.allow = "autoplay; fullscreen; gamepad";
+  a.replaceWith(frame);
+  playing = frame;
+});
+</script>
+</body>
+</html>

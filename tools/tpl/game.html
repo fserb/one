@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{{title}}</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="description" content="{{desc}}">
+<link rel="canonical" href="{{url}}">
+<meta property="og:title" content="{{title}}">
+<meta property="og:type" content="website">
+<meta property="og:description" content="{{desc}}">
+<meta property="og:url" content="{{url}}">
+<meta name="theme-color" content="{{bg}}">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="{{title}}">
+<link rel="icon" href="{{icon}}">
+<style>
+html, body { margin: 0; height: 100%; overflow: hidden; }
+body {
+  background: {{bg}};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: none;
+}
+canvas {
+  display: block;
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+</style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+<script type="module">{{script}}</script>
+</body>
+</html>
