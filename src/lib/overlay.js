@@ -1,13 +1,17 @@
 /*
  * overlay.js - the bits of screen that are the same in every game.
  *
- * Three states, and one animated bar that carries the transition between them:
+ * Two states, and one animated bar that carries the transition between them:
  *
- *   intro   the bar is a full-height card holding meta.desc. A click shrinks
- *           it to the top of the screen, and the game starts behind it.
- *   game    the bar is 44px of score, best score and the mute toggle.
+ *   game    the bar is 44px of score, best score and the mute toggle. On the
+ *           first round meta.desc sits on top of the running game and fades,
+ *           on the first input or a few seconds in, whichever lands first.
  *   finish  a frozen screenshot of the last frame, with the bar sliding back
  *           down over it. A click starts the next round.
+ *
+ * There is no title card: run() starts the round on frame one, and the first
+ * input goes to the game. Nothing here ever consumes a click except the mute
+ * toggle inside the bar.
  *
  * The game itself never sees any of this. one.js calls update() only while the
  * overlay owns the screen, and render() after the game has drawn.
@@ -21,18 +25,27 @@ const BAR = 44;
 const PAD = 11;
 const FONT = 26;
 
+// meta.desc holds this long, then fades on its own. Input cuts it short with
+// the quicker fade, so the hint leaves as soon as the player does not need it.
+const DESC_HOLD = 3;
+const DESC_FADE = 0.6;
+const DESC_DISMISS = 0.2;
+
 const bar = {
-  y: SIZE,
-  height: 0,
+  y: 0,
+  height: BAR,
   scorey: 0,
-  // The bar covers the game rather than showing the intro text through it.
+  // The bar covers the game rather than showing the frozen shot through it.
   clear: false,
 };
 
-const intro = {
+const desc = {
   lines: [],
   size: 0,
   y: 0,
+  alpha: 0,
+  // Faded out, or on its way there: input has nothing left to dismiss.
+  gone: true,
 };
 
 const finish = {
@@ -40,39 +53,34 @@ const finish = {
   shot: null,
 };
 
-let state = "intro";
+let state = "game";
 
-export function init(forceStart = false) {
+export function init() {
   score.best = localStorage.getItem(`one#${meta.title}`);
   if (score.best !== null) score.best = Number(score.best);
 
-  intro.lines = meta.desc.trim().split("\n");
-  const longest = Math.max(...intro.lines.map((x) => x.length));
-  intro.size = Math.min(
-    800 / (intro.lines.length * 1.5),
+  state = "game";
+  bar.y = 0;
+  bar.height = BAR;
+  bar.scorey = 0;
+  bar.clear = false;
+
+  desc.lines = meta.desc.trim().split("\n").filter((l) => l.trim() !== "");
+  desc.alpha = 0;
+  desc.gone = desc.lines.length === 0;
+  if (desc.gone) return;
+
+  const longest = Math.max(...desc.lines.map((x) => x.length));
+  desc.size = Math.min(
+    800 / (desc.lines.length * 1.5),
     800 / (longest * 0.6),
   );
-  intro.y = (SIZE - (intro.lines.length - 1) * intro.size * 1.5) / 2;
+  desc.y = (SIZE - (desc.lines.length - 1) * desc.size * 1.5) / 2;
+  desc.alpha = 1;
 
-  const height = (1.5 + intro.lines.length) * intro.size * 1.5;
-  const top = (SIZE - height) / 2;
-
-  if (forceStart) {
-    state = "game";
-    bar.y = 0;
-    bar.height = BAR;
-    return;
-  }
-
-  state = "intro";
-  bar.y = SIZE;
-  // One frame of delay so the card grows out of the bottom edge, not from
-  // wherever the first frame's dt happens to land.
-  act(bar)
-    .delay(1 / 60)
-    .attr("y", top, 0.25, ease.fastOutSlowIn)
-    .attr("height", SIZE - top, 0.25, ease.fastOutSlowIn).then()
-    .attr("height", height, 0.35, ease.fastOutSlowIn).then();
+  act(desc).delay(DESC_HOLD)
+    .attr("alpha", 0, DESC_FADE)
+    .then(() => desc.gone = true);
 }
 
 export function startGame() {
@@ -87,6 +95,11 @@ export function gameOver() {
     ? Math.max(best, score.value)
     : Math.min(best, score.value);
   localStorage.setItem(`one#${meta.title}`, score.best);
+
+  // one.js reset every track on the way in, so a desc still fading would sit
+  // frozen on top of the screenshot.
+  desc.alpha = 0;
+  desc.gone = true;
 
   // Freeze the last frame, minus the bar, and slide the bar back down over it.
   const dim = op.screen.width;
@@ -103,39 +116,31 @@ export function gameOver() {
     .attr("scorey", SIZE - BAR, 0.35, ease.fastOutSlowIn);
 }
 
-// Runs every frame, in game or not: the mute toggle lives in the bar.
+// Runs every frame, in game or not: the mute toggle lives in the bar, and the
+// desc listens for the first input of the round.
 export function poll() {
+  if (!desc.gone && (mouse.click || mouse.swipe)) {
+    desc.gone = true;
+    act(desc).reset().attr("alpha", 0, DESC_DISMISS);
+  }
+
   if (!mouse.click) return;
   if (!sound.available()) return;
   if (state !== "game" || mouse.x < SIZE / 2 || mouse.y >= BAR) return;
   sound.toggle();
 }
 
+// Only called between rounds, so the one state left to leave is "finish".
 export function update(_dt, start) {
-  if (act(state).is()) return;
+  if (act(bar).is()) return;
   if (!mouse.click) return;
 
-  if (state === "intro") {
-    // Shrink from wherever the card got to, so an early click is not ignored.
-    const t = 0.35 * (SIZE - BAR - bar.y) / (SIZE - BAR);
-    act(bar)
-      .attr("y", SIZE - BAR, t, ease.quadIn)
-      .attr("height", BAR, t, ease.quadIn)
-      .then(() => bar.clear = true)
-      .then(start)
-      .attr("y", 0, 0.35, ease.fastOutSlowIn)
-      .then(() => state = "game");
-    return;
-  }
-
-  if (state === "finish") {
-    bar.clear = true;
-    start();
-    act(bar)
-      .attr("y", 0, 0.35, ease.fastOutSlowIn)
-      .attr("scorey", 2, 0.35, ease.fastOutSlowIn)
-      .then(() => state = "game");
-  }
+  bar.clear = true;
+  start();
+  act(bar)
+    .attr("y", 0, 0.35, ease.fastOutSlowIn)
+    .attr("scorey", 2, 0.35, ease.fastOutSlowIn)
+    .then(() => state = "game");
 }
 
 export function render(ctx) {
@@ -160,23 +165,20 @@ export function render(ctx) {
   ctx.fillStyle = meta.fg;
   ctx.fillRect(0, bar.y, SIZE, bar.height);
 
-  if (state === "intro") {
-    ctx.fillStyle = meta.bg;
-    if (bar.clear) {
-      ctx.fillRect(0, 0, SIZE, bar.y);
-    } else {
-      let y = intro.y;
-      for (const line of intro.lines) {
-        ctx.text(line, SIZE / 2, y, intro.size, { valign: "middle" });
-        y += intro.size * 1.5;
-      }
+  if (desc.alpha > 0) {
+    ctx.globalAlpha = desc.alpha;
+    ctx.fillStyle = meta.fg;
+    let y = desc.y;
+    for (const line of desc.lines) {
+      ctx.text(line, SIZE / 2, y, desc.size, { valign: "middle" });
+      y += desc.size * 1.5;
     }
+    ctx.globalAlpha = 1;
   }
 
   renderScore(ctx);
   ctx.restore();
 }
-
 function renderScore(ctx) {
   ctx.fillStyle = meta.bg;
 

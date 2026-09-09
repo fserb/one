@@ -110,8 +110,7 @@
       https://marx.giraffe-yo.ts.net/, so this is one.fserb.com's source, live.
 
         dev.html               every game in src/, listed
-        dev.html?game=wow      the intro screen, like the built page
-        dev.html?game=wow&go   skip the intro, start playing immediately
+        dev.html?game=wow      that game, running, like the built page
 
       A game page also loads src/dev/rec.js, the recorder behind the "rec"
       button in the corner. It records a ten second clip for the gallery card.
@@ -129,7 +128,7 @@
 
       const game = await import(`./src/${name}.js`);
       const { run } = await import("./src/lib/one.js");
-      const screen = run(game, { forceStart: params.has("go") });
+      const screen = run(game);
 
       // After run(), so the recorder's frame callback lands after the game's.
       const rec = await import("./src/dev/rec.js");
@@ -167,7 +166,6 @@
       document.body.innerHTML = `<main>
         <h1>one · dev <span class=date>${games.length} games</span></h1>
         <ul>${games.map(card).join("")}</ul>
-        <p class=help>add <code>&amp;go</code> to skip the intro</p>
       </main>`;
     }
 

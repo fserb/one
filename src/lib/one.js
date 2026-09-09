@@ -15,9 +15,10 @@
  * The build reads `meta` by importing the module under Deno, so nothing in it
  * may touch the DOM at module scope.
  *
- * run() owns the canvas, the frame loop, input, the intro and game-over
- * screens, and the score. A game calls gameOver() when the round ends; the
- * overlay handles everything after that, including starting the next one.
+ * run() owns the canvas, the frame loop, input, the score and the game-over
+ * screen. There is no intro: the round starts on frame one and the first input
+ * goes to the game. A game calls gameOver() when the round ends; the overlay
+ * handles everything after that, including starting the next one.
  */
 
 import { registerPlus2d, Screen } from "../alma/src/index.js";
@@ -44,7 +45,7 @@ export const camera = new Camera();
 
 let ctx = null;
 
-export function run(game, { target = null, forceStart = false } = {}) {
+export function run(game, { target = null } = {}) {
   registerPlus2d();
   Object.assign(meta, game.meta ?? {});
   op.game = game;
@@ -59,8 +60,8 @@ export function run(game, { target = null, forceStart = false } = {}) {
 
   input.init(screen.canvas);
   sound.arm(document);
-  overlay.init(forceStart);
-  if (forceStart) start();
+  overlay.init();
+  start();
 
   screen.start(frame);
   return screen;
