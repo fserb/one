@@ -22,7 +22,7 @@ touching it costs you size
   fg: "#E1B81F",
   scoreMax: true,
   finishGood: false,
-  date: "2016-06-24",
+  date: "2014-03-30",
 };
 
 const GOLD = 0xe1b81f;
