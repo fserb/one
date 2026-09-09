@@ -57,6 +57,10 @@ function media {
   ls -l "media/$game".* | awk '{printf "  %-24s %8.1f KB\n", $NF, $5/1024}'
 }
 
+function test {
+  deno run --allow-read tools/loop_test.js
+}
+
 function fmt {
   deno fmt
 }
