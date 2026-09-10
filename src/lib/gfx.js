@@ -22,22 +22,24 @@
  * Every entity owns one, next to its `art`. core.js imports this file, so a
  * game gets both from entity.js and imports nothing else.
  *
- * Each shape is one of alma's `Shape`s, built when the call is recorded and
- * turned into a Path2D the first time it is drawn. That is where bounds() and
- * the drawing come from: a Shape flattens itself to measure and replays itself
- * to paint. Shape holds no DOM, and toPath2D() is the only call that wants one,
- * so the build can still import a game under Deno.
+ * Each shape is one of alma's `Path`s, built when the call is recorded and
+ * replayed into a Path2D the first time it is drawn. That is where bounds()
+ * and the drawing both come from: flattenSubpath() measures the path and
+ * replay() paints it. A Path holds no DOM, and the Path2D is built at draw
+ * time, so the build can still import a game under Deno.
+ *
+ * Path and not its subclass Shape: Shape adds the boolean ops and triangulate,
+ * which pull clipper2 and earcut, 320 KB nothing here asks for.
  */
 
-import { Shape } from "../alma/src/geom/shape/shape.js";
-import * as measure from "../alma/src/geom/shape/measure.js";
+import { Path } from "../alma/src/geom/shape/path.js";
+import { flattenSubpath, replay } from "../alma/src/geom/shape/segments.js";
 import { css, glyphs } from "./art.js";
 
 /*
- * How finely bounds() flattens a curve before measuring it. Shape.bounds()
- * flattens at 1, which is a fifth of a screen pixel off on flap's coin and
- * moves the drawing half of that, so the box is measured here instead.
- * At 0.01 the widest arc in the games is within 0.003 of its true extent.
+ * How finely pathBox() flattens a curve before measuring it. At 1, alma's own
+ * default, the widest arc in the games measures a whole unit short and the
+ * drawing moves half of that; at 0.01 it is within 0.003 of its true extent.
  * bounds() is held behind `dirty`, so this runs when the drawing changes and
  * not once a frame.
  */
@@ -99,16 +101,16 @@ export class Gfx {
 
   // `round` is the corner diameter, as Flash's drawRoundRect took it. One
   // radius for both axes, clamped to the shorter side, the way ctx.roundRect
-  // takes a scalar. Four quarter-arcs rather than Shape.squircle or four
+  // takes a scalar. Four quarter-arcs rather than Path.squircle or four
   // arcTo: those two draw the corner as a curve into the box, not around it,
-  // and Shape.arc is the call that matches ctx.arc. Each arc after the first
+  // and Path.arc is the call that matches ctx.arc. Each arc after the first
   // opens with the line to its own start, which is the edge between corners.
   rect(x, y, w, h, round = 0) {
     if (this.disabled) return this;
-    if (round === 0) return this.push(Shape.rect(x, y, w, h));
+    if (round === 0) return this.push(Path.rect(x, y, w, h));
     const r = Math.min(round / 2, w / 2, h / 2);
     const q = Math.PI / 2;
-    const path = new Shape()
+    const path = new Path()
       .arc(x + w - r, y + r, r, -q, 0)
       .arc(x + w - r, y + h - r, r, 0, q)
       .arc(x + r, y + h - r, r, q, 2 * q)
@@ -122,7 +124,7 @@ export class Gfx {
   // it. Centred on the entity here, where ugl cornered it at the origin.
   size(w, h = w, x = 0, y = 0) {
     if (this.disabled) return this;
-    const path = Shape.rect(x - w / 2, y - h / 2, w, h);
+    const path = Path.rect(x - w / 2, y - h / 2, w, h);
     this.cmds.push({ path, fill: null, line: null });
     this.poly = null;
     this.dirty = true;
@@ -131,17 +133,17 @@ export class Gfx {
 
   circle(x, y, r) {
     if (this.disabled) return this;
-    return this.push(Shape.circle(x, y, r));
+    return this.push(Path.circle(x, y, r));
   }
 
   // ugl's arc: out along r1 from b to e, back along r2, so r1 == r2 is a plain
   // arc and r1 != r2 a ring segment. Angles turn anticlockwise on screen.
   //
-  // Shape.arc joins two sweeps with a line the way ctx.arc does, so the band
+  // Path.arc joins two sweeps with a line the way ctx.arc does, so the band
   // closes itself.
   arc(x, y, r1, r2, b, e) {
     if (this.disabled) return this;
-    const path = new Shape()
+    const path = new Path()
       .arc(x, y, r1, -b, turn(-b, -e, e > b), e > b)
       .arc(x, y, r2, -e, turn(-e, -b, e < b), e < b)
       .closePath();
@@ -153,7 +155,7 @@ export class Gfx {
   mt(x, y) {
     if (this.disabled) return this;
     this.poly = {
-      path: new Shape().moveTo(x, y),
+      path: new Path().moveTo(x, y),
       fill: this._fill,
       line: this._line,
     };
@@ -194,9 +196,7 @@ export class Gfx {
 
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
     for (const c of this.cmds) {
-      const b = c.text === undefined
-        ? measure.bounds(c.path.toPoints(FLAT))
-        : textBox(c);
+      const b = c.text === undefined ? pathBox(c.path) : textBox(c);
       // A stroke sits half its width outside the path it follows.
       const p = c.line === null ? 0 : c.line.width / 2;
       x0 = Math.min(x0, b.x - p);
@@ -231,7 +231,7 @@ export class Gfx {
       }
       // Kept on the command: a game that leaves its drawing alone, or holds it
       // with cache(), replays the same Path2D every frame.
-      c.p2d ??= c.path.toPath2D();
+      c.p2d ??= replay(c.path.subpaths, new Path2D());
       if (c.fill !== null) {
         ctx.globalAlpha = c.fill.alpha;
         ctx.fillStyle = css(c.fill.c);
@@ -266,7 +266,7 @@ function write(ctx, c) {
 
 /*
  * Where a sweep from `from` to `to` ends, once. ctx.arc reads anything past a
- * full turn as exactly one and Shape.arc keeps winding, which fills as a
+ * full turn as exactly one and Path.arc keeps winding, which fills as a
  * different shape, so the angle is cut back here instead.
  */
 function turn(from, to, ccw) {
@@ -280,7 +280,22 @@ function turn(from, to, ccw) {
   return from + Math.min(d, TAU);
 }
 
-// The one command with no Shape behind it: the bitmap font is dots, not a path.
+// A path's own box, from the polyline it flattens to.
+function pathBox(path) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const sub of path.subpaths) {
+    for (const p of flattenSubpath(sub, FLAT)) {
+      if (p.x < x0) x0 = p.x;
+      if (p.y < y0) y0 = p.y;
+      if (p.x > x1) x1 = p.x;
+      if (p.y > y1) y1 = p.y;
+    }
+  }
+  if (x0 === Infinity) return { x: 0, y: 0, width: 0, height: 0 };
+  return { x: x0, y: y0, width: x1 - x0, height: y1 - y0 };
+}
+
+// The one command with no path behind it: the bitmap font is dots, not a path.
 function textBox(c) {
   const [x, y] = c.args;
   const g = glyphs(c.text);
