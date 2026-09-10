@@ -175,13 +175,16 @@ function createPlayer() {
   let last = player.head;
   for (let i = 0; i < 2; ++i) {
     // Damped, where planck's tail needed nothing. planck's rope joint stopped
-    // a link dead the moment it went taut, and that inelastic stop took the
-    // energy of a jump back out of the tail. box2d solves the same limit
-    // softly and returns the energy, so the tail kept every jump and wound
-    // round the head for seconds afterwards. Damping is the only thing that
-    // reaches that: the joint holds the length, and a tail spinning round the
-    // head is not changing its length.
-    const o = world.body({ x: 0, y: i, type: "dynamic", damping: 6 });
+    // a link dead the moment it went taut, and that inelastic stop took a
+    // jump's energy back out of the tail. box2d solves the same limit softly
+    // and hands the energy back, so the tail kept every jump and wound round
+    // the head for seconds. Nothing on the joint reaches that, since a tail
+    // spinning round the head is not changing its length; damping is the only
+    // thing left. 3 is where it lands on the old tail: driving both engines
+    // with one recorded head path, the tail winds 1.48 turns a second against
+    // planck's 1.50, turns at 9.3 rad/s against 9.4, and sits 1.30 metres off
+    // the head, as planck's did. Undamped it winds 5.22 and turns at 32.9.
+    const o = world.body({ x: 0, y: i, type: "dynamic", damping: 3 });
     o.radius = 0.4 - i * 0.2;
     o.circle({
       r: o.radius,
