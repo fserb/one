@@ -32,7 +32,6 @@
  */
 
 import * as ent from "./lib/entity.js";
-import "./lib/gfx.js";
 import { flash, gameOver, msg, score, SIZE } from "./lib/one.js";
 import { explosion, hit, powerup } from "./lib/fsfx/sfxr.js";
 import * as sound from "./lib/sound.js";

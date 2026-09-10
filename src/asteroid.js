@@ -17,12 +17,11 @@
  * see which. entity.js grew hitPoly() for this game.
  *
  * The death is the Haxe's 2.5 seconds of full-speed board with title and score
- * swapping over it, but it cannot wait for input: the click is the shell's
+ * swapping over it, but it cannot wait for input: the click belongs to overlay.js's
  * finish screen, so holding the flip until a key would cost two clicks.
  */
 
 import * as ent from "./lib/entity.js";
-import "./lib/gfx.js";
 import { gameOver, score } from "./lib/one.js";
 import { explosion, laser } from "./lib/fsfx/sfxr.js";
 import * as sound from "./lib/sound.js";

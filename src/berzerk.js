@@ -18,7 +18,6 @@
  */
 
 import * as ent from "./lib/entity.js";
-import "./lib/gfx.js";
 import { gameOver, score } from "./lib/one.js";
 
 export const meta = {

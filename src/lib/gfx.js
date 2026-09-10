@@ -2,7 +2,8 @@
  * gfx.js - the other thing an entity draws with: filled and stroked paths.
  *
  * Same shape as Art, recorded once and replayed centred on the entity, but
- * vector rather than pixels. Most ports use both, often on one entity.
+ * vector rather than pixels. Four games draw with both, almost always on
+ * different entities: gather's Piece is the only one that uses both at once.
  *
  * ```js
  * gfx.fill(0xe9e1e1).circle(0, 0, 10).fill(null)
@@ -18,19 +19,13 @@
  * path, so overlapping shapes came out as their union. Here each shape is its
  * own path, which looks the same unless the fill is translucent.
  *
- * Importing this module is what fills `entity.gfx` in; a game that draws no
- * vectors leaves it null and carries none of this.
- *
- * ```js
- * import * as ent from "./lib/entity.js";
- * import "./lib/gfx.js";
- * ```
+ * Every entity owns one, next to its `art`. core.js imports this file, so a
+ * game gets both from entity.js and imports nothing else.
  */
 
 import { css, glyphs } from "./art.js";
-import { useGfx } from "./entity.js";
 
-class Gfx {
+export class Gfx {
   constructor() {
     this.cmds = [];
     this._fill = null;
@@ -283,5 +278,3 @@ function arcAt(at, x, y, r, s, d) {
   let a = (d > 0 ? Math.ceil(s / q) : Math.floor(s / q)) * q;
   for (; d > 0 ? a < s + d : a > s + d; a += step) point(a);
 }
-
-useGfx(Gfx);
