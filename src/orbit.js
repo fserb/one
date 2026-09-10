@@ -1,5 +1,5 @@
 /*
- * orbit - a port of ~/prj/vault/games/sketch/src/Orbit.hx, May 2014.
+ * orbit, May 2014.
  *
  * You circle a turret at a fixed speed and your gun fires itself twice a second
  * at the middle. The only control is a click, which reverses the direction you
@@ -13,16 +13,16 @@
  * punch one hole and thread it. `finishLevel`'s re-scoring of the same chunk
  * every tick is the mechanism, not a slip.
  *
- * A chunk is a slice of a ring, which is neither shape entity.js collides. The
- * Haxe walked the arc into a polygon because that was all ugl had; in polar
- * coordinates the slice is two comparisons, which is `covers()`. Both bullets
- * collide as circles, since a hit box does not turn with the drawing.
-
+ * A chunk is a slice of a ring, which is neither shape entity.js collides. In
+ * polar coordinates the slice is two comparisons, which is `covers()`, rather
+ * than an arc walked into a polygon. Both bullets collide as circles, since a
+ * hit box does not turn with the drawing.
  *
- * Hitstop runs a frame at dt 0 here, where ugl skipped the frame outright, so
- * the two places that divide by dt guard against it.
+ * Hitstop runs a frame at dt 0 rather than skipping the frame, so the two
+ * places that divide by dt guard against it.
  */
 
+import { extra, random } from "./alma/src/index.js";
 import { css } from "./lib/art.js";
 import * as ent from "./lib/entity.js";
 import { flash, gameOver, hint, msg, score } from "./lib/one.js";
@@ -44,8 +44,7 @@ shoot the core; what you leave standing scores
 const WHITE = 0xecebec;
 const BLACK = 0x222222;
 const COLOR = 0x8232cd;
-// ugl's C.halfwhite and C.halfblack: three quarters of the way to the
-// background, so both read as barely there.
+// Three quarters of the way to the background, so both read as barely there.
 const HALFWHITE = mix(WHITE, COLOR, 0.75);
 const HALFBLACK = mix(BLACK, COLOR, 0.75);
 
@@ -56,7 +55,7 @@ const W = 480;
 const CX = W / 2;
 const CY = W / 2;
 
-// The Haxe's: 200, reaching 238.5 out with the recoil and the shield ring.
+// 200, reaching 238.5 out with the recoil and the shield ring.
 const ORBIT = 200;
 const RECOIL = 20;
 const FALLBACK = 50;
@@ -87,7 +86,7 @@ const SHIELD_BONUS = 50;
 // On top of the hitstop.
 const DEATH = 0.6;
 
-// ugl's Sound.vol() defaulted to 0.2; orbit set most of them itself.
+// 0.2 is the default these were made against; most are set below it.
 sound.voice("shot", { ...laser(1350), vol: 0.15 });
 sound.voice("pop", { ...explosion(1002), vol: 0.1 });
 sound.voice("chunk", { ...hit(95446), vol: 0.1 });
@@ -329,7 +328,7 @@ class Chunk extends ent.Entity {
   }
 
   // The band is a distance test, the sweep an angle one widened by what the
-  // circle subtends. ugl's arcs turn the opposite way to the screen and `angle`
+  // circle subtends. The arcs turn the opposite way to the screen and `angle`
   // turns the drawing, so a screen direction s is at `angle - s`.
   covers(x, y, r) {
     const dx = x - this.pos.x;
@@ -426,7 +425,7 @@ class Level extends ent.Entity {
         at += size;
       }
       // The build and the drain walk this array in order.
-      shuffle(ring);
+      random.shuffle(ring);
 
       this.layers.push(ring);
       this.want.push(0);
@@ -453,7 +452,7 @@ class Level extends ent.Entity {
       const a = this.layers[i][0].angle;
       if (a === this.want[i]) continue;
       const max = SPIN * dt;
-      const da = clamp(turn(a, this.want[i]), -max, max);
+      const da = extra.clamp(turn(a, this.want[i]), -max, max);
       for (const c of this.layers[i]) c.angle += da;
     }
   }
@@ -509,7 +508,7 @@ class Enemy extends ent.Entity {
       aim += rate * (this.past.length / HISTORY) * (ORBIT / BSPEED);
     }
 
-    // A normal deviate, as the Haxe rolled it: one half of Box-Muller.
+    // A normal deviate: one half of Box-Muller.
     const n = Math.sqrt(-2 * Math.log(Math.random())) *
       Math.cos(Math.random() * TAU);
     aim = mod(aim + n * Math.PI / 32, TAU);
@@ -538,8 +537,8 @@ class Enemy extends ent.Entity {
  * The drain scores the chunk it finds on every tick rather than once per
  * chunk, so a chunk left at health h pays h + (h-1) + ... + 1 times one plus
  * its ring index. That is the whole scoring: shooting the same chunk pays h
- * flat. It is the Haxe's behaviour and it is what makes leaving a wall up
- * worth nine times destroying it out on the third ring.
+ * flat, which is what makes leaving a wall up worth nine times destroying it
+ * out on the third ring.
  */
 function finishLevel() {
   ent.one(Enemy)?.explode();
@@ -626,11 +625,7 @@ function turn(a, b) {
   return mod(b - a + Math.PI, TAU) - Math.PI;
 }
 
-function clamp(v, a, b) {
-  return v < a ? a : v > b ? b : v;
-}
-
-// ugl's Color.lerp, in floats rather than its 8-bit fixed point.
+// Lerp two packed colours, per channel, in floats.
 function mix(a, b, t) {
   let out = 0;
   for (const s of [16, 8, 0]) {
@@ -638,13 +633,6 @@ function mix(a, b, t) {
     out |= Math.round(from + (((b >> s) & 255) - from) * t) << s;
   }
   return out;
-}
-
-function shuffle(a) {
-  for (let i = a.length - 1; i > 0; --i) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
 }
 
 export function init() {
@@ -663,11 +651,8 @@ export function init() {
 export function update(dt) {
   ent.update(dt);
   // Half a point a second alive, nothing while a level builds or drains.
-  // ent.game.time is already 0 on a held frame, which is what ugl got by
-  // skipping the frame outright.
+  // ent.game.time is already 0 on a held frame.
   if (!transition) score.value += ent.game.time / 2;
 }
 
-export function render(ctx) {
-  ent.render(ctx);
-}
+export { render } from "./lib/entity.js";

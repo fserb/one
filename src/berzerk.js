@@ -1,5 +1,5 @@
 /*
- * berzerk - a port of ~/prj/vault/games/sketch/src/Berzerk.hx.
+ * berzerk.
  *
  * You aim by walking: a shot leaves along your heading, and the reload freezes
  * you where you stand for a third of a second. Turrets lead their shots,
@@ -7,16 +7,12 @@
  * climbs if you collect the one before it, so the score comes from walking back
  * into the spot you just made dangerous.
  *
- * The Haxe is half a game: nothing could hurt the player, nothing scored, and a
- * round never ended. `nextScoreBox` counting up is its mechanic and nothing
- * consumed it. Every number a sketch with no death never had to balance is set
- * and argued at its own constant below. Difficulty is flat, as in the Haxe.
+ * Difficulty is flat. Every number is set and argued at its own constant below.
  *
- * Dropped: `if (vel.length == 0) remove()` in the bullet meant "no shot unless
- * you are moving", but Vec2's length setter turns a zero vector into (100, 0),
- * so a standing player shot to the right. Standing still now fires nothing.
+ * A player standing still has no heading, so standing still fires nothing.
  */
 
+import { extra } from "./alma/src/index.js";
 import * as ent from "./lib/entity.js";
 import { gameOver, score } from "./lib/one.js";
 
@@ -41,8 +37,8 @@ const TAU = Math.PI * 2;
 const EDGE = 40;
 const SAFE = 200;
 
-// The Haxe started at (50, 50). A corner has two ways out and a chaser crosses
-// SAFE in two seconds; the middle has eight.
+// The middle, not a corner: a corner has two ways out and a chaser crosses SAFE
+// in two seconds, where the middle has eight.
 const START = 240;
 const SPEED = 120;
 const RELOAD = 0.3;
@@ -54,9 +50,8 @@ const BH = 6;
 const BR = 6;
 const BULLET_MIN = 100;
 const BULLET_MAX = 400;
-// Slower than the player's, which were both 400 in the Haxe where a bullet
-// could not hurt you. This board has no cover, so a shot has to be one you can
-// step out of. It also makes the turret under-lead.
+// Slower than the player's 400. This board has no cover, so a shot has to be
+// one you can step out of. It also makes the turret under-lead.
 const ENEMY_MAX = 220;
 const BULLET_ACC = 400;
 // Distance over this is how far ahead an enemy aims.
@@ -65,17 +60,16 @@ const LEAD = 250;
 const TR = 12;
 const BARREL = 17;
 const TURRET_TURN = Math.PI / 2;
-// The Haxe held the first shot 2 seconds flat, killing a player still reading
-// the hint and firing all three opening shots together.
+// At 2 seconds flat the first shot kills a player still reading the hint, and
+// all three opening shots go off together.
 const TURRET_FIRST = 3;
 const TURRET_EVERY = 3;
 
 const CHASE = 80;
 const CHASER = 21;
 const CHASER_TURN = Math.PI;
-// The Haxe threw three, which was fine when they could not kill you. A shot
-// costs a third of a second still and a chaser closes 24 units in that time,
-// so three converging leave no gap wide enough to shoot from. Two do.
+// A shot costs a third of a second still and a chaser closes 24 units in that
+// time, so three converging leave no gap wide enough to shoot from. Two do.
 const CHASERS_MAX = 2;
 // A dead enemy's replacement arrives a beat later, not on the same frame:
 // that beat is the window to collect the box it left.
@@ -90,10 +84,6 @@ let next = 1;
 // Live chasers, counted here and not off ent.get(): one made this frame has
 // not begun, and would go uncounted until it was on top of you.
 let chasers = 0;
-
-function clamp(v, a, b) {
-  return v < a ? a : v > b ? b : v;
-}
 
 class Player extends ent.Entity {
   begin() {
@@ -122,8 +112,8 @@ class Player extends ent.Entity {
     const l = Math.hypot(this.vel.x, this.vel.y);
     if (l === 0) return;
 
-    // The Haxe fired before scaling the velocity, so the shooting frame moves
-    // at full speed and the freeze starts on the next.
+    // Fire before the velocity is scaled, so the shooting frame moves at full
+    // speed and the freeze starts on the next.
     if (key.b1) {
       new Bullet(this, WHITE, Math.atan2(this.vel.y, this.vel.x), BULLET_MAX);
       this.reload = RELOAD;
@@ -135,8 +125,8 @@ class Player extends ent.Entity {
   postUpdate() {
     // Nothing draws the walls, but the box is the board: without it you walk
     // off the side where nothing can reach you.
-    this.pos.x = clamp(this.pos.x, PR, ent.game.width - PR);
-    this.pos.y = clamp(this.pos.y, PR, ent.game.height - PR);
+    this.pos.x = extra.clamp(this.pos.x, PR, ent.game.width - PR);
+    this.pos.y = extra.clamp(this.pos.y, PR, ent.game.height - PR);
 
     if (hitBullet(this) !== null) return this.die();
     if (this.hitGroup(EnemyChaser) !== null) return this.die();
@@ -169,7 +159,7 @@ class Bullet extends ent.Entity {
     this.vel.x = Math.cos(this.angle) * this.speed;
     this.vel.y = Math.sin(this.angle) * this.speed;
 
-    // The Haxe never removed one, so every shot fired was still flying.
+    // Off the board and gone, or every shot ever fired is still flying.
     const { width, height } = ent.game;
     const { x, y } = this.pos;
     if (x < -BW || x > width + BW || y < -BW || y > height + BW) this.remove();
@@ -253,8 +243,8 @@ class EnemyChaser extends ent.Entity {
   postUpdate() {
     // The board is the box, same as the player's.
     const h = CHASER / 2;
-    this.pos.x = clamp(this.pos.x, h, ent.game.width - h);
-    this.pos.y = clamp(this.pos.y, h, ent.game.height - h);
+    this.pos.x = extra.clamp(this.pos.x, h, ent.game.width - h);
+    this.pos.y = extra.clamp(this.pos.y, h, ent.game.height - h);
   }
 }
 
@@ -285,8 +275,7 @@ class ScoreBox extends ent.Entity {
 }
 
 // Turn `from` towards where the player will be when a shot arrives, at most
-// `rate` radians a second. The Haxe aimed at the far side and then subtracted
-// the turn, which is the same thing twice.
+// `rate` radians a second.
 function aim(e, from, rate) {
   const p = ent.one(Player);
   if (p === null) return from;
@@ -301,7 +290,7 @@ function aim(e, from, rate) {
   if (d > Math.PI) d -= TAU;
   if (d < -Math.PI) d += TAU;
   const step = rate * ent.game.time;
-  return from + clamp(d, -step, step);
+  return from + extra.clamp(d, -step, step);
 }
 
 // The first bullet touching `e` that `e` did not fire: hitGroup() would hand
@@ -331,8 +320,7 @@ function burst(pos) {
     .speed(40, 120);
 }
 
-// Anywhere on the board, but not on the player. The Haxe dropped them
-// anywhere, which cost nothing when nothing could kill you.
+// Anywhere on the board, but not on the player.
 function place(e) {
   const p = ent.one(Player);
   const px = p === null ? START : p.pos.x;
@@ -378,10 +366,4 @@ export function init() {
   place(new EnemyTurret());
 }
 
-export function update(dt) {
-  ent.update(dt);
-}
-
-export function render(ctx) {
-  ent.render(ctx);
-}
+export { render, update } from "./lib/entity.js";
