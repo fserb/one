@@ -117,7 +117,7 @@ const W = 480;
 
 // The lane along the top: how far down it runs, the band drawn behind it, the
 // mark on it, and where a note comes on from.
-const LANE = 58;
+const LANE = 75;
 const BAND = 30;
 const MARK = 240;
 const SPAWN = 510;
@@ -136,6 +136,10 @@ const LEAN = Math.PI / 5;
 // unwinds at.
 const TURN = 2 * Math.PI / 3;
 const RETURN = 1.2;
+// How much of the lean the busker is drawn tilted by, and collides at. The
+// Haxe drew the whole of it, and a figure at 36 degrees is not leaning into a
+// swing, it is falling over.
+const TILT = 0.5;
 
 // A throw starts this far down, off the screen, and is aimed to arrive here,
 // which is the middle of the busker's arc. Past FLOOR on the way back down it
@@ -200,7 +204,7 @@ const GREEN = 0x44891a;
 const BLACK = 0x000000;
 // The band behind the lane, a shade off meta.bg, which is the only thing here
 // that is not the Haxe's: it splits the instrument from the street.
-const LANE_BG = "#3b3b3b";
+const LANE_BG = "#383838";
 
 // 0 body, 1 hat, 2 instrument, 3 face. The instrument is the one thing that
 // sticks out of the 3-wide figure, which is why the sprite is 4 across.
@@ -264,10 +268,12 @@ let strike = false;
 // moves in up: an opening the player is still reading is a dropped note.
 let frozen = false;
 let dying = 0;
-// Whether the pointer is the thing steering. The keys take it back the moment
-// one is held, so a mouse left sitting somewhere does not fight them.
+// Whether the pointer is the thing steering, and where it was last frame.
+// Only a pointer that has moved takes over, so a mouse already sitting
+// somewhere off to one side does not drag the busker there on frame one, and
+// the keys take it back the moment one is held.
 let aiming = false;
-let lastx = 0;
+let lastx = null;
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
@@ -430,6 +436,7 @@ class Tomato extends ent.Entity {
 class Player extends ent.Entity {
   constructor() {
     super();
+    this.lean = 0;
     this.art.size(8, 5, 5).obj([GREY, RED, ORANGE, PINK], BUSKER);
     this.hitPoly([
       -BODYW / 2,
@@ -444,9 +451,13 @@ class Player extends ent.Entity {
     this.place();
   }
 
+  // `lean` is the place on the arc and `angle` is how far over the figure is
+  // drawn, which is also what its box turns by, so what a tomato hits is what
+  // is on the screen.
   place() {
-    this.pos.x = PIVX + ARM * Math.sin(this.angle);
-    this.pos.y = PIVY - ARM * Math.cos(this.angle);
+    this.pos.x = PIVX + ARM * Math.sin(this.lean);
+    this.pos.y = PIVY - ARM * Math.cos(this.lean);
+    this.angle = this.lean * TILT;
   }
 
   update() {
@@ -454,7 +465,7 @@ class Player extends ent.Entity {
     const { key, mouse } = ent.game;
     const t = ent.game.time;
 
-    if (mouse.x !== lastx || mouse.press) aiming = true;
+    if (lastx !== null && (mouse.x !== lastx || mouse.press)) aiming = true;
     if (key.left || key.right) aiming = false;
     lastx = mouse.x;
 
@@ -464,17 +475,17 @@ class Player extends ent.Entity {
 
     const rate = TURN * t;
     if (mx !== 0) {
-      this.angle += mx * rate;
+      this.lean += mx * rate;
     } else if (aiming) {
       // The pointer names a point on the arc rather than a direction, so it
       // puts the busker under the finger and stops there.
       const want = Math.asin(clamp((mouse.x - PIVX) / ARM, -1, 1));
-      const d = want - this.angle;
-      this.angle += Math.abs(d) <= rate ? d : Math.sign(d) * rate;
+      const d = want - this.lean;
+      this.lean += Math.abs(d) <= rate ? d : Math.sign(d) * rate;
     } else {
-      this.angle -= this.angle * RETURN * t;
+      this.lean -= this.lean * RETURN * t;
     }
-    this.angle = clamp(this.angle, -LEAN, LEAN);
+    this.lean = clamp(this.lean, -LEAN, LEAN);
     this.place();
   }
 }
@@ -516,7 +527,7 @@ export function init() {
   frozen = true;
   dying = 0;
   aiming = false;
-  lastx = 0;
+  lastx = null;
   msg("");
 }
 
