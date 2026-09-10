@@ -142,15 +142,6 @@ const esc = (s) =>
   String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;")
     .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
-// What the server sends, which is the size that matters; a page compresses
-// about 4:1. Default level, about 0.5% above `gzip -9`: close enough to watch,
-// not the number to quote.
-async function gzipped(text) {
-  const stream = new Blob([text]).stream()
-    .pipeThrough(new CompressionStream("gzip"));
-  return (await new Response(stream).arrayBuffer()).byteLength;
-}
-
 const kb = (bytes) => `${(bytes / 1024).toFixed(1)} KB`;
 
 // The mark in the game's two colours: a disc with a round-capped bar cut out
@@ -207,22 +198,21 @@ function gallery(entries) {
 
 async function build(game) {
   const m = await meta(game);
+  // A draft builds for its size and nothing else: the page is never written,
+  // and a game that became a draft after shipping loses the old one.
+  const js = await bundle(game);
+  const html = page(game, m, js, await shot(game));
   if (m.draft) {
-    // A game can become a draft after shipping, so drop the old page.
     await Deno.remove(new URL(`${game}/`, WWW), { recursive: true }).catch(
       () => {},
     );
-    console.log(`  ${game.padEnd(12)} ${"draft".padStart(7)}`);
-    return [game, m];
+  } else {
+    await Deno.mkdir(new URL(`${game}/`, WWW), { recursive: true });
+    await Deno.writeTextFile(new URL(`${game}/index.html`, WWW), html);
   }
-  const js = await bundle(game);
-  const html = page(game, m, js, await shot(game));
-  await Deno.mkdir(new URL(`${game}/`, WWW), { recursive: true });
-  await Deno.writeTextFile(new URL(`${game}/index.html`, WWW), html);
   const raw = new Blob([html]).size;
   console.log(
-    `  ${game.padEnd(12)} ${kb(raw).padStart(10)} ` +
-      `${kb(await gzipped(html)).padStart(10)} gz`,
+    `  ${game.padEnd(12)} ${kb(raw).padStart(10)}${m.draft ? "  draft" : ""}`,
   );
   return [game, m];
 }
