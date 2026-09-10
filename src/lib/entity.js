@@ -1,11 +1,10 @@
 /*
  * entity.js - the entity model the vault micro-games are written against.
  *
- * ~/prj/vault/games/sketch/src is 20 single-file games built on `ugl`, a
- * retained-mode framework: entities own sprites in a display list. This is the
- * same model over one.js's immediate mode. An entity registers itself when it
- * is constructed, the shell walks the groups in draw order once a frame, and
- * each entity paints itself into the 2D context.
+ * ~/prj/vault/games/sketch/src is 20 single-file games on `ugl`, a
+ * retained-mode framework. This is the same model over one.js's immediate
+ * mode: an entity registers itself when constructed, and the shell walks the
+ * groups in draw order once a frame.
  *
  * A game wires it into the three exports one.js calls:
  *
@@ -22,57 +21,48 @@
  * export function render(ctx) { ent.render(ctx); }
  * ```
  *
- * The games think in a 480x480 box. world() sets that box and render() scales
- * it onto one's 1024, so ported code keeps the constants it was written with.
+ * The games think in a 480x480 box. world() sets it and render() scales onto
+ * one's 1024, so ported code keeps its constants.
  *
- * Every entity owns an `art`, the chunky-pixel renderer. It owns a `gfx`, the
- * vector one, only in a game that imports lib/gfx.js; otherwise that is null
- * and the class stays out of the bundle.
+ * There is no screen space, and none is wanted: a game that moves the view
+ * wraps ent.render() in its own transform and draws the furniture that holds
+ * still outside it.
  *
- * Overlap is opt-in: an entity that calls hitCircle(), hitBox() or hitPoly()
- * can then ask hitGroup(Other) what it is touching. ugl put those shapes in the
- * sprite's own coordinates and ran them through the sprite matrix; here they
- * are relative to the entity's position, so a port has to move the numbers over
- * by hand, and a polygon is the only one of the three that still turns.
+ * Every entity owns an `art`. It owns a `gfx` only in a game that imports
+ * lib/gfx.js; otherwise that is null and the class stays out of the bundle.
  *
- * One thing does not carry over from Haxe: begin() cannot run from the
- * constructor, because a subclass's field initialisers run after super()
- * returns and would overwrite whatever begin() had set. So begin() runs at the
- * top of the entity's first frame instead, still before its first update().
+ * Overlap is opt-in: hitCircle(), hitBox() or hitPoly(), then hitGroup(Other).
+ * ugl put those shapes in sprite coordinates and ran them through the sprite
+ * matrix; here they are relative to the entity's position, so a port moves the
+ * numbers over by hand, and only a polygon still turns.
  *
- * The part of that a port has to watch: an entity is drawn on the frame it was
- * made, so whatever its constructor set is on screen at once and whatever
- * begin() set is not there yet. ugl ran begin() from the constructor and a
- * Haxe game puts the drawing there freely, so moving that drawing into begin()
- * on the way over costs it a frame. An entity built inside another entity's
- * update() also does not step on the frame it was made: it begins and updates
- * on the next one.
+ * begin() cannot run from the constructor, since a subclass's field
+ * initialisers run after super() returns and would overwrite it. It runs at
+ * the top of the entity's first frame, before its first update(). So an entity
+ * is drawn on the frame it was made with only what its constructor set, and
+ * ugl code that drew from the constructor loses a frame moving into begin().
+ * An entity built inside another's update() first steps on the next frame.
  */
 
 import { Art, glyphs } from "./art.js";
 import { key, mouse, SIZE } from "./state.js";
 
 export const game = {
-  // Seconds since the last frame, and since reset().
   time: 0,
   totalTime: 0,
   width: 480,
   height: 480,
-  // The pointer, in world coordinates.
   mouse: { x: 0, y: 0, click: false, press: false, release: false },
-  // The held directions and the two buttons. The shell's own object, since
-  // unlike the pointer there is nothing to convert.
+  // The shell's own object: unlike the pointer there is nothing to convert.
   key,
 };
 
-// Class -> {layer, list}. A group holds every live instance of exactly that
-// class, in construction order.
+// Class -> {layer, list}, every live instance of exactly that class, in
+// construction order.
 const groups = new Map();
 
-// The vector renderer is a module a game opts into: gfx.js hands its class over
-// on the way in, and an entity built without it has a null `gfx`, so a game
-// that draws only pixels leaves the class out of its bundle. Nothing races
-// here, since a game imports at module scope and builds nothing until init().
+// gfx.js hands its class over on import; without it `gfx` is null and the
+// class stays out of the bundle. Nothing races: games import at module scope.
 let Gfx = null;
 
 export function useGfx(cls) {
@@ -100,8 +90,8 @@ export function order(classes) {
   });
 }
 
-// Only entities that have begun. One constructed earlier in this same frame has
-// not run begin() yet, so its fields are still undefined and it is not in play.
+// Only entities that have begun. One constructed earlier this frame has not
+// run begin() yet, so its fields are undefined and it is not in play.
 export function get(cls) {
   const g = groups.get(cls);
   if (!g) return [];
@@ -122,10 +112,9 @@ export function reset() {
 }
 
 /*
- * The two things ugl let a hit do to the whole screen. shake() jitters the
- * world under render(); delay() is hitstop, holding every entity still while
- * the clock runs on, so a blow lands before the game answers it. Each takes
- * the longer of what is asked for and what is already running.
+ * ugl's two screen-wide effects. shake() jitters the world under render();
+ * delay() is hitstop, holding every entity while the clock runs on. Each takes
+ * the longer of what is asked and what is already running.
  */
 let shaking = 0;
 let held = 0;
@@ -150,12 +139,9 @@ export class Entity {
     this.dead = false;
     this.art = new Art();
     this.gfx = Gfx === null ? null : new Gfx();
-    // Mirror the drawing left to right, which is how the games turn a sprite
-    // around: ugl set sprite.scaleX = -1.
+    // Mirror the drawing, ugl's sprite.scaleX = -1.
     this.flipX = false;
-    // ugl's sprite.scaleX/scaleY and sprite.alpha, which is how a game pops a
-    // sprite in or fades one out. Uniform, because no port has wanted the two
-    // axes to differ.
+    // ugl's sprite scale and alpha. Uniform: no port has wanted two axes.
     this.scale = 1;
     this.alpha = 1;
     this.hits = [];
@@ -163,14 +149,12 @@ export class Entity {
     groupOf(this.constructor).list.push(this);
   }
 
-  // Called once, at the top of this entity's first frame.
   begin() {}
   update() {}
   postUpdate() {}
 
-  // Each of the two centres itself on its own bounding box. ugl centred the
-  // union of them, so an entity drawing with both at once sits differently
-  // here unless the two are centred on the same point.
+  // Each centres on its own bounding box; ugl centred the union. An entity
+  // drawing with both sits differently unless they share a centre.
   render(ctx) {
     this.art.render(ctx);
     this.gfx?.render(ctx);
@@ -180,27 +164,23 @@ export class Entity {
     this.dead = true;
   }
 
-  // Adds a per-second acceleration, consumed by the next step.
   accelerate(x, y) {
     this.acc.x += x;
     this.acc.y += y;
   }
 
-  // Drops every shape, so nothing can touch this entity and it can touch
-  // nothing. ugl's clearHitBox().
+  // ugl's clearHitBox(): drops every shape, so nothing overlaps either way.
   clearHits() {
     this.hits.length = 0;
     return this;
   }
 
-  // Overlap shapes, offset from the entity's position. A box is axis-aligned
-  // and stays that way: `angle` turns the drawing, not the box. hitPoly() is
-  // the one that turns.
+  // Overlap shapes, offset from the entity's position. A box stays
+  // axis-aligned: `angle` turns the drawing, not the box.
   //
-  // These centre on the position; `art` and `gfx` centre on their own bounding
-  // box. So a drawing lopsided about the origin, a turret with a barrel out one
-  // side, sits off its own hit shape, and `gfx.size(w, h)` is the empty box
-  // that puts it back.
+  // These centre on the position, `art` and `gfx` on their own bounding box, so
+  // a drawing lopsided about the origin sits off its hit shape. `gfx.size(w, h)`
+  // is the empty box that puts it back.
   hitCircle(r, x = 0, y = 0) {
     this.hits.push({ r, x, y });
     return this;
@@ -211,10 +191,8 @@ export class Entity {
     return this;
   }
 
-  // A convex polygon, as a flat list of x, y pairs, and the one shape that
-  // turns with `angle`. A box was defined axis-aligned and a circle has no
-  // heading to lose; a polygon is what a game reaches for when the heading of
-  // the shape is the point, so a ship drawn as a triangle collides as one.
+  // A convex polygon, a flat list of x, y pairs, and the one shape that turns
+  // with `angle`: a ship drawn as a triangle collides as one.
   hitPoly(p) {
     this.hits.push({ p });
     return this;
@@ -230,7 +208,6 @@ export class Entity {
     return false;
   }
 
-  // The first live `cls` this touches, or null.
   hitGroup(cls) {
     for (const e of get(cls)) {
       if (this.hit(e)) return e;
@@ -265,10 +242,7 @@ export class Entity {
   }
 }
 
-/*
- * A label. Lives until removed, or for duration() seconds if one is set, which
- * is how the games do floating "+10" score pops.
- */
+// A label. Lives until removed, or duration() seconds if one is set.
 export class Text extends Entity {
   static layer = 1000;
 
@@ -350,10 +324,8 @@ export class Text extends Entity {
   }
 }
 
-/*
- * A one-shot burst. Particles decelerate as they age, because the step scales
- * velocity by the fraction of life left, and fade with the same number.
- */
+// A one-shot burst. The step scales velocity by the fraction of life left, so
+// particles decelerate as they age, and fade with the same number.
 export class Particle extends Entity {
   constructor() {
     super();
@@ -412,8 +384,8 @@ export class Particle extends Entity {
     return this;
   }
 
-  // Distance from the origin the burst starts at, along each particle's own
-  // heading, so a ring comes out hollow.
+  // How far out each particle starts along its own heading, so a ring is
+  // hollow.
   spread(v, r = 0) {
     this._spread = [v, r];
     return this;
@@ -465,7 +437,7 @@ export class Particle extends Entity {
     this.ticks = 0;
   }
 
-  // Particles carry their own world positions, so undo the entity translate.
+  // Particles carry world positions, so undo the entity translate.
   render(ctx) {
     ctx.translate(-this.pos.x, -this.pos.y);
     ctx.fillStyle = `#${(this._color & 0xffffff).toString(16).padStart(6, "0")}`;
@@ -484,10 +456,8 @@ export class Particle extends Entity {
   }
 }
 
-/*
- * Runs callbacks on a clock. A callback returning false is dropped, and the
- * timer removes itself once it has none left.
- */
+// Runs callbacks on a clock. One returning false is dropped, and the timer
+// removes itself once it has none left.
 export class Timer extends Entity {
   constructor() {
     super();
@@ -542,15 +512,14 @@ function overlap(ea, a, eb, b) {
     Math.abs(ay - by) <= (a.h + b.h) / 2;
 }
 
-// The circle reaches the box when the box's nearest point is inside it.
 function circleBox(cx, cy, r, bx, by, w, h) {
   const dx = Math.max(Math.abs(cx - bx) - w / 2, 0);
   const dy = Math.max(Math.abs(cy - by) - h / 2, 0);
   return dx * dx + dy * dy <= r * r;
 }
 
-// A polygon against anything. The box fast path above cannot answer it, so a
-// box comes in here as its four corners instead.
+// A polygon against anything. The box fast path cannot answer it, so a box
+// arrives here as its four corners.
 function polyOverlap(ea, a, eb, b) {
   if (a.r !== undefined) {
     return circlePoly(ea.pos.x + a.x, ea.pos.y + a.y, a.r, corners(eb, b));
@@ -583,14 +552,13 @@ function corners(e, s) {
   return out;
 }
 
-// The separating axis theorem: two convex polygons miss exactly when one of
-// their own edge normals has a gap between the two shadows cast on it.
+// Separating axis theorem: two convex polygons miss exactly when one of their
+// edge normals has a gap between the shadows cast on it.
 function sat(a, b) {
   for (const p of [a, b]) {
     for (let i = 0; i < p.length; i += 2) {
       const j = (i + 2) % p.length;
-      // The normal does not have to be a unit vector: only the order of the
-      // shadows along it is read.
+      // Not normalised: only the order of the shadows along it is read.
       const nx = p[j + 1] - p[i + 1];
       const ny = p[i] - p[j];
       if (apart(a, b, nx, ny)) return false;
@@ -614,8 +582,8 @@ function apart(a, b, nx, ny) {
   return amax < bmin || bmax < amin;
 }
 
-// Inside the polygon, or within r of one of its edges. The crossings all come
-// out the same sign only for a point inside, whichever way the points wind.
+// Inside the polygon, or within r of an edge. The crossings share a sign only
+// for a point inside, whichever way the points wind.
 function circlePoly(cx, cy, r, p) {
   let sides = 0;
   let near = Infinity;
@@ -638,8 +606,7 @@ function ordered() {
 
 export function update(dt) {
   shaking = Math.max(0, shaking - dt);
-  // A held frame still runs, at a dt of zero: entities read input and each
-  // other, and nothing moves.
+  // A held frame still runs at dt 0: entities read input, nothing moves.
   if (held > 0) {
     held -= dt;
     dt = 0;
@@ -654,8 +621,8 @@ export function update(dt) {
   game.mouse.press = mouse.press;
   game.mouse.release = mouse.release;
 
-  // Everything begins before anything steps, so an entity never reads another
-  // that is still uninitialised, whatever order their groups draw in.
+  // Everything begins before anything steps, so no entity reads another that
+  // is still uninitialised, whatever order the groups draw in.
   for (const g of groups.values()) {
     for (const e of g.list) {
       if (e.started || e.dead) continue;
@@ -665,11 +632,9 @@ export function update(dt) {
   }
 
   for (const g of ordered()) {
-    // Entities constructed during this pass wait for the next frame, so every
-    // entity sees the same dt and none steps before its begin(). The snapshot
-    // alone does not do it: a new entity lands in a group this loop may not
-    // have reached, and that group's snapshot is taken after it arrives, so
-    // `started` is what holds it back.
+    // Entities built during this pass wait for the next frame. The snapshot
+    // alone does not do it, since a new entity can land in a group this loop
+    // has not reached yet; `started` is what holds it back.
     for (const e of [...g.list]) {
       if (!e.dead && e.started) e._step();
     }
@@ -684,8 +649,8 @@ export function render(ctx) {
   ctx.save();
   ctx.scale(SIZE / game.width, SIZE / game.height);
   if (shaking > 0) {
-    // In world units, so a shake is the same size whatever the box is. The
-    // background goes with it, and meta.bg shows along the edge it leaves.
+    // World units, so a shake is the same size whatever the box is. The
+    // background goes with it and meta.bg shows along the edge it leaves.
     const mag = 5 + 10 * shaking;
     ctx.translate(mag * (2 * Math.random() - 1), mag * (2 * Math.random() - 1));
   }

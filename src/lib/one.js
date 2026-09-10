@@ -1,28 +1,14 @@
 /*
- * one.js - the shell every game runs inside.
+ * one.js - the shell every game runs inside. run() owns the canvas, the frame
+ * loop, input, the score and the game-over screen.
  *
- * A game is a module with four exports and no side effects:
+ * A game is a module exporting meta, init(), update(dt) and render(ctx), with
+ * no side effects: the build reads `meta` by importing it under Deno, so
+ * nothing may touch the DOM at module scope. Sound and the camera are opt-in
+ * imports, so a game that wants neither pays for neither.
  *
- * ```js
- * export const meta = {
- *   title: "wow", desc: "line\nline", bg: "#B8B5B9", fg: "#4B4158",
- * };
- * export function init() {}          // a round starts
- * export function update(dt) {}      // once a frame, seconds
- * export function render(ctx) {}     // 1024x1024, origin top-left
- * ```
- *
- * The build reads `meta` by importing the module under Deno, so nothing in it
- * may touch the DOM at module scope.
- *
- * Sound and the camera are opt-in: a game that wants either imports
- * lib/sound.js or lib/camera.js directly, and one that does not never pays for
- * the synth or for alma's Camera2D.
- *
- * run() owns the canvas, the frame loop, input, the score and the game-over
- * screen. There is no intro: the round starts on frame one and the first input
- * goes to the game. A game calls gameOver() when the round ends; the overlay
- * handles everything after that, including starting the next one.
+ * There is no intro; the round starts on frame one. A game calls gameOver()
+ * when it ends, and the overlay does the rest, including the next round.
  */
 
 import { registerPlus2d, Screen } from "../alma/src/index.js";
@@ -59,7 +45,7 @@ export function run(game, { target = null } = {}) {
   document.body.style.backgroundColor = meta.bg;
 
   input.init(screen.canvas);
-  // Only there if the game imported lib/sound.js itself.
+  // Only there if the game imported lib/sound.js.
   op.sound?.arm(document);
   overlay.init();
   start();
@@ -69,9 +55,10 @@ export function run(game, { target = null } = {}) {
 }
 
 export function start() {
-  // Only there if the game imported lib/camera.js itself. Back on the whole
-  // board, so a game sets only what it wants different in init().
+  // Only there if the game imported lib/camera.js. Back on the whole board, so
+  // init() sets only what it wants different.
   op.camera?.moveTo({ x: SIZE / 2, y: SIZE / 2, scale: 1, angle: 0 }).settle();
+  flashColor = null;
   overlay.startGame();
   op.playing = true;
   op.game.init?.();
@@ -83,22 +70,35 @@ export function gameOver() {
   overlay.gameOver();
 }
 
-// Runs `func` `rate` times a second, whole steps per frame. Call it from
-// update(), so the steps see this frame's input.
+// Runs `func` `rate` times a second in whole steps. Call it from update(), so
+// the steps see this frame's input.
 export function fixed(rate, func) {
   return op.screen.fixed(rate, func);
 }
 
-// Seconds the meta.desc hint has left on screen, and 0 once the player has
-// dismissed it or it has gone. A game's opening move waits this out when it
-// would otherwise land on a player who is still reading.
+// Seconds of meta.desc hint left, 0 once dismissed or gone. An opening move
+// waits this out rather than landing on a player who is still reading.
 export function hint() {
   return overlay.hint();
 }
 
-// A line of text in the middle of the top bar.
 export function msg(m) {
   op.topmsg = m;
+}
+
+/*
+ * ugl's Micro.flash(): the whole board one colour, over the game and under the
+ * bar. `color` is CSS, so a game on ugl's numeric palette passes css(c).
+ *
+ * The clock runs after the draw, so t = 0 is one frame and never none whatever
+ * the frame rate. cable asks for 0.05 and gets however many frames fit.
+ */
+let flashColor = null;
+let flashTime = 0;
+
+export function flash(color, t = 0) {
+  flashColor = color;
+  flashTime = t;
 }
 
 function frame(dt) {
@@ -114,6 +114,7 @@ function frame(dt) {
   }
 
   render();
+  if (flashColor !== null && (flashTime -= dt) <= 0) flashColor = null;
   input.flush();
 }
 
@@ -128,6 +129,10 @@ function render() {
     ctx.save();
     op.game.render?.(ctx);
     ctx.restore();
+    if (flashColor !== null) {
+      ctx.fillStyle = flashColor;
+      ctx.fillRect(0, 0, SIZE, SIZE);
+    }
   }
 
   overlay.render(ctx);

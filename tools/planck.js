@@ -3,12 +3,11 @@
  *
  * The dist pins all of Box2D whatever a game names: tsc's class IIFEs are
  * opaque to esbuild, and the serializer's type table holds every joint. Both
- * edits below are needed, either alone buys nothing, and a game has to import
- * `* as pl` rather than the default, which is a namespace object holding the
- * lot. Nothing here is written down in the vendored file itself.
+ * edits are needed, either alone buys nothing, and a game must import
+ * `* as pl` rather than the default namespace object.
  *
- * Every edit asserts its anchor: a planck that has moved this code stops here
- * rather than quietly writing an unpatched file.
+ * Every edit asserts its anchor, so a planck that has moved this code stops
+ * here rather than writing an unpatched file.
  *
  *   ./task planck            # the newest planck on npm
  *   ./task planck 1.5.0      # a version
@@ -19,7 +18,7 @@ const OUT = new URL("../src/lib/planck.js", import.meta.url);
 const CDN = "https://unpkg.com/planck";
 
 // `var X = (function() { ... })()` is a call esbuild cannot prove pure, so
-// every class survives every import shape until it is told otherwise.
+// every class survives until it is told otherwise.
 function pureClasses(src) {
   const lines = src.split("\n");
   let n = 0;
@@ -30,7 +29,7 @@ function pureClasses(src) {
     n++;
   }
   const total = src.split("/** @class */").length - 1;
-  // planck 1.5 has 68 of these; a handful means the dist has changed shape.
+  // planck 1.5 has 68; a handful means the dist changed shape.
   if (n < 40) {
     throw new Error(
       `annotated ${n} of ${total} classes: the IIFE shape has changed`,
@@ -41,7 +40,7 @@ function pureClasses(src) {
 
 // The deserialize table names every joint class, and two module-scope
 // statements keep it reachable: it assigns to `_a`, a file-scope tsc temp, and
-// the one Serializer instance sits beside its two static assignments.
+// the Serializer instance sits beside its two static assignments.
 function freeJoints(src) {
   const table = src.match(
     /var DESERIALIZE_BY_TYPE_FIELD = (\(_a = \{\},[\s\S]*?_a\));\n/,

@@ -1,15 +1,12 @@
 /*
  * rec.js - records a looping clip of the running game, for the gallery card.
  *
- * dev.html loads this; nothing else does, so it is in no game's bundle. It
- * only ever reads screen.canvas, so the shell and the games know nothing
- * about it, and the bar it draws is DOM and never lands in the footage.
+ * dev.html loads this and nothing else does, so it is in no game's bundle. It
+ * only reads screen.canvas, and the bar it draws is DOM, never in the footage.
  *
- * A take is a fixed ten seconds and there is no editor. Instead the recorder
- * searches the take for the two frames that match most closely and cuts
- * there, so the clip loops without a visible jump, then plays the result back
- * on a loop for you to judge. A bad take is re-recorded, not trimmed: ten
- * seconds of playing costs less than an editor does.
+ * A take is a fixed ten seconds and there is no editor. The recorder searches
+ * it for the two frames that match most closely, cuts there so the clip loops
+ * without a jump, and plays the result back. A bad take is re-recorded.
  *
  * "keep" downloads a zip of PNG frames at a constant rate. `./task media
  * <game>` turns that into media/<game>/card.mp4, .gif and .png, which
@@ -48,15 +45,14 @@ export function init(scr, game) {
   big = new OffscreenCanvas(OUT, OUT);
   bigCtx = big.getContext("2d");
   bigCtx.imageSmoothingQuality = "high";
-  // The search reads pixels back every frame, so keep this one on the CPU.
+  // The search reads pixels back every frame, so keep this on the CPU.
   tiny = new OffscreenCanvas(TINY, TINY);
   tinyCtx = tiny.getContext("2d", { willReadFrequently: true });
   tinyCtx.imageSmoothingQuality = "high";
 
   buildBar();
   addEventListener("keydown", onKey);
-  // run() has already called screen.start(), so registering here puts this
-  // callback after the game's for every frame from now on.
+  // run() already called screen.start(), so this lands after the game's.
   requestAnimationFrame(loop);
 }
 
@@ -66,7 +62,7 @@ function loop() {
 
   const t = (performance.now() - t0) / 1000;
   // Frame i belongs at i/FPS. Falling behind repeats the canvas into the
-  // slots that were missed, so a stutter records as a stutter.
+  // missed slots, so a stutter records as a stutter.
   const want = Math.min(Math.floor(t * FPS) + 1, TOTAL);
   while (count < want) grab(count++);
 
@@ -79,7 +75,7 @@ function grab(i) {
   tinyCtx.drawImage(big, 0, 0, TINY, TINY);
   sigs[i] = signature(tinyCtx.getImageData(0, 0, TINY, TINY).data);
   // Encoding now, off the main thread, keeps a take at ~15MB instead of the
-  // ~300MB the same frames would cost as ImageData.
+  // ~300MB it would cost as ImageData.
   frames[i] = big.convertToBlob({ type: "image/png" });
 }
 
@@ -106,13 +102,10 @@ function dist(p, q) {
   return s;
 }
 
-// How much of the take actually changed, as a fraction of its frames.
-//
-// A take the game never received any input for is ten seconds of an idle
-// board, and findLoop will cut a perfect loop out of it without complaint,
-// because a still frame matches a still frame exactly. That happened once and
-// the result reached a commit. Nothing downstream can tell the difference, so
-// it gets caught here.
+// How much of the take changed, as a fraction of its frames. A take with no
+// input is ten seconds of an idle board, and findLoop cuts a perfect loop out
+// of it, because a still frame matches a still frame exactly. Nothing
+// downstream can tell that from a real clip, so it is caught here.
 export function motion(sig) {
   if (sig.length < 2) return 0;
   let moved = 0;
@@ -126,20 +119,18 @@ export function motion(sig) {
 // `out` looks like frame `in`. Scoring WINDOW frames from each stops one
 // coincidental match from winning.
 //
-// The seam is not minimised, it is compared against the take's own median
-// frame-to-frame step: crossing the cut has to cost no more than an ordinary
-// frame does. Minimising instead would always return the shortest clip, since
-// anything that drifts through the take (a score counting up, a board filling)
-// separates two frames in proportion to how far apart they are. Among the cuts
-// that hold, the longest wins, because a longer card is a better card.
+// The seam is compared against the take's own median frame-to-frame step, not
+// minimised: minimising always returns the shortest clip, since anything that
+// drifts through the take (a score counting up, a board filling) separates two
+// frames in proportion to how far apart they are. Among the cuts that hold,
+// the longest wins.
 //
-// Exported and pure so it can be run on signatures that never saw a canvas.
+// Exported and pure, so it runs on signatures that never saw a canvas.
 export function findLoop(sig, lo, hi) {
-  // A round that ends early leaves one.js's frozen game-over frame repeating
-  // to the end of the take. That is not gameplay, and leaving it in breaks the
-  // search two ways: a frozen span costs nothing to cut across at any length,
-  // so it wins on length, and its zero-cost steps drag the median down until
-  // the budget admits nothing else. Drop it before looking at anything.
+  // A round that ends early leaves the frozen game-over frame repeating to the
+  // end. It breaks the search twice over: it costs nothing to cut across at any
+  // length, so it wins, and its zero-cost steps drag the median down until the
+  // budget admits nothing else. Drop it first.
   let n = sig.length;
   while (n > 1 && dist(sig[n - 2], sig[n - 1]) === 0) n--;
 
@@ -163,7 +154,7 @@ export function findLoop(sig, lo, hi) {
       }
     }
   }
-  // Nothing long enough to loop: hand back the gameplay, minus the freeze.
+  // Nothing long enough to loop: hand back the gameplay without the freeze.
   return best ?? least ?? { d: 0, in: 0, out: n };
 }
 
@@ -185,7 +176,7 @@ async function finish() {
   frames = await Promise.all(frames);
 
   ui.note.textContent = "finding the loop";
-  // Yield once so that text actually paints before the search blocks.
+  // Yield once, so the text paints before the search blocks.
   await new Promise((r) => setTimeout(r, 0));
   const cut = findLoop(
     sigs,
@@ -193,8 +184,8 @@ async function finish() {
     Math.round(MAX_LOOP * FPS),
   );
 
-  // The cut, not the take: a round that ends at 3s leaves seven seconds of
-  // frozen frames that the take as a whole still counts as movement.
+  // The cut, not the take: a round ending at 3s leaves seven frozen seconds
+  // the take as a whole still counts as movement.
   await showPreview(cut, motion(sigs.slice(cut.in, cut.out)));
 }
 
@@ -216,8 +207,8 @@ async function showPreview(cut, moved) {
     ? "nothing moved: ten seconds of an idle game"
     : `${secs}s · ${bmp.length} frames · from ${(cut.in / FPS).toFixed(1)}s` +
       (pct < 90 ? ` · ${pct}% moving` : "");
-  // A frozen take is never worth keeping, and that is not a judgement call.
-  // Anything above it is, so the number is shown and the button stays live.
+  // A frozen take is never worth keeping. Anything above it is a judgement
+  // call, so the number is shown and the button stays live.
   ui.keep.disabled = moved === 0;
   box.hidden = false;
   ui.note.textContent = "";
@@ -275,7 +266,7 @@ function onKey(e) {
 
 function el(tag, props, parent) {
   const n = Object.assign(document.createElement(tag), props);
-  // Taking focus would give a button the space and enter the game binds.
+  // Focus would hand a button the space and enter the game binds.
   if (tag === "button") n.onpointerdown = (e) => e.preventDefault();
   parent?.append(n);
   return n;
@@ -318,8 +309,8 @@ const CSS = `
   background: #000c; font: 13px ui-monospace, monospace; color: #fff;
 }
 #rec-preview[hidden] { display: none; }
-/* Square and always inside the window: a flex column would otherwise shrink
-   the canvas on the main axis alone and stretch the frames. */
+/* Square and inside the window: a flex column shrinks the canvas on the main
+   axis alone and stretches the frames. */
 #rec-preview canvas { flex: none; width: 72vmin; height: 72vmin; }
 #rec-preview p { margin: 0; opacity: .7; }
 #rec-preview div { display: flex; gap: 8px; }

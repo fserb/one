@@ -1,27 +1,17 @@
 /*
  * flap - a port of ~/prj/vault/games/sketch/src/FBP.hx, "FlappyBird Puzzle".
  *
- * There is no steering. The bird flies flat out sideways, turns only when it
- * reaches a wall, and one button pushes it up against gravity. Getting to the
- * coin with that much control is the puzzle.
+ * No steering. The bird flies flat out sideways, turns only at a wall, and one
+ * button pushes it up against gravity. Getting to the coin with that much
+ * control is the puzzle.
  *
- * What it comes from is a sketch, not a finished game: neither the bird nor
- * the coin ever got a hit box, so its `hitGroup("Bird")` can never return
- * anything and the one coin cannot be picked up. There is no score and no way
- * to lose either. The physics, the art and the coin are the port; the game
- * around them is new.
+ * The source is a sketch: neither bird nor coin ever got a hit box, so the coin
+ * cannot be picked up, and there is no score and no way to lose. The physics,
+ * the art and the coin are the port; the game is new. A coin lands a random
+ * distance along the path the bird is already on, no further off its height
+ * than it can climb on the way, so every coin is one the sweep could reach.
  *
- *   - a coin goes a random distance along the path the bird is already on, no
- *     further off its height than it can climb on the way, so every coin is
- *     one the sweep could have reached. It shrinks as its time runs out, and
- *     the round ends when one is gone. The slack in that time shortens with
- *     every coin caught. Its hit circle stays full size, so a nearly spent
- *     coin is no harder to catch than a fresh one.
- *   - catching one scores a point and puts the next one somewhere else.
- *   - the original held the bird still until the first press. That is the
- *     click to start this shell does not do, so it is gone.
- *   - the ceiling is at 42 rather than 20, because the shell's bar covers the
- *     top 21 units of the 480 box.
+ * The ceiling is at 42, not 20: the bar covers the top 21 of the 480 box.
  */
 
 import * as ent from "./lib/entity.js";
@@ -59,8 +49,8 @@ const RIGHT = 460;
 const TOP = 42;
 const BOTTOM = 460;
 
-// Sideways speed never changes; only a wall turns it around. ugl ran at a
-// fixed 60fps and added 5 to vel.y a frame, which is this gravity.
+// Sideways speed never changes, only a wall turns it. ugl ran at 60fps and
+// added 5 to vel.y a frame, which is this gravity.
 const SPEED = 100;
 const FLAP = 200;
 const GRAVITY = 300;
@@ -76,7 +66,7 @@ class Bird extends ent.Entity {
 .03333330211010...00000333021110..0111110333000000.04111403306666660
 .000005506000000...05555550666660....005555500000.......00000.......`,
     );
-    // The drawn bird, near enough: 17x12 pixels at two units each.
+    // 17x12 pixels at two units each, near enough to the drawing.
     this.hitBox(30, 20);
   }
 
@@ -84,7 +74,7 @@ class Bird extends ent.Entity {
     if (!this.left && this.pos.x >= RIGHT) this.left = true;
     else if (this.left && this.pos.x <= LEFT) this.left = false;
 
-    // The ceiling and the floor keep a quarter of the speed they take.
+    // The ceiling and the floor keep a quarter of what they take.
     if (this.pos.y < TOP) {
       this.pos.y = TOP;
       this.vel.y = Math.abs(this.vel.y) * 0.75;
@@ -106,14 +96,12 @@ class Coin extends ent.Entity {
 
   begin() {
     const bird = ent.one(Bird);
-    // A random distance along the path the bird is already on, so a coin is
-    // always one the sweep is coming up on, never a round trip away. Miss the
-    // pass and it is gone: the height is the whole of the puzzle.
+    // Along the path the bird is already on, so never a round trip away. Miss
+    // the pass and it is gone: the height is the whole puzzle.
     const d = 100 + Math.random() * 280;
     this.pos.x = along(bird.pos.x, bird.left ? -1 : 1, d);
 
-    // Only as far off the bird's height as it can climb on the way, so the
-    // pass is always one it could have made.
+    // No further off its height than it can climb on the way.
     const span = (d / SPEED) * FLAP * 0.7;
     const lo = Math.max(TOP + 20, bird.pos.y - span);
     const hi = Math.min(BOTTOM - 20, bird.pos.y + span);
@@ -127,8 +115,8 @@ class Coin extends ent.Entity {
   }
 
   draw() {
-    // The original drew this at radius 10, with a 2 wide line and its two
-    // highlights 2 above and below centre. This is that, times what is left.
+    // The original at radius 10, 2 wide line, highlights 2 above and below
+    // centre, times what is left.
     const r = 10 * this.life / this.max;
     const w = Math.max(1, r / 5);
     this.gfx.clear()
@@ -162,8 +150,7 @@ class Coin extends ent.Entity {
   }
 }
 
-// Where the bird is after `d` of travel: it turns at the walls, so its path
-// folds back and forth between them.
+// Where the bird is after `d` of travel: the path folds at the walls.
 function along(x, dir, d) {
   const w = RIGHT - LEFT;
   const t = (((x - LEFT) + dir * d) % (2 * w) + 2 * w) % (2 * w);
@@ -174,8 +161,7 @@ export function init() {
   ent.reset();
   ent.world(480);
 
-  // The bird first: a coin reads it in begin(), and entity.js begins the
-  // groups in the order they were made.
+  // Bird first: a coin reads it in begin(), and groups begin in build order.
   new Bird();
   new Coin();
 }

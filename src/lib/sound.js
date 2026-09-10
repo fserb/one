@@ -1,23 +1,16 @@
 /*
  * sound.js - procedural sound effects, synthesised at load time.
  *
- * A game defines its sounds once at module scope; make() renders the samples
- * into memory. The AudioContext waits for the first user gesture, which is what
- * arm() listens for; nothing here touches the DOM before that, so the build can
- * import a game module under Deno to read its `meta`.
+ * A game imports this itself and defines its sounds at module scope; make()
+ * renders the samples into memory. Nothing here touches the DOM until arm()
+ * catches the first gesture, so the build can import a game to read its `meta`.
+ * The module writes op.sound on the way in; a silent game leaves that null and
+ * the bundler drops fsfx and alma's Audio.
  *
- * The shell does not import this module. A game that wants sound imports it
- * itself, and the module registers what the overlay needs into `op.sound` on
- * the way in; a silent game leaves that null, and the bundler drops fsfx and
- * alma's Audio out of its page. A game that imports it but never calls make()
- * stays muted, and the overlay hides the ♫ toggle.
- *
- * A Track is callable: pass it a module and its parameters, once per stage, and
- * each stage processes the buffer the one before it left. The game imports the
- * stages it wants by name, so its bundle carries those and not the other forty:
- * make() handing its callback the whole `fsfx` namespace instead would pin
- * every module in the directory, since nothing can be shaken out of a namespace
- * object that is passed around at runtime.
+ * A Track is callable: one call per stage, each processing what the last left.
+ * The game imports the stages by name, so its bundle carries those and not the
+ * other forty; handing the callback the whole `fsfx` namespace would pin every
+ * module in the directory.
  *
  * ```js
  * import { ADSR, biquad, envelope, linear, oscillator } from "./lib/fsfx/fsfx.js";
@@ -41,9 +34,8 @@ let audio = null;
 let muted = true;
 let hasSound = false;
 
-// Rendered before the AudioContext existed, so audio.put() could not run yet.
-// The rate travels with the block: a renderer that is tuned for some other rate
-// hands us its own, and alma resamples into the context.
+// Rendered before the AudioContext existed. The rate travels with the block,
+// and alma resamples into the context.
 const pending = new Map();
 
 function flush() {
@@ -66,8 +58,8 @@ function unlock() {
   flush();
 }
 
-// A browser starts an AudioContext only under a user gesture, and Safari wants
-// the resume() inside the handler, so this cannot ride the frame loop.
+// An AudioContext starts only under a gesture, and Safari wants the resume()
+// inside the handler, so this cannot ride the frame loop.
 export function arm(target) {
   const stop = new AbortController();
   const opts = { capture: true, signal: stop.signal };
@@ -85,7 +77,7 @@ export function make(name, duration, func) {
   add(name, track.build(), SAMPLE_RATE);
 }
 
-// Registers samples somebody else rendered, at whatever rate they rendered at.
+// Samples somebody else rendered, at whatever rate they rendered at.
 export function put(name, samples, rate = SAMPLE_RATE) {
   add(name, samples, rate);
 }
@@ -112,5 +104,5 @@ export function setVolume(v) {
   if (audio) audio.volume = v;
 }
 
-// What one.js and overlay.js call, and the only way they reach this module.
+// The only way one.js and overlay.js reach this module.
 op.sound = { arm, available, isMuted, toggle };

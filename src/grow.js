@@ -2,65 +2,31 @@
  * grow - a port of ~/prj/vault/games/sketch/src/Grow.hx, September 2015.
  *
  * A bead runs round a closed loop. Hold the button and it climbs off the
- * surface along the outward normal, dragging a new stretch of loop with it;
- * let go and it falls back, and what it drew replaces the stretch it left. The
- * loop keeps every pull, so the shape on the screen is the record of all of
- * them, and the view backs off as it grows.
+ * surface along the outward normal, dragging a new stretch with it; let go and
+ * it falls back, and what it drew replaces the stretch it left. The loop keeps
+ * every pull, and the view backs off as it grows.
  *
- * The gold sits off the loop, and the loop comes past each piece once a lap.
- * What happens at that moment is settled by how high the bead is standing:
- * level with the gold takes it, over it means the loop closes round it and it
- * is gone, and under it leaves it there for the next lap. So a pull has to be
- * started about a second early, because that is how long the climb takes and
- * the bead never stops travelling, and it has to be let go of at the right
- * height as well.
+ * The gold sits off the loop and comes past once a lap. What happens then is
+ * settled by how high the bead is standing: level takes it, over it closes the
+ * loop round it and it is gone, under leaves it for the next lap. So a pull has
+ * to be started about a second early and let go of at the right height.
  *
- * The clock is the whole of the losing. Gold puts BONUS seconds back on it,
- * and holding the button spends it faster than not holding it, which is what
- * makes the pull cost something. A round of pulling at everything runs out
- * around forty seconds in; a round of pulling at what is actually there does
- * not.
+ * The Haxe is three commits ending in one called "Grow fail": no gold, no
+ * clock, no score, nothing to do but pull. What is its own here is the physics
+ * of the climb, the splice, and the ring it opens on.
  *
- * The Haxe is three commits over two days, and the last of them is called
- * "Grow fail". It went from a polyline to a 100-sample radial heightmap and
- * back to a polyline, this time a circular linked list, and stopped: no gold,
- * no clock, no score, nothing to do but pull. So everything that is the game
- * is new here. What is the Haxe's is the physics of the climb, the splice, and
- * the ring it opens on.
+ * The size of the loop sets the scale for everything else: thrust, travel, the
+ * gap two nodes are kept apart. So the picture holds its size and pace as the
+ * loop grows, rather than the bead crawling round a longer loop.
  *
- * Changes from the Haxe:
+ * Every cut smooths a little, which the Haxe did not. The curve the bead draws
+ * is the loop offset outwards, and an outward offset inside a dip folds over
+ * itself, so a dip left alone grows spikes that grow their own.
  *
- * - The loop is an array. The Haxe cut its linked list with four pointer
- *   swaps; a splice is a slice and a concatenation here.
- * - The bead does not reverse on landing. The Haxe flipped `direction` every
- *   time, and then walked `t` negative through a `%` that does not answer for
- *   negative numbers, so the bead left the loop along a straight line and
- *   never came back. Forward only, which also drops the swap in the splice
- *   that the reversed case needed.
- * - The normal is read fresh on every frame the bead is off the surface. The
- *   Haxe read it only on a frame the button was down, so the whole fall hung
- *   off the heading the last frame of the pull had.
- * - A little smoothing on every cut, which the Haxe had nothing of. The curve
- *   the bead draws is the loop offset outwards, and an outward offset inside a
- *   dip folds over itself, so without it the loop grows spikes and slivers
- *   that then grow their own.
- * - The ring opens with 28 nodes rather than 10, so that it reads as a circle
- *   before the first pull rather than as a decagon.
- * - `zoom` was dead code: `Path.update` measured `175/mv` against an `mv` it
- *   left at 1.0, so the number never moved and nothing read it anyway. What is
- *   measured now is the box round the loop and the gold, and the view is a
- *   translate and a scale round `ent.render()`, the way cable does it. That
- *   makes three games moving a view by hand and entity.js still has no screen
- *   space of its own.
- * - The size of the loop sets the scale for everything else: the thrust, the
- *   travel, the gap two nodes are kept apart. So the picture holds its size
- *   and its pace on the screen as the loop grows, rather than the bead
- *   crawling round a longer and longer loop while the bumps flatten out.
- * - A pull that has covered SPAN of the loop stops pushing. Holding the button
- *   down in the Haxe carried `t` past its own takeoff, and a splice with no
- *   stretch left to cut ate the loop.
- * - No gfx.js. The loop is one stroked path and the rest of the game is discs,
- *   so it draws into the context and leaves the vector renderer out.
+ * A pull that has covered SPAN of the loop stops pushing, or it carries the
+ * bead round to its own takeoff and the splice has nothing left to cut.
+ *
+ * No gfx.js: the loop is one stroked path and the rest is discs.
  */
 
 import * as ent from "./lib/entity.js";
@@ -79,8 +45,7 @@ go too far and the loop swallows it
   date: "2015-09-08",
 };
 
-// The box the game thinks in, the shell's bar over the top of the screen, and
-// what one world unit is worth in the 1024 the shell draws into.
+// The 480 box, the bar over the top, and one world unit in the shell's 1024.
 const W = 480;
 const BAR = 44;
 const K = SIZE / W;
@@ -89,59 +54,47 @@ const WHITE = 0xf7f0e8;
 const DARK = 0x3d0a0e;
 const GOLD = 0xffcf5c;
 
-// The ring it opens on, and the closest two nodes on the loop are kept.
 const R0 = 100;
 const NODES = 28;
 const MINGAP = 10;
 
-// Arc units a second the bead travels, and ugl's three numbers for the climb:
-// a push out along the normal, drag on the square of the speed, and a spring
-// back to the surface. The push and the spring settle at REACH, which is as
-// far off the loop as the bead ever gets.
+// ugl's three numbers for the climb: a push out along the normal, drag on the
+// square of the speed, and a spring back. They settle at REACH.
 const SPEED = 80;
 const THRUST = 500;
 const DRAG = 0.1;
 const SPRING = 10;
 const REACH = THRUST / SPRING;
 
-// Most of the loop one pull may cover before it stops pushing. A pull is
-// nowhere near this long: it is here so that holding the button down cannot
-// carry the bead round to its own takeoff, which would leave the splice
-// nothing to cut.
+// A pull is nowhere near this long. It is here so holding the button cannot
+// carry the bead round to its own takeoff, leaving the splice nothing to cut.
 const SPAN = 0.35;
 
-// How far each node moves towards the middle of its two neighbours on a cut.
 const SMOOTH = 0.2;
 
-// The bead and a piece of gold. The two together are the tolerance on a
-// crossing, so the gold is taken exactly when the two discs meet.
+// The two summed are the tolerance on a crossing, so gold is taken exactly
+// when the discs meet.
 const BEAD = 8;
 const GOLDR = 7;
 
-// Gold on the screen at once, how far out it sits when the round opens, how
-// far once the ramp is done, and the score that takes.
 const GOLDS = 3;
 const NEAR = 24;
 const FAR = REACH - 14;
 const RAMP = 12;
 
-// The clock, in seconds, what a gold puts back on it, and what a second of
-// pulling costs on top of the second it already is. Pulling is the whole of
-// the spending, and holding the button the entire round spends 1.75 seconds a
-// second on gold that mostly ends up nowhere near the bead.
+// PULL_COST is on top of the second a second already costs, so holding the
+// button the whole round spends 1.75 seconds a second.
 const START = 12;
 const BONUS = 2;
 const HOLDCOST = 0.75;
 
-// World units of air the view keeps round everything it is showing.
 const PAD = 24;
 
 const TAU = 2 * Math.PI;
 const css = (c) => `#${c.toString(16).padStart(6, "0")}`;
 const mod = (a, b) => ((a % b) + b) % b;
 
-// How big the loop has got, as a multiple of the ring it started as. Every
-// length in the game is in these units.
+// A multiple of the opening ring. Every length in the game is in these units.
 let scale = 1;
 
 let path = null;
@@ -149,7 +102,6 @@ let cursor = null;
 let golds = [];
 let clock = 0;
 let version = -1;
-// The world square the screen shows: middle, and the side of it.
 let view = null;
 
 /*
@@ -167,21 +119,18 @@ class Path extends ent.Entity {
       const a = TAU * i / NODES;
       this.pts.push({ x: 240 + R0 * Math.cos(a), y: 240 + R0 * Math.sin(a) });
     }
-    // The pull being drawn, and where on the loop it left from. `head` is the
-    // bead itself, which the arc only takes a point from every few frames.
+    // `head` is the bead itself; the arc takes a point every few frames.
     this.arc = null;
     this.arcAt = 0;
     this.head = null;
     this.box = [0, 0, 0, 0];
-    // Bumped by every cut. A cut re-parameterises the whole loop, so anything
-    // holding a `t` of its own has to measure itself again.
+    // A cut re-parameterises the loop, so anything holding a `t` remeasures.
     this.version = 0;
     this.rebuild();
     this.measure();
   }
 
-  // Drops the nodes that have ended up on top of each other, then walks the
-  // cycle for the arc length and the normals. ugl's calcLength().
+  // ugl's calcLength(), plus dropping nodes that landed on top of each other.
   rebuild() {
     this.version += 1;
     const gap = MINGAP * scale;
@@ -192,7 +141,6 @@ class Path extends ent.Entity {
       if (Math.hypot(p.x - q.x, p.y - q.y) < gap) continue;
       kept.push(p);
     }
-    // And the seam, where the last node meets the first again.
     while (kept.length > 4) {
       const p = kept[kept.length - 1];
       if (Math.hypot(p.x - kept[0].x, p.y - kept[0].y) >= gap) break;
@@ -211,8 +159,8 @@ class Path extends ent.Entity {
       a.at = this.len;
       a.seg = Math.hypot(b.x - a.x, b.y - a.y);
       this.len += a.seg;
-      // Square to the chord from the node before to the node after, which for
-      // a loop wound the way the opening ring is points away from the middle.
+      // Square to the chord either side, which for the opening ring's winding
+      // points away from the middle.
       const fx = b.x - c.x;
       const fy = b.y - c.y;
       const d = Math.hypot(fx, fy) || 1;
@@ -221,12 +169,9 @@ class Path extends ent.Entity {
     }
   }
 
-  // A touch of Laplacian smoothing, every cut. It does next to nothing to a
-  // stretch that is already smooth -- a node on a fifty-node circle moves
-  // three hundredths of a unit -- and takes a real bite out of a spike. That
-  // is what it is for: the curve the bead draws is the loop offset outwards,
-  // and an outward offset inside a dip folds over itself, so a dip that is
-  // left alone digs itself in.
+  // Laplacian, every cut. A node on a fifty-node circle moves three hundredths
+  // of a unit, and a spike loses a real bite: an outward offset inside a dip
+  // folds over itself, so a dip left alone digs itself in.
   smooth() {
     const p = this.pts;
     const n = p.length;
@@ -242,7 +187,6 @@ class Path extends ent.Entity {
     this.pts = out;
   }
 
-  // The box round the loop and whatever is being pulled out of it.
   measure() {
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
     const see = (p) => {
@@ -257,8 +201,8 @@ class Path extends ent.Entity {
     this.box = [x0, y0, x1, y1];
   }
 
-  // The node the arc length t falls on, by halving: `at` climbs along the
-  // cycle, so the answer is the last node that has not passed t yet.
+  // By halving: `at` climbs along the cycle, so the answer is the last node
+  // that has not passed t.
   seg(t) {
     let lo = 0;
     let hi = this.pts.length - 1;
@@ -291,7 +235,6 @@ class Path extends ent.Entity {
     return { x: x / d, y: y / d };
   }
 
-  // Where a point stands over the loop: how far along it, and how far off it.
   project(x, y) {
     const p = this.pts;
     let best = Infinity;
@@ -315,7 +258,7 @@ class Path extends ent.Entity {
     return { t, h: Math.sqrt(best) };
   }
 
-  // Inside the loop: a ray to the right cuts it an odd number of times.
+  // A ray to the right cuts the loop an odd number of times.
   inside(x, y) {
     const p = this.pts;
     let odd = false;
@@ -334,7 +277,6 @@ class Path extends ent.Entity {
     this.head = null;
   }
 
-  // How far along the loop the pull has come.
   span(t) {
     return mod(t - this.arcAt, this.len);
   }
@@ -349,10 +291,9 @@ class Path extends ent.Entity {
     this.arc.push({ x, y });
   }
 
-  // The bead has landed: the stretch of loop it pulled out of, from where it
-  // left to where it came down, is thrown away and the arc it drew stands in
-  // for it. The loop is re-cut to start where the bead is standing, so the
-  // answer is always zero.
+  // The stretch from takeoff to landing is thrown away and the arc drawn
+  // stands in for it. The loop re-cuts to start under the bead, so this returns
+  // zero.
   close(t) {
     const arc = this.arc;
     this.arc = null;
@@ -367,8 +308,7 @@ class Path extends ent.Entity {
     const a = this.at(this.arcAt);
     const b = this.at(t);
 
-    // Everything the pull did not cover, walked forward from the node after
-    // the one it came down on round to the one it left from.
+    // Everything the pull did not cover, forward from the landing to takeoff.
     const kept = [];
     for (let i = (i1 + 1) % n;; i = (i + 1) % n) {
       kept.push(p[i]);
@@ -440,7 +380,6 @@ class Cursor extends ent.Entity {
 
   update() {
     const dt = ent.game.time;
-    // b1 carries the click, so a finger plays this as well as a key does.
     const hold = ent.game.key.b1;
     const push = hold && (!this.up || path.span(this.t) < SPAN * path.len);
 
@@ -452,8 +391,7 @@ class Cursor extends ent.Entity {
     }
 
     let ha = push ? THRUST * scale : 0;
-    // The drag coefficient carries a length, which is why it is the one the
-    // scale divides rather than multiplies.
+    // DRAG carries a length, so the scale divides it rather than multiplies.
     ha -= Math.sign(this.hv) * this.hv * this.hv * DRAG / scale;
     ha -= this.h * SPRING;
     ha *= dt;
@@ -472,11 +410,8 @@ class Cursor extends ent.Entity {
     this.pos.x = foot.x + this.n.x * this.h;
     this.pos.y = foot.y + this.n.y * this.h;
 
-    // Each gold is one crossing: the loop comes past it once a lap, and what
-    // happens is settled by how high the bead is standing at that moment.
-    // Level with it takes it, over it swallows it, under it leaves it there.
-    // Before the cut below, since a cut re-parameterises the loop and both
-    // ends of this test are in the parameters the frame started with.
+    // Before the cut below: a cut re-parameterises the loop, and both ends of
+    // this test are in the parameters the frame started with.
     const r = (BEAD + GOLDR) * scale;
     for (const g of [...golds]) {
       if (mod(g.t - was, path.len) > step) continue;
@@ -529,8 +464,7 @@ class Gold extends ent.Entity {
     this.measure();
   }
 
-  // How far along the loop it stands, and how far off it. Both move under it
-  // every time the loop is cut.
+  // Both move under it every time the loop is cut.
   measure() {
     const q = path.project(this.pos.x, this.pos.y);
     this.t = q.t;
@@ -567,9 +501,7 @@ function take(g) {
     .circle();
 }
 
-// The loop has grown out past a gold and closed over it. Nothing can reach it
-// in there, so it is gone, and that is the price of a pull longer than the one
-// the gold asked for.
+// Closed over by the loop. Nothing can reach it in there.
 function lose(g) {
   drop(g);
   new ent.Particle()
@@ -583,10 +515,8 @@ function lose(g) {
     .circle();
 }
 
-// Gold goes out beyond the loop and ahead of the bead, the further out the
-// more of it has been taken: the first few are a tap off the rim and a late
-// one is most of the pull. A spot the loop already covers is no good, and
-// neither is one on top of gold that is already out.
+// Beyond the loop and ahead of the bead, further out the more has been taken.
+// Not somewhere the loop already covers, and not on top of other gold.
 function place() {
   const far = NEAR + Math.min(1, score.value / RAMP) * (FAR - NEAR);
   let last = null;
@@ -605,8 +535,7 @@ function place() {
   golds.push(new Gold(last.x, last.y));
 }
 
-// The world square the screen should be showing: the loop, the gold, and PAD
-// of air round the lot of it.
+// The loop, the gold, and PAD of air round the lot.
 function frame() {
   let [x0, y0, x1, y1] = path.box;
   for (const g of golds) {
@@ -648,8 +577,7 @@ export function update(dt) {
   if (path.version !== version) {
     version = path.version;
     for (const g of golds) g.measure();
-    // A cut can also close the loop round gold sideways on, without the bead
-    // ever having crossed it.
+    // A cut can close the loop round gold sideways on, with no crossing.
     for (const g of [...golds]) {
       if (path.inside(g.pos.x, g.pos.y)) lose(g);
     }
@@ -660,8 +588,6 @@ export function update(dt) {
   view.y += (t.y - view.y) * 0.06;
   view.d += (t.d - view.d) * 0.04;
 
-  // The round opens under the hint, and the clock waits for the player to
-  // have read it.
   if (hint() > 0) return;
   clock -= dt * (1 + (cursor.pushing ? HOLDCOST : 0));
   if (clock <= 0) {

@@ -3,56 +3,26 @@
  * Asteroid", April 2014. Atari's Asteroids crossed with SUPERHOT.
  *
  * Time runs at a fiftieth of its speed unless you are thrusting or shooting.
- * Turning is the exception and always runs on the wall clock, so a frozen
- * board is a place to aim from, and the trigger is what starts everything
- * moving again, your ship and the bullet coming at it together. The score is
- * seconds of running clock, plus 2 a rock and 10 a ship: sitting still earns
- * nothing, which is the whole of the design.
+ * Turning always runs on the wall clock, so a frozen board is a place to aim
+ * from. The score is seconds of running clock plus 2 a rock and 10 a ship, so
+ * sitting still earns nothing.
  *
- * The enemy ships fly for a point rather than at you. Each picks a wandering
- * target, weighted further towards the player the longer it has been alive,
- * and steers by mirroring its own heading about the line to that target, which
- * overshoots and is why they weave. Once one is up to speed and already
- * pointed the right way it stops steering and spends the nose on aiming
- * instead. That is the whole AI, and it reads as a pilot.
+ * The enemy AI is one rule: pick a wandering target weighted towards the player
+ * by age, and steer by mirroring the heading about the line to it, which
+ * overshoots and is why they weave. Up to speed and pointed right, a ship stops
+ * steering and spends the nose on aiming.
  *
- * What changed from the Haxe:
+ * Both ships collide as their own triangle: a circle over this dart is wrong
+ * either way round, and at a fiftieth speed you watch the bullet arrive and can
+ * see which. entity.js grew hitPoly() for this game.
  *
- * - The ship's hit shape is its triangle. ugl ran hit shapes through the
- *   sprite matrix and entity.js does not, so every port so far has rounded a
- *   turning shape off to a circle. A circle over this dart is wrong either
- *   way round: one that holds the tail swallows the empty air beside the nose,
- *   and one that fits the nose drops both back corners. At a fiftieth speed
- *   you watch the bullet arrive and can see which it was, so entity.js grew
- *   hitPoly() for this game. The bullet's 14x6 box goes through it too.
- * - The shell's bar covers the top 21 units of the 480 box, so the box things
- *   wrap in is 480x459 and everything the Haxe scattered over 480 scatters
- *   over that. Wrapping needs the whole field visible: an edge under the bar
- *   is an edge a ship can shoot you from unseen.
- * - The death is the Haxe's, over 2.5 seconds it holds the screen for: the
- *   player is removed, the clock comes off the brake, the board you were
- *   picking your way through flies at full speed, and the title and the score
- *   swap places over the top of it once a second, the title first. The one
- *   thing that cannot carry over is the wait: the Haxe flipped forever and
- *   took any key to leave, and here the click that starts the next round is
- *   the shell's finish screen, so holding the flip until input would cost the
- *   player two clicks. It runs for the holdback and then hands over.
- * - The in-game score label is gone; the bar carries the score.
- * - An enemy lands on the aim it wants instead of stopping a step short of it.
- *   The Haxe turned by a whole step or not at all, so a lined-up ship rocked
- *   across its target by a step a frame.
+ * The bar covers the top 21 units, so the wrap field is 480x459 and everything
+ * the Haxe scattered over 480 scatters over that. Wrapping needs the whole
+ * field visible: an edge under the bar is one a ship shoots from unseen.
  *
- * The hint needs no grace period. Three seconds of `meta.desc` cost a player
- * who stops to read it six hundredths of a second of game clock, so the ship
- * the round opens against has not crossed a unit by the time it fades. grab and
- * orbit both hold their first shot for exactly as long as the hint stands;
- * this game gets that for free.
- *
- * Two things in the Haxe do nothing and are not here. `totaltime` is summed
- * and never read. `fastforward` is set in `end()` to stop `update()` dividing
- * the clock, but `end()` also moves the scene to its final state, after which
- * `update()` is never called again; the entities keep running at full speed on
- * their own, which is the effect it was reaching for.
+ * The death is the Haxe's 2.5 seconds of full-speed board with title and score
+ * swapping over it, but it cannot wait for input: the click is the shell's
+ * finish screen, so holding the flip until a key would cost two clicks.
  */
 
 import * as ent from "./lib/entity.js";
@@ -79,32 +49,28 @@ const BLACK = 0x000000;
 
 const TAU = 2 * Math.PI;
 
-// The box the game thinks in, and the strip of it the shell's 44px bar covers.
+// The 480 box, and the strip the shell's bar covers.
 const W = 480;
 const TOP = 21;
 
-// What the clock is divided by while you are neither thrusting nor shooting.
 const SLOW = 50;
-// Seconds the board runs at full speed with the player gone, before the shell
-// takes the screen. ugl's `holdback`, which is how long the Haxe ignored input
-// for, and here it is the whole length of the end screen.
+// ugl's `holdback`: how long the Haxe ignored input, and the whole length of
+// the end screen here.
 const DYING = 2.5;
-// The end screen swaps at this rate, and its three lines sit this far apart,
-// centred on the field rather than on the Haxe's unshifted 480 box.
+// Centred on the field, not the Haxe's unshifted 480 box.
 const FLIP = 1;
 const FLIP_GAP = 120;
 
-// The triangle both ships collide as: the shape dart() draws, moved from the
-// corner of the sprite's 24x24 box onto the centre it is drawn about.
+// The shape dart() draws, moved from the corner of the sprite's 24x24 box onto
+// the centre it is drawn about.
 const SHIP = [-12, -12, 12, 0, -12, 12];
-// A shot leaves this far along the nose.
 const MUZZLE = 10;
 
 const TURN = 1.5 * Math.PI;
 const THRUST = 200;
 const TOP_SPEED = 200;
-// The kick backwards off a shot. Nothing clamps it, so firing over your
-// shoulder is the one way past TOP_SPEED.
+// Nothing clamps it, so firing over your shoulder is the one way past
+// TOP_SPEED.
 const RECOIL = 35;
 const RELOAD = 0.35;
 
@@ -112,8 +78,7 @@ const SHOT = [-7, -3, 7, -3, 7, 3, -7, 3];
 const SHOT_SPEED = 300;
 const SHOT_LIFE = 2;
 
-// A rock is 30 to 50 across the radius, and only one that big splits, so the
-// halves it leaves are the end of it.
+// Only a rock this big splits, so the halves it leaves are the end of it.
 const ROCK_MIN = 30;
 const ROCK_VAR = 20;
 const ROCK_SPEED = 100;
@@ -121,8 +86,8 @@ const SPLIT_SPEED = 50;
 const ROCK_FIRST = 2;
 const ROCK_EVERY = 23;
 
-// The first wave lands at once, the next in five seconds, and each is a tenth
-// bigger than the one before until the count rolls over to another ship.
+// Each wave is a tenth bigger than the last until the count rolls over into
+// another ship.
 const WAVE_EVERY = 5;
 const WAVE_GROW = 1.1;
 
@@ -130,19 +95,15 @@ const ENEMY_FIRST = 1.5;
 const ENEMY_RELOAD = 0.75;
 const AIM_TURN = Math.PI;
 const STEER_TURN = 1.5 * Math.PI;
-// Near enough to a target to want another one.
 const ARRIVE = 32;
-// Over this speed an enemy stops steering and aims; under this one it thrusts
-// whichever way it is pointed.
+// Over CRUISE an enemy stops steering and aims; under SLOW_SPEED it thrusts
+// whichever way it points.
 const CRUISE = 100;
 const STALLED = 20;
-// How near its heading has to be before an enemy will burn fuel, and how near
-// the player has to be to its nose before it will fire.
 const CONE = Math.PI / 6;
 const SIGHT = Math.PI / 12;
 
-// Asteroid never called ugl's Sound.vol(), so all six sit at sfxr's own
-// default volume.
+// Asteroid never called ugl's Sound.vol(), so all six are at sfxr's default.
 voice("shot", sfxr.laser(1008));
 voice("enemyshot", sfxr.laser(1006));
 voice("pop", sfxr.explosion(1002));
@@ -154,19 +115,15 @@ function voice(name, params) {
   sound.put(name, sfxr.render(params), sfxr.SAMPLE_RATE);
 }
 
-// The unscaled frame, which is what the player turns on.
 let realtime = 0;
 let rockTime = 0;
 let waveTime = 0;
 let wave = 1;
-// Rocks and ships on the board, counted here rather than off ent.get(): one
-// made this frame has not begun yet, and the wave clock would read a board
-// that just filled as empty and fill it again.
+// Not off ent.get(): one made this frame has not begun, and the wave clock
+// would read a board that just filled as empty and fill it again.
 let alive = 0;
-// Seconds of full-speed board left before the shell takes over, or 0.
 let dying = 0;
-// The end screen: which face is up, when it turns, and the labels drawn for
-// it, which are rebuilt rather than edited because that is all `Text` offers.
+// The labels are rebuilt rather than edited, because that is all `Text` offers.
 let flip = false;
 let flipTime = 0;
 let flipped = [];
@@ -183,8 +140,7 @@ class Player extends ent.Entity {
   update() {
     const { key, time } = ent.game;
 
-    // The one control that runs on the wall clock. Aiming is free; thrusting
-    // and shooting are what you pay the clock for.
+    // The one control on the wall clock: aiming is free.
     if (key.left) this.angle -= TURN * realtime;
     if (key.right) this.angle += TURN * realtime;
     if (key.up) thrust(this, THRUST * time);
@@ -205,9 +161,8 @@ class Player extends ent.Entity {
 }
 
 class Bullet extends ent.Entity {
-  // Built here rather than in begin(): it leaves along the heading whoever
-  // fired it had at the moment of firing, and by the next frame the enemy has
-  // already turned off it.
+  // In the constructor, not begin(): it leaves along the firer's heading at the
+  // moment of firing, and by the next frame an enemy has turned off it.
   constructor(src, fromPlayer) {
     super();
     this.fromPlayer = fromPlayer;
@@ -228,8 +183,7 @@ class Bullet extends ent.Entity {
 
     wrap(this, 0);
 
-    // Shots shoot each other down. Worth aiming for: it is the only answer to
-    // a bullet already on its way that does not cost you the clock.
+    // The only answer to a bullet on its way that does not cost the clock.
     for (const b of ent.get(Bullet)) {
       if (b.fromPlayer === this.fromPlayer || !this.hit(b)) continue;
       sound.play("pop");
@@ -240,8 +194,7 @@ class Bullet extends ent.Entity {
   }
 }
 
-// What the wave clock counts: a rock or a ship, the two things on the board
-// the player has to answer.
+// What the wave clock counts.
 class Target extends ent.Entity {
   constructor() {
     super();
@@ -256,8 +209,7 @@ class Target extends ent.Entity {
 
 // `Ball` in the Haxe, which is what ugl's circle primitive called it.
 class Rock extends Target {
-  // A fresh rock drifts in off an edge and a split one is placed by the rock
-  // it came out of, so both arrive through the constructor.
+  // A fresh rock drifts in off an edge, a split one is placed by its parent.
   constructor(size, x, y, angle, speed) {
     super();
     this.size = size;
@@ -282,8 +234,7 @@ class Rock extends Target {
         .count(2 * this.size, this.size).size(4, this.size / 2)
         .speed(0, 100).duration(1.5, 0.5);
 
-      // The halves go sideways to the shot that broke it, so a rock opens
-      // along the line you fired down and leaves the lane you shot through.
+      // Sideways to the shot, so a rock opens along the line you fired down.
       if (this.size >= ROCK_MIN) {
         const half = this.size / 2;
         split(this.pos, half, b.angle + Math.PI / 2);
@@ -318,9 +269,8 @@ class Enemy extends Target {
     this.angle = Math.atan2(y - this.pos.y, x - this.pos.x);
   }
 
-  // Somewhere on the board, pulled towards the player by how long this ship
-  // has been alive: a fresh one wanders, and one ten seconds old flies three
-  // quarters of the way at you.
+  // Pulled towards the player by age: a fresh ship wanders, one ten seconds old
+  // flies three quarters of the way at you.
   findTarget() {
     const x = W * Math.random();
     const y = TOP + (W - TOP) * Math.random();
@@ -340,8 +290,7 @@ class Enemy extends Target {
     const { time } = ent.game;
     const tx = this.target.x - this.pos.x;
     const ty = this.target.y - this.pos.y;
-    // The Haxe took the difference, then re-targeted, then steered by the
-    // difference it already had. Kept: one stale frame, and it costs nothing.
+    // The Haxe steered by the difference it took before re-targeting. Kept.
     if (Math.hypot(tx, ty) < ARRIVE) this.findTarget();
 
     const p = ent.one(Player);
@@ -354,15 +303,13 @@ class Enemy extends Target {
       p !== null && speed >= CRUISE &&
       between(tx, ty, this.vel.x, this.vel.y) <= CONE
     ) {
-      // Already flying where it wants to go, so the nose is free to aim.
       steer(this, toPlayer, AIM_TURN);
     } else {
       let dx = tx;
       let dy = ty;
       if (speed > 0 && this.vel.x * tx + this.vel.y * ty > 0) {
-        // Closing on the target: mirror the heading about the line to it, so
-        // a drift to one side is answered by as much push to the other. It
-        // overshoots every time, and the overshoot is the weave.
+        // Mirror the heading about the line to the target, so a drift one way
+        // is answered by as much push the other. The overshoot is the weave.
         const l = Math.hypot(tx, ty);
         const nx = tx / l;
         const ny = ty / l;
@@ -370,7 +317,6 @@ class Enemy extends Target {
         dx = k * nx - this.vel.x;
         dy = k * ny - this.vel.y;
       } else if (speed > 0) {
-        // Heading away from it: turn around.
         dx = -this.vel.x;
         dy = -this.vel.y;
       }
@@ -409,13 +355,12 @@ class Enemy extends Target {
   }
 }
 
-// The ship, nose at (24, 12) and a notch cut out of the tail. Gfx centres it
-// on its own 24x24 box, which is where SHIP's numbers come from.
+// Nose at (24, 12), notch in the tail. Gfx centres it on its own 24x24 box,
+// which is where SHIP's numbers come from.
 function dart(e, color) {
   e.gfx.fill(color).mt(24, 12).lt(0, 24).lt(6, 12).lt(0, 0).lt(24, 12);
 }
 
-// Add dv along the heading and hold the result under TOP_SPEED.
 function thrust(e, dv) {
   e.vel.x += dv * Math.cos(e.angle);
   e.vel.y += dv * Math.sin(e.angle);
@@ -432,8 +377,8 @@ function fire(e, fromPlayer, name) {
   sound.play(name);
 }
 
-// Turn `e` towards `to` at `rate` radians a second, and say how far off it was
-// before the turn, which is what the enemy reads to decide whether to thrust.
+// Turns `e` towards `to`, answering how far off it was before the turn, which
+// is what the enemy reads to decide whether to thrust.
 function steer(e, to, rate) {
   const off = fold(to - e.angle);
   const step = rate * ent.game.time;
@@ -441,8 +386,8 @@ function steer(e, to, rate) {
   return Math.abs(off);
 }
 
-// The first live bullet touching `e` from the other side. A ship sits inside
-// its own shot for the first frames of it.
+// A ship sits inside its own shot for its first frames, so only the other
+// side's count.
 function incoming(e, fromPlayer) {
   for (const b of ent.get(Bullet)) {
     if (b.fromPlayer === fromPlayer && e.hit(b)) return b;
@@ -457,15 +402,14 @@ function explode(p) {
   sound.play("player");
   p.remove();
   dying = DYING;
-  // The Haxe set `flip` true and then turned it over on its first frame, so
-  // the title is the face the player sees first. Kept, including the order.
+  // The Haxe set `flip` true and turned it over on the first frame, so the
+  // title is the face seen first. Kept, order included.
   flip = true;
   flipTime = 0;
 }
 
-// Turn the end screen over: the score on one face, the game's name on the
-// other. The Haxe removed and remade the labels every second, and `Text` has
-// no way to move or retext one, so this does too.
+// The Haxe removed and remade the labels every second, and `Text` has no way to
+// move or retext one, so this does too.
 function turnOver() {
   for (const t of flipped) t.remove();
   flip = !flip;
@@ -481,7 +425,6 @@ function label(y, size, text) {
   return new ent.Text().text(text).color(WHITE).size(size).xy(W / 2, y);
 }
 
-// What a ship leaves. A rock throws its own, in chunks the size it was.
 function debris(pos, color, count, life) {
   new ent.Particle().color(color).xy(pos.x, pos.y)
     .count(count, 20).size(3, 10).speed(5, 25).duration(life, 0.5);
@@ -496,7 +439,6 @@ function split(pos, size, angle) {
   new Rock(size, pos.x, pos.y, angle, SPLIT_SPEED);
 }
 
-// A rock drifts in from just outside one of the four edges.
 function newRock() {
   const size = ROCK_MIN + ROCK_VAR * Math.random();
   const angle = TAU * Math.random();
@@ -509,9 +451,8 @@ function newRock() {
   new Rock(size, x, TOP + (W - TOP) * Math.random(), angle, ROCK_SPEED);
 }
 
-// Off one edge and back on at the other, a unit short of the threshold it
-// would leave by. `s` is how far past the edge the entity is let run before it
-// goes, which the Haxe read as its width.
+// Back on a unit short of the threshold it would leave by. `s` is how far past
+// the edge an entity runs first, which the Haxe read as its width.
 function wrap(e, s) {
   const { pos } = e;
   if (pos.x < -s / 2) pos.x = W + s / 2 - 1;
@@ -521,7 +462,6 @@ function wrap(e, s) {
   else if (pos.y > W + s / 2) pos.y = TOP - s / 2 + 1;
 }
 
-// An angle folded into (-PI, PI].
 function fold(a) {
   const x = a % TAU;
   if (x > Math.PI) return x - TAU;
@@ -529,8 +469,8 @@ function fold(a) {
   return x;
 }
 
-// The angle between two vectors, 0 to PI. A standing ship has no heading to
-// compare, and PI is the answer that sends it to the steering branch.
+// 0 to PI. A standing ship has no heading, and PI is the answer that sends it
+// to the steering branch.
 function between(ax, ay, bx, by) {
   const l = Math.hypot(ax, ay) * Math.hypot(bx, by);
   if (l === 0) return Math.PI;
@@ -557,9 +497,7 @@ export function init() {
 export function update(dt) {
   realtime = dt;
 
-  // The player is gone and the board it was holding back is running at full
-  // speed. Nothing spawns and nothing scores; the shell takes the screen when
-  // this runs out.
+  // Nothing spawns and nothing scores while the board runs itself out.
   if (dying > 0) {
     dying -= dt;
     flipTime -= dt;
@@ -589,7 +527,6 @@ export function update(dt) {
     wave *= WAVE_GROW;
   }
 
-  // A board cleared out brings the next wave now rather than in five seconds.
   if (alive === 0) rockTime = waveTime = 0;
 
   score.value += time;

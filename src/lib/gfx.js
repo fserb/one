@@ -1,9 +1,8 @@
 /*
  * gfx.js - the other thing an entity draws with: filled and stroked paths.
  *
- * Same shape as Art - record the shapes once, entity.js replays them centred on
- * the entity's position - but vector rather than pixels. Most of the ported
- * games use both, often on one entity.
+ * Same shape as Art, recorded once and replayed centred on the entity, but
+ * vector rather than pixels. Most ports use both, often on one entity.
  *
  * ```js
  * gfx.fill(0xe9e1e1).circle(0, 0, 10).fill(null)
@@ -15,14 +14,12 @@
  * text() is the exception: it carries its own colour, as ugl's did, and paints
  * the same bitmap font Art does.
  *
- * Flash's Graphics, which the ported games were written against, ran every
- * shape between beginFill and endFill into a single path, so two overlapping
- * shapes in one fill came out as their union. Here each shape is its own path,
- * which looks the same unless the fill is translucent.
+ * Flash's Graphics ran every shape between beginFill and endFill into one
+ * path, so overlapping shapes came out as their union. Here each shape is its
+ * own path, which looks the same unless the fill is translucent.
  *
- * A game opts in, the way it opts into sound.js: importing this module is what
- * fills `entity.gfx` in, and a game that draws no vectors leaves it null and
- * carries none of this.
+ * Importing this module is what fills `entity.gfx` in; a game that draws no
+ * vectors leaves it null and carries none of this.
  *
  * ```js
  * import * as ent from "./lib/entity.js";
@@ -53,8 +50,7 @@ class Gfx {
     return this;
   }
 
-  // As Art.cache(): skip every call until the index changes, so an entity that
-  // redraws inside update() stops paying for a picture that has not moved.
+  // As Art.cache(): skip every call until the index changes.
   cache(idx) {
     if (idx === this.cached) {
       this.disabled = true;
@@ -89,10 +85,9 @@ class Gfx {
     return this.shape("rect", [x, y, w, h, round]);
   }
 
-  // ugl's gfx.size(w, h): a box that fixes what the drawing is centred in and
-  // paints nothing. A shape lopsided about the entity, a turret's barrel,
-  // otherwise drags the bounding box to one side and the whole entity with it.
-  // Centred on the entity here, where ugl cornered it at the origin.
+  // ugl's gfx.size(w, h): an empty box that fixes what the drawing centres in,
+  // so a shape lopsided about the entity does not drag the whole entity with
+  // it. Centred on the entity here, where ugl cornered it at the origin.
   size(w, h = w, x = 0, y = 0) {
     if (this.disabled) return this;
     this.cmds.push({
@@ -109,15 +104,14 @@ class Gfx {
     return this.shape("circle", [x, y, r]);
   }
 
-  // ugl's arc: out along r1 from b to e, back along r2, so r1 == r2 draws a
-  // plain arc and r1 != r2 a ring segment. Angles turn anticlockwise on
-  // screen, which is the convention ugl picked and the games are drawn in.
+  // ugl's arc: out along r1 from b to e, back along r2, so r1 == r2 is a plain
+  // arc and r1 != r2 a ring segment. Angles turn anticlockwise on screen.
   arc(x, y, r1, r2, b, e) {
     return this.shape("arc", [x, y, r1, r2, b, e]);
   }
 
-  // A path, as Flash's moveTo and lineTo: mt starts one and lt carries it on.
-  // A filled path closes itself; a stroked one stays open.
+  // Flash's moveTo and lineTo. A filled path closes itself, a stroked one does
+  // not.
   mt(x, y) {
     return this.shape("poly", [x, y]);
   }
@@ -131,9 +125,8 @@ class Gfx {
     return this;
   }
 
-  // One line of the bitmap font, centred on (x, y) and measured in screen
-  // units. The colour is an argument rather than the standing fill(), which is
-  // the signature ugl's gfx.text had and the ported games call.
+  // One line of the bitmap font, centred on (x, y) in screen units. The colour
+  // is an argument rather than the standing fill(), as ugl's gfx.text had it.
   text(x, y, s, color, size = 1) {
     if (this.disabled) return this;
     this.cmds.push({
@@ -149,7 +142,6 @@ class Gfx {
     return this;
   }
 
-  // Screen-unit bounding box of everything drawn, as [x, y, w, h].
   bounds() {
     if (!this.dirty) return this.box;
 
@@ -203,7 +195,6 @@ class Gfx {
     return this.box;
   }
 
-  // Draws centred on the current origin.
   render(ctx) {
     if (this.cmds.length === 0) return;
 
@@ -280,8 +271,8 @@ function trace(ctx, c) {
   ctx.closePath();
 }
 
-// The extremes of the arc that starts at angle `s` and sweeps by `d`: its two
-// ends, plus every axis direction the sweep passes through on the way.
+// The extremes of the arc from `s` sweeping `d`: its two ends, plus every axis
+// direction the sweep crosses.
 function arcAt(at, x, y, r, s, d) {
   const point = (a) => at(x + Math.cos(a) * r, y + Math.sin(a) * r);
   point(s);

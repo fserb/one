@@ -1,27 +1,22 @@
 /*
  * build.js - turns src/<game>.js into www/<game>/index.html.
  *
- * Every page is self-contained: the bundle, the CSS and the favicon are all
- * inlined, so a built game is one file you can open from disk, mail, or drop on
- * any static host. `deno bundle` (esbuild underneath) does the tree-shaking, so
- * a game only pays for the parts of alma it imports.
+ * Every page is self-contained: bundle, CSS and favicon inlined, so a built
+ * game is one file. `deno bundle` (esbuild) tree-shakes, so a game only pays
+ * for the parts of alma it imports.
  *
- * The HTML lives in tools/tpl/ as plain files with {{name}} holes this script
- * fills in. They are excluded from `deno fmt`: it formats HTML now, and it
- * rewrites {{bg}} inside a stylesheet into a nested block.
+ * The HTML is tools/tpl/, plain files with {{name}} holes. They are out of
+ * `deno fmt`, which rewrites {{bg}} inside a stylesheet into a nested block.
  *
  * The gallery reads each game's `meta` by importing the module under Deno.
- * That works because a game module has no side effects and alma does not touch
- * the DOM at import time. Keep it that way.
+ * That works only while game modules have no side effects. Keep it that way.
  *
- * `meta.draft: true` keeps a game out of www/ entirely: no page, no gallery
- * card, and any page a previous build left behind is deleted. Play it with
- * dev.html, which loads src/ directly and never asks the build anything.
+ * `meta.draft: true` keeps a game out of www/ entirely, and deletes any page a
+ * previous build left. Play it with dev.html.
  *
- * media/<game>/card.mp4/.gif/.png are optional, and come from
- * `./task media <game>` after recording a clip in dev.html. They become the
- * moving gallery card and the page's og:image. A game without them gets the
- * flat colour card.
+ * media/<game>/card.mp4/.gif/.png are optional, from `./task media <game>`.
+ * They become the moving gallery card and the page's og:image; a game without
+ * them gets the flat colour card.
  *
  *   deno run -A tools/build.js            # every game, plus the gallery
  *   deno run -A tools/build.js wow trap   # just these
@@ -47,8 +42,8 @@ const TEMPLATE = {
   card: (await tpl("card")).trimEnd(),
 };
 
-// {{name}} becomes vars.name. One pass over the template, so a value that
-// happens to contain {{...}} itself is left alone.
+// {{name}} becomes vars.name. One pass, so a value containing {{...}} itself
+// is left alone.
 function fill(template, vars) {
   return template.replace(/\{\{(\w+)\}\}/g, (_, name) => {
     if (!(name in vars)) throw new Error(`template has no ${name}`);
@@ -122,8 +117,8 @@ async function exists(url) {
   }
 }
 
-// What `./task media <game>` left in media/<game>/, keyed by extension. The
-// names match www/<game>/, so copyShot is a copy and nothing is renamed.
+// What `./task media <game>` left, keyed by extension. The names match
+// www/<game>/, so nothing is renamed.
 async function shot(game) {
   const out = {};
   for (const ext of ["mp4", "gif", "png"]) {
@@ -133,8 +128,7 @@ async function shot(game) {
   return out;
 }
 
-// Copied rather than inlined: a game page is one file, but the gallery is a
-// page plus its clips, and a base64 video in the HTML would be read whole
+// Copied, not inlined: a base64 video in the gallery HTML would be read whole
 // before anything drew.
 async function copyShot(game, s) {
   if (Object.keys(s).length === 0) return;
@@ -148,11 +142,9 @@ const esc = (s) =>
   String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;")
     .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
-// What the server sends, which is the size that matters: a game is one HTML
-// file of mostly minified JS, and it compresses about 4:1. CompressionStream is
-// built into Deno, so this costs no subprocess and no dependency. It runs at
-// the default level, about 0.5% above `gzip -9`; close enough to watch, not the
-// number to quote.
+// What the server sends, which is the size that matters; a page compresses
+// about 4:1. Default level, about 0.5% above `gzip -9`: close enough to watch,
+// not the number to quote.
 async function gzipped(text) {
   const stream = new Blob([text]).stream()
     .pipeThrough(new CompressionStream("gzip"));
@@ -161,10 +153,10 @@ async function gzipped(text) {
 
 const kb = (bytes) => `${(bytes / 1024).toFixed(1)} KB`;
 
-// The mark, in the game's own two colours: a disc with a round-capped bar cut
-// out of the bottom, which reads as an "n". Measured off the 2021 artwork,
-// ~/web/games/one/icon.png, and normalised from its 512 box to a 32 one: disc
-// r=180.9, bar half-width 49, cap centre y=259, all about x=255.5.
+// The mark in the game's two colours: a disc with a round-capped bar cut out
+// of the bottom, reading as an "n". Measured off ~/web/games/one/icon.png and
+// normalised from its 512 box to 32: disc r=180.9, bar half-width 49, cap
+// centre y=259, all about x=255.5.
 function favicon(m) {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">` +
     `<rect width="32" height="32" fill="${m.bg}"/>` +
@@ -216,7 +208,7 @@ function gallery(entries) {
 async function build(game) {
   const m = await meta(game);
   if (m.draft) {
-    // A game can become a draft after it has shipped, so drop the old page.
+    // A game can become a draft after shipping, so drop the old page.
     await Deno.remove(new URL(`${game}/`, WWW), { recursive: true }).catch(
       () => {},
     );
@@ -239,15 +231,14 @@ const wanted = Deno.args.length > 0 ? Deno.args : await games();
 const entries = [];
 for (const game of wanted) entries.push(await build(game));
 
-// The gallery lists every game, not only the ones just rebuilt. Drafts are
-// not games as far as the site is concerned.
+// Every game, not only the ones just rebuilt. Drafts do not count.
 const all = [];
 for (const game of await games()) {
   const found = entries.find(([g]) => g === game);
   const entry = found ?? [game, await meta(game)];
   if (entry[1].draft) continue;
-  // Every listed game, not only the rebuilt ones, so `build <one game>` still
-  // leaves the gallery pointing at clips that are actually there.
+  // Every listed game, so `build <one game>` still leaves the gallery pointing
+  // at clips that exist.
   const s = await shot(game);
   await copyShot(game, s);
   all.push([...entry, s]);

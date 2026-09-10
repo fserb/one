@@ -2,36 +2,23 @@
  * up - a port of ~/prj/vault/games/sketch/src/Up.hx.
  * Based on Aba Games' WASD THRUST.
  *
- * The ship has four thrusters, one per arrow key, each lettered with the key
- * that fires it, and a thruster pushes the ship away from itself: the one on
- * top drives you down. Everything on screen slides down 50 units a second, the
- * ship with it, so the game is holding enough upward thrust to stay off the
- * bottom of the screen while a field of red crosses comes down at you.
+ * Four thrusters, one per arrow key, each lettered with its key, and each
+ * pushing the ship away from itself: the one on top drives you down. The world
+ * slides down 50 units a second, so the game is holding enough upward thrust to
+ * stay off the bottom while a field of red crosses comes at you.
  *
- * The Haxe never shipped: the file is marked `ugl.skip`, so it is not one of
- * the nine on fserb.com/vault/games.
+ * The Haxe never shipped; the file is marked `ugl.skip`.
  *
- * Nothing here needs a camera. The scene moves the world rather than the view,
- * adding the same offset to the ship and to every obstacle once a frame, which
- * is why the ship sits at a fixed 240 across and never above 200 down.
+ * No camera: the scene moves the world, not the view, so the ship sits at a
+ * fixed 240 across and never above 200 down.
  *
- * Changes from the Haxe:
+ * The thrust and drag are new numbers; the Haxe's 5 and 0.01 cannot fly the
+ * ship at all. THRUST says what they are picked against.
  *
- * - The score is the shell's bar rather than a label in the corner.
- * - The board holds still while the hint is up, which is what the slide in
- *   update() says. The Haxe had no hint to sit under.
- * - Death holds for half a second so the ship is seen coming apart. ugl cleared
- *   every entity on the same frame the burst was made, so it never drew one.
- * - The Haxe's Engine carried a `force` of `min(5, force + 20)`, which is 5 on
- *   the first throttle and 5 on every one after, so it is a constant here.
- * - The thrust and the drag are new numbers. The Haxe's two cannot fly the ship
- *   at all, and THRUST says what they are picked against instead.
- * - The ship collides as two polygons, which turn with it. ugl ran its two hit
- *   boxes through the sprite matrix; entity.js only turns a polygon.
- * - The thrusters draw on top of the ship. ugl's orderGroups() started at layer
- *   20 and left an unlisted group at 10, so the Engine group drew under
- *   everything, and the ship's own cross covered all four of them whole: the
- *   letters that say which key fires which thruster could not be read at all.
+ * The ship collides as two polygons, which turn. ugl ran two hit boxes through
+ * the sprite matrix; entity.js only turns a polygon. The thrusters draw on top
+ * of the ship, where ugl's orderGroups() left the Engine group underneath and
+ * the ship's own cross hid all four letters.
  */
 
 import * as ent from "./lib/entity.js";
@@ -52,32 +39,27 @@ which pushes you off it. x and c spin
 
 const W = 480;
 
-// Units a second the world slides down by, and the highest the ship gets to
-// sit while it does. Climbing faster than the slide only buys the pin at 200.
+// Units a second the world slides, and the highest the ship gets to sit.
+// Climbing faster than the slide only buys the pin at 200.
 const SCROLL = 50;
 const HOLD = 200;
 
 // Below this and the ship is gone. Obstacles cash out crossing it too.
 const OUT = 500;
 
-// Pieces in play the scene keeps stocked, counting the ones still above the
-// screen, and the seconds the wreck holds before the shell takes the screen.
+// Pieces the scene keeps stocked, counting those still above the screen, and
+// the seconds the wreck holds before the shell takes over.
 const FIELD = 10;
 const DEATH = 0.5;
 
-// Per-second acceleration of one thruster, the rate drift bleeds off at, how
-// far out from the ship a thruster sits, how fast the two spin keys turn, and
-// how fast the exhaust comes out.
+// Thruster acceleration, drag, how far out a thruster sits, spin rate, exhaust
+// speed.
 //
-// The Haxe had 5 and 0.01, and ugl put both through the same per-second
-// accelerate() this does. That ship cannot fly: 5 a second against a 50 a
-// second slide takes ten seconds of holding one key to break even, and the
-// slide has carried it off the bottom of the screen in five. These two are
-// picked instead against the two things that matter, since thrust over drag is
-// the top speed and one over drag is how long it takes to get there: a ship
-// that tops out at 125, far enough over the 50 slide to climb and not so far
-// that it dives into a field it cannot see coming, and gets there in half a
-// second.
+// The Haxe's 5 and 0.01 cannot fly: 5 a second against a 50 a second slide
+// needs ten seconds of one key to break even, and the slide is off the bottom
+// in five. Thrust over drag is the top speed and one over drag the time to
+// reach it, so these give 125 (over the slide, under a dive into a field it
+// cannot see coming) in half a second.
 const THRUST = 250;
 const DRAG = 2;
 const ARM = 30;
@@ -96,15 +78,12 @@ const FLAME = 0xaa9936;
 const FLAME_DARK = 0x988946;
 
 let player = null;
-// The fraction of a point the field has earned but not yet paid out.
+// Earned but not yet paid out.
 let adds = 0;
 let dying = 0;
 
-/*
- * One thruster, riding a fixed angle out from the ship and lettered with the
- * key that fires it. It is the exhaust that moves the ship, so firing pushes
- * along `offset` reversed.
- */
+// One thruster, at a fixed angle out from the ship and lettered with its key.
+// The exhaust is what moves the ship, so firing pushes along `offset` reversed.
 class Engine extends ent.Entity {
   constructor(ship, offset, label) {
     super();
@@ -140,10 +119,9 @@ class Player extends ent.Entity {
     super();
     this.art.color(SHIP, SHIP_DARK, 253).size(20, 4, 4)
       .rect(0, 1.5, 4, 1).rect(1.5, 0, 1, 4);
-    // The two arms of the cross, in the ship's own coordinates.
     this.hitPoly([-40, -10, 40, -10, 40, 10, -40, 10]);
     this.hitPoly([-10, -40, 10, -40, 10, 40, -10, 40]);
-    // Right, up, left, down, which is the order Player.update() fires them in.
+    // Right, up, left, down: the order Player.update() fires them.
     this.engines = ["D", "W", "A", "S"].map((label, i) =>
       new Engine(this, -i * Math.PI / 2, label)
     );
@@ -167,9 +145,8 @@ class Player extends ent.Entity {
     if (key.b2) this.angle += SPIN * time;
 
     this.accelerate(-DRAG * this.vel.x, -DRAG * this.vel.y);
-    // Sliding sideways rolls the ship, and a rolled ship thrusts sideways, so
-    // the roll feeds itself and a dodge left alone tips the thrusters over
-    // within a few seconds. Spinning it back upright is what x and c are for.
+    // Sliding sideways rolls the ship and a rolled ship thrusts sideways, so a
+    // dodge left alone tips over within seconds. x and c spin it back.
     this.angle += time * this.vel.x / 200;
 
     if (this.pos.y > OUT) this.kill();
@@ -182,9 +159,8 @@ class Player extends ent.Entity {
       .xy(this.pos.x, this.pos.y)
       .size(5, 25)
       // The Haxe threw these at 20 to 50 a second, on the frame ugl cleared
-      // the board, so it never drew a single one of them. Seen, that is a
-      // green lump sitting where the ship was. At 200 to 400 it is a ship
-      // coming apart, and the freeze-frame catches it still going.
+      // the board, so none was ever drawn. Seen, that is a green lump. At 200
+      // to 400 it is a ship coming apart.
       .speed(200, 200)
       .delay(0)
       .duration(2, 0.5);
@@ -194,7 +170,6 @@ class Player extends ent.Entity {
   }
 }
 
-// The red crosses. They only ever move with the world.
 class Obstacle extends ent.Entity {
   begin() {
     this.art.color(ROCK, ROCK_DARK, 52).size(7, 4, 4)
@@ -267,8 +242,8 @@ export function init() {
 }
 
 export function update(dt) {
-  // The wreck runs on a still board: nothing here moves a piece except the
-  // slide, so holding it also stops an obstacle from cashing out.
+  // The wreck runs on a still board: the slide is the only thing that moves a
+  // piece, so holding it also stops an obstacle cashing out.
   if (dying > 0) {
     dying -= dt;
     ent.update(dt);
@@ -276,20 +251,17 @@ export function update(dt) {
     return;
   }
 
-  // ugl ran the scene before the entities, and this has to keep that order: it
-  // slides the world out from under a step that has not run yet.
+  // ugl ran the scene before the entities, and the order matters: this slides
+  // the world out from under a step that has not run.
   const dx = W / 2 - player.pos.x;
-  // The board holds still while the hint is up. A ship that starts falling
-  // over a player who is still reading has spent the altitude it needed before
-  // they have touched a key, and there is no way back up from the bottom.
-  // hint() is 0 the moment they do touch one, and 0 from the second round on.
+  // Still while the hint is up: a ship falling over a player who is reading
+  // has spent its altitude before they touch a key, and the bottom is fatal.
   const dy = Math.max(hint() > 0 ? 0 : SCROLL * dt, HOLD - player.pos.y);
   player.pos.x += dx;
   player.pos.y += dy;
 
-  // A piece still above the screen counts, so the field is stocked before it
-  // arrives; one the ship has flown out of sight of does not, and comes back
-  // into the count when the ship flies back.
+  // One still above the screen counts, so the field is stocked before it
+  // arrives; one below is out of the count until the ship flies back.
   let valid = 0;
   for (const cls of [Obstacle, Gold]) {
     for (const e of ent.get(cls)) {
@@ -305,8 +277,7 @@ export function update(dt) {
     valid += 1;
   }
 
-  // A tenth of a point a second for each piece in play, so a stocked field
-  // pays about one a second for flying through it.
+  // A tenth of a point a second per piece in play.
   adds += valid * dt / 10;
   if (adds >= 1) {
     score.value += 1;

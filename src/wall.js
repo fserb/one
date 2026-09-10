@@ -1,63 +1,32 @@
 /*
  * wall - a port of ~/prj/vault/games/sketch/src/Wall.hx.
  *
- * You see only what you can see. A lamp's worth of room around you is lit and
- * the rest is a flat grey plan you can read but not see into, and the orange
- * thing that wants you is only ever drawn inside the light.
+ * You see only what you can see: a lamp's worth of room is lit, the rest is a
+ * flat grey plan, and the orange thing that wants you is drawn only inside the
+ * light. It moves only while it is out of your sight, so the play is to back
+ * away from what you are looking at towards a coin you are not. Every fourth
+ * coin sends another hunter, up to five.
  *
- * The rule the game is built on: it moves only while it is out of your sight.
- * Inside the light it is a statue, however close it is standing. So the play is
- * to back away from something you are looking at, towards a coin you are not,
- * and every wall you put between the two of you is time it gets for free. Every
- * fourth coin sends another one, up to five, and five of them cannot all be
- * looked at at once.
+ * The Haxe is the sight engine and none of the game. The port keeps `Sight`,
+ * the rect merge in `Grid.getSight`, the 20-unit tile, the sprite, the trailing
+ * camera, and the palette down to `C.p2`, the orange it declares and never
+ * draws. That is the hunter.
  *
- * The Haxe is the sight engine and none of the game: a hand-drawn 48x24 room, a
- * player that walks and collides, and `vault.Sight` casting a visibility
- * polygon that it draws as cyan triangles at alpha 0.2 over a room that was
- * already fully visible. No score, no clock, no end, nothing to do. The camera
- * clamps the left edge of the room and has the matching right-edge clamp
- * commented out, so you can walk off the map into the background colour.
+ * `castLOS` returned a fan of `Tri2` and the port returns the polygon: as a
+ * clip the fan shows a seam down every shared edge.
  *
- * What the port keeps: `Sight`, the rect merge in `Grid.getSight` that feeds
- * it, the 20-unit tile, the player's sprite, the camera that trails at 200
- * units a second, and the palette down to `C.p2`, the orange the Haxe declares
- * and never draws. That is the hunter now, and it is the only orange on the
- * screen; cyan is you and what you are here for.
+ * Sight has a range, and that range is the clock. A hunter settles exactly at
+ * the edge of the light, because a step inside freezes it, so only the edge
+ * coming in brings one closer. Measured against a bot that walks the flood to
+ * the nearest coin and routes two tiles clear of any hunter it can see: hunters
+ * frozen 88% of the time, rounds of 54 seconds, 8 coins. Without the drain the
+ * bot never died, and no hunter in 20 rounds came nearer than 109 units.
  *
- * What changed:
- *
- * - `castLOS` returned a fan of `Tri2` and the port returns the polygon. It
- *   sorted the rays and then built one triangle per adjacent pair, which is
- *   the same shape drawn as N overlapping subpaths; as a clip that shows a
- *   seam down every shared edge. One closed path has no seams and is less code.
- * - Sight has a range, rays are clamped to it, and RAYS of them spread round
- *   the circle close the rim. The Haxe saw to the far wall in every direction.
- *   The range is also the clock: a hunter settles exactly at the edge of the
- *   light, because a step that would bring it inside is a step that freezes it,
- *   so the only thing that ever brings one closer is the edge coming in. It
- *   comes in at DRAIN units a second and a coin puts FEED back. Measured
- *   against a bot that walks the flood to the nearest coin and routes two tiles
- *   clear of any hunter it can see: hunters frozen 88% of the time, a round of
- *   54 seconds, 8 coins. Without the drain the same bot never died at all, and
- *   no hunter in 20 rounds came nearer than 109 units.
- * - The room is scattered rather than hand-drawn: BLOCKS straight segments,
- *   each needing a clear tile all the way around it, so no segment can seal a
- *   pocket off and the coins have somewhere new to be every round. Checked over
- *   400 rolls: every free tile reachable from the start, every time.
- * - A corner the box clips is slid off rather than stopped against. The Haxe's
- *   Grid had no such thing and its player was 14 wide in a 20 tile, which on a
- *   hand-drawn room with no one-tile gaps in it never showed. On a scattered
- *   one it is the difference between a gap and a five-unit window.
- * - Diagonals are normalised. The Haxe added a flat 10000 of acceleration per
- *   axis against a drag that cancelled the frame's velocity exactly, so a held
- *   direction was a flat speed and two of them was that speed times root two.
- * - `facingleft` swapped the sprite's top two rows for their mirror image. The
- *   entity mirrors the whole drawing with flipX, so there is one pattern.
- * - The camera's right-edge clamp is the one the Haxe left commented out.
- *   Vertically there is nothing to clamp: the room is one screen tall, which is
- *   what the Haxe's `if (l.y > 0)` and `if (l.y < 0)` both pinning the top edge
- *   to zero were really saying.
+ * The room is scattered rather than hand-drawn: BLOCKS straight segments, each
+ * needing a clear tile all round, so no segment seals a pocket. Checked over
+ * 400 rolls: every free tile reachable from the start, every time. A clipped
+ * corner is slid off rather than stopped against, which on a scattered room is
+ * the difference between a gap and a five-unit window.
  */
 
 import * as ent from "./lib/entity.js";
@@ -78,13 +47,12 @@ the orange moves only while you cannot see it
   date: "2015-10-10",
 };
 
-// The box the game thinks in, and the strip of it the shell's 44px bar covers.
+// The 480 box, and the strip the shell's bar covers.
 const W = 480;
 const TOP = 21;
 
-// The room, in the Haxe's 20-unit tiles: two screens across, one screen down
-// from under the bar, so the camera only ever moves sideways. The top row of
-// tiles is wall and the bar hides the first unit of it.
+// The Haxe's 20-unit tile. Two screens across and one down, so the camera only
+// moves sideways. The top row is wall and the bar hides its first unit.
 const TILE = 20;
 const GW = 48;
 const GH = 23;
@@ -92,61 +60,51 @@ const LY = TOP - 1;
 const RW = GW * TILE;
 const RH = GH * TILE;
 
-// The Haxe's palette. C.black is the wall, C.white the floor, C.p1 you, and
-// C.p2 the orange it declared and never drew.
+// The Haxe's palette.
 const WALL = 0x606060;
 const FLOOR = 0xfafafa;
 const CYAN = 0x1ebed8;
 const ORANGE = 0xff6819;
-// Outside the light, where the room is a plan rather than a place. Wall darker
-// than floor, the same way round as it is inside.
+// Outside the light, where the room is a plan rather than a place.
 const DIMFLOOR = 0x3c3c3c;
 const DIMWALL = 0x252528;
-// The light's own colour, over the lit floor and under everything standing on
-// it. The Haxe's triangles were this at 0.2 over a fully lit room.
+// The Haxe's triangles were this at 0.2 over a fully lit room.
 const TINT = 0.12;
-// A coin you cannot see yet, drawn through the dark so there is somewhere to
-// go: this bright, this big on screen, and this big as an arrow at the edge.
+// A coin you cannot see yet, drawn through the dark so there is somewhere to go.
 const MARK = 0.45;
 const DOT = 6;
 const ARROW = 9;
 
-// How far the light reaches to start with, the most and least it will ever
-// reach, how fast it goes on its own, and what a coin puts back. The light is
-// the clock: a hunter settles exactly at its edge and can only close when the
+// The light is the clock: a hunter settles at its edge and closes only when the
 // edge comes in or a wall covers it, so a round ends when the coins stop.
 const LIGHT = 200;
 const LIGHT_MAX = 220;
 const LIGHT_MIN = 0;
 const DRAIN = 5;
 const FEED = 28;
-// Rays spread round the circle, closing the rim wherever the light runs out
-// before a wall does.
 const RAYS = 64;
 // A ray carries this far past the wall it stops on, so the light lands on the
-// face of the wall rather than ending exactly at it. Without it a wall inside
-// the light is never drawn at all: the polygon's own edge is the wall, and
-// there is nothing to tell one from the edge of a shadow.
+// wall's face. Without it the polygon's edge is the wall, and a lit wall is
+// indistinguishable from the edge of a shadow.
 const BLEED = 4;
-// The Haxe's nudge either side of a corner, which is what turns one ray into
-// the two edges of the shadow behind it.
+// The Haxe's nudge either side of a corner: one ray becomes the two edges of
+// the shadow behind it.
 const NUDGE = 0.00001;
 // Always lit, whatever the walls say, so the sprite never draws half clipped.
 const NEAR = 11;
 
-// Units a second: you, the thing after you, and the camera that trails you.
+// Units a second.
 const WALK = 170;
 const HUNT = 205;
 const CAM = 200;
 
-// Half the collision box. Well under the tile, and a corner it clips is slid
-// off rather than stopped against, so a gap one tile wide is a gap.
+// Half the collision box, well under the tile, and a clipped corner is slid off
+// rather than stopped against, so a one-tile gap is a gap.
 const HALF = 6;
 const EDGE = 0.01;
-// Near enough to take a coin, and near enough to be taken.
 const TAKE = 12;
 const GRAB = 11;
-// A dead zone around the player, so a tap on top of them is not a direction.
+// So a tap on top of the player is not a direction.
 const DEAD = 12;
 
 // Straight segments dropped into the room, each 2 to 6 tiles long.
@@ -154,21 +112,17 @@ const BLOCKS = 26;
 const SEGMIN = 2;
 const SEGVARY = 5;
 
-// Coins on the board at once, coins between one hunter and the next, and the
-// most hunters a round will ever hold.
 const COINS = 4;
 const PER_HUNTER = 4;
 const HUNTERS = 5;
-// No coin lands nearer than this, and no hunter arrives nearer than this.
 const COIN_GAP = 90;
 const HUNT_GAP = 360;
 // Hunters hold this long at the start of a round, or until the hint has gone.
 const GRACE = 2.5;
-// Caught, then this long before the shot the overlay takes.
+// On top of the hitstop.
 const DEATH = 0.7;
 
-// The nearest hunter beats at this rate from this far out, whether or not you
-// can see it. It is the only thing the dark tells you.
+// The nearest hunter, seen or not: the only thing the dark tells you.
 const BEAT_NEAR = 300;
 const BEAT_FAST = 0.22;
 const BEAT_SLOW = 1;
@@ -213,8 +167,8 @@ function voice(name, params, vol) {
   sound.put(name, sfxr.render(params), sfxr.SAMPLE_RATE);
 }
 
-// A sine at about 70Hz with the attack taken off it: sfxr's period is
-// 100/(f*f + 0.001) eighths of a sample, so f of 0.14 is 8*44100/5040 Hz.
+// About 70Hz: sfxr's period is 100/(f*f + 0.001) eighths of a sample, so f of
+// 0.14 is 8*44100/5040 Hz.
 function thud() {
   const p = sfxr.params();
   p.waveType = 2;
@@ -226,25 +180,20 @@ function thud() {
   return p;
 }
 
-// How far the light reaches now.
 let range = LIGHT;
 
 // The room: 1 is wall.
 const map = new Uint8Array(GW * GH);
-// Every free tile the player can reach, which is where coins and hunters go.
 const open = [];
-// Tile steps from the player, for a hunter that cannot see them, and the tile
-// it was last built from.
+// Tile steps from the player, for a hunter that cannot see them.
 const flow = new Int32Array(GW * GH);
 let flowAt = -1;
 
 let sight = null;
-// This frame's visibility polygon, in world units.
 let poly = [];
 let player = null;
-// Screen minus world: what render() translates by. y never moves.
+// Screen minus world. y never moves.
 const cam = { x: 0, y: 0 };
-// Seconds the hunters are still held for, and seconds left of being caught.
 let hold = 0;
 let dying = 0;
 let beat = 0;
@@ -264,7 +213,7 @@ const cy = (i) => (Math.floor(i / GW) + 0.5) * TILE + LY;
  */
 class Sight {
   constructor() {
-    // Four numbers a wall: where it starts, and where it runs to from there.
+    // Four numbers a wall: origin, then extent.
     this.walls = [];
     this.pts = [];
     this.seen = new Set();
@@ -290,8 +239,7 @@ class Sight {
     this.pts.push(x, y);
   }
 
-  // Distance from (fx, fy) along the unit vector (dx, dy) to the nearest wall,
-  // or Infinity. The Haxe's castMinRay, over a ray that carries its own length.
+  // The Haxe's castMinRay, over a ray that carries its own length.
   reach(fx, fy, dx, dy) {
     let best = Infinity;
     const w = this.walls;
@@ -311,7 +259,6 @@ class Sight {
     return best;
   }
 
-  // Is there a clear line from (fx, fy) to (gx, gy)?
   clear(fx, fy, gx, gy) {
     const dx = gx - fx;
     const dy = gy - fy;
@@ -320,9 +267,8 @@ class Sight {
     return this.reach(fx, fy, dx / l, dy / l) >= l;
   }
 
-  // The visibility polygon, as points in order round the player. A corner
-  // inside the range gets a ray at it and one either side, and a ring of rays
-  // closes the rim wherever the light runs out before a wall does.
+  // Points in order round the player. A corner inside the range gets a ray at
+  // it and one either side; RAYS close the rim.
   cast(fx, fy) {
     const dirs = [];
     for (let i = 0; i < this.pts.length; i += 2) {
@@ -381,7 +327,6 @@ function buildMap() {
   }
 }
 
-// The box, and the ring of tiles around it, all still free.
 function vacant(x, y, w, h) {
   for (let j = y - 1; j <= y + h; ++j) {
     for (let i = x - 1; i <= x + w; ++i) {
@@ -391,10 +336,9 @@ function vacant(x, y, w, h) {
   return true;
 }
 
-// Grid.getSight: blocked tiles merged into as few rects as they will go, so a
-// wall 20 tiles long is four segments rather than eighty. Straight out of the
-// Haxe, including the one-tile offset that keeps the two rects of a corner
-// from overlapping.
+// Grid.getSight: blocked tiles merged into as few rects as they go. Straight
+// out of the Haxe, including the one-tile offset that keeps the two rects of a
+// corner from overlapping.
 function buildSight() {
   const s = new Sight();
   const free = new Uint8Array(GW * GH);
@@ -427,9 +371,8 @@ function buildSight() {
   return s;
 }
 
-// Tile steps from `at` over free tiles, -1 for anything the flood never gets
-// to. Filling `open` from the player's own tile is also what says which tiles
-// a coin may be put on.
+// Tile steps from `at` over free tiles, -1 for anything unreached. Filling
+// `open` from the player's tile is what says where a coin may go.
 function flood(at, into, list = null) {
   into.fill(-1);
   into[at] = 0;
@@ -530,8 +473,8 @@ function solid(x, y) {
   return false;
 }
 
-// Inside the light: near enough, with nothing in the way. The same two tests
-// the clip in render() is drawn from, so what freezes is what you can see.
+// The same two tests the clip in render() draws from, so what freezes is what
+// you can see.
 function lit(p) {
   if (Math.hypot(p.x - player.pos.x, p.y - player.pos.y) > range) return false;
   return sight.clear(player.pos.x, player.pos.y, p.x, p.y);
@@ -555,8 +498,8 @@ class Player extends ent.Entity {
     if (key.right) mx += 1;
     if (key.up) my -= 1;
     if (key.down) my += 1;
-    // The camera trails rather than centring, so the pointer is a heading off
-    // wherever on the screen the player actually is.
+    // The camera trails rather than centres, so the pointer is a heading off
+    // wherever the player is on screen.
     if (mx === 0 && my === 0 && mouse.press) {
       mx = mouse.x - this.pos.x - cam.x;
       my = mouse.y - this.pos.y - cam.y;
@@ -592,8 +535,6 @@ class Hunter extends ent.Entity {
     }
     if (hold > 0 || lit(this.pos)) return;
 
-    // Straight at the player when the way is open, and downhill through the
-    // flood when it is not.
     let ax = player.pos.x - this.pos.x;
     let ay = player.pos.y - this.pos.y;
     if (!sight.clear(this.pos.x, this.pos.y, player.pos.x, player.pos.y)) {
@@ -611,8 +552,6 @@ class Hunter extends ent.Entity {
   }
 }
 
-// The neighbouring tile nearest the player, or -1 if the flood never reached
-// this one.
 function downhill(p) {
   const x = tx(p.x);
   const y = ty(p.y);
@@ -666,11 +605,8 @@ class Coin extends ent.Entity {
   }
 }
 
-// A tile from `open`, as far from the player and from everything in `avoid` as
-// a handful of tries can find. Taking the best of a sample rather than the
-// first that clears `gap` means a room the scatter left tight still gets its
-// coin, just a nearer one, instead of the placement failing into whatever tile
-// happened to be last.
+// The best of a sample rather than the first to clear `gap`, so a tight room
+// still gets its coin, just a nearer one.
 function pick(gap, avoid) {
   let at = open[0];
   let best = -1;
@@ -721,7 +657,6 @@ export function init() {
   ent.order([Coin, Hunter, Player]);
 
   buildMap();
-  // Room for the player to stand in wherever the scatter left them.
   const sx = Math.floor(GW / 4);
   const sy = Math.floor(GH / 2);
   for (let j = sy - 1; j <= sy + 1; ++j) {
@@ -749,8 +684,7 @@ export function init() {
 }
 
 export function update(dt) {
-  // The flood is only rebuilt when the player has changed tile, which on a
-  // 48x23 room is a few hundred steps a second at most.
+  // Rebuilt only when the player changes tile.
   const at = ty(player.pos.y) * GW + tx(player.pos.x);
   if (at !== flowAt) {
     flowAt = at;
@@ -759,10 +693,9 @@ export function update(dt) {
 
   ent.update(dt);
 
-  // Then the rest, on the entities' own clock, so a hitstop holds it too.
+  // The entities' own clock, so a hitstop holds it too.
   const t = ent.game.time;
   hold = Math.max(hold - t, hint());
-  // The light holds while the hint is up, for the same reason the hunters do.
   if (hold <= 0 && dying <= 0) range = Math.max(LIGHT_MIN, range - DRAIN * t);
 
   const want = clamp(W / 2 - player.pos.x, W - RW, 0);
@@ -776,8 +709,6 @@ export function update(dt) {
   if (dying > 0 && (dying -= t) <= 0) gameOver();
 }
 
-// The heartbeat, quicker the nearer the closest hunter is. Seen or not: it is
-// the only thing the dark says.
 function pulse(t) {
   if (dying > 0) return;
   let near = Infinity;
@@ -814,9 +745,8 @@ export function render(ctx) {
   ctx.moveTo(poly[0].x, poly[0].y);
   for (let i = 1; i < poly.length; ++i) ctx.lineTo(poly[i].x, poly[i].y);
   ctx.closePath();
-  // The polygon is exact and the sprite is inside the collision box, so this
-  // only matters where two rays either side of a corner cut it: without it a
-  // sliver of the player can fall outside their own light.
+  // Without it, the two rays either side of a corner can cut a sliver of the
+  // player out of their own light.
   ctx.moveTo(player.pos.x + NEAR, player.pos.y);
   ctx.arc(player.pos.x, player.pos.y, NEAR, 0, 2 * Math.PI);
   ctx.clip();
@@ -827,8 +757,7 @@ export function render(ctx) {
   ctx.fillRect(0, LY, RW, RH);
   ctx.globalAlpha = 1;
 
-  // Everything standing in the room, inside the same clip: a hunter out of the
-  // light is not drawn at all, which is the whole game.
+  // The same clip: a hunter out of the light is not drawn at all.
   ctx.setTransform(base);
   ctx.translate(cam.x * k, cam.y * k);
   ent.render(ctx);
@@ -846,7 +775,6 @@ function drawRoom(ctx, floor, wall) {
   for (let y = 0; y < GH; ++y) {
     for (let x = x0; x <= x1; ++x) {
       if (!map[y * GW + x]) continue;
-      // Runs, so a wall 20 tiles long is one fill.
       let n = 1;
       while (x + n <= x1 && map[y * GW + x + n]) n += 1;
       ctx.fillRect(x * TILE, LY + y * TILE, n * TILE, TILE);
@@ -855,10 +783,8 @@ function drawRoom(ctx, floor, wall) {
   }
 }
 
-// A coin you have not reached yet: a dot through the dark where it is, and an
-// arrow at the edge of the screen where it is not. The room is two screens
-// across and the light is a fraction of one, so without this the only way to
-// find the next coin is to walk the room until it turns up.
+// A dot through the dark where a coin is, an arrow at the edge where it is off
+// screen. The room is two screens across and the light a fraction of one.
 function drawMarks(ctx) {
   ctx.globalAlpha = MARK;
   ctx.fillStyle = css(CYAN);

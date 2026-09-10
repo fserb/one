@@ -2,11 +2,9 @@
  * avoid - a port of ~/prj/vault/games/sketch/src/Avoid.hx.
  * Based on Aba Games' Satellite Catch.
  *
- * Two deliberate changes from the Haxe. The original never cleared an entity's
- * art before redrawing it, so every frame's circle piled up on the last; that
- * is invisible while a circle only grows, but leaves the stale outline behind
- * when an enemy shrinks, and it grows without bound. This clears first. And the
- * score lives in the shell's bar instead of a label in the corner.
+ * The Haxe never cleared an entity's art before redrawing, so a shrinking enemy
+ * left its old outline behind and the list grew without bound. This clears
+ * first.
  */
 
 import * as ent from "./lib/entity.js";
@@ -52,8 +50,8 @@ class Enemy extends ent.Entity {
     const player = ent.one(Player);
     if (player === null) return;
 
-    // Pull towards the player, harder the longer the round has run and the
-    // bigger either of them is.
+    // Towards the player, harder the longer the round has run and the bigger
+    // either of them is.
     const dx = player.pos.x - this.pos.x;
     const dy = player.pos.y - this.pos.y;
     const d = Math.hypot(dx, dy);
@@ -90,8 +88,7 @@ class Enemy extends ent.Entity {
       return;
     }
 
-    // The bigger of two touching enemies eats the smaller, and inherits the
-    // points it was sitting on.
+    // The bigger of two touching enemies eats the smaller and its points.
     for (const e of ent.get(Enemy)) {
       if (e === this || e.dead) continue;
       if (

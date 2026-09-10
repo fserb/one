@@ -1,13 +1,11 @@
 /*
  * entity_test.js - checks the step order in src/lib/entity.js.
  *
- * entity.js promises that begin() runs at the top of an entity's first frame
- * and before its first update(). The case that broke it is an entity made
- * inside another entity's update(): it lands in a group the step pass may not
- * have reached, so it used to be stepped the same frame with begin() still
- * pending. Which entities hit it is decided by ent.order(), so it is silent
- * and it flips when a game reorders its draw list, which is why it is a test
- * and not a comment.
+ * begin() runs at the top of an entity's first frame, before its first
+ * update(). What broke it: an entity made inside another's update() lands in a
+ * group the step pass may not have reached, so it used to step the same frame
+ * with begin() pending. ent.order() decides who hits it, so the bug is silent
+ * and flips when a game reorders its draw list. Hence a test, not a comment.
  *
  *   deno run --allow-read tools/entity_test.js     # or ./task test
  */
@@ -39,8 +37,8 @@ function check(name, got, want) {
   );
 }
 
-// A game in one line: Maker builds a Late inside its own update(), and Late
-// draws after Maker, so Late's group is the one the step pass reaches second.
+// Maker builds a Late inside its own update(), and Late draws after Maker, so
+// the step pass reaches Late's group second.
 function run(Late, frames = 3) {
   ent.reset();
   let made = false;
@@ -75,8 +73,8 @@ function run(Late, frames = 3) {
   check("begin() before the first update()", log, ["begin", "update", "update"]);
 }
 
-// The sharp end of it: an entity that ends itself in that first update() used
-// to get no begin() at all, because it was gone before the next begin() pass.
+// An entity that ends itself in that first update() used to get no begin() at
+// all, being gone before the next begin() pass.
 {
   const log = [];
   run(
@@ -93,10 +91,9 @@ function run(Late, frames = 3) {
   check("begin() before a self-removing update()", log, ["begin", "update"]);
 }
 
-// A lifetime shorter than a frame still paints, once, on the frame it was
-// made. This is orbit's Flash: built whole in the constructor, no update() at
-// all, and it ends itself in render(). Holding it back from the step pass must
-// not hold it back from the screen.
+// A lifetime shorter than a frame still paints once. This is orbit's Flash:
+// built whole in the constructor, no update(), ends itself in render().
+// Holding it back from the step pass must not hold it off the screen.
 {
   const draws = [];
   let n = 0;
@@ -125,9 +122,8 @@ function run(Late, frames = 3) {
   check("a sub-frame entity paints once, on its own frame", draws, [1, 1, 1]);
 }
 
-// The other half of the same rule, and the reason it is order-independent:
-// get(), one() and hitGroup() all hide an entity that has not begun, so for
-// one frame a new entity is in no group's way and steps for nobody.
+// Why the rule is order-independent: get(), one() and hitGroup() all hide an
+// entity that has not begun, so for one frame it is in nobody's way.
 {
   const seen = [];
   class Late extends ent.Entity {}
@@ -151,8 +147,8 @@ function run(Late, frames = 3) {
   check("get() hides it for the frame it was made", seen, [0, 1, 1]);
 }
 
-// Nothing above depends on the draw order, so the same four hold with the
-// groups the other way round, which is the case that used to pass by luck.
+// The same four with the groups the other way round: the case that used to
+// pass by luck.
 {
   const log = [];
   ent.reset();

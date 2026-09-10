@@ -1,13 +1,12 @@
 /*
  * async - two boards, one conveyor belt of orders.
  *
- * The two boards fall towards each other: gravity pulls right on the left
- * board and left on the right one. A click picks one block per board, and once
- * both are picked their colours swap, but only if the swap leaves some block
- * able to grow. Blocks of one colour that fill a rectangle merge into a single
- * big one; clicking a merged block ships it and clears whatever the front of
- * the belt is asking for. The belt never stops. Let it reach the left edge and
- * the run is over.
+ * The two boards fall towards each other: gravity pulls right on the left one
+ * and left on the right. A click picks one block per board and their colours
+ * swap, but only if the swap leaves some block able to grow. Same-coloured
+ * blocks filling a rectangle merge; clicking a merged block ships it against
+ * the front of the belt. The belt never stops, and reaching the left edge ends
+ * the run.
  */
 
 import { ease, extra, vec } from "./alma/src/index.js";
@@ -29,7 +28,6 @@ to build mega blocks
   date: "2021-05-28",
 };
 
-// Face, right bevel, bottom bevel.
 const PIECE = ["#F02299", "#26ABF6", "#FCFF00", "#16DB93"];
 const SIDE = ["#B6187E", "#1D7ACA", "#BFB702", "#109E79"];
 const FOOT = ["#650B57", "#0F378C", "#6C5300", "#094754"];
@@ -42,20 +40,18 @@ const BOARDPOS = [
   { x: SIZE - TILE * WIDTH - 10, y: 290 },
 ];
 
-// Belt units are drawn in a unit square and scaled up by this.
+// Belt units draw in a unit square, scaled up by this.
 const SZ = 100;
-// Gap between belt units, in units.
 const STRIDE = 1.2;
 
 const board = [];
 const selected = [null, null];
 const belt = [];
 
-// Reused, and flipped per board by whoever is about to read it. Board 0 falls
-// right, board 1 falls left.
+// Reused, flipped per board by the reader. Board 0 falls right, board 1 left.
 const gravity = { x: 1, y: 0 };
 
-// Merges since the last check, per board. A "sync" order wants one of each.
+// Per board, since the last check. A "sync" order wants one of each.
 const merges = [0, 0];
 
 let needsMerge;
@@ -63,7 +59,6 @@ let colors;
 let beltPos;
 let beltSpeed;
 let beltFlash;
-// Orders until the next milestone.
 let beltNext;
 let milestone;
 
@@ -101,8 +96,8 @@ function createBlock(p) {
     v: Math.floor(colors * Math.random()),
     w: 1,
     h: 1,
-    // Render offset, animated back to zero. Lets a block sit at its new grid
-    // position while still being drawn at the old one.
+    // Render offset, animated to zero, so a block sits at its new grid
+    // position while drawn at the old one.
     d: { x: 0, y: 0 },
     scale: 1,
     selected: false,
@@ -138,8 +133,8 @@ function get(p) {
   return null;
 }
 
-// New blocks enter along the edge gravity pulls away from, offset back by
-// `step` tiles so they slide in rather than appear.
+// New blocks enter along the edge gravity pulls away from, offset `step` tiles
+// so they slide in rather than appear.
 function fillEmpty(step = 0) {
   let added = false;
   for (let b = 0; b < 2; ++b) {
@@ -215,8 +210,8 @@ async function fallBlocks(fillstep = 0) {
 
 // MERGING ///
 
-// True when growing b by (dx, dy) covers only same-coloured blocks, none of
-// which stick out of the rectangle that results.
+// True when growing b by (dx, dy) covers only same-coloured blocks, none
+// sticking out of the rectangle that results.
 function isValidResize(b, dx, dy) {
   const maxx = b.x + b.w + dx;
   const maxy = b.y + b.h + dy;
@@ -231,8 +226,8 @@ function isValidResize(b, dx, dy) {
   return true;
 }
 
-// The largest rectangle b can grow into, as a (dx, dy) expansion. Never 1 wide
-// or 1 tall: a mega block is at least 2x2. Ties go to the taller one.
+// The largest rectangle b can grow into, as (dx, dy). At least 2x2, ties to
+// the taller.
 function getMaxSquare(b) {
   const expand = { x: 0, y: 0 };
   let bestArea = 4;
@@ -257,8 +252,8 @@ function canGrow(b) {
   return exp.x > 0 || exp.y > 0;
 }
 
-// Grows one block, swallowing what it covers, then starts over: a merge can
-// open up the next one.
+// Grows one block, swallowing what it covers, then starts over: a merge opens
+// up the next.
 function tryMergeBlocks() {
   for (const b of board) {
     const exp = getMaxSquare(b);
@@ -279,8 +274,8 @@ function tryMergeBlocks() {
   }
 }
 
-// A swap is only allowed if it leaves someone able to merge. That is what stops
-// the board deadlocking, and it is why a useless swap silently does nothing.
+// A swap is allowed only if it leaves someone able to merge, which is what
+// stops the board deadlocking. A useless swap silently does nothing.
 function isValidSwitch() {
   return board.some(canGrow);
 }
@@ -291,7 +286,6 @@ function isValidSwitch() {
 function createOrder(type, color = null) {
   color ??= Math.random() < 0.5 ? -1 : Math.floor(colors * Math.random());
 
-  // Ship this many tiles of area, in any shape.
   if (type === 0) {
     return {
       type: "blocks",
@@ -302,7 +296,6 @@ function createOrder(type, color = null) {
     };
   }
 
-  // Ship one block of exactly this shape.
   if (type === 1) {
     return {
       type: "shape",
@@ -328,7 +321,7 @@ function createOrder(type, color = null) {
   // Merge on both boards between checks.
   if (type === 3) return { type: "sync", t: 1 };
 
-  // Either half satisfies it. Neither half can itself be an "or".
+  // Either half satisfies it, and neither half can itself be an "or".
   if (type === 4) {
     const a = makeOrder(false);
     const b = makeOrder(false);
@@ -427,7 +420,7 @@ function actBeltMerge() {
   }
 }
 
-// Where the front of the belt has reached, in screen x. Zero is the left edge.
+// Where the front of the belt is, in screen x. Zero is the left edge.
 function beltFront() {
   return SIZE - STRIDE * SZ * (belt.length + beltPos - 1 - 0.3);
 }
@@ -500,7 +493,6 @@ async function updateClick() {
   if (one === null) return;
   selected[one.b] = one;
 
-  // A mega block ships instead of being selected.
   if (one.w > 1 && one.h > 1) {
     one.removed = true;
     act(one)
@@ -521,8 +513,8 @@ async function updateClick() {
     if (!isValidSwitch()) {
       [s0.v, s1.v] = [s1.v, s0.v];
     } else {
-      // Only the colours moved, so animate each block from where the other
-      // one is back to zero, and the swap reads as two things crossing.
+      // Only the colours moved, so animate each from where the other is back
+      // to zero and the swap reads as two things crossing.
       const p0 = toScreen(s0);
       const p1 = toScreen(s1);
       s0.d = vec.sub(p1, p0);
@@ -598,7 +590,6 @@ export function render(ctx) {
   renderBelt(ctx);
 }
 
-// Bevel width, and how far the bevel is thrown down-right.
 const B = 0.04347826 * 1.5;
 const S = 0.04347826 * 1.3;
 
@@ -635,7 +626,6 @@ function renderPiece(ctx, p) {
 
 function renderBelt(ctx) {
   ctx.save();
-  // Centred in the gap between the score bar and the top of the boards.
   ctx.translate(0, (290 + 44 - SZ) / 2);
   ctx.scale(SZ, SZ);
 
@@ -674,7 +664,6 @@ function renderMilestone(ctx, b) {
   ctx.fill();
 }
 
-// The two halves, stacked and shrunk, in the space of one unit.
 function renderOr(ctx, b) {
   ctx.globalAlpha = b.t;
   for (const [half, dy] of [[b.a, -0.5], [b.b, 0.5]]) {
@@ -718,8 +707,7 @@ function renderShape(ctx, b) {
   }
 }
 
-// One outlined cell per tile still owed. The ones a shipment just covered
-// fade out together.
+// One outlined cell per tile owed. What a shipment covered fades out.
 function renderBlocks(ctx, b) {
   const base = ctx.globalAlpha;
   ctx.fillStyle = ctx.strokeStyle = b.color === -1 ? meta.fg : SIDE[b.color];

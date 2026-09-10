@@ -1,22 +1,15 @@
 /*
- * overlay.js - the bits of screen that are the same in every game.
+ * overlay.js - the screen every game shares. Two states, and one animated bar
+ * between them:
  *
- * Two states, and one animated bar that carries the transition between them:
+ *   game    44px of score, best score and the mute toggle. On the first round
+ *           meta.desc sits over the running game and fades on the first input
+ *           or a few seconds in, whichever lands first.
+ *   finish  a frozen shot of the last frame, bar sliding back down over it.
+ *           A click starts the next round.
  *
- *   game    the bar is 44px of score, best score and the mute toggle. On the
- *           first round meta.desc sits on top of the running game and fades,
- *           on the first input or a few seconds in, whichever lands first.
- *           hint() is how long that hint has left, which is what a game whose
- *           opening move would kill a player who is still reading waits out.
- *   finish  a frozen screenshot of the last frame, with the bar sliding back
- *           down over it. A click starts the next round.
- *
- * There is no title card: run() starts the round on frame one, and the first
- * input goes to the game. Nothing here ever consumes a click except the mute
- * toggle inside the bar.
- *
- * The game itself never sees any of this. one.js calls update() only while the
- * overlay owns the screen, and render() after the game has drawn.
+ * Nothing here consumes a click except the mute toggle. one.js calls update()
+ * only while the overlay owns the screen, and render() after the game draws.
  */
 
 import { ease, utils } from "../alma/src/index.js";
@@ -26,9 +19,8 @@ const BAR = 44;
 const PAD = 11;
 const FONT = 26;
 
-// meta.desc holds this long, then fades on its own. Input cuts it short with
-// the quicker fade, so the hint leaves as soon as the player does not need it.
-// A game reads the sum off hint() rather than either number.
+// meta.desc holds, then fades. Input cuts it short with the quicker fade. A
+// game reads the sum off hint() rather than either number.
 const DESC_HOLD = 3;
 const DESC_FADE = 0.6;
 const DESC_DISMISS = 0.2;
@@ -37,7 +29,7 @@ const bar = {
   y: 0,
   height: BAR,
   scorey: 0,
-  // The bar covers the game rather than showing the frozen shot through it.
+  // The bar covers the game rather than the frozen shot.
   clear: false,
 };
 
@@ -46,10 +38,10 @@ const desc = {
   size: 0,
   y: 0,
   alpha: 0,
-  // Faded out, or on its way there: input has nothing left to dismiss.
+  // Faded or fading: input has nothing left to dismiss.
   gone: true,
-  // Seconds until the hint is off the screen, counted down every frame and
-  // dropped to zero the moment the player dismisses it. What hint() answers.
+  // Seconds until the hint is off the screen, zero the moment it is
+  // dismissed. What hint() answers.
   left: 0,
 };
 
@@ -102,13 +94,12 @@ export function gameOver() {
     : Math.min(best, score.value);
   localStorage.setItem(`one#${meta.title}`, score.best);
 
-  // one.js reset every track on the way in, so a desc still fading would sit
-  // frozen on top of the screenshot.
+  // one.js reset every track, so a desc still fading would freeze on the shot.
   desc.alpha = 0;
   desc.gone = true;
   desc.left = 0;
 
-  // Freeze the last frame, minus the bar, and slide the bar back down over it.
+  // The last frame minus the bar, with the bar sliding back down over it.
   const dim = op.screen.width;
   const [shot, sctx] = utils.newCanvas(dim, dim);
   sctx.drawImage(op.screen.canvas, 0, 0);
@@ -123,8 +114,8 @@ export function gameOver() {
     .attr("scorey", SIZE - BAR, 0.35, ease.fastOutSlowIn);
 }
 
-// Runs every frame, in game or not: the mute toggle lives in the bar, and the
-// desc listens for the first input of the round.
+// Every frame, in game or not: the mute toggle is in the bar and the desc
+// listens for the round's first input.
 export function poll(dt) {
   desc.left = Math.max(0, desc.left - dt);
 
@@ -135,18 +126,14 @@ export function poll(dt) {
   }
 
   if (!mouse.click) return;
-  // op.sound is null unless the game imported lib/sound.js, so a silent game
-  // costs nothing here and shows no toggle.
+  // Null unless the game imported lib/sound.js: no cost, and no toggle.
   if (!op.sound?.available()) return;
   if (state !== "game" || mouse.x < SIZE / 2 || mouse.y >= BAR) return;
   op.sound.toggle();
 }
 
-// Seconds of meta.desc still on the screen, fade included, and zero once the
-// player has dismissed it, once it has faded, once the round is over and on
-// every round after the first. A game whose opening would kill a player who is
-// still reading holds off for this long, which also means the hold ends the
-// moment the player starts playing.
+// Seconds of meta.desc left, fade included; zero once dismissed or faded, after
+// the round ends, and on every round after the first.
 export function hint() {
   return desc.left;
 }

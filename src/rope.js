@@ -1,14 +1,14 @@
 /*
  * rope - swing up an endless cave on two hands.
  *
- * Drag a hand and let go to fling it. Whatever rope it touches, it grabs, and
- * the other hand comes along. The ropes are simulated, not scripted: each one
- * is a chain of planck bodies, and the cave generates itself ahead of you along
- * a wandering path. Below, a red saw follows that same path up. Let go of
- * everything for five seconds, or let the saw reach you, and the run ends.
+ * Drag a hand and let go to fling it. Whatever rope it touches it grabs, and
+ * the other hand follows. The ropes are simulated: each is a chain of planck
+ * bodies, and the cave generates itself ahead along a wandering path. A red saw
+ * follows that path up. Let go for five seconds, or let the saw reach you, and
+ * the run ends.
  *
- * The only game here that needs a physics engine, so it is the only one that
- * pays for src/lib/planck.js.
+ * The only game that needs a physics engine, so the only one paying for
+ * src/lib/planck.js.
  */
 
 import { ease, extra, vec } from "./alma/src/index.js";
@@ -64,14 +64,12 @@ let player;
 let shot;
 let time;
 
-// The path the cave follows, and the state that extends it.
 let path;
 let pathDir;
 let pathVel;
-// Free height remaining in each of eight columns across the path's width.
+// Free height left in each of eight columns across the path's width.
 let pathHorizon;
 
-// The saw.
 let enemy;
 let enemyPath;
 let enemySpeed;
@@ -81,8 +79,8 @@ let enemyReset;
 // Rises by one every enemyReset steps, and enemyReset itself shortens.
 let enemyNatural;
 
-// Bodies wait here for the step to end: planck will not let a joint be created
-// from inside a contact callback.
+// Bodies wait for the step to end: planck will not create a joint from inside
+// a contact callback.
 const deferred = [];
 
 export function init() {
@@ -138,8 +136,8 @@ function createEnemy() {
   });
 }
 
-// Head, two trailing tail segments, and two arms. Each arm is hand -> elbow ->
-// head, held by a rope joint for the hard limit and a spring for the give.
+// Head, two tail segments, two arms. Each arm is hand -> elbow -> head, with a
+// rope joint for the hard limit and a spring for the give.
 function createPlayer() {
   player = {
     arms: [
@@ -201,8 +199,8 @@ function createPlayer() {
       bullet: true,
       linearDamping: 0.1,
     });
-    // A wide sensor so a hand can be grabbed by a click near it, a tiny one
-    // for the pointer query, and a small solid one that meets rope.
+    // A wide sensor for a click near the hand, a tiny one for the pointer
+    // query, and a small solid one that meets rope.
     a.hand.createFixture(pl.Circle(pl.Vec2(0, 0), 0.8 * ZOOM), {
       isSensor: true,
     });
@@ -250,8 +248,8 @@ function createPlayer() {
   }
 }
 
-// A chain of one-metre links from a to b. `close` pins the far end too; an open
-// rope hangs. Links are numbered heaviest-first so a rope does not whip.
+// A chain of one-metre links from a to b. `close` pins the far end; an open
+// rope hangs. Links are heaviest-first so a rope does not whip.
 function addRopeTwo(a, b, close = true) {
   const r = vec.sub(b, a);
   const v = vec.normalize(r);
@@ -260,8 +258,7 @@ function addRopeTwo(a, b, close = true) {
   const size = 1;
   const parts = Math.round(len);
 
-  // The links plus their slack have to fit inside the span. If they do not,
-  // pull the ends towards each other and try again.
+  // Links plus slack have to fit the span; if not, pull the ends in and retry.
   let diff = len - (parts * (size + 0.1) + 0.1);
   if (diff > -0.05) {
     diff = Math.max(diff, 0.05);
@@ -345,11 +342,10 @@ function addRopeOne(a, length = 5) {
 
 // THE CAVE ///
 
-// Extends the path one band at a time until it is REACH ahead of the player.
-// Each band is a slice across the path's width, cut into `divs` columns; a
-// column either gets a horizontal rope to swing from, a vertical one hanging
-// down, or nothing. pathHorizon tracks how much clear air each column has left,
-// so bands never stack on top of each other.
+// Extends the path a band at a time until it is REACH ahead. Each band is a
+// slice across the path's width in `divs` columns; a column gets a horizontal
+// rope, a hanging one, or nothing. pathHorizon is the clear air left in each
+// column, so bands never stack.
 function stepPath() {
   const here = player.head.getPosition();
   const last = path[path.length - 1];
@@ -362,8 +358,8 @@ function stepPath() {
   const yv = vec.mul(vec.normalize(pathDir), step);
   const xv = vec.mul(vec.normalize(vec.perp(yv)), length);
 
-  // Advance the horizon by however far each column actually travelled. A turn
-  // makes the outside of the bend move further than the inside.
+  // Advance the horizon by how far each column travelled: a turn moves the
+  // outside of the bend further than the inside.
   let lastDir = vec.sub(last, path[path.length - 2] ?? last);
   if (lastDir.x === 0 && lastDir.y === 0) lastDir = { x: 0, y: -1 };
   const lastNorm = vec.mul(vec.normalize(vec.perp(lastDir)), length);
@@ -386,7 +382,7 @@ function stepPath() {
     horiz.push(max);
   }
 
-  // true: a horizontal rope. false: a hanging one. null: leave it empty.
+  // true: horizontal rope. false: hanging. null: empty.
   const space = [];
   for (let i = 0; i < divs; ++i) {
     if (horiz[i] > -0.4) {
@@ -398,8 +394,8 @@ function stepPath() {
     space[i] = opts[Math.floor(opts.length * Math.random())];
   }
 
-  // Never three horizontal columns in a row, then punch extra holes so the
-  // band stays climbable rather than solid.
+  // Never three horizontal columns in a row, then punch holes so the band
+  // stays climbable.
   let cut = Math.max(1, divs - 4);
   for (let i = 0; i < divs - 2; ++i) {
     if (space[i] === true && space[i + 1] === true && space[i + 2] === true) {
@@ -435,8 +431,7 @@ function stepPath() {
     }
   }
 
-  // Heading sideways, horizontal ropes hang free; heading straight up, the
-  // vertical ones do. Whichever runs along the path gets pinned at both ends.
+  // Whichever kind runs along the path is pinned at both ends.
   const direc = Math.abs(vec.dot(vec.normalize(pathDir), { x: 0, y: -1 }));
   const lineclose = direc >= 0.25;
   const normclose = direc <= 0.75;
@@ -503,9 +498,8 @@ function beginContact(contact) {
   if (pair(contact, "head", "enemy")) gameOver();
 }
 
-// A hand that already holds something passes through rope. So does one that
-// just let go, briefly, so releasing does not immediately re-grab: 300ms for
-// the rope it left, 50ms for any other.
+// A hand holding something passes through rope, and so does one that just let
+// go: 300ms for the rope it left, 50ms for any other.
 function preSolve(contact) {
   const hit = pair(contact, "hand", "rope");
   if (!hit) return;
@@ -585,7 +579,6 @@ function updatePlayer(dt) {
   }
   player.onair = 0;
 
-  // Watch the free hand, or whichever one is being aimed.
   const free = player.arms[0].hold ? player.arms[1] : player.arms[0];
   if (free.hold === null) {
     player.focuson = free.hand;
@@ -610,27 +603,24 @@ function updatePlayer(dt) {
   }
 }
 
-// Follows the head, and leans into whichever way it is drifting.
 function updateCamera(dt) {
   const p = player.head.getPosition();
 
   const ang = TAU * -(p.x - camera.x) / 40;
   const angle = Math.abs(ang) < TAU / 40 ? 0 : ang;
 
-  // approach()'s rates are per second, not per frame: 3 is its own default
-  // for the pan, and the lean follows a little slower. The camera this was
-  // written against was passed {x: 0.02, y: 0.005} a frame, {x: 1.2, y: 0.3}
-  // here, and never read it. Applying it loses the player: the saw sets the
-  // pace late in a run, over a metre a second, and a y rate of 0.3 turns that
-  // into three metres of standing lag under the swing, on a screen 19.5 metres
-  // tall. Measured against a recorded climb, the head sits 3.9 metres off
-  // centre on average against 0.8 at the default, and touches 10.3, so the
-  // hands leave the top of the frame while you are climbing towards them.
+  // approach()'s rates are per second: 3 is its default for the pan and the
+  // lean follows slower. The camera this was written against was passed
+  // {x: 0.02, y: 0.005} a frame and never read it. Applying that loses the
+  // player: the saw sets over a metre a second late in a run, and a y rate of
+  // 0.3 turns that into three metres of lag on a 19.5 metre screen. Measured
+  // against a recorded climb, the head averages 3.9 metres off centre against
+  // 0.8, and touches 10.3.
   camera.approach({ x: p.x, y: p.y, angle }, dt, { angle: 2.45 });
 }
 
-// Press near a hand to take it, drag to aim, release to fling. The pull is
-// backwards: the hand flies away from where you dragged it, like a slingshot.
+// Press near a hand, drag to aim, release to fling. The pull is backwards:
+// the hand flies away from the drag, like a slingshot.
 function updateShot() {
   if (mouse.click) {
     const p = camera.toWorld(mouse.x, mouse.y);
@@ -690,8 +680,8 @@ function updateShot() {
   shot = null;
 }
 
-// Crawls up the path towards the player, turning to face along it. It speeds
-// up on its own over time, and sprints if the player gets too far ahead.
+// Crawls up the path, turning to face along it. Speeds up over time, and
+// sprints if the player gets too far ahead.
 function updateEnemy() {
   enemyPhase = (enemyPhase + 1) % TEETH_PHASE;
   if (enemyPath >= path.length || path.length <= 12) return;
@@ -754,8 +744,7 @@ export function render(ctx) {
 
   camera.apply(ctx);
 
-  // The camera rotates, so clip to the square it actually covers: outside it
-  // is cave wall, not background.
+  // The camera rotates, so clip to the square it covers: outside is cave wall.
   const d = SIZE / camera.scale;
   const x = camera.x - d / 2;
   const y = camera.y - d / 2;
@@ -772,8 +761,8 @@ export function render(ctx) {
   renderEnemy(ctx);
 }
 
-// A sparse field of bricks, parallaxed back by BGZOOM. The pattern comes from
-// a hash of the cell, so it is stable without being stored.
+// Bricks parallaxed back by BGZOOM. The pattern is a hash of the cell, so it
+// is stable without being stored.
 const BGZOOM = 4;
 const BGSEED = 1 + Math.random();
 
@@ -837,8 +826,8 @@ const SMALLARM = 0.15;
 function renderPlayer(ctx) {
   const h = player.head.getPosition();
 
-  // Each arm is a tapered band: wide at the shoulder, narrow at the hand,
-  // bending through the elbow body.
+  // A tapered band, wide at the shoulder and narrow at the hand, bending
+  // through the elbow body.
   ctx.fillStyle = BODY;
   for (const arm of player.arms) {
     const p = arm.hand.getPosition();
@@ -853,16 +842,14 @@ function renderPlayer(ctx) {
     ctx.fill();
   }
 
-  // A closed hand is drawn smaller than an open one.
   ctx.fillStyle = SKIN;
   for (const arm of player.arms) {
     const p = arm.hand.getPosition();
     ctx.fillCircle(p.x, p.y, arm.hold ? 0.22 : 0.3);
   }
 
-  // The tail: from the second segment up to the head, capped by a round end.
-  // The first segment is pulled back towards the midpoint so it cannot fold
-  // through the head when the body doubles over.
+  // Second segment up to the head, round capped. The first is pulled back
+  // towards the midpoint so it cannot fold through the head.
   const b = player.body[1];
   const p = b.getPosition();
   const mid = vec.mul(vec.add(h, p), 0.5);
@@ -982,8 +969,8 @@ function renderShot(ctx) {
 const TEETH = 20;
 const TEETH_PHASE = 50;
 
-// The saw is an infinite line, so draw only the span crossing the view: a row
-// of sliding triangles along it, filled solid on the far side.
+// An infinite line, so draw only the span crossing the view: sliding triangles
+// along it, filled solid on the far side.
 function renderEnemy(ctx) {
   const pos = enemy.getPosition();
   const dir = vec.rotate({ x: 1, y: 0 }, enemy.getAngle());
@@ -1003,8 +990,7 @@ function renderEnemy(ctx) {
 
   const size = b * 2 / (TEETH - 1);
   const h = 1;
-  // Slide the teeth along the line, and keep them anchored to the world rather
-  // than to the view, so they do not swim as the camera moves.
+  // Anchored to the world, not the view, so they do not swim as it moves.
   const dd = size * (-enemyPhase / TEETH_PHASE) - (adv % size);
   const a0 = vec.add(vec.add(p0, vec.mul(other, h / 3)), vec.mul(dir, dd));
   const b0 = vec.add(p1, vec.mul(other, h / 3));

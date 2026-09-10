@@ -1,15 +1,13 @@
 /*
  * tentacles - a chase on a grid you can rearrange.
  *
- * You move one cell a turn. So does every tentacle, but a tentacle leaves its
- * body behind, and its body is wall. The board fills up. Crates are the only
- * thing you can move: push them into a gap and a tentacle has to go the long
- * way round, or has nowhere to go at all and pulls back. It will not wait
- * politely though: a cornered tentacle tears a crate apart to get through.
+ * You move one cell a turn, and so does every tentacle, but a tentacle leaves
+ * its body behind and its body is wall. Crates are the only thing you can move:
+ * push one into a gap and a tentacle goes the long way round, or pulls back. A
+ * cornered tentacle tears a crate apart to get through.
  *
- * Grown from an unfinished sketch in the old repo, which had the grid, the
- * rigid multi-cell crates and the flood fill, but no tentacle movement and no
- * way to lose.
+ * Grown from an unfinished sketch: the grid, the rigid crates and the flood
+ * fill are its, the tentacle movement and the losing are not.
  */
 
 import { ease, extra } from "./alma/src/index.js";
@@ -154,7 +152,6 @@ function cellOf(entity) {
   return null;
 }
 
-// A cell nothing can enter or route through.
 function blocked(c) {
   return c.entity !== null || c.tent !== null;
 }
@@ -185,15 +182,15 @@ export function init() {
   buildAStar();
 }
 
-// One crate, laid over the first shuffled cell whose whole shape fits.
+// Laid over the first shuffled cell whose whole shape fits.
 function placeCrate(free) {
   const shape = CRATE_SHAPES[Math.floor(CRATE_SHAPES.length * Math.random())];
   for (const c of free) {
     const cells = shape.map(([dx, dy]) => get(c.x + dx, c.y + dy));
     if (cells.some((v) => v === null || v.entity !== null)) continue;
-    // One object shared by every cell, so the whole shape moves as one: they
-    // read the same `req`, and each cell's move is legal because the cell in
-    // front of it belongs to the same object and is moving too.
+    // One object shared by every cell, so the shape moves as one: they read the
+    // same `req`, and each cell's move is legal because the one in front of it
+    // is the same object, moving too.
     const crate = { crate: true, req: 0, dx: 0, dy: 0 };
     for (const v of cells) v.entity = crate;
     return;
@@ -225,9 +222,8 @@ function doPush() {
   if (next.entity.crate) next.entity.req = player.req;
 }
 
-// Resolves every requested move at once. A move that cannot happen clears its
-// own request, and the pass restarts, so whatever was relying on it gives up
-// too.
+// Resolves every requested move at once. One that cannot happen clears its
+// request and restarts the pass, so whatever relied on it gives up too.
 function doMove() {
   const places = new Map();
   let repeat = true;
@@ -259,7 +255,6 @@ function doMove() {
 
   for (const c of grid) c.entity = places.get(c.p) ?? null;
 
-  // Draw each mover from where it was and slide it into place.
   for (const [e, dir] of moved) {
     e.req = 0;
     e.dx = -DIRS[dir].x * CELL;
@@ -271,8 +266,7 @@ function doMove() {
   return moved;
 }
 
-// Steps a tentacle one cell down the flood towards the player. Returns true if
-// that step lands on them.
+// One cell down the flood. True if the step lands on the player.
 function stepTentacle(t) {
   const head = t.cells[0];
 
@@ -294,8 +288,7 @@ function stepTentacle(t) {
   return false;
 }
 
-// Nowhere to go. Tear open one neighbouring crate cell, or pull back a segment
-// if there is not even a crate to chew on.
+// Nowhere to go: tear open a neighbouring crate, or pull back a segment.
 function breakThrough(t) {
   const head = t.cells[0];
   for (const n of neighbors(head)) {
@@ -309,8 +302,8 @@ function breakThrough(t) {
   return false;
 }
 
-// Steps from the player outwards through open cells. The player's own cell is
-// 0; anything a tentacle body or a crate sits on stays -1 and is not a route.
+// Steps out from the player through open cells. The player is 0; a tentacle
+// body or a crate stays -1 and is not a route.
 function buildAStar() {
   for (const c of grid) c.astar = -1;
 
@@ -333,8 +326,8 @@ function buildAStar() {
   }
 }
 
-// A swipe into a wall still costs a turn: there has to be a way to wait, and
-// without one a boxed-in player would freeze the game.
+// A swipe into a wall still costs a turn: without a way to wait, a boxed-in
+// player freezes the game.
 function tick(dir) {
   player.req = dir;
   doPush();
@@ -386,8 +379,8 @@ export function render(ctx) {
   renderPlayer(ctx);
 }
 
-// Drawn cell by cell with no gap, so a multi-cell crate reads as one slab,
-// then a seam over every inner edge to show it is made of parts.
+// Cell by cell with no gap, so a crate reads as one slab, then a seam over
+// every inner edge to show its parts.
 function renderCrates(ctx) {
   ctx.fillStyle = CRATE;
   for (const c of grid) {
@@ -423,8 +416,8 @@ function renderPlayer(ctx) {
   );
 }
 
-// One thick round-capped line down the body, tapering as it goes, with the
-// head sliding out of the segment behind it.
+// One round-capped line down the body, tapering, head sliding out of the
+// segment behind it.
 function renderTentacle(ctx, t) {
   const pts = t.cells.map((c) => {
     const { x, y } = px(c);
@@ -444,8 +437,7 @@ function renderTentacle(ctx, t) {
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
 
-  // Two passes: a wide one for the whole body, a narrow one for the tail, so
-  // the tentacle thins out towards its base.
+  // Wide pass for the body, narrow for the tail, so it thins towards the base.
   for (const [from, width] of [[0, CELL * 0.62], [pts.length >> 1, CELL * 0.4]]) {
     if (pts.length - from < 1) continue;
     ctx.lineWidth = width;
@@ -459,7 +451,6 @@ function renderTentacle(ctx, t) {
   ctx.fillStyle = TENT_HEAD;
   ctx.fillCircle(pts[0].x, pts[0].y, CELL * 0.17);
 
-  // Suckers, every other segment, on alternating sides.
   ctx.fillStyle = TENT_HEAD;
   for (let i = 1; i < pts.length - 1; i += 2) {
     const a = pts[i - 1];

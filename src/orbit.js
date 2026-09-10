@@ -1,54 +1,34 @@
 /*
  * orbit - a port of ~/prj/vault/games/sketch/src/Orbit.hx, May 2014.
  *
- * You circle a turret at a fixed speed and your gun fires itself, twice a
- * second, straight at the middle. The only control is a click, which reverses
- * the direction you circle in. Rings of chunks stand between the gun and the
- * turret; the turret leads its shots at where you will be when they arrive,
- * and the shield eats one hit.
+ * You circle a turret at a fixed speed and your gun fires itself twice a second
+ * at the middle. The only control is a click, which reverses the direction you
+ * circle in. Rings of chunks stand between the gun and the turret; the turret
+ * leads its shots, and the shield eats one hit.
  *
- * The score is the point of the design and it is inverted: destroying a chunk
- * pays its health once, while a chunk still standing when the turret dies pays
- * its health repeatedly as it drains, weighted by how far out its ring sits. A
- * five-health chunk in the third ring is worth 5 destroyed and 45 left alone.
- * So the game is to punch one hole and thread it, not to clear the board. The
- * `finishLevel` drain below is where that number is made, and its re-scoring
- * of the same chunk every tick is the mechanism, not a slip.
+ * The score is inverted, and that is the design: destroying a chunk pays its
+ * health once, while a chunk still standing when the turret dies pays its
+ * health repeatedly as it drains, weighted by its ring. A five-health chunk in
+ * the third ring is worth 5 destroyed and 45 left alone, so the game is to
+ * punch one hole and thread it. `finishLevel`'s re-scoring of the same chunk
+ * every tick is the mechanism, not a slip.
  *
- * What changed from the Haxe:
+ * A chunk is a slice of a ring, which is neither shape entity.js collides. The
+ * Haxe walked the arc into a polygon because that was all ugl had; in polar
+ * coordinates the slice is two comparisons, which is `covers()`. Both bullets
+ * collide as circles, since a hit box does not turn with the drawing.
  *
- * - `Message` and `Scorer`, the sliding banner and the score box, are gone.
- *   The shell's bar already carries a score and a middle line, so the level
- *   number goes through msg() and stays up.
- * - The shell owns game over, so the death no longer drains the level first.
- *   The explosion, the hitstop and the shake are still here; gameOver() lands
- *   DEATH seconds later, with the freeze-frame taken then.
- * - The bar covers the top 21 units of the 480 box. Everything is radial about
- *   one point, so the centre moves down to the middle of what is left and the
- *   orbit comes in: with the recoil and the shield ring the player reaches
- *   ORBIT + RECOIL + 18.5 out, and only 229.5 is left to reach into.
- * - A chunk is a slice of a ring, which is neither shape entity.js collides.
- *   The Haxe walked the arc into a polygon because a polygon was all ugl had.
- *   In polar coordinates the slice is two comparisons, which is `covers()`.
- * - A hit box does not turn with the drawing here, so both bullets collide as
- *   circles rather than as the 10x12 boxes ugl ran through the sprite matrix.
- * - The ship is drawn about the centre of its shield rather than the corner of
- *   its own box. Each of the two centres itself here, so otherwise the ship
- *   jumped a unit sideways the moment the shield went.
- * - The turret damped its turn by 0.9 a frame. That is 0.9 per sixtieth of a
- *   second now, so it steers the same on a 120Hz display.
- * - Enemy bullets were the one black in the game drawn 0x000000 rather than
- *   BLACK. They are BLACK, like everything else black.
- * - A `0` in a level pattern meant an empty slot. No level in the file has
- *   one, so the patterns are read as solid.
+ * The bar covers the top 21 units and everything is radial about one point, so
+ * the centre moves down and the orbit comes in.
  *
  * Hitstop runs a frame at dt 0 here, where ugl skipped the frame outright, so
  * the two places that divide by dt guard against it.
  */
 
+import { css } from "./lib/art.js";
 import * as ent from "./lib/entity.js";
 import "./lib/gfx.js";
-import { gameOver, hint, msg, score } from "./lib/one.js";
+import { flash, gameOver, hint, msg, score } from "./lib/one.js";
 import * as sfxr from "./lib/sfxr.js";
 import * as sound from "./lib/sound.js";
 
@@ -68,62 +48,54 @@ shoot the core; what you leave standing scores
 const WHITE = 0xecebec;
 const BLACK = 0x222222;
 const COLOR = 0x8232cd;
-// ugl's C.halfwhite and C.halfblack: three quarters of the way from each of
-// those to the background, so both read as barely there.
+// ugl's C.halfwhite and C.halfblack: three quarters of the way to the
+// background, so both read as barely there.
 const HALFWHITE = mix(WHITE, COLOR, 0.75);
 const HALFBLACK = mix(BLACK, COLOR, 0.75);
 
 const TAU = 2 * Math.PI;
 
-// The box the game thinks in, and the strip of it the shell's 44px bar covers.
+// The 480 box, and the strip the shell's bar covers.
 const W = 480;
 const TOP = 21;
 const CX = W / 2;
 // The middle of what the bar leaves, not the middle of the box.
 const CY = (TOP + W) / 2;
 
-// The player's orbit and the recoil each shot adds to it. The Haxe orbited at
-// 200 about the centre of the whole box and reached 238.5 out with the recoil
-// and the shield ring, half a unit inside the wall. Here the same sum has
-// 229.5 to fit into.
+// The Haxe orbited at 200 about the centre of the whole box, reaching 238.5
+// out with the recoil and the shield ring. Here the same sum has 229.5.
 const ORBIT = 190;
 const RECOIL = 20;
-// Units a second the orbit falls back towards ORBIT, and a knocked chunk
-// slides back to the middle.
 const FALLBACK = 50;
 const SETTLE = 50;
 const ANGSPEED = Math.PI / 4;
 const RELOAD = 0.5;
 const SHIELD = 17;
-// A chunk at full health is this thick either side of its ring.
+// Half thickness of a chunk at full health.
 const THICK = 6;
 
 const BSPEED = 300;
 const BR = 6;
 
-// Rings turn at SPIN towards a target angle, and one ring of the level is
-// given a new target every REPOINT seconds over the number of rings.
+// One ring gets a new target angle every REPOINT seconds over the ring count.
 const SPIN = 5;
 const REPOINT = 12;
 
 const ENEMY_R = 17;
 const ENEMY_TURN = 10;
-// Seconds before the turret's first shot, or as long as the hint stands when
-// that is longer. On ENEMY_FIRST alone the opening shot lands at 2.2s and the
-// one that gets through the shield at 3.3s, both while the hint is still on
-// screen and a player who is reading cannot answer either. hint() is 0 from
-// the second level on, so only the first level pays for it.
+// Or as long as the hint stands, when that is longer: on ENEMY_FIRST alone the
+// opening shot lands at 2.2s and the one past the shield at 3.3s, both while
+// the hint is still up.
 const ENEMY_FIRST = 1.5;
-// Frames of the player's angle the turret averages to lead its shot.
+// Frames of player angle the turret averages to lead its shot.
 const HISTORY = 60;
 
-// Carrying the shield into a level is worth this.
 const SHIELD_BONUS = 50;
-// Seconds from the blow to the freeze-frame, on top of the hitstop.
+// On top of the hitstop.
 const DEATH = 0.6;
 
-// ugl's Sound.vol(v) set masterVolume to 2v, which sfxr squares, and the
-// constructor's default was vol(0.2).
+// ugl's Sound.vol(v) set masterVolume to 2v, which sfxr squares. Its default
+// was vol(0.2).
 voice("shot", sfxr.laser(1350), 0.15);
 voice("pop", sfxr.explosion(1002), 0.1);
 voice("chunk", sfxr.hit(95446), 0.1);
@@ -186,8 +158,8 @@ const HARD = [
   ["111111111111", "151515151515"],
 ];
 
-// The scene's own state, as the Haxe kept it on the Scene. `transition` holds
-// while a level builds or drains: nothing fires, and the clock pays nothing.
+// `transition` holds while a level builds or drains: nothing fires, and the
+// clock pays nothing.
 let level = 0;
 let transition = false;
 let player = null;
@@ -205,7 +177,7 @@ class Player extends ent.Entity {
   }
 
   // size() pins the drawing on the shield's centre, so losing the shield does
-  // not move the ship: without it the bounding box is the ship's alone.
+  // not move the ship.
   draw() {
     this.gfx.clear().size(2 * SHIELD)
       .fill(WHITE).mt(0, -12).lt(10, 10).lt(0, 4).lt(-10, 10).fill();
@@ -240,7 +212,6 @@ class Player extends ent.Entity {
     if (this.reload > 0) return;
     this.reload += RELOAD;
 
-    // The muzzle sits at (-2, -12) in the ship's own frame, turned with it.
     const c = Math.cos(this.angle);
     const s = Math.sin(this.angle);
     new Bullet(this.pos.x - 2 * c + 12 * s, this.pos.y - 2 * s - 12 * c, this.angle);
@@ -257,12 +228,11 @@ class Bullet extends ent.Entity {
     this.angle = angle;
     this.vel.x = BSPEED * Math.cos(angle - Math.PI / 2);
     this.vel.y = BSPEED * Math.sin(angle - Math.PI / 2);
-    // Seconds left of the puff a spent bullet leaves. Zero while it is live.
+    // Seconds left of the puff. Zero while the bullet is live.
     this.gone = 0;
     this.hitCircle(BR);
-    // Every drawing in this file is built where the entity is made rather than
-    // in begin(), because a group is rendered with whatever a constructor
-    // added this frame and begin() only runs at the top of the next one.
+    // Every drawing here is built in the constructor, not begin(): a group is
+    // rendered with whatever the constructor added this frame.
     this.gfx.cache(0).fill(WHITE).circle(0, 0, BR);
   }
 
@@ -282,7 +252,6 @@ class Bullet extends ent.Entity {
     const { x, y } = this.pos;
     if (x < 0 || y < 0 || x > W || y > W) return this.remove();
 
-    // A round leaves the muzzle as a ball and stretches into a dart.
     if (this.ticks > 0.06) {
       this.gfx.cache(1).fill(WHITE)
         .mt(0, -6).lt(-3, 4).lt(-3, 6).lt(3, 6).lt(3, 4);
@@ -319,14 +288,14 @@ class EnemyBullet extends ent.Entity {
 
     if (player !== null && this.hit(player)) {
       this.remove();
-      new Flash();
+      // The only sign that a round landed on the shield.
+      flash(css(WHITE));
       if (player.shield) player.removeShield();
       else die();
       return;
     }
 
-    // Shooting one down is free: the player's gun aims itself at the middle,
-    // so this only pays off where the two lines already cross.
+    // Free: the gun aims itself, so this only pays where the lines cross.
     const b = this.hitGroup(Bullet);
     if (b === null) return;
     sound.play("pop");
@@ -358,8 +327,8 @@ class Chunk extends ent.Entity {
 
   draw() {
     const r = (3 + 9 * this.health / 5) / 2;
-    // The arc's own bounding box is off to one side of the ring; size() holds
-    // the centre of the ring on the entity, which is what `angle` turns about.
+    // size() holds the centre of the ring on the entity, which is what `angle`
+    // turns about; the arc's own box is off to one side.
     this.gfx.clear().size(2 * (this.radius + THICK))
       .fill(mix(COLOR, BLACK, this.health / 5))
       .arc(
@@ -372,10 +341,9 @@ class Chunk extends ent.Entity {
       );
   }
 
-  // Is the circle of radius `r` about (x, y) touching this slice? The band is
-  // a distance test; the sweep is an angle one, widened by what the circle
-  // subtends at that distance. ugl's arcs turn the opposite way to the screen
-  // and `angle` turns the drawing, so a screen direction s is at `angle - s`.
+  // The band is a distance test, the sweep an angle one widened by what the
+  // circle subtends. ugl's arcs turn the opposite way to the screen and `angle`
+  // turns the drawing, so a screen direction s is at `angle - s`.
   covers(x, y, r) {
     const dx = x - this.pos.x;
     const dy = y - this.pos.y;
@@ -400,9 +368,8 @@ class Chunk extends ent.Entity {
       this.pos.y += dy * k;
     }
 
-    // Health rises at 5 a second and falls at 20: a ring builds slowly and
-    // drains fast. Written as a reach rather than a clamp so a hitstop frame,
-    // which arrives with dt 0, cannot end the move a step short.
+    // A ring builds slowly and drains fast. Written as a reach, not a clamp,
+    // so a hitstop frame at dt 0 cannot end the move a step short.
     if (this.want >= 0) {
       const left = this.want - this.health;
       const step = left < 0 ? -dt / 0.05 : dt / 0.2;
@@ -424,10 +391,8 @@ class Chunk extends ent.Entity {
       this.draw();
       sound.play("chunk");
 
-      // Where the round came from, and where the debris goes.
       const a = b.angle - Math.PI / 2;
       if (this.health > 0.2) {
-        // Knocked inwards, harder the closer it is to going.
         this.pos.x += Math.cos(a) * 8 / this.health;
         this.pos.y += Math.sin(a) * 8 / this.health;
         ent.shake(0.05);
@@ -473,8 +438,7 @@ class Level extends ent.Entity {
         ring.push(new Chunk(radius, at, size, slots, Number(weight[i])));
         at += size;
       }
-      // The build and the drain walk this array in order, so shuffling is what
-      // makes a ring come up and go down in no particular direction.
+      // The build and the drain walk this array in order.
       shuffle(ring);
 
       this.layers.push(ring);
@@ -497,8 +461,8 @@ class Level extends ent.Entity {
     }
 
     for (let i = 0; i < this.layers.length; ++i) {
-      // Every chunk of a ring carries the same angle, including the ones that
-      // have been shot away: they stay in the array to hold the count.
+      // Shot-away chunks stay in the array to hold the count, and every chunk
+      // of a ring carries the same angle.
       const a = this.layers[i][0].angle;
       if (a === this.want[i]) continue;
       const max = SPIN * dt;
@@ -522,12 +486,11 @@ class Enemy extends ent.Entity {
     this.past = [];
     this.pos.x = CX;
     this.pos.y = CY;
-    // Facing away from the player, so the barrel has half a turn to swing
-    // through before it can fire at them.
+    // Facing away, so the barrel has half a turn to swing before it can fire.
     this.angle = (player?.angle ?? 0) + Math.PI;
     this.hitCircle(ENEMY_R);
-    // The square is the background colour and paints nothing. It is here to
-    // hold the bounding box on the middle of the body, the way size() does.
+    // Background colour, painting nothing: it holds the bounding box on the
+    // middle of the body, the way size() does.
     this.gfx.fill(COLOR).rect(-20, -20, 40, 40)
       .fill(BLACK).circle(0, 0, 10)
       .fill(BLACK).mt(0, -20).lt(10, 0).lt(-10, 0).fill();
@@ -548,9 +511,8 @@ class Enemy extends ent.Entity {
     this.past.push(aim);
     while (this.past.length > HISTORY) this.past.shift();
 
-    // Mean angular step over the buffer, over the frame, times the round's
-    // flight time. The buffer filling is the ramp: a turret just built
-    // under-leads until it has watched a whole second of orbit.
+    // Mean angular step over the buffer, times the round's flight time. The
+    // buffer filling is the ramp: a new turret under-leads for a second.
     if (dt > 0 && this.past.length > 1) {
       let sum = 0;
       for (let i = 1; i < this.past.length; ++i) {
@@ -567,8 +529,8 @@ class Enemy extends ent.Entity {
 
     this.bulletDelay = Math.max(0.1, this.bulletDelay - 0.1 * dt / 30);
 
-    // Full thrust towards the aim and a damping that never quite settles, so
-    // the barrel hunts around the player rather than tracking them exactly.
+    // A damping that never quite settles, so the barrel hunts around the
+    // player rather than tracking them.
     const t = turn(this.angle, aim);
     if (t !== 0) this.angvel += Math.sign(t) * ENEMY_TURN * dt;
     this.angvel *= Math.pow(0.9, dt * 60);
@@ -579,33 +541,6 @@ class Enemy extends ent.Entity {
     this.bulletTime = this.bulletDelay;
     new EnemyBullet(this.angle);
     sound.play("enemyshot");
-  }
-}
-
-/*
- * ugl's Micro.flash(): one frame of white over the board. It is the only sign
- * that a round landed on the shield, which otherwise just quietly goes.
- *
- * ugl asked for that frame as `0.01` seconds and there is no length of time
- * that means it here. A flash is made inside another entity's update(), and
- * this group steps after that one, so its own update() runs before anything is
- * drawn: any lifetime under a frame is removed having never been painted, and
- * any lifetime over one lasts however many frames the display happens to fit
- * into it. So it ends itself once it has been drawn, and the drawing is built
- * in the constructor, because begin() waits for the top of the next frame.
- */
-class Flash extends ent.Entity {
-  constructor() {
-    super();
-    this.pos.x = CX;
-    this.pos.y = CY;
-    // Wider than the box, so a frame that also shakes shows no edge.
-    this.gfx.fill(WHITE).rect(-W / 2 - 40, -W / 2 - 40, W + 80, W + 80);
-  }
-
-  render(ctx) {
-    super.render(ctx);
-    this.remove();
   }
 }
 
@@ -646,12 +581,11 @@ function finishLevel() {
   });
 }
 
-// Build the next level a chunk at a time, then hand the board back.
 function nextLevel() {
   level++;
   msg(`level ${level + 1}`);
-  // A round can end during the drain: an enemy round outlives the level that
-  // fired it, and there is nobody to build a board for.
+  // An enemy round outlives the level that fired it, so a round can end during
+  // the drain with nobody left to build for.
   if (player === null) return;
 
   if (!player.shield) player.addShield();
@@ -687,8 +621,7 @@ function die() {
   new ent.Timer().delay(DEATH).run(() => gameOver());
 }
 
-// Past the hand-made levels: four rings out of HARD, an extra one every few
-// levels, up to eight.
+// Past the hand-made levels: four rings out of HARD, up to eight.
 function roll(n) {
   const count = Math.min(8, Math.trunc(3 + Math.sqrt(1 + n - DATA.length)));
   const out = [];
@@ -702,7 +635,6 @@ function mod(a, m) {
   return ((a % m) + m) % m;
 }
 
-// The shortest signed way round from `a` to `b`.
 function turn(a, b) {
   return mod(b - a + Math.PI, TAU) - Math.PI;
 }
@@ -731,7 +663,7 @@ function shuffle(a) {
 export function init() {
   ent.reset();
   ent.world(W);
-  ent.order([Enemy, Chunk, ent.Particle, Player, EnemyBullet, Bullet, Flash]);
+  ent.order([Enemy, Chunk, ent.Particle, Player, EnemyBullet, Bullet]);
 
   level = -1;
   transition = true;
@@ -742,10 +674,9 @@ export function init() {
 
 export function update(dt) {
   ent.update(dt);
-  // Half a point a second for staying alive, and nothing while a level builds
-  // or drains. ugl ran the scene before the entities and skipped the whole
-  // frame during hitstop; here the scene runs after and reads ent.game.time,
-  // which is already 0 on a held frame, so the two amount to the same thing.
+  // Half a point a second alive, nothing while a level builds or drains.
+  // ent.game.time is already 0 on a held frame, which is what ugl got by
+  // skipping the frame outright.
   if (!transition) score.value += ent.game.time / 2;
 }
 

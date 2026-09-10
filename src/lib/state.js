@@ -1,14 +1,12 @@
 /*
- * state.js - the shell's shared mutable state.
- *
- * one.js, overlay.js, input.js, camera.js and sound.js all read and write this
- * one module. It exists so none of them has to import another, which would
- * make the import graph a cycle.
+ * state.js - the shell's shared mutable state. one.js, overlay.js, input.js,
+ * camera.js and sound.js all read and write it, so none has to import another
+ * and make the graph a cycle.
  */
 
 import { Act } from "../alma/src/index.js";
 
-// Every game draws into a 1024x1024 box, whatever the canvas ends up being.
+// Every game draws into this box, whatever the canvas ends up being.
 export const SIZE = 1024;
 
 // Filled in from the game module's `meta` export by one.run().
@@ -37,7 +35,7 @@ export const RIGHT = 2;
 export const DOWN = 3;
 export const LEFT = 4;
 
-// Pointer state in 1024-space, rewritten once per frame by input.poll().
+// In 1024-space, rewritten once a frame by input.poll().
 export const mouse = {
   x: 0,
   y: 0,
@@ -51,10 +49,8 @@ export const mouse = {
   swipe: 0,
 };
 
-// Buttons, in the shape ugl's Game.key had: what is held now, plus what went
-// down this frame. A game reads key.left and key.just.b1. b1 is the action
-// button and doubles as the pointer, so every game stays playable with a mouse
-// or a finger alone.
+// ugl's Game.key: held now, plus what went down this frame. b1 doubles as the
+// pointer, so every game plays with a mouse or a finger alone.
 export const key = {
   up: false,
   right: false,
@@ -77,10 +73,8 @@ export const op = {
   screen: null,
   playing: false,
   topmsg: null,
-  // sound.js writes itself here when a game imports it. A silent game never
-  // does, and then nothing in the bundle pulls in fsfx or alma's Audio.
+  // sound.js and camera.js write themselves here when a game imports them.
+  // Null keeps fsfx, alma's Audio and Camera2D out of the bundle.
   sound: null,
-  // camera.js the same: one.js steps it and resets it between rounds when a
-  // game has asked for one, and nothing carries Camera2D when none has.
   camera: null,
 };

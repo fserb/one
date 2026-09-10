@@ -2,51 +2,23 @@
  * hypermania - a port of ~/prj/vault/games/sketch/src/Hypermania.hx.
  *
  * Megamania on a fuse. A formation crosses the screen, you hold one bullet in
- * the air at a time, and the orange bar is both the clock and the magazine: it
- * drains on its own, every shot takes half a point off it, and at zero the
- * ship goes up. Clearing a wave spends whatever is left of the bar for score,
- * two points per energy point per wave already cleared, and then refills it.
- * So the bar is the game: the score is what you did not spend clearing.
+ * the air at a time, and the orange bar is both clock and magazine: it drains
+ * on its own, every shot takes half a point off it, and at zero the ship goes
+ * up. Clearing a wave spends what is left for score, two points per energy
+ * point per wave already cleared, then refills it. The score is what you did
+ * not spend clearing.
  *
- * Eight formations rotate, four crossing the screen and four falling down it,
- * and every eight waves a timing pattern is laid over the top of them that
- * runs the formation in bursts of up to three times speed. Hits chain: a
- * bullet that connects raises the multiplier and one that reaches the top of
- * the screen drops it to zero, so a kill is worth (waves cleared + 1) times
- * the length of the chain it is in.
+ * Eight formations rotate, four crossing and four falling, and every eight
+ * waves a timing pattern runs the formation in bursts of up to three times
+ * speed. Hits chain: a kill is worth (waves + 1) times the length of its chain.
  *
- * What changed from the Haxe:
+ * The shell's bar costs the top 21 units, and the game's own bar loses the
+ * score line it used to carry, 70 units down to 49. 480 - 21 - 49 leaves
+ * exactly the 410 field the Haxe had, so every constant in it is untouched.
  *
- * - The shell's bar covers the top 21 units of the 480 box, so the field moves
- *   down by that much, and the game's own bar loses the score line it used to
- *   carry, 70 units tall down to 49. 480 - 21 - 49 leaves the field exactly
- *   the 410 the Haxe had, so every constant in it is untouched.
- * - The shell owns the score and game over, so `final()` and its three lines
- *   of text are gone. "N waves completed" is a live `WAVE n` in the top bar
- *   instead. The bar keeps its buffered `+N` pops, which now rise off the
- *   right end of the gauge rather than off a score it no longer draws.
- * - Death waits DEATH seconds before the freeze-frame, so the burst and the
- *   shake are on screen before the shot the overlay takes.
- * - `beginLevel()` reset the wave on every frame of the refill and would reuse
- *   a live one afterwards. Both callers null the wave first, so neither branch
- *   could ever run; a wave is now built and pushed off its entry edge in one
- *   place, and the refill only refills.
- * - A bullet you shoot down cannot then kill you. In the Haxe it flashed white
- *   and kept falling with its hit box for another tenth of a second.
- * - The Haxe counted the enemy's lit pixels again when it redrew the sprite
- *   white to die, so the burst was two particles per pixel. It is one now. The
- *   pattern behind it also rerolls properly: the Haxe kept the dots from the
- *   rolls before and counted the middle column twice, so its "at least 10" was
- *   anywhere from 6 to 20 pixels.
- * - The muzzle flash lived for exactly one frame, which is a different length
- *   of time on every screen. It holds for LIGHT seconds.
- * - The debug key that skipped a wave is gone.
- *
- * The Haxe opens with a two-line to-do list, "enemies shoot when you are under
- * them" and "lives?", and neither is in it. Neither is here. The shooter is
- * still drawn at random from the enemies that are on screen: at these rates a
- * wave fires between 0.2 and 1.2 bullets a second, and if every one of them
- * came down your own column there would be nothing else to do with the round
+ * The shooter is drawn at random from the enemies on screen, which is what the
+ * Haxe's unbuilt to-do list wanted to change. A wave fires 0.2 to 1.2 bullets a
+ * second, and if each came down your own column there would be nothing to do
  * but dodge.
  */
 
@@ -71,76 +43,65 @@ the bar is the clock, and every shot spends it
 
 const WHITE = 0xffffff;
 const BLACK = 0x000000;
-// The bar, the empty half of the gauge and the full half. meta.fg is PANEL
-// too, so the shell's bar at the top and the game's at the bottom are one
-// colour.
+// meta.fg is PANEL too, so the shell's bar and the game's are one colour.
 const PANEL = 0x024972;
 const DEEP = 0x011f30;
 const ORANGE = 0xe65205;
-// The muzzle flash of your own shot, and the combo pop.
 const FLASH = 0xffffcc;
 const EMBER = 0xb23f04;
 
 const W = 480;
-// The shell's 44px bar, in the 480 box the game thinks in.
+// The shell's bar, in the 480 box.
 const TOP = 21;
 const BARH = 49;
-// The floor of the field, and the top of the game's own bar.
 const BOT = W - BARH;
 
-// The gauge, centred in the bar.
 const EW = 400;
 const EH = 12;
 const EY = BOT + (BARH - EH) / 2;
 
-// The ship rests 28 above the bar, drops to 10 above it on the recoil of a
-// shot, and climbs back at RISE. It is 24 across, so 18 is its wall.
+// Rests 28 above the bar, drops to 10 on the recoil, climbs back at RISE. The
+// ship is 24 across, so WALL is 18.
 const PY = BOT - 28;
 const PDIP = BOT - 10;
 const RISE = 100;
 const WALK = 200;
 const PX = 18;
 
-// A shot leaves from just above the ship whatever the recoil is doing, and has
-// missed once it is over the top of the field. An enemy's is gone once it is
-// into the bar.
+// A shot leaves from above the ship whatever the recoil is doing, and has
+// missed once past the top of the field.
 const SHOTY = PY - 18;
 const UP = 500;
 const DOWN = 400;
 const CEIL = TOP + 9;
 const SINK = BOT + 10;
 
-// Per second, so a full bar is two minutes of holding still, and per shot.
+// A full bar is two minutes of holding still.
 const DRAIN = 100 / 120;
 const COST = 100 / 200;
-// Seconds to spend a full bar at the end of a wave, and to refill it.
 const DUMP = 1.5;
 const FILL = 0.75;
-// Seconds between the machine-gun ticks of the spend.
 const BEAT = 0.1;
 
-// The formation wraps through a band wider than the screen on both axes, so an
-// enemy leaving one side is already in place at the other.
+// Wider than the screen on both axes, so an enemy leaving one side is already
+// in place at the other.
 const WRAPX = W + 15;
 const BANDX = W + 30;
 const WRAPY = TOP + 415;
 const BANDY = 430;
 
-// The enemy sprite: 5x4 pixels at 6 units each.
+// 5x4 pixels at 6 units each.
 const COLS = 5;
 const ROWS = 4;
 const PIXEL = 6;
 
-// Seconds the death holds before the freeze-frame, the muzzle flash holds, an
-// enemy holds white before it comes apart, and the bar holds between pops.
 const DEATH = 0.4;
 const LIGHT = 0.05;
 const WHITEOUT = 0.1;
 const POP = 0.2;
 
-// ugl's Sound.vol(v) is masterVolume = 2v, which sfxr then squares. Every
-// voice here took the 0.2 its constructor set except the spend, which asked
-// for 0.1 because it plays ten times a second.
+// ugl's Sound.vol(v) is masterVolume = 2v, which sfxr squares. All took the
+// constructor's 0.2 except the spend, which plays ten times a second.
 voice("begin", sfxr.powerup(8428), 0.2);
 voice("spend", sfxr.explosion(1345), 0.1);
 voice("shot", sfxr.laser(1350), 0.2);
@@ -234,14 +195,12 @@ const TICKERS = [
   (t) => 8 - Math.trunc(10 * Math.cos(t * 2 * Math.PI / 10)),
 ];
 
-// The scene's own state, as the Haxe kept it on the Micro.
 let energy = 0;
 let wave = null;
 let waves = 0;
 let player = null;
-// Score earned but not yet shown: the bar hands it over a pop at a time.
+// Earned but not yet shown: the bar hands it over a pop at a time.
 let buffer = 0;
-// Seconds left of the death beat, or 0 while alive.
 let dying = 0;
 
 function addScore(v) {
@@ -256,8 +215,8 @@ class Bar extends ent.Entity {
   }
 
   update() {
-    // Three rectangles a frame. The Haxe split the frame and the gauge into
-    // two entities so the frame could stay cached; that is not worth a class.
+    // The Haxe split frame and gauge into two entities so the frame could stay
+    // cached. Three rectangles a frame is not worth a class.
     const y = EY - this.pos.y;
     const left = Math.max(0, energy) / 100;
     this.gfx.clear()
@@ -317,8 +276,7 @@ class Player extends ent.Entity {
     const { key, time } = ent.game;
     this.pos.y = Math.max(PY, this.pos.y - RISE * time);
 
-    // The bullet is flown from here rather than from itself, which is what
-    // keeps it over the ship: steer while it climbs and it goes with you.
+    // Flown from here, not from itself: steer while it climbs and it follows.
     if (this.bullet === null) {
       if (key.b1) {
         sound.play("shot");
@@ -372,7 +330,7 @@ class EnemyBullet extends ent.Entity {
     if (this.hit(player.bullet)) {
       ent.shake(0.1);
       player.bullet.explode(true);
-      // Shot down: it turns white, holds, and cannot hurt anyone on the way.
+      // Shot down: white, held, and harmless on the way.
       this.clearHits();
       this.art.clear().size(2).color(WHITE).rect(0, 0, 2, 6);
       new ent.Timer().delay(WHITEOUT).run(() => {
@@ -448,7 +406,6 @@ class Enemy extends ent.Entity {
 
     if (!this.hit(player.bullet)) return;
 
-    // White for a tenth of a second, then it comes apart into its own pixels.
     this.exploding = true;
     this.draw(WHITE);
     sound.play("boom");
@@ -473,7 +430,7 @@ class Enemy extends ent.Entity {
  */
 class Wave extends ent.Entity {
   // Not begin(): the wave is built and pushed off its entry edge in the same
-  // breath, and begin() does not run until the frame after the constructor.
+  // breath, and begin() runs a frame later.
   constructor() {
     super();
     this.strat = STRATS[waves % STRATS.length];
@@ -488,8 +445,7 @@ class Wave extends ent.Entity {
     const add = (row, x, y) => this.all.push(new Enemy(row, x, y, sprite, this));
 
     if (across) {
-      // Rows every dy down the top of the field, each row a screen wide with
-      // the odd ones half a gap over, and the lot of it off the left edge.
+      // Rows every dy, a screen wide, odd ones half a gap over.
       const gap = BANDX / w;
       for (let y = 0; y < h; ++y) {
         for (let x = 0; x < w; ++x) {
@@ -497,7 +453,6 @@ class Wave extends ent.Entity {
         }
       }
     } else {
-      // Columns every dx, stacked up off the top of the field a row at a time.
       const gap = BANDY / h;
       for (let y = 0; y < h; ++y) {
         for (let x = 0; x < w; ++x) {
@@ -506,8 +461,7 @@ class Wave extends ent.Entity {
       }
     }
 
-    // Anything that landed on the field is walked back off the edge it enters
-    // from, with a margin, so the wave arrives rather than appearing.
+    // Walked back off the entry edge, so the wave arrives rather than appears.
     if (across) {
       const max = Math.max(...this.all.map((e) => e.pos.x));
       if (max > 0) { for (const e of this.all) e.pos.x -= max + 100; }
@@ -528,9 +482,8 @@ class Wave extends ent.Entity {
     const { xmove, ymove, shooting } = this.strat;
     const steps = 10 + this.ticker(this.ticks);
 
-    // One bullet at a time from the whole wave, from an enemy drawn at random
-    // out of the ones on screen. Reservoir sampling: each of the n on screen
-    // ends up with the same 1/n chance without counting them first.
+    // One bullet at a time from the whole wave. Reservoir sampling: each of the
+    // n on screen gets the same 1/n chance without counting them first.
     const shoot = Math.random() < shooting * time * 2;
     let shooter = null;
     let seen = 0;
@@ -582,8 +535,7 @@ function pattern() {
   }
 }
 
-// The wave is down. Spend what is left of the bar, at DUMP for a full one, and
-// start the next once it is empty.
+// Spend what is left of the bar, at DUMP for a full one.
 function nextLevel() {
   if (wave === null) return;
   waves += 1;
@@ -607,7 +559,6 @@ function nextLevel() {
   });
 }
 
-// Fill the bar, then send in the wave.
 function beginLevel() {
   if (energy <= 0) energy = 1;
   sound.play("begin");
@@ -627,9 +578,8 @@ function beginLevel() {
 export function init() {
   ent.reset();
   ent.world(W);
-  // Update order as much as draw order, and the Haxe's: the ship moves its
-  // bullet, the wave moves the formation, and only then does an enemy ask what
-  // it is touching.
+  // Update order as much as draw order, and the Haxe's: ship moves its bullet,
+  // wave moves the formation, then an enemy asks what it is touching.
   ent.order([
     Player,
     Wave,
@@ -654,9 +604,9 @@ export function init() {
 }
 
 export function update(dt) {
-  // The entities first, then the scene, which is the other way round from ugl.
-  // ugl skipped a whole frame to hold a hit; entity.js runs the frame at a dt
-  // of zero instead, and running after it is how the drain below sees that.
+  // Entities first, then the scene, the other way round from ugl: ugl skipped
+  // a whole frame to hold a hit, and entity.js runs it at dt 0 instead, which
+  // the drain below only sees by running after.
   ent.update(dt);
 
   if (dying > 0) {
@@ -665,8 +615,7 @@ export function update(dt) {
     return;
   }
 
-  // Between waves there is nothing to survive: the bar is being spent or
-  // refilled, and the drain is off.
+  // Between waves the bar is being spent or refilled, and the drain is off.
   if (wave === null) return;
 
   energy -= ent.game.time * DRAIN;

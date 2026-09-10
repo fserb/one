@@ -1,67 +1,33 @@
 /*
  * spin - a port of ~/prj/vault/games/sketch/src/Ball.hx.
  *
- * A room that turns. You run and jump in it, gravity always points down the
- * screen, and every few seconds the whole room rotates a quarter or a half
- * turn under you. The floor you were standing on becomes a wall you slide
- * down, the ceiling you could not reach becomes a floor you can walk on, and
- * the orange mark you were running at is suddenly somewhere else entirely. The
- * needle in the middle is the warning: it swings the way the room is about to
- * go, holds there long enough for you to get somewhere you want to be when it
- * lands, and then the room follows it round.
+ * A room that turns. Gravity always points down the screen, and every few
+ * seconds the whole room rotates a quarter or a half turn under you: the floor
+ * becomes a wall, the ceiling becomes a floor, and the orange mark is somewhere
+ * else. The needle in the middle swings the way the room is about to go, holds
+ * there, and then the room follows it round.
  *
- * There is no ball in Ball.hx and there is nothing to do in it either. What is
- * there: a 24x24 tile room drawn by hand, a platform controller with wall
- * jumps and one-way platforms, `rotate()` on a key, and `vault.Sight` casting
- * a visibility polygon it draws as cyan triangles over a room that was already
- * fully visible. No score, no clock, no end, and the compass commented out of
- * `begin()`. So the name went to the mechanic.
+ * Ball.hx has no ball and nothing to do. `rotate()` is the piece worth keeping,
+ * and its timing is kept to the frame: 0.4 winding, 0.5 holding, 0.6 turning
+ * with the player locked and swung round the centre. 1.5 seconds of warning for
+ * a move that changes every route.
  *
- * `rotate()` is the piece worth having whole, and the port keeps its timing to
- * the frame: the needle winds for 0.4 seconds, holds for 0.5, and then the
- * room turns over 0.6 with the player locked and swung round the centre with
- * it. That is 1.5 seconds of warning for a move that changes every route in
- * the room, and it is what makes the turn something to plan around rather than
- * something that happens to you.
+ * The turn is on a clock rather than the Haxe's `Game.key.b1_pressed` with a
+ * random direction: a rotation you ask for and can undo is a free look at four
+ * rooms. The marks and the clock are new, and a mark buys FEED seconds and
+ * shortens the wait between turns.
  *
- * What changed:
+ * A rotation moves nothing in the room's own frame. The Haxe swung the player
+ * round the centre through the tween while the room's sprite turned. Drawing
+ * room, player and marks in one rotated transform says the same thing, and
+ * leaves only the Haxe's own end-of-turn work: turn the map array and put every
+ * position where the drawing had it.
  *
- * - The sight is gone. It is the same `castLOS` demo Wall.hx has, drawn the
- *   same way over a room that needs no revealing, and src/wall.js already
- *   turned that into a game. Twice would be the same game twice.
- * - The turn is on a clock rather than on a key. The Haxe fired it from
- *   `Game.key.b1_pressed` and picked the direction at random, which makes it a
- *   toy: a rotation you ask for and can undo is a free look at four rooms. On
- *   a clock it is the thing you play around, and the needle is what you play
- *   it with.
- * - Marks and a clock, which the Haxe has neither of. One mark at a time, as
- *   far from you as a handful of tries can put it, on a tile with something
- *   under it. Taking one buys FEED seconds and shortens the wait between
- *   turns, so the room turns faster the better you do. The ring round the
- *   needle is what is left.
- * - The player's horizontal was `acc.x = -vel.x/Game.time` and then plus or
- *   minus 10000, which is a velocity of 10000*dt: a walk that is a third
- *   slower on a 90Hz screen than on a 60Hz one. It is a speed here.
- * - The wall jump is a wall jump. The Haxe set `vel.x` to 500 off the wall and
- *   then cancelled it on the very next frame with the same drag, so the kick
- *   was one frame of it, about 8px, and a wall jump was a jump. The kick now
- *   holds KICKED seconds before the controls come back. There is a wall slide
- *   too, at SLIDE: falling past a wall at full speed leaves a two-frame window
- *   to take it, which is not a move, it is a lottery.
- * - A rotation moves nothing in the room's own frame, so nothing needs moving.
- *   The Haxe swung the player round the centre through the tween while the
- *   room's sprite turned under them. Drawing the room, the player and the
- *   marks in one transform and rotating that says the same thing, and then the
- *   only work at the end of a turn is the one the Haxe already did: turn the
- *   map array, and put every position where the drawing had it.
- * - `touch & 1` set `vel.y = 0`, which stops a fall dead on the frame the head
- *   clips a corner. It clamps the rise alone now.
- * - The room is 456 across rather than 480, because the shell's bar covers the
- *   top 21 and a room that turns onto itself has to be square. The 12 either
- *   side is meta.bg, which reads as the frame it is.
+ * The room is 456 across, not 480: the bar covers the top 21 and a room that
+ * turns onto itself has to be square. The 12 either side is meta.bg.
  *
- * The stretch on the sprite is the Haxe's: three extra rows of body while it
- * is rising faster than BIG, and nothing else in the file is animated at all.
+ * The Haxe's sight polygon is gone: it is the same `castLOS` demo Wall.hx has,
+ * and src/wall.js is already that game.
  */
 
 import * as ent from "./lib/entity.js";
@@ -86,48 +52,38 @@ the needle says which way the room turns
 const W = 480;
 const TOP = 21;
 
-// The room, which has to be square to turn onto itself: 24 tiles of 19, and
-// what is left over is the margin it sits in.
+// Square, so it turns onto itself: 24 tiles of 19, the rest margin.
 const GRID = 24;
 const TILE = 19;
 const ROOM = GRID * TILE;
 const ROOMX = (W - ROOM) / 2;
 const ROOMY = TOP + (W - TOP - ROOM) / 2;
-// The middle of the room, in the box's own coordinates: what a turn goes round
-// and where the needle stands.
 const CX = ROOMX + ROOM / 2;
 const CY = ROOMY + ROOM / 2;
 
-// The Haxe's palette. C.black is the wall, C.white the floor, C.p1 you and
-// C.p2 the mark, which is the orange the Haxe declares and never draws.
+// The Haxe's palette.
 const WALL = 0x606060;
 const FLOOR = 0xfafafa;
 const LEDGE = 0xcccccc;
 const CYAN = 0x1ebed8;
 const ORANGE = 0xff6819;
-// The needle and the ring round it, over the floor and under everything
-// standing on it.
 const NEEDLE = 0x888888;
 const RING = 0xff6819;
 const RING_BG = 0xdcdcdc;
 
-// Which way the touch bits face: up, right, down, left, as ugl numbered them.
+// ugl's touch bits.
 const T_UP = 1;
 const T_RIGHT = 2;
 const T_DOWN = 4;
 const T_LEFT = 8;
 
-// Half the player's box, and how far into a tile a stop lands. Under the
-// 19-unit tile on both axes, so a one-tile gap is a gap and a one-tile
-// corridor is a corridor.
+// Half the player's box, under the 19-unit tile on both axes so a one-tile
+// gap is a gap. EDGE is how far into a tile a stop lands.
 const HW = 7;
 const HH = 8;
 const EDGE = 0.01;
 
-// Per second: gravity, the speed a held direction walks at, what a jump leaves
-// the ground with, what letting go of the button clips a rise to, what a wall
-// jump throws you off the wall at and how long that holds before the controls
-// come back, and the fastest you slide down a wall you are against.
+// Per second, but KICKED is seconds: how long the kick owns the controls.
 const GRAV = 1000;
 const WALK = 166;
 const JUMP = 430;
@@ -135,56 +91,43 @@ const CLIP = 150;
 const KICK = 260;
 const KICKED = 0.16;
 const SLIDE = 190;
-// Seconds after walking off a ledge that a jump still counts, and how fast the
-// sprite has to be rising to stretch.
+// Coyote time, and the rise speed the sprite stretches at.
 const COYOTE = 0.1;
 const BIG = 150;
-// How far off the pointer has to be before it is a direction and not a tap.
+// How far off the pointer is a direction rather than a tap.
 const DEAD = 8;
 
-// The turn: the needle winds for this long, holds for this long, and then the
-// room follows over this long, doubled for a half turn. The Haxe's numbers.
+// The Haxe's numbers. TURNS doubles for a half turn.
 const WIND = 0.4;
 const HELD = 0.5;
 const TURNS = 0.6;
 
-// Seconds between turns at the start, what each mark takes off that, and the
-// shortest it gets. A turn takes 1.5 seconds of its own, 2.1 for a half one,
-// and the player is locked for the last 0.6 of that, so the floor is what
-// leaves a stretch to play in between two of them.
+// A turn costs 1.5 seconds itself (2.1 for a half), 0.6 of it locked, so
+// EVERY_MIN is what leaves a stretch to play between two.
 const EVERY = 7;
 const EVERY_OFF = 0.3;
 const EVERY_MIN = 4;
 
-// The clock: what the round opens with, the most it will hold, what one mark
-// puts back, and what each mark adds to the rate it runs down at. The rate is
-// the whole of the late game: the turns stop getting closer together at
-// EVERY_MIN and a mark keeps buying its FEED, so without it a player who can
-// hold one mark every four seconds never loses. At twenty marks the ring
-// empties twice as fast and FEED is three seconds, not six.
+// DRAIN_UP is the late game: turns stop closing up at EVERY_MIN and a mark
+// keeps buying FEED, so without it one mark every four seconds never loses.
 const TIME = 25;
 const TIME_MAX = 30;
 const FEED = 6;
 const DRAIN_UP = 0.05;
-// The ring the clock is drawn as, and the needle inside it.
 const RING_R = 27;
 const RING_W = 4;
 const ARROW = 13;
 
-// No mark lands nearer the player than this.
 const MARK_GAP = 150;
 const MARK_R = 7;
-// Tiles the flood lets a jump climb before it has to land on something. A jump
-// tops out at JUMP*JUMP/(2*GRAV), which is 92 of the 19-unit tiles, so four is
-// the whole of it and a little under.
+// Tiles the flood lets a jump climb. JUMP*JUMP/(2*GRAV) is 92 units, so four
+// 19-unit tiles is a shade under.
 const CLIMB = 4;
-// How often the mark is checked for still being reachable, and how long it can
-// go unreachable before it moves.
+// How often the mark's reachability is checked, and how long it may fail.
 const LOOK = 0.4;
 const LOST = 2;
 
-// The Haxe's player, which is Wall.hx's player facing the other way. The first
-// two rows are the ones that mirror; `big` splices three more rows of body in
+// The Haxe's player, Wall.hx's facing the other way. `big` splices STRETCH in
 // above the feet.
 const HEAD_L = "00000..000000.";
 const HEAD_R = "..00000.000000";
@@ -192,8 +135,7 @@ const BODY = ".0.0.0..00000..00000...000..";
 const STRETCH = "..000....000....000..";
 const FEET = ".00000.";
 
-// The room. 0 is a wall, 1 a one-way platform you can jump up through and
-// stand on, and anything else is air. Straight out of the Haxe.
+// 0 wall, 1 one-way platform, anything else air. Straight out of the Haxe.
 const MAP = `
 000000000000000000000000
 0......................0
@@ -232,8 +174,8 @@ function voice(name, params, vol) {
   sound.put(name, sfxr.render(params), sfxr.SAMPLE_RATE);
 }
 
-// The room going over: a sine sliding down under a slow noise, which is the
-// nearest sfxr's seven generators get to something heavy moving.
+// A sine sliding down under slow noise: the nearest sfxr's seven generators
+// get to something heavy moving.
 function rumble() {
   const p = sfxr.params();
   p.waveType = 2;
@@ -251,29 +193,20 @@ function rumble() {
 // 1 wall, 2 platform, 0 air. Rewritten in place by a turn.
 const map = new Uint8Array(GRID * GRID);
 const spun = new Uint8Array(GRID * GRID);
-// Tiles the player can get to from where they are, and the working room the
-// flood that fills it needs.
 const reach = new Uint8Array(GRID * GRID);
 const seen = new Uint8Array(GRID * GRID * (CLIMB + 1));
 const queue = [];
 
 let player = null;
-// Seconds left, seconds until the next turn is called for, and seconds
-// counted off since the last one landed.
 let clock = 0;
 let every = EVERY;
 let waited = 0;
-// The turn itself: which phase it is in, how far into that phase, which way it
-// is going, how far the room is drawn round and how far the needle is.
 let phase = 0;
 let since = 0;
 let dir = 1;
 let turned = 0;
 let needle = 0;
-// Nothing the player does counts while the room is going over.
 let locked = false;
-// Seconds since the mark was last checked for being reachable, and seconds it
-// has been out of reach for.
 let looked = 0;
 let lost = 0;
 
@@ -284,7 +217,6 @@ const TURNING = 3;
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const css = (c) => `#${c.toString(16).padStart(6, "0")}`;
-// The tile a point in the box falls in, and the box coordinate a tile edge is.
 const tx = (x) => Math.floor((x - ROOMX) / TILE);
 const ty = (y) => Math.floor((y - ROOMY) / TILE);
 const ex = (i) => ROOMX + i * TILE;
@@ -316,8 +248,7 @@ function spinMap() {
   map.set(spun);
 }
 
-// The same quarter turn on a point in the box, so a thing standing in the room
-// is standing in the same place in it afterwards.
+// The same quarter turn on a point, so a thing in the room stays put in it.
 function spinPoint(p) {
   const x = p.x - ROOMX;
   const y = p.y - ROOMY;
@@ -382,8 +313,7 @@ function axis(p, dx, dy, bot) {
   else if (dy < 0) p.y = ey(ty(y - HH) + 1) + HH + EDGE;
 }
 
-// What the box is up against, one tile out on each of the four sides. Out of
-// the room counts as solid, the same way the Haxe counted it.
+// Outside the room counts as solid, as in the Haxe.
 function touching(p) {
   const bot = p.y + HH;
   const i0 = tx(p.x - HW);
@@ -414,12 +344,8 @@ class Player extends ent.Entity {
     this.pos.y = ey(j) + TILE / 2;
     this.face = -1;
     this.big = false;
-    // Where the box was before this frame's step, which is what postUpdate
-    // resolves the step from.
     this.was = { x: this.pos.x, y: this.pos.y };
     this.hitBox(2 * HW, 2 * HH);
-    // Seconds a wall jump still owns the controls, and seconds since the last
-    // ground under the feet.
     this.kicked = 0;
     this.coyote = 0;
     this.touch = 0;
@@ -447,7 +373,6 @@ class Player extends ent.Entity {
     const jump = key.just.up || key.just.b1;
     const touch = this.touch;
 
-    // A head against a ceiling stops a rise, and nothing else.
     if (touch & T_UP) this.vel.y = Math.max(0, this.vel.y);
 
     let kicked = false;
@@ -456,7 +381,6 @@ class Player extends ent.Entity {
       this.coyote = COYOTE;
     } else {
       this.accelerate(0, GRAV);
-      // Against exactly one wall and nothing else: the jump goes off it.
       if (touch === T_RIGHT || touch === T_LEFT) {
         this.vel.y = Math.min(this.vel.y, SLIDE);
         if (jump) {
@@ -469,7 +393,6 @@ class Player extends ent.Entity {
           sound.play("jump");
         }
       } else if (!held) {
-        // Let go on the way up and the rise is cut short.
         this.vel.y = Math.max(this.vel.y, -CLIP);
       }
     }
@@ -484,8 +407,8 @@ class Player extends ent.Entity {
     let mx = 0;
     if (key.left) mx -= 1;
     if (key.right) mx += 1;
-    // The pointer is a side to run to rather than a place to stand: a
-    // platformer needs the run held, and a tap on top of you is a jump alone.
+    // The pointer is a side to run to, not a place to stand: a tap on top of
+    // you is a jump alone.
     if (mx === 0 && mouse.press) {
       const d = mouse.x - this.pos.x;
       if (Math.abs(d) > DEAD) mx = Math.sign(d);
@@ -502,10 +425,9 @@ class Player extends ent.Entity {
     }
   }
 
-  // entity.js integrates the step with no idea there are walls, so this puts
-  // the box back where it started and walks it there through them instead.
-  // That is the Haxe's `pos = grid.update(this, pos)`, and it is in postUpdate
-  // for the same reason: it is the frame's own move being resolved.
+  // entity.js integrates with no idea there are walls, so this puts the box
+  // back and walks it through them. The Haxe's `pos = grid.update(this, pos)`,
+  // in postUpdate for the same reason: it resolves the frame's own move.
   postUpdate() {
     if (locked) return;
     const dx = this.pos.x - this.was.x;
@@ -548,7 +470,7 @@ class Mark extends ent.Entity {
   }
 }
 
-// Something to stand on, which a platform is and the outside of the room is.
+// Something to stand on: a platform, or outside the room.
 function ground(i, j) {
   if (i < 0 || j < 0 || i >= GRID || j >= GRID) return true;
   return map[j * GRID + i] !== 0;
@@ -570,9 +492,7 @@ function flood(i0, j0) {
   reach.fill(0);
   seen.fill(0);
   queue.length = 0;
-  // Seeded as if it had just fallen: a player in the air has to land on
-  // something before it counts as climbing again, so the answer is the same
-  // one frame before a jump and one frame after it.
+  // Seeded as if it had just fallen, so a jump does not change the answer.
   step(i0, j0, CLIMB);
 
   for (let h = 0; h < queue.length; h += 2) {
@@ -585,7 +505,6 @@ function flood(i0, j0) {
     const r = ground(i, j + 1) ? 0 : climbed;
     step(i - 1, j, r);
     step(i + 1, j, r);
-    // Once it is falling there is no way back up until it lands.
     step(i, j + 1, CLIMB);
     if (r < CLIMB) step(i, j - 1, r + 1);
   }
@@ -593,7 +512,7 @@ function flood(i0, j0) {
 
 function step(i, j, climbed) {
   if (i < 0 || j < 0 || i >= GRID || j >= GRID) return;
-  // A platform is not in the way: it is jumped up through and stood on.
+  // A platform is not in the way: it is jumped through and stood on.
   if (map[j * GRID + i] === 1) return;
   const at = j * GRID + i;
   const k = at * (CLIMB + 1) + climbed;
@@ -638,9 +557,7 @@ function addMark() {
   new Mark(at % GRID, Math.floor(at / GRID));
 }
 
-// The turn, in four phases: the needle winds the way the room is about to go,
-// holds there, the room follows it round, and then the map and everything
-// standing in it are put where the drawing already had them.
+// The last phase puts the map and everything in it where the drawing had them.
 function turnClock(t) {
   if (phase === IDLE) {
     waited += t;
@@ -686,12 +603,10 @@ function turnClock(t) {
   locked = false;
   phase = IDLE;
   waited = 0;
-  // What the box is up against is read at the end of a step, and the last
-  // step was before the room went over.
+  // Read at the end of a step, and the last step was before the turn.
   player.touch = touching(player.pos);
 
-  // A turn changes every route in the room, so it can leave the mark
-  // somewhere there is now no way to. That one moves at once.
+  // A turn changes every route, so a mark can end up unreachable. Move it.
   moveStray();
 }
 
@@ -754,9 +669,8 @@ export function update(dt) {
   ent.update(dt);
   const t = ent.game.time;
 
-  // The turn and the clock both hold while the hint is up, the same way up's
-  // board does: a turn that lands on a player who is still reading is not one
-  // they had.
+  // Turn and clock hold while the hint is up: a turn landing on a player who
+  // is still reading is not one they had.
   if (hint() > 0) return;
 
   turnClock(t);
@@ -783,9 +697,8 @@ export function render(ctx) {
   ctx.restore();
   ctx.restore();
 
-  // The needle and its ring stand still while the room goes over, which is the
-  // whole of what they are for, so they are drawn outside the turn, and under
-  // everything that is standing in the room.
+  // They stand still while the room goes over, which is what they are for, so
+  // they draw outside the turn and under everything standing in the room.
   ctx.save();
   ctx.scale(k, k);
   drawNeedle(ctx);
@@ -809,7 +722,6 @@ function drawRoom(ctx) {
     for (let i = 0; i < GRID; ++i) {
       const t = map[j * GRID + i];
       if (t === 0) continue;
-      // Runs, so a wall 20 tiles long is one fill.
       let n = 1;
       while (i + n < GRID && map[j * GRID + i + n] === t) n += 1;
       ctx.fillStyle = css(t === 1 ? WALL : LEDGE);
@@ -820,8 +732,7 @@ function drawRoom(ctx) {
 }
 
 function drawNeedle(ctx) {
-  // The ring is the clock: a full circle is TIME_MAX, and it runs out
-  // anticlockwise from straight up.
+  // A full circle is TIME_MAX, running out anticlockwise from straight up.
   ctx.lineWidth = RING_W;
   ctx.strokeStyle = css(RING_BG);
   ctx.beginPath();

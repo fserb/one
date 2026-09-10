@@ -1,42 +1,25 @@
 /*
  * set - a port of ~/prj/vault/games/sketch/src/SET.hx.
  *
- * The card game. Sixteen cards are up, each carrying four traits with three
- * values apiece, and three of them are a set when every trait is all the same
- * or all different across the three. Take one and the three cards are replaced
- * off an 81-card deck.
+ * The card game. Sixteen cards, four traits with three values each, and three
+ * cards are a set when every trait is all the same or all different. Take one
+ * and the three are replaced off an 81-card deck.
  *
- * The Haxe is the puzzle and none of the game. It deals, it marks, it checks,
- * and then nothing: no score, no clock, no way for a round to end, and a
- * `// update mouse move with selected` where the pointer should be. What is
- * written here around it:
+ * The Haxe is the puzzle and none of the game: it deals, marks and checks, with
+ * no score, no clock and no way to end. The clock is what makes a wrong guess
+ * cost anything, since the board holds 560 triples and about five sets, so with
+ * a free guess the game is 560 button presses rather than looking.
  *
- * - A clock, which the round is. It starts full, a set found tops it back up,
- *   and a wrong triple costs five seconds. The score is sets found. The clock
- *   is what makes a wrong guess cost anything: the board holds 560 triples and
- *   about five of them are sets, so with a free guess the game is to press the
- *   button 560 times rather than to look.
- * - The pointer. The cursor follows it wherever it moves and the arrows have
- *   it whenever it is still, so there is no mode to be in and a tap plays the
- *   game with one finger.
- * - `pick()` divided into an empty deck once all 81 cards were dealt. Cards
- *   already taken go back in, and since every one of them is off the board
- *   nothing can appear twice.
- * - A board with no set in it is a round the player cannot leave. Sixteen
- *   cards almost always contain one, and almost always is not never, so a
- *   board that does not gets dealt again.
+ * The cursor follows the pointer when it moves and the arrows when it is still,
+ * so there is no mode and a tap plays with one finger.
  *
- * Two smaller things. The Haxe drew the triangle as three points with no line
- * back to the first, so an unfilled one came out as a chevron with no base;
- * it is closed here. And the deck builder named its four loops in one order
- * while the reader unpacked them in another, which was harmless because the
- * rule treats all four traits alike, but the names are lined up now.
+ * Sixteen cards almost always hold a set, and almost always is not never, so a
+ * board without one is dealt again.
  *
- * The layout is not the Haxe's. The shell takes 21 units off the top of the
- * 480 box that ugl gave the game whole, so the board comes down from a 110
- * pitch to a 100 one and the room that frees carries the clock and the last
- * set found. Every card still draws inside its own 100-unit box with the
- * Haxe's own numbers, scaled by `CELL / 100` on the way out.
+ * The layout is not the Haxe's: the shell takes 21 units off the top, so the
+ * pitch is 100 rather than 110 and the room freed carries the clock and the
+ * last set. Cards still draw in the Haxe's own 100-unit box, scaled by
+ * `CELL / 100` on the way out.
  */
 
 import * as ent from "./lib/entity.js";
@@ -56,8 +39,8 @@ each trait all same or all different
   date: "2015-05-03",
 };
 
-// C.COLORS in the Haxe, one array of five. The first three are the cards; the
-// other two only ever draw the mark and the cursor.
+// C.COLORS in the Haxe. The first three are the cards, the other two the mark
+// and the cursor.
 const COLORS = [0xff6819, 0xc0dc61, 0x1ebed8];
 const MARKED = 0xfec804;
 const POINTED = 0xe284cc;
@@ -66,16 +49,16 @@ const INK = 0x010101;
 const COLS = 4;
 const CELLS = COLS * COLS;
 
-// A card draws in its own 100-unit box and is scaled to CELL, so the eight
-// units of pitch left over are the gap between two cards.
+// A card draws in a 100-unit box scaled to CELL, so the eight units of pitch
+// left over are the gap.
 const PITCH = 100;
 const CELL = 92;
 const MARK = CELL - 8;
 
 const X0 = 90;
 const Y0 = 75;
-// The board's own edges. The clock spans them and the last set found is right
-// aligned to them, so the three read as one column of things.
+// The board's edges. The clock spans them and the last set is right aligned to
+// them, so the three read as one column.
 const LEFT = X0 - CELL / 2;
 const RIGHT = X0 + PITCH * (COLS - 1) + CELL / 2;
 const MID = (LEFT + RIGHT) / 2;
@@ -88,25 +71,22 @@ const GRAVE_PITCH = 27;
 const GRAVE_X = RIGHT - GRAVE / 2 - GRAVE_PITCH * 2;
 const GRAVE_Y = 460;
 
-// Both the starting clock and its ceiling, so a set tops the bar up rather
-// than pushing past the end of it and telling the player nothing. Ten seconds
-// a set is about the pace a player who can read the board holds; slower than
-// that and the clock bleeds down.
+// The starting clock and its ceiling, so a set tops the bar up rather than
+// pushing past the end of it. Ten seconds a set is the pace a player who can
+// read the board holds.
 const CLOCK_MAX = 45;
 const SET_TIME = 10;
 const MISS_TIME = 5;
 
-// Cards not yet dealt, and cards taken off the board. The sixteen on the board
-// are in neither, which is why the deck can refill out of the discards without
-// ever putting a card on the board twice.
+// Cards not yet dealt, and cards taken. The sixteen on the board are in
+// neither, so the deck refills out of the discards without repeating one.
 let deck = [];
 let discard = [];
 
-// The Card in each of the sixteen positions.
 let board = [];
-// The Marks the player has down, at most three.
+// At most three.
 let marks = [];
-// The three Cards of the last set found, shrunk into the bottom corner.
+// The last set found, shrunk into the bottom corner.
 let grave = [];
 
 let clock = CLOCK_MAX;
@@ -133,16 +113,14 @@ function pick() {
   }
   const i = Math.floor(Math.random() * deck.length);
   const c = deck[i];
-  // Nothing reads the deck in order, so the hole is filled from the end rather
-  // than shifting sixty entries down.
+  // Nothing reads the deck in order, so fill the hole from the end.
   deck[i] = deck[deck.length - 1];
   deck.pop();
   return c;
 }
 
-// Every trait all the same or all different. Both cases are exactly "the three
-// values sum to a multiple of three": three equal values sum to 3v and 0+1+2
-// is 3, while two alike and one apart never does.
+// Every trait all same or all different, which is exactly "the three values
+// sum to a multiple of three": 3v and 0+1+2 do, two alike and one apart never.
 function isSet(a, b, c) {
   for (let s = 0; s <= 6; s += 2) {
     const t = ((a >> s) & 3) + ((b >> s) & 3) + ((c >> s) & 3);
@@ -170,8 +148,8 @@ function cellY(i) {
   return Y0 + PITCH * Math.floor(i / COLS);
 }
 
-// The cell a point is in, or null. The whole pitch counts, gap included, so
-// there is no dead strip between two cards for a tap to land in.
+// The cell a point is in, or null. The gap counts too, so a tap has no dead
+// strip to land in.
 function cellAt(x, y) {
   const col = Math.floor((x - X0 + PITCH / 2) / PITCH);
   const row = Math.floor((y - Y0 + PITCH / 2) / PITCH);
@@ -179,8 +157,8 @@ function cellAt(x, y) {
   return col + row * COLS;
 }
 
-// The stripes of a hollow shape, as a half width and a height each: ugl had no
-// hatch, so a striped card is drawn as a shape and then four lines inside it.
+// The stripes of a hollow shape, a half width and a height each: ugl had no
+// hatch, so a striped card is a shape with four lines inside it.
 const STRIPES = [
   [[10, -6], [10, -2], [10, 2], [10, 6]],
   [[7, -6], [10, -2], [10, 2], [7, 6]],
@@ -210,12 +188,9 @@ function symbol(gfx, x, y, color, fill, type) {
 }
 
 /*
- * A card. Built in the constructor rather than begin(), so it is on the screen
- * on the frame it replaces the one taken out from under it.
- *
- * The Haxe drew in a 0..100 box with gfx.size(100, 100) pinning what the
- * drawing was centred in; size() is centred on the entity here, so every
- * coordinate below is the Haxe's less 50.
+ * A card, built in the constructor so it is on screen the frame it replaces
+ * one. The Haxe drew in a 0..100 box pinned by gfx.size(100, 100); size() is
+ * centred on the entity here, so every coordinate below is the Haxe's less 50.
  */
 class Card extends ent.Entity {
   constructor(code, x, y) {
@@ -230,8 +205,7 @@ class Card extends ent.Entity {
     const color = (code >> 4) & 3;
     const fill = (code >> 6) & 3;
 
-    // The three symbols sit high in the box, so without size() the card would
-    // centre on them rather than on itself.
+    // The symbols sit high, so without size() the card centres on them.
     this.gfx.size(100);
     if (count === 0) {
       symbol(this.gfx, 0, 0, color, fill, type);
@@ -246,7 +220,6 @@ class Card extends ent.Entity {
     }
   }
 
-  // Off the board and into the corner, as the last set found.
   entomb(i) {
     this.scale = GRAVE / PITCH;
     this.pos.x = GRAVE_X + GRAVE_PITCH * i;
@@ -268,8 +241,7 @@ class Cursor extends ent.Entity {
   constructor() {
     super();
     this.selected = 4;
-    // Where the pointer was last frame, which is how a pointer that has moved
-    // is told from one sitting still.
+    // Last frame's pointer, which is how a moved one is told from a still one.
     this.px = -1;
     this.py = -1;
     this.over = null;
@@ -281,8 +253,8 @@ class Cursor extends ent.Entity {
   update() {
     const { key, mouse } = ent.game;
 
-    // The pointer takes the cursor wherever it moves, and the arrows have it
-    // whenever the pointer is still. Neither one locks the other out.
+    // The pointer takes the cursor when it moves, the arrows when it is still.
+    // Neither locks the other out.
     this.moved = mouse.x !== this.px || mouse.y !== this.py;
     this.px = mouse.x;
     this.py = mouse.y;
@@ -313,14 +285,13 @@ class Clock extends ent.Entity {
   }
 
   update() {
-    // The clock holds while meta.desc is up. Every other game is playable
-    // under its hint; this one is reading the rule, and the rule is the game.
+    // The clock holds while meta.desc is up: here the hint is the rule, and
+    // the rule is the game.
     if (hint() === 0) clock = Math.max(0, clock - ent.game.time);
 
     const w = RIGHT - LEFT;
-    // The empty track is drawn as well as the full part, and it is what pins
-    // the bounding box, so the bar shortens from the right instead of
-    // recentring itself as it goes.
+    // The empty track pins the bounding box, so the bar shortens from the
+    // right instead of recentring as it goes.
     this.gfx.clear()
       .fill(INK, 0.12).rect(-w / 2, -CLOCK_H / 2, w, CLOCK_H)
       .fill(INK).rect(-w / 2, -CLOCK_H / 2, w * clock / CLOCK_MAX, CLOCK_H);
@@ -406,8 +377,8 @@ function mark(cell) {
   marks.push(new Mark(cell));
   if (marks.length < 3) return;
 
-  // In board order rather than the order they were clicked, so the last set
-  // found reads across the corner the way it read across the board.
+  // Board order, not click order, so the last set reads across the corner the
+  // way it read across the board.
   const cells = marks.map((m) => m.cell).sort((a, b) => a - b);
   for (const m of marks) m.remove();
   marks = [];
@@ -442,9 +413,8 @@ export function update(dt) {
 
   const cursor = ent.one(Cursor);
   if (cursor === null || !ent.game.key.just.b1) return;
-  // A tap that lands off the board moves the pointer and presses b1 on the
-  // same frame. It asked for nothing, not for whatever cell the arrows left
-  // the cursor on.
+  // A tap off the board moves the pointer and presses b1 on the same frame. It
+  // asked for nothing, not for the cell the arrows left the cursor on.
   if (cursor.moved && cursor.over === null) return;
   mark(cursor.selected);
 }

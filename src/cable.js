@@ -1,63 +1,39 @@
 /*
  * cable - a port of ~/prj/vault/games/sketch/src/LD30.hx, "Tin Can Internet".
- * Ludum Dare 30, August 2014; the theme was Connected Worlds.
+ * Ludum Dare 30, August 2014.
  *
- * You trail a cable out of the earth and the cable stays where you put it.
- * Fly past a planet and the cable catches on it and wraps; fly back the way
- * you came and it unwraps, and the planet is unlinked again. Every planet
- * inside the dashed quadrant has to be wrapped, and then you have to leave the
- * quadrant, before the bar at the bottom fills.
+ * You trail a cable out of the earth and it stays where you put it. Fly past a
+ * planet and it catches and wraps; fly back and it unwraps. Wrap every planet
+ * in the dashed quadrant, then leave the quadrant, before the bar fills.
  *
- * The cable is also the cost. Drag on you grows with the square of the length
- * of the last free stretch of it, so the far side of an empty gap is the
- * slowest place in the level, and wrapping a planet is what cuts that stretch
- * back down and gives you your speed back. Planets are solid: running into one
- * throws you off it.
+ * The cable is also the cost: drag grows with the square of the last free
+ * stretch, so the far side of an empty gap is the slowest place in the level.
  *
  * The wrap is two tangent points on a rim. The free stretch hangs off the
- * silhouette edge of the planet it last caught on, recomputed from where you
- * are every frame, so the anchor slides around the rim as you circle. A signed
- * angle accumulates as it slides, starting a quarter turn in the black, and
- * the wrap pops the moment that total goes negative. Unwinding is the only way
- * to lose a link, and it costs a point.
+ * silhouette edge of the planet it last caught on, recomputed every frame, so
+ * the anchor slides around the rim as you circle. A signed angle accumulates as
+ * it slides, starting a quarter turn in the black, and the wrap pops the moment
+ * that total goes negative.
  *
- * What changed from the Haxe:
+ * The eight-second title crawl is gone, so level one's clock is FIRST rather
+ * than the Haxe's 600, "now get out of the area" survives as a first-level
+ * prompt, and the quadrant's dashes are at ZONE_ALPHA rather than 0.1 because
+ * they are now the only thing that says where it is.
  *
- * - The eight-second cyan title crawl is gone. The shell opens on the running
- *   game, so `Intro` and its `Fader(true, 8)` have nothing to sit on. Four of
- *   its five lines are the two of `meta.desc`; the fifth, "now get out of the
- *   area", stays as a prompt on the first level, which is where it teaches.
- * - Level one's clock was 600 seconds because the crawl ate ten of them and
- *   the level after it is 12. It is FIRST seconds now: long enough to work the
- *   cable out, short enough that the bar visibly moves while you do.
- * - The shell owns the score and game over, so `final()`'s four lines of text
- *   and the `Score` posts are gone. `score.value` carries the wraps.
- * - The link bar moves from y=10 to y=PIECES_Y, clear of the shell's 21-unit
- *   bar, and `Pieces`, `TimerBar`, `PlanetShow`, `Fader` and `Flasher` are
- *   drawn by hand rather than as entities. They are screen furniture, and
- *   everything that is an entity here is in the world instead: ugl added the
- *   camera delta to every entity's `pos` once a frame, and this keeps world
- *   coordinates absolute and translates in render().
- * - A hit shape does not turn with `angle` here, and ugl ran the cable's
- *   3-wide rect through the sprite matrix. The cable tests as a segment
- *   against the planet's circle, which is what that rect stood for.
- * - `effect.glow` was a three-pass box blur of a recoloured copy of the
- *   sprite, drawn under it. That is what a canvas shadow is, so the glow is
- *   `shadowBlur`. ugl's radius is a Gaussian sigma and `shadowBlur` is about
- *   twice one, hence GLOW. ugl also clipped the blur to the sprite's own box;
- *   canvas does not, so the halo reaches a little further than it did.
- * - The quadrant's four dashed `ZoneBar`s are one dashed stroke on the zone
- *   itself, at ZONE_ALPHA rather than 0.1. The crawl used to say where the
- *   quadrant was and 0.1 was a reminder; now the dashes are the only thing
- *   that says it, so they have to be legible.
- * - The pointer flies you as well as the arrows do, towards wherever it is
- *   held. The Haxe was written for a keyboard, and nothing about eight-way
- *   thrust needs one.
+ * `Pieces`, `TimerBar`, `PlanetShow`, `Fader` and `Flasher` are drawn by hand
+ * rather than as entities: they are screen furniture, and everything that is an
+ * entity here is in the world. ugl added the camera delta to every entity's
+ * `pos` once a frame; this keeps world coordinates absolute.
+ *
+ * The cable tests as a segment against a planet's circle, since a hit shape
+ * does not turn with `angle`. `effect.glow` is `shadowBlur`: ugl's radius is a
+ * Gaussian sigma and shadowBlur is about twice one, hence GLOW. ugl clipped the
+ * blur to the sprite's box and canvas does not, so the halo reaches further.
  */
 
 import * as ent from "./lib/entity.js";
 import "./lib/gfx.js";
-import { gameOver, msg, score, SIZE } from "./lib/one.js";
+import { flash, gameOver, msg, score, SIZE } from "./lib/one.js";
 import * as sfxr from "./lib/sfxr.js";
 import * as sound from "./lib/sound.js";
 
@@ -82,64 +58,52 @@ const YELLOW = 0xffe0a5;
 const DARKYELLOW = 0xe4b455;
 const DARKRED = 0xe25458;
 
-// The box the game thinks in, and the strip of it the shell's 44px bar covers.
+// The 480 box, and the strip the shell's bar covers.
 const W = 480;
 const TOP = 21;
 
-// ugl's glow(5) blurred with a sigma of 5; a canvas shadow's sigma is half its
-// shadowBlur.
+// ugl's glow(5) is a sigma of 5, and a canvas shadow's sigma is half its blur.
 const GLOW = 10;
 
-// How many planets each level asks for, and what it asks for past the end.
 const LEVELS = [2, 3, 5, 8, 10, 15, 20, 30, 50];
 const EXTRA = 17;
 
-// Seconds on the clock: this much, plus this much per planet.
+// Seconds on the clock: BASE, plus PER per planet.
 const BASE = 7;
 const PER = 1.7;
-// What the first level gets instead. The Haxe's 600 was a tutorial with a
-// story crawl over the top of it; a bar that does not move teaches nothing,
-// and the level after this one is 12.1 seconds.
+// The Haxe's 600 was a tutorial under a story crawl. A bar that does not move
+// teaches nothing, and the level after this one is 12.1 seconds.
 const FIRST = 40;
-// The last fifth of the clock alternates the bar between two colours, this
-// often.
+// How often the bar flips colour over the last fifth of the clock.
 const FLIP = 0.1;
 
-// A planet is this across, plus up to this much again, and no two of them come
-// nearer than this to each other.
 const PSIZE = 30;
 const PVARY = 20;
 const PGAP = 60;
 
-// Thrust, and what a planet answers a collision with.
 const PUSH = 1000;
 const BUMP = 7000;
-// The player's box, and the earth's radius. The earth sits far enough below
-// the start that only a badly aimed opening reaches it.
+// The earth sits far enough below the start that only a badly aimed opening
+// reaches it.
 const PW = 16;
 const PH = 24;
 const EARTH = 300;
 const EARTHY = 710;
 
-// Where the cable comes out of the earth: inside it, so it emerges from under
-// the surface.
+// Inside the earth, so the cable emerges from under the surface.
 const ROOTX = 240;
 const ROOTY = 480;
-// The cable is 3 across, so it catches a planet one and a half out from its rim.
+// The cable is 3 across, so it catches 1.5 out from a rim.
 const HALF = 1.5;
-// How far a fresh wrap is from unwinding, in radians of slide.
 const SLACK = Math.PI / 4;
 // Drag is quadratic in the free stretch over this length.
 const REACH = W + W / 2;
 
-// The level wipe: a second of cyan closing, then the next level under a second
-// of cyan opening, each fader clearing half a second after it has finished.
+// A second of cyan closing, then the next level under a second of it opening.
 const WIPE = 1;
 const FADE = 1.5;
-// A planet you hit flashes the screen for this long.
 const FLASH = 0.05;
 
-// The link bar, the clock, and the quadrant's dashes.
 const PIECES_X = 60;
 const PIECES_Y = 27;
 const CLOCK_X = 60;
@@ -157,24 +121,21 @@ function voice(name, params, vol) {
   sound.put(name, sfxr.render(params), sfxr.SAMPLE_RATE);
 }
 
-// The scene, as the Haxe kept it on its Scene.
 let level = 0;
 let planets = [];
 let linked = 0;
 let transition = false;
 let player = null;
-// The free stretch of cable, the one end of it that is still moving.
+// The free stretch: the one end still moving.
 let tip = null;
 let clock = null;
-// Screen minus world: what render() translates by to hold the player still.
+// Screen minus world. Holds the player at the middle of the screen.
 const cam = { x: 0, y: 0 };
-// Seconds until the next level is built, or 0.
 let wipe = 0;
 let fade = null;
-let flash = 0;
 // The first level says the one rule two lines of hint cannot carry.
 let nudge = false;
-// World units to device pixels, which is what shadowBlur is measured in.
+// World units to device pixels, which is what shadowBlur measures in.
 let scale = 1;
 
 class Player extends ent.Entity {
@@ -199,8 +160,7 @@ class Player extends ent.Entity {
     if (key.right) mx += 1;
     if (key.up) my -= 1;
     if (key.down) my += 1;
-    // The camera holds the player at the middle of the screen, so the pointer
-    // is a heading without any need to convert it back into the world.
+    // The player is at the middle of the screen, so the pointer is a heading.
     if (mx === 0 && my === 0 && mouse.press) {
       mx = mouse.x - W / 2;
       my = mouse.y - W / 2;
@@ -210,7 +170,7 @@ class Player extends ent.Entity {
 
     this.accelerate(-this.vel.x, -this.vel.y);
 
-    // The cable's own drag, quadratic in speed and in how much of it is out.
+    // Quadratic in speed and in how much cable is out.
     const f = Math.hypot(tip.tp.x, tip.tp.y) / REACH;
     const k = (-0.001 - 0.01 * f * f) * Math.hypot(this.vel.x, this.vel.y);
     this.accelerate(this.vel.x * k, this.vel.y * k);
@@ -218,11 +178,9 @@ class Player extends ent.Entity {
     this.angle = angleOf(this.vel) + Math.PI / 2;
   }
 
-  // Put back on the surface of what it ran into, and thrown off it.
   bumpOut(c, r) {
     const d = Math.hypot(this.pos.x - c.x, this.pos.y - c.y);
-    // Dead centre has no way out of a circle. ugl's length setter answered
-    // that with +x, and so does this.
+    // Dead centre has no way out. ugl's length setter answered +x, as here.
     const ux = d === 0 ? 1 : (this.pos.x - c.x) / d;
     const uy = d === 0 ? 0 : (this.pos.y - c.y) / d;
     if (d < r) {
@@ -232,14 +190,13 @@ class Player extends ent.Entity {
 
     this.accelerate(ux * BUMP, uy * BUMP);
     ent.shake(0.2);
-    flash = FLASH;
+    flash(css(WHITE), FLASH);
     sound.play("hit");
   }
 
   render(ctx) {
-    // Five overlapping circles, so the glow goes down in one pass and the
-    // drawing itself in another: otherwise the last circle's halo lands on top
-    // of the ones before it.
+    // Glow in one pass and the drawing in another, or the last circle's halo
+    // lands on top of the ones before it.
     ctx.save();
     ctx.shadowColor = css(WHITE);
     ctx.shadowBlur = GLOW * scale;
@@ -264,8 +221,6 @@ class Rope extends ent.Entity {
     this.pos.y = y;
     this.live = true;
     this.tp = { x: 0, y: 0 };
-    // The planet this stretch hangs off, where on its rim, and the slide
-    // banked up since it caught there.
     this.root = null;
     this.rootdir = false;
     this.rootpos = null;
@@ -294,8 +249,8 @@ class Rope extends ent.Entity {
     }
   }
 
-  // Walk the anchor round the rim to the silhouette edge the player sees now,
-  // and bank the angle it moved through. False once it has unwound.
+  // Walk the anchor to the silhouette edge the player sees now, banking the
+  // angle it moved through. False once it has unwound.
   slide() {
     const [t1, t2] = tangents(this.root, player.pos);
     const was = this.rootpos;
@@ -314,8 +269,7 @@ class Rope extends ent.Entity {
     return false;
   }
 
-  // Caught on `p`: this stretch stops at the rim and a new one carries on from
-  // there to the player.
+  // This stretch stops at the rim and a new one carries on to the player.
   wrap(p) {
     const tg = nearTangent(p, this.pos, player.pos);
 
@@ -336,8 +290,8 @@ class Rope extends ent.Entity {
     ent.delay(0.01);
   }
 
-  // Unwound: this stretch and the one that laid it go, and the one before that
-  // is handed back to the player exactly as it was left.
+  // This stretch and the one that laid it go, and the one before is handed
+  // back exactly as it was left.
   unwrap() {
     const q = this.prev;
     const r = new Rope(q.pos.x, q.pos.y);
@@ -378,7 +332,6 @@ class Planet extends ent.Entity {
     this.pos.y = y;
     this.size = size;
     this.link = 0;
-    // Seconds of the pop the link bar makes, once this planet is on it.
     this.linktimer = 0;
     this.hitCircle(size);
     this.draw();
@@ -457,10 +410,9 @@ function angleOf(v) {
   return (2 * Math.PI + Math.atan2(v.y, v.x)) % (2 * Math.PI);
 }
 
-// The two points on `p`'s rim that are its silhouette edges seen from `from`.
-// The Haxe called these tangents; they are one unit inside the rim, on the
-// diameter square to the line of sight, which is where a cable would leave a
-// circle it is wrapped around.
+// The silhouette edges of `p` seen from `from`. The Haxe called these tangents;
+// they are one unit inside the rim, on the diameter square to the line of
+// sight, which is where a wrapped cable leaves the circle.
 function tangents(p, from) {
   const d = sub(p.pos, from);
   const a = angleOf(d);
@@ -481,8 +433,7 @@ function nearTangent(p, from, to) {
   return d1 <= d2 ? t1 : t2;
 }
 
-// A stretch of cable against a planet: the segment's nearest point to the
-// centre, inside the rim plus half the cable's width.
+// The segment's nearest point to the centre, inside the rim plus HALF.
 function crosses(rope, p) {
   const dx = rope.tp.x;
   const dy = rope.tp.y;
@@ -568,7 +519,6 @@ export function init() {
   level = 0;
   wipe = 0;
   fade = null;
-  flash = 0;
   buildLevel();
 }
 
@@ -583,15 +533,14 @@ export function update(dt) {
   }
 
   // ugl ran the scene before the entities, and the camera is the one thing
-  // here that has to keep that order: everything else reads it through render.
+  // that has to keep that order.
   cam.x = W / 2 - player.pos.x;
   cam.y = W / 2 - player.pos.y;
 
   ent.update(dt);
 
-  // Then the furniture, on the entities' own clock, so a hitstop holds it too.
+  // The entities' own clock, so a hitstop holds the furniture too.
   const t = ent.game.time;
-  flash = Math.max(0, flash - t);
   if (fade !== null && (fade.t += t) >= FADE) fade = null;
 
   let done = 0;
@@ -640,15 +589,10 @@ export function render(ctx) {
     ctx.fillStyle = css(BLACK);
     ctx.text("now leave the quadrant", W / 2, 430, 16);
   }
-  if (flash > 0) {
-    ctx.fillStyle = css(WHITE);
-    ctx.fillRect(0, 0, W, W);
-  }
   ctx.restore();
 }
 
-// An arrow at the edge of the screen for every planet still to link that is
-// off it, fading with how far off it is.
+// One per planet still to link and off screen, fading with distance.
 function drawArrows(ctx) {
   ctx.fillStyle = css(BLACK);
   for (const p of planets) {
@@ -675,8 +619,7 @@ function drawArrows(ctx) {
   ctx.globalAlpha = 1;
 }
 
-// One cell per planet, in the order they were scattered, popping up as each
-// one is wrapped.
+// One cell per planet, in scatter order, popping as each is wrapped.
 function drawPieces(ctx) {
   const w = 358 / planets.length;
   ctx.globalAlpha = 0.75;

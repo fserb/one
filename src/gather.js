@@ -4,51 +4,26 @@
  *
  * A board of five-colour boxes slides down at you. The cursor walks onto a box
  * and drags a chain behind it, one box per press, and the chain cashes in the
- * moment it holds two or more colours in equal numbers: two and two, three and
- * three, two and two and two. Longer and wider pays much more, because the
- * score is `colours * each * (each - 1) * (colours - 1)`.
+ * moment it holds two or more colours in equal numbers. The score is
+ * `colours * each * (each - 1) * (colours - 1)`.
  *
- * The clock is where you stand. The scroll runs at a crawl while your lowest
- * cursor sits in the bottom half of the board and multiplies by up to 23 as it
- * climbs, and again by up to 6 once the top of the chain passes the second
- * line. So reaching for a box costs speed, and the board shoves you back down
- * for it. The bottom of the board is death.
+ * The clock is where you stand. The scroll crawls while your lowest cursor is
+ * in the bottom half and multiplies by up to 23 as it climbs, and again by up
+ * to 6 once the top of the chain passes the second line.
  *
- * The first round opens on a scripted board rather than a random one: a column
- * of two and two to gather, then a six-box snake of three and three, then the
- * script runs out, resets the score and hands over to the random feed. Dying
- * inside the script replays it; finishing it retires it for the page.
+ * The first round opens on a scripted board that resets the score and hands
+ * over to the random feed. Dying inside it replays it; finishing retires it.
  *
- * What changed from the Haxe:
+ * The Haxe moved the chain as far as it could go on one press, because its
+ * cursors lived in an array ugl's frame loop iterated while each new cursor
+ * appended to it. The chain is an explicit list here and one press is one step.
  *
- * - One press moved the chain as far as it could go. The cursors lived in an
- *   array that ugl's frame loop iterated while each new cursor appended to it,
- *   so the cursor made this frame updated inside the same frame and read the
- *   same still-held key, walking the chain through every box in that direction
- *   and gathering mid-walk. The chain is an explicit list here, the head is the
- *   only cursor that reads a key, and one press is one step.
- * - The shell owns the score, the title card and game over, so the score
- *   display, `Score`, and the accelerating scroll-away `finalupdate()` drew
- *   after a death are gone. The shake and the explosion the death fired stay,
- *   and the freeze-frame waits for them.
- * - The scroll read the chain's depth one frame late, off two fields the
- *   cursors wrote and the scene cleared. Frame one read them before any cursor
- *   had, at 0 and 0, and took the board down a fifth of a row in that single
- *   frame. It is measured off the chain here, on the frame it is used.
- * - The tray of held colours sat at the left of the Haxe's own score line and
- *   flew right into it. The shell's score is top left, so it sits under the bar
- *   and flies up into it.
- * - Undo waits for the pointer to lift, and a lift that turned out to be a
- *   swipe undoes nothing: b1 carries the click, and a press there starts every
- *   swipe, so undoing on the press as the Haxe did would unravel the chain
- *   before the swipe that moved it ever arrived. A key still undoes on press.
- * - ugl gave art and gfx one sprite between them and centred the union. Here
- *   each centres on its own box, so a box's pupils, which are finer than the
- *   4-unit art grid and have to be vectors, need `gfx.size()` to hold them on
- *   the body.
- * - The bar covers the top 21 units of the 480 box. The Haxe's own 50-unit
- *   masking strip, which is what the incoming row slides out from behind, is
- *   still there with the bar sitting inside it.
+ * Undo waits for the pointer to lift, and a lift that turned out to be a swipe
+ * undoes nothing: b1 carries the click, so undoing on the press as the Haxe did
+ * would unravel the chain before the swipe arrived.
+ *
+ * ugl gave art and gfx one sprite and centred the union. Here each centres on
+ * its own box, so a box's pupils need `gfx.size()` to hold them on the body.
  */
 
 import * as ent from "./lib/entity.js";
@@ -72,60 +47,49 @@ take an equal count of every colour you touch
 
 const BLACK = 0x000000;
 const WHITE = 0xffffff;
-// The corners of a box, which are a shade rather than the outline.
 const SHADE = 0x444444;
 const COLORS = [0xff6819, 0xc0dc61, 0x1ebed8, 0xfec804, 0xe284cc];
 
 const COLS = 9;
 const ROWS = 11;
-// One cell, and the centre of cell (0, 0) with the board unscrolled.
+// ORIGIN is the centre of cell (0, 0) with the board unscrolled.
 const CELL = 38;
 const X0 = 88;
 const Y0 = 69;
 
-// The shell's 44px bar in the 480 box, the line the board hangs from, the line
-// it ends on, and the depth a cursor dies at.
+// The bar in the 480 box, the lines the board hangs from and ends on, and the
+// depth a cursor dies at.
 const TOP = 21;
 const HEAD = 50;
 const FOOT = 468;
 const DIE = 450;
 
-// Top left of the tray of held colours, in the strip between bar and board.
+// Top left of the tray, in the strip between bar and board.
 const TRAY_X = 50;
 const TRAY_Y = TOP + 2;
-// How long the tray takes to fly into the bar, and how far past it it goes.
 const FLY = 0.3;
 const FLYUP = 20;
 
-// Seconds from the last box crossing the line to the freeze-frame.
 const DEATH = 0.35;
-// A box takes this long to shrink into the chain, or out of existence.
 const GROW = 0.3;
-// How small a held box gets.
 const HELD = 0.5;
 
-// Rows a second at difficulty 0 is 5/CELL, an eighth of one. What makes the
-// board move is the two multipliers below it.
+// 5/CELL is an eighth of a row a second. The multipliers below are what move
+// the board.
 const CRAWL = 5;
-// Depth the scroll starts multiplying at, and how fast it climbs from there.
 const NEAR = 240;
 const NEARRATE = 9 / 70;
-// The same again for the top of the chain, except that it snaps on rather than
-// ramping in: the Haxe tests the top of the chain against 122 and then measures
-// it from 240, so the multiplier is already 4.4 on the frame it starts to
-// apply. Left as found.
+// Snaps on rather than ramping in: the Haxe tests against 122 and measures from
+// 240, so the multiplier is already 4.4 the frame it applies. Left as found.
 const HIGH = 122;
 const HIGHRATE = 5 / 172;
-// Difficulty is a flat ramp: this much a minute, for ever.
+// Per minute, for ever.
 const RAMP = 0.4;
-// Chance of a hole in an incoming row, per cell: a tenth of the difficulty,
-// capped here, which it reaches a minute in. So it starts at zero and stops
-// getting commoner at one cell in twenty-five. A dense board is the game; the
-// holes are the mercy.
+// Per cell, a tenth of the difficulty, capping a minute in at one cell in
+// twenty-five.
 const HOLE = 0.04;
 
-// A box. The outline is black, the corners a shade, and the two eye whites sit
-// two pixels in with the pupils drawn over them.
+// The eye whites sit two pixels in, with the pupils drawn over them.
 const BODY = `
 211111112
 100000001
@@ -136,7 +100,6 @@ const BODY = `
 100000001
 211111112`;
 
-// The cursor: four corner brackets, one cell wide.
 const BRACKET = `
 100...001
 0.......0
@@ -175,12 +138,11 @@ const INTRO = [
   [_, _, _, _, 0, _, _, _, _],
 ];
 
-// Taken from the end, so the last line here is the first one said. The two the
-// Haxe opened with are meta.desc's job now.
+// Taken from the end, so the last line is the first said.
 const NOTES = ["good luck", "two colours or more, same count"];
 
 // ugl's Sound.vol() defaulted to 0.2, set masterVolume to twice that, and sfxr
-// squares it. Gather never asked for anything else.
+// squares it.
 voice("move", sfxr.jump(12));
 voice("gather", sfxr.explosion(25));
 voice("score", sfxr.coin(12));
@@ -191,26 +153,23 @@ function voice(name, params, vol = 0.2) {
   sound.put(name, sfxr.render(params), sfxr.SAMPLE_RATE);
 }
 
-// grid[x][y] is a Piece or null. y grows downward; row 0 is the one the next
-// shift pushes in and row ROWS-1 the one it drops.
+// grid[x][y] is a Piece or null. y grows downward: row 0 is what the next shift
+// pushes in, ROWS-1 what it drops.
 const grid = [];
-// How far the board has slid since the last shift, in (-CELL, 0].
 let scroll = 0;
 let difficulty = 0;
-// The chain, oldest first. The last is the head, the only one a key moves; the
-// first stands on an empty cell and is what an undo leaves behind.
+// Oldest first. The last is the head, the only one a key moves; the first
+// stands on an empty cell and is what an undo leaves behind.
 let chain = [];
 let tray = null;
 let note = null;
 let dying = 0;
 
-// Where the script has got to. Both survive a round: the tutorial is once per
-// page, unless the player died inside it.
+// Survives a round: the tutorial is once per page unless the player died in
+// it.
 let introAt = INTRO.length;
 let noteAt = NOTES.length;
 
-// A pointer press that has not turned into a swipe yet, so might still be the
-// tap that undoes.
 let tapping = false;
 
 function cellX(x) {
@@ -221,8 +180,8 @@ function cellY(y) {
   return scroll + Y0 + CELL * y;
 }
 
-// The box in a cell, or null. A cursor scrolls past the last row before it
-// dies, so y is out of range for a frame.
+// A cursor scrolls past the last row before it dies, so y is out of range for
+// a frame.
 function at(x, y) {
   return grid[x]?.[y] ?? null;
 }
@@ -262,7 +221,6 @@ class Piece extends ent.Entity {
     this.draw();
   }
 
-  // Out of the board at once, gone from the screen once it has shrunk.
   pop() {
     grid[this.px][this.py] = null;
     this.popping = true;
@@ -272,9 +230,8 @@ class Piece extends ent.Entity {
   draw() {
     this.art.size(4, 9, 9).obj([COLORS[this.color], BLACK, SHADE, WHITE], BODY);
 
-    // Half a pixel of travel towards whatever it is looking at. size() holds
-    // the pupils on the art's own 36x36 box, which is what ugl got for free by
-    // giving art and gfx one sprite.
+    // size() holds the pupils on the art's own 36x36 box, which is what ugl
+    // got for free by giving art and gfx one sprite.
     const dx = this.eye.x - this.pos.x;
     const dy = this.eye.y - this.pos.y;
     const d = Math.hypot(dx, dy);
@@ -287,15 +244,13 @@ class Piece extends ent.Entity {
   }
 
   update() {
-    // Roughly once every board's worth of box-frames, one box looks somewhere
-    // else. Across a full board that is a glance every second or so.
+    // Across a full board, a glance every second or so.
     if (Math.random() < 1 / (10 * ROWS * COLS)) {
       this.see(Math.random() * 480, Math.random() * 480);
     }
 
     this.pos.x = cellX(this.px);
     this.pos.y = cellY(this.py);
-    // Dropped out of the board a shift ago and now off the bottom of it.
     if (this.pos.y > 484) return this.remove();
 
     const step = ent.game.time / GROW;
@@ -307,7 +262,6 @@ class Piece extends ent.Entity {
     }
 
     if (this.targeted) {
-      // Held boxes look straight ahead.
       this.eye.x = this.pos.x;
       this.eye.y = this.pos.y;
       const s = Math.max(HELD, this.scale - step);
@@ -322,8 +276,8 @@ class Piece extends ent.Entity {
   }
 }
 
-// One link of the chain. Red while it is the head, grey once the chain has
-// moved past it. All it does on its own is ride the scroll.
+// Red while it is the head, grey once the chain has moved past it. On its own
+// it only rides the scroll.
 class Cursor extends ent.Entity {
   constructor(x, y) {
     super();
@@ -375,15 +329,13 @@ class Tray extends ent.Entity {
       row += 1;
     }
 
-    // gfx centres on its own box and the tray hangs off its top left corner,
-    // so the box has to be measured back out.
+    // gfx centres on its own box and the tray hangs off its top left corner.
     this.pos.x = TRAY_X + (8 * Math.max(...counts) - 1) / 2;
     this.pos.y = TRAY_Y + (8 * row - 1) / 2;
     this.from = this.pos.y;
   }
 
-  // Every colour held is equal by the time this is called, so the widest row
-  // is also the count of each.
+  // Every colour is equal by now, so the widest row is the count of each.
   go() {
     this.moving = true;
     this.ticks = 0;
@@ -395,7 +347,6 @@ class Tray extends ent.Entity {
   update() {
     if (!this.moving) return;
     const t = this.ticks / FLY;
-    // Into the bar, where the score is, accelerating as it goes.
     this.pos.y = this.from - (this.from + FLYUP) * t * t;
     this.alpha = Math.max(0, 1 - t * t);
     if (t <= 1) return;
@@ -444,8 +395,7 @@ function say(m) {
   note = new ent.Text().xy(240, 450).size(2).color(BLACK).text(m).duration(5);
 }
 
-// The row the next shift pushes in, as colour indices and holes, or null once
-// the board has nothing left to say.
+// Colour indices and holes, or null once the board has nothing left to say.
 function nextRow() {
   if (introAt < 0) {
     const row = [];
@@ -464,15 +414,13 @@ function nextRow() {
   }
   if (row !== undefined) return row;
 
-  // The script is over, and none of it counted: it hands out points a round
-  // that had to find its own shapes would not.
+  // None of the script counted: it hands out points a real round would not.
   difficulty = 0;
   score.value = 0;
   return null;
 }
 
-// Everything down one cell: the boxes, the board they are indexed in, and the
-// chain, so a cursor keeps hold of the box it was holding.
+// Boxes, index and chain together, so a cursor keeps the box it was holding.
 function shift() {
   for (let y = 0; y < ROWS; ++y) {
     for (let x = 0; x < COLS; ++x) {
@@ -493,8 +441,6 @@ function shift() {
   for (const c of chain) c.py += 1;
 }
 
-// The board comes down faster the higher the chain reaches: once past NEAR
-// hard, and once the top of it passes HIGH harder again.
 function advance(dt) {
   let low = 0;
   let high = 480;
@@ -515,9 +461,8 @@ function advance(dt) {
   shift();
 }
 
-// Undo is a key press, and on a phone it is a tap. A press cannot be the
-// signal there: b1 carries the click, so every swipe starts with one, and the
-// chain would unravel before the swipe that moved it arrived.
+// A key press, or a tap. A press cannot be the signal on a phone: b1 carries
+// the click, so every swipe starts with one.
 function undoing() {
   if (mouse.click) tapping = true;
   if (mouse.swipe !== 0) tapping = false;
@@ -529,8 +474,6 @@ function undoing() {
   return ent.game.key.just.b1 && !mouse.click;
 }
 
-// Drop the chain back to the cursor that started it, which is standing on an
-// empty cell and takes the head back.
 function undo() {
   for (const c of chain.slice(1)) {
     at(c.px, c.py)?.untarget();
@@ -572,9 +515,9 @@ function check() {
   tray = new Tray();
 }
 
-// One press, one step. An empty cell is a step only when the head is standing
-// on one too, which is what keeps the chain unbroken and keeps the cursor that
-// started it on a cell an undo can return to.
+// One press, one step. An empty cell is a step only when the head is on one
+// too, which keeps the chain unbroken and the first cursor somewhere an undo
+// can return to.
 function control() {
   if (undoing()) undo();
 
@@ -630,7 +573,6 @@ export function init() {
   dying = 0;
   note = null;
   tapping = false;
-  // Dying inside the script replays it; finishing it left introAt at -1.
   introAt = introAt >= 0 ? INTRO.length : -1;
   noteAt = NOTES.length;
 
@@ -640,8 +582,8 @@ export function init() {
   new Frame();
   tray = new Tray();
 
-  // Frame one is the game: the first five rows of the script are the board it
-  // opens on, not something that scrolls in.
+  // Frame one is the game: the script's first five rows are the opening board,
+  // not something that scrolls in.
   for (let y = 0; y < 5 && introAt >= 0; ++y) {
     const row = INTRO[--introAt];
     for (let x = 0; x < COLS; ++x) {

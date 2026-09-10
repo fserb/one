@@ -1,25 +1,22 @@
 /*
  * art.js - the ugl look: a 6x8 bitmap font and a chunky-pixel renderer.
  *
- * The vault micro-games draw everything out of two-colour dithered pixels at a
- * scale of 3 to 8 screen units each. `art` collects the pixels an entity is
- * made of, entity.js blits them centred on the entity's position.
+ * The vault games draw everything out of two-colour dithered pixels 3 to 8
+ * screen units wide. `art` collects an entity's pixels; entity.js blits them
+ * centred on its position.
  *
  * ```js
  * art.size(3).color(0xe1b81f, 0xa37d1d, 32).circle(8, 8, 8);
  * ```
  *
- * `size(px)` is how wide one pixel is. Shapes are then addressed in pixels, not
- * screen units, so a radius of 8 at size 3 is 48 units across.
- *
- * gfx.js is the other thing an entity draws with, filled and stroked paths
- * rather than pixels, and takes the font and the colour cache from here.
+ * `size(px)` is how wide one pixel is; shapes are addressed in pixels, so a
+ * radius of 8 at size 3 is 48 units across. gfx.js takes the font and the
+ * colour cache from here.
  *
  * `color(c, c2, pat)` is the dither. `pat` is up to three digits read
  * right-to-left as periods along x, y and x+y; a pixel counts
- * `x % xpat + y % ypat + (x + y) % xypat` and takes `c` when that is even and
- * `c2` when it is odd. So 32 is "3 across, 2 down", the pattern most of the
- * games use, and a bare 0 is a flat fill of `c`.
+ * `x % xpat + y % ypat + (x + y) % xypat` and takes `c` when that is even,
+ * `c2` when odd. So 32 is "3 across, 2 down" and a bare 0 is a flat fill.
  */
 
 const FONTWIDTH = 6;
@@ -222,9 +219,9 @@ const FONTDATA = [
 
 const GLYPHS = new Map();
 
-// The pixels of `text` at one unit per pixel, laid out the way ugl lays them
-// out: proportional, each glyph starting two pixels past the rightmost lit
-// column so far. Everything scales linearly, so callers multiply.
+// The pixels of `text` at one unit per pixel, laid out as ugl does:
+// proportional, each glyph two pixels past the rightmost lit column so far.
+// Everything scales linearly, so callers multiply.
 export function glyphs(text) {
   const hit = GLYPHS.get(text);
   if (hit) return hit;
@@ -266,12 +263,10 @@ export function css(c) {
 }
 
 /*
- * A bag of chunky pixels, in pixel coordinates. Every shape reduces to dot(),
- * which resolves the dither and appends to a run. render() blits the lot
- * centred on the origin, so an entity's art sits on its position.
- *
- * ugl centred the Flash sprite's bounding box only when that box started at
- * the origin, which is how the games draw. This centres the box always.
+ * A bag of chunky pixels in pixel coordinates. Every shape reduces to dot(),
+ * which resolves the dither and appends to a run; render() blits the lot
+ * centred on the origin. ugl centred the sprite's bounding box only when it
+ * started at the origin, which is how the games draw. This always centres.
  */
 export class Art {
   constructor() {
@@ -290,8 +285,8 @@ export class Art {
     this.dirty = true;
   }
 
-  // px is the width of one pixel. w and h fix the box the art is centred in,
-  // which obj() also reads as its row length.
+  // px is one pixel wide. w and h fix the box the art centres in, which obj()
+  // also reads as its row length.
   size(px = 1, w = 0, h = 0) {
     if (this.disabled) return this;
     this.px = px;
@@ -334,8 +329,8 @@ export class Art {
     return this;
   }
 
-  // Skip every drawing call until the index changes. The games redraw their
-  // art inside update(), so this is how a static entity stops paying for it.
+  // Skip every drawing call until the index changes: the games redraw inside
+  // update().
   cache(idx) {
     if (idx === this.cached) {
       this.disabled = true;
@@ -349,8 +344,8 @@ export class Art {
   dot(x, y) {
     if (this.disabled) return this;
 
-    // The dither reads the whole pixel the dot falls in and the run keeps the
-    // coordinate it was given: ugl drew every dot at x*px with no rounding, so
+    // The dither reads the whole pixel the dot falls in, the run keeps the
+    // coordinate given: ugl drew at x*px with no rounding, so
     // `rect(0, 1.5, 4, 1)` is a one-pixel bar centred on a four-pixel box.
     let v = 0;
     if (this.xpat > 0) v += Math.trunc(x) % this.xpat;
@@ -358,7 +353,7 @@ export class Art {
     if (this.xypat > 0) v += Math.trunc(x + y) % this.xypat;
     const c = v % 2 === 0 ? this.color1 : this.color2;
 
-    // Shapes emit left-to-right along a row, so most dots extend the last run.
+    // Shapes emit left to right, so most dots extend the last run.
     const last = this.runs[this.runs.length - 1];
     if (last && last[1] === y && last[3] === c && last[0] + last[2] === x) {
       last[2] += 1;
@@ -446,8 +441,8 @@ export class Art {
     return this;
   }
 
-  // A sprite from a string, one character per pixel, `.` transparent and any
-  // digit an index into `colors`. Rows are boxw wide, set by size().
+  // A sprite from a string, one character per pixel: `.` transparent, a digit
+  // an index into `colors`. Rows are boxw wide, set by size().
   obj(colors, data) {
     if (this.disabled) return this;
     this.color2 =
@@ -472,8 +467,8 @@ export class Art {
     return this;
   }
 
-  // Text is measured in screen units, not art pixels, so `size` here is
-  // independent of size(px). Centred on (x, y) in art coordinates.
+  // Measured in screen units, so `size` is independent of size(px). Centred
+  // on (x, y) in art coordinates.
   text(x, y, s, size = 1) {
     if (this.disabled) return this;
     this.texts.push({
@@ -487,7 +482,6 @@ export class Art {
     return this;
   }
 
-  // Screen-unit bounding box of everything drawn, as [x, y, w, h].
   bounds() {
     if (!this.dirty) return this.box;
 
@@ -524,7 +518,6 @@ export class Art {
     return this.box;
   }
 
-  // Draws centred on the current origin.
   render(ctx) {
     if (this.runs.length === 0 && this.texts.length === 0) return;
 
@@ -533,13 +526,11 @@ export class Art {
     const oy = -by - bh / 2;
     const px = this.px;
 
-    // A run of the same colour goes into one path and is filled once. Two
-    // rectangles that share an edge and are filled separately each antialias
-    // against that edge, and the same colour at 40% coverage over the same
-    // colour at 60% is 76%, not 100%: a seam a quarter of a shade darker down
-    // every shared edge, which on anything bigger than a sprite reads as
-    // stripes. A single path has no shared edges, only a union. Consecutive
-    // runs alone, so the order they were drawn in is the order they land in.
+    // One path per run of the same colour, filled once. Filled separately,
+    // two rectangles sharing an edge each antialias against it, and 40%
+    // coverage over 60% of the same colour is 76%, not 100%: a seam a quarter
+    // of a shade darker down every shared edge. A single path has no shared
+    // edges. Consecutive runs only, so draw order is kept.
     let last = -1;
     for (const [x, y, w, c] of this.runs) {
       if (c !== last) {

@@ -1,9 +1,9 @@
 /*
  * trap - break the hex floor out from under a wandering eye.
  *
- * Every click drops one hex. The eye then steps one hex towards the nearest
- * edge; reaching one ends the run. Strand it on an island instead and the
- * board falls away and the next, denser level builds. Based on Isola.
+ * Every click drops one hex, then the eye steps towards the nearest edge;
+ * reaching one ends the run. Strand it on an island and the next, denser level
+ * builds. Based on Isola.
  */
 
 import { ease, extra, vec } from "./alma/src/index.js";
@@ -44,7 +44,7 @@ const WHITE = "#F2F0E5";
 const IRIS = "#212123";
 const RIM = "#B9A588";
 
-// The shared score bar the board has to stay clear of.
+// The shell's bar, which the board stays clear of.
 const BAR = 44;
 
 sound.make("hit", 0.3, (track) => {
@@ -91,13 +91,13 @@ sound.make("fall", 0.5, (track) => {
 
 const WIDTH = 10;
 const HEIGHT = 17;
-// The hex radius. Columns step 3/2 of it and rows half its height, so a cell
-// only exists where (c + r) is even.
+// Hex radius. Columns step 3/2 of it and rows half its height, so a cell only
+// exists where (c + r) is even.
 const HEX = 60;
 const H2 = SQRT3 / 2;
 
-// How much hex to cull at each level, harder-to-reach hexes counting for more.
-// Runs out at level 24 and stays at 5 after that.
+// Hex culled per level, harder-to-reach hexes counting for more. Bottoms out
+// at 5 from level 24.
 const PROG = [
   0,
   50,
@@ -130,11 +130,9 @@ let map;
 let alien;
 let level;
 let time;
-// Free moves the eye gets before it starts running for the edge.
 let headstart;
-// Clicks still resolving. Input stops once they pile up.
+// Input stops once these pile up.
 let pending;
-// True while a level is building, or once the eye is away.
 let locked;
 
 export function init() {
@@ -204,8 +202,8 @@ function build(number) {
   }
   buildAStar();
 
-  // Whatever the cull cut off is gone too. What is left four or more steps
-  // from an edge is somewhere the eye can start.
+  // What the cull cut off is gone too. Four or more steps from an edge is
+  // somewhere the eye can start.
   avail.length = 0;
   for (const v of all()) {
     if (v.astar === -1) v.v = false;
@@ -279,7 +277,7 @@ async function finishGame() {
   nextLevel();
 }
 
-// Hexes the eye can no longer reach are not part of the puzzle. Drop them.
+// Hexes the eye cannot reach are not part of the puzzle.
 async function cleanupLoose(audible = true) {
   const wait = [];
   let delay = 0.1;
@@ -310,7 +308,7 @@ function actAlien(target) {
     .attr("x", 0, 0.5 + 0.3 * Math.random(), ease.quadIn)
     .attr("y", 0, 0.5 + 0.3 * Math.random(), ease.quadIn);
 
-  // A step off the board is only ever animated: it has no hex to land on.
+  // Only animated: there is no hex to land on.
   if (!target.final) {
     alien.c = target.c;
     alien.r = target.r;
@@ -327,7 +325,6 @@ function actAlien(target) {
     .attr("legs.1.r", target.r, 0.3 + r(), ease.quadOut, 0.3);
 }
 
-// One step towards the nearest edge, or null when every route is cut.
 function decideAlien() {
   if (get(alien).astar === -1) return null;
 
@@ -353,7 +350,6 @@ function moveAlien() {
   return actAlien(dec).then(escapeAlien);
 }
 
-// Standing on the rim, the eye walks off the screen and the run ends.
 function escapeAlien() {
   const v = get(alien);
   if (!v.border) return;
@@ -368,7 +364,7 @@ function escapeAlien() {
   else if (v.r <= 1) target.y = near.y;
   else if (v.r >= HEIGHT - 2) target.y = far.y;
 
-  // Back from pixels into fractional hex coordinates, so it can be tweened to.
+  // Back into fractional hex coordinates, so it can be tweened to.
   const q = 2 / 3 * target.x / HEX;
   const r = (-1 / 3 * target.x + SQRT3 / 3 * target.y) / HEX;
   target.c = q;
@@ -390,7 +386,6 @@ function blinkAlien() {
     .attr("blink", 0, 0.1, ease.quadIn);
 }
 
-// Frames whatever is left of the board, leaving room for the score bar.
 function recenter() {
   const rect = { minx: SIZE, miny: SIZE, maxx: 0, maxy: 0 };
   for (const v of all()) {
@@ -407,7 +402,6 @@ function recenter() {
   rect.maxx += border;
   rect.maxy += border;
 
-  // The first framing of a level flies in from far out, so give it longer.
   const dur = camera.scale < 1 ? 1 : 0.25;
   camera.glide(
     camera.fit({
@@ -418,8 +412,7 @@ function recenter() {
     }),
     { duration: dur, ease: ease.quadOut },
   );
-  // The glide is the camera's own, so hand back a clock of the same length for
-  // whatever waits on the framing.
+  // The glide is the camera's, so hand back a clock of the same length.
   return act(camera).delay(dur);
 }
 
@@ -431,7 +424,7 @@ function updateNext() {
 
   if (headstart > 0) setHeadstart(headstart - 1);
 
-  // Twice: once for the hex just taken, once after the loose ones have fallen.
+  // Once for the hex taken, once after the loose ones have fallen.
   recenter();
   act(camera).delay(1).then(() => recenter());
 
@@ -479,7 +472,7 @@ export function render(ctx) {
   ctx.save();
   camera.apply(ctx);
 
-  // Pass one is the drop shadow, offset down-right and shrinking with the hex.
+  // The drop shadow: offset down-right, shrinking with the hex.
   for (const v of all(true)) {
     if (v.s === 0) continue;
     ctx.lineWidth = 1;
@@ -507,7 +500,6 @@ function renderAlien(ctx, head, legs) {
   const br = 0.65;
   const major = 48 + alien.breath;
 
-  // Each leg is one closed shape: a wide curve out to the foot, and back.
   for (const l of legs) {
     const body = vec.sub(l, head);
     const norm = vec.normalize(vec.rotate(body, Math.PI / 2));
@@ -537,8 +529,8 @@ function renderAlien(ctx, head, legs) {
   ctx.fillStyle = WHITE;
   ctx.fillCircle(0, 0, 38);
 
-  // The iris squashes along the direction it looks, and carries a highlight
-  // that slides further off-centre the further the eye turns.
+  // The iris squashes along its heading, with a highlight sliding further
+  // off-centre the further it turns.
   const ER = 16;
   const rb = 20.5 - alien.pupil;
   const rx = rb - 5 * vec.len(alien.eye);
@@ -565,8 +557,8 @@ function renderAlien(ctx, head, legs) {
   ctx.fill();
 
   if (alien.blink > 0) {
-    // Two lids meeting in the middle: the top is a fixed arc, the bottom an
-    // ellipse whose height closes to nothing and opens again.
+    // Two lids meeting in the middle: a fixed top arc, and a bottom ellipse
+    // whose height closes and opens.
     ctx.fillStyle = SKIN;
     ctx.beginPath();
     ctx.arc(0, 0, 39, Math.PI, TAU);
@@ -623,9 +615,8 @@ function posHex(p) {
   return { x: HEX * 3 / 2 * p.c, y: HEX * H2 * p.r };
 }
 
-// A unit hexagon, scaled to size at draw time. Built on first use, not at
-// module scope: the build imports this module under Deno, where there is no
-// Path2D.
+// A unit hexagon, scaled at draw time. Built on first use, not at module
+// scope: the build imports this under Deno, where there is no Path2D.
 let hexPath = null;
 
 function unitHex() {
@@ -655,8 +646,8 @@ function renderHex(ctx, p, size, delta = 0) {
   ctx.restore();
 }
 
-// Pointer to hex: into cube coordinates, round all three, then fix up whichever
-// moved furthest so they still sum to zero.
+// Pointer to hex: into cube coordinates, round all three, then fix whichever
+// moved furthest so they sum to zero.
 function mouseHex() {
   const m = camera.toWorld(mouse.x, mouse.y);
   const q = 2 / 3 * m.x / HEX;
@@ -677,7 +668,7 @@ function mouseHex() {
   return { c: rx, r: 2 * rz + rx };
 }
 
-// Breadth-first flood out from `beach`, writing the step count into v[name].
+// Breadth-first from `beach`, writing the step count into v[name].
 function astarPropagate(beach, name) {
   const visited = new Set();
   let step = 0;
