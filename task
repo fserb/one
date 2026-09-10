@@ -59,6 +59,12 @@ function media {
   ls -l "$out" | awk 'NR>1{printf "  %-24s %8.1f KB\n", "'"$out"'/"$NF, $5/1024}'
 }
 
+# Re-vendor src/lib/planck.js from npm, patched for tree-shaking. Takes a
+# version, a path, or nothing for the newest.
+function planck {
+  deno run -A tools/planck.js "$@"
+}
+
 function test {
   deno run --allow-read tools/loop_test.js
   deno run --allow-read tools/entity_test.js
