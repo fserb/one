@@ -618,7 +618,14 @@ function updateCamera(dt) {
   const angle = Math.abs(ang) < TAU / 40 ? 0 : ang;
 
   // approach()'s rates are per second, not per frame: 3 is its own default
-  // for the pan, and the lean follows a little slower.
+  // for the pan, and the lean follows a little slower. The camera this was
+  // written against was passed {x: 0.02, y: 0.005} a frame, {x: 1.2, y: 0.3}
+  // here, and never read it. Applying it loses the player: the saw sets the
+  // pace late in a run, over a metre a second, and a y rate of 0.3 turns that
+  // into three metres of standing lag under the swing, on a screen 19.5 metres
+  // tall. Measured against a recorded climb, the head sits 3.9 metres off
+  // centre on average against 0.8 at the default, and touches 10.3, so the
+  // hands leave the top of the frame while you are climbing towards them.
   camera.approach({ x: p.x, y: p.y, angle }, dt, { angle: 2.45 });
 }
 

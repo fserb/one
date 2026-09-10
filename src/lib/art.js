@@ -533,10 +533,24 @@ export class Art {
     const oy = -by - bh / 2;
     const px = this.px;
 
+    // A run of the same colour goes into one path and is filled once. Two
+    // rectangles that share an edge and are filled separately each antialias
+    // against that edge, and the same colour at 40% coverage over the same
+    // colour at 60% is 76%, not 100%: a seam a quarter of a shade darker down
+    // every shared edge, which on anything bigger than a sprite reads as
+    // stripes. A single path has no shared edges, only a union. Consecutive
+    // runs alone, so the order they were drawn in is the order they land in.
+    let last = -1;
     for (const [x, y, w, c] of this.runs) {
-      ctx.fillStyle = css(c);
-      ctx.fillRect(ox + x * px, oy + y * px, w * px, px);
+      if (c !== last) {
+        if (last !== -1) ctx.fill();
+        last = c;
+        ctx.fillStyle = css(c);
+        ctx.beginPath();
+      }
+      ctx.rect(ox + x * px, oy + y * px, w * px, px);
     }
+    if (last !== -1) ctx.fill();
 
     for (const t of this.texts) {
       const g = glyphs(t.text);
