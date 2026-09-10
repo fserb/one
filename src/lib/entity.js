@@ -24,7 +24,6 @@
  * This file is two `export *` lines. Behind them:
  *
  *   core.js   the groups, the frame, and Entity
- *   hit.js    the overlap tests, which read only `pos` and `angle`
  *   props.js  Text, Particle and Timer, the entities that come with the model
  */
 

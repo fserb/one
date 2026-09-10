@@ -15,6 +15,10 @@
  * Every entity owns an `art` and a `gfx`, the two drawing buffers: pixels and
  * paths. Both are always there, so a game imports neither file itself.
  *
+ * The overlap tests are alma's `Collider`. hitCircle/hitBox/hitPoly build one
+ * of its shapes in entity-local coordinates, and _world() moves them out at
+ * test time.
+ *
  * begin() cannot run from the constructor, since a subclass's field
  * initialisers run after super() returns and would overwrite it. It runs at
  * the top of the entity's first frame, before its first update(). So an entity
@@ -23,9 +27,9 @@
  * An entity built inside another's update() first steps on the next frame.
  */
 
+import { Collider } from "../alma/src/collider.js";
 import { Art } from "./art.js";
 import { Gfx } from "./gfx.js";
-import { overlap } from "./hit.js";
 import { key, mouse } from "./input.js";
 import { SIZE } from "./one.js";
 
@@ -101,6 +105,16 @@ export function delay(t) {
   held = Math.max(held, t);
 }
 
+// Every pair of two entities' world shapes, stopping at the first overlap.
+function anyHit(as, bs) {
+  for (const a of as) {
+    for (const b of bs) {
+      if (Collider.hit(a, b)) return true;
+    }
+  }
+  return false;
+}
+
 export class Entity {
   static layer = 10;
 
@@ -156,41 +170,54 @@ export class Entity {
   }
 
   // Overlap shapes, offset from the entity's position. A box stays
-  // axis-aligned: `angle` turns the drawing, not the box.
+  // axis-aligned: `angle` turns the drawing, not the box, so only hitPoly()
+  // is built with `turns` set.
   //
   // These centre on the position, `art` and `gfx` on their own bounding box, so
   // a drawing lopsided about the origin sits off its hit shape. `gfx.size(w, h)`
   // is the empty box that puts it back.
   hitCircle(r, x = 0, y = 0) {
-    this.hits.push({ r, x, y });
+    this.hits.push({ shape: Collider.circle(x, y, r), turns: false });
     return this;
   }
 
+  // alma centres nothing: its rect is a corner and two extents, ugl's box a
+  // centre and two widths.
   hitBox(w, h = w, x = 0, y = 0) {
-    this.hits.push({ w, h, x, y });
+    const shape = Collider.rect(x - w / 2, y - h / 2, w, h);
+    this.hits.push({ shape, turns: false });
     return this;
   }
 
   // A convex polygon, a flat list of x, y pairs, and the one shape that turns
   // with `angle`: a ship drawn as a triangle collides as one.
   hitPoly(p) {
-    this.hits.push({ p });
+    const points = [];
+    for (let i = 0; i < p.length; i += 2) points.push({ x: p[i], y: p[i + 1] });
+    this.hits.push({ shape: Collider.polygon(points), turns: true });
     return this;
+  }
+
+  // The shapes in world coordinates, which is what Collider.hit() reads. One
+  // array per call: hitGroup() takes its own once and reuses it down the group.
+  _world() {
+    return this.hits.map(({ shape, turns }) =>
+      Collider.transform(shape, this.pos.x, this.pos.y, turns ? this.angle : 0)
+    );
   }
 
   hit(e) {
     if (e === null || e === this || this.dead || e.dead) return false;
-    for (const a of this.hits) {
-      for (const b of e.hits) {
-        if (overlap(this, a, e, b)) return true;
-      }
-    }
-    return false;
+    if (this.hits.length === 0 || e.hits.length === 0) return false;
+    return anyHit(this._world(), e._world());
   }
 
   hitGroup(cls) {
+    if (this.dead || this.hits.length === 0) return null;
+    const mine = this._world();
     for (const e of get(cls)) {
-      if (this.hit(e)) return e;
+      if (e === this || e.dead || e.hits.length === 0) continue;
+      if (anyHit(mine, e._world())) return e;
     }
     return null;
   }

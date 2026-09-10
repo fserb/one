@@ -4,12 +4,11 @@
     "exclude": [
       "src/alma",
       "src/lib/fsfx",
-      "src/lib/planck.js",
       "tools/tpl",
       "www"
     ]
   },
   "lint": {
-    "exclude": ["src/alma", "src/lib/fsfx", "src/lib/planck.js", "www"]
+    "exclude": ["src/alma", "src/lib/fsfx", "www"]
   }
 }

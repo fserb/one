@@ -2,19 +2,19 @@
  * rope - swing up an endless cave on two hands.
  *
  * Drag a hand and let go to fling it. Whatever rope it touches it grabs, and
- * the other hand follows. The ropes are simulated: each is a chain of planck
+ * the other hand follows. The ropes are simulated: each is a chain of rigid
  * bodies, and the cave generates itself ahead along a wandering path. A red saw
  * follows that path up. Let go for five seconds, or let the saw reach you, and
  * the run ends.
  *
- * The only game that needs a physics engine, so the only one paying for
- * src/lib/planck.js.
+ * The only game that needs a physics engine, so the only one paying for alma's
+ * rigid.js and the Box2D under it.
  */
 
 import { ease, extra, vec } from "./alma/src/index.js";
+import { World } from "./alma/src/rigid.js";
 import { camera } from "./lib/camera.js";
 import { act, fixed, gameOver, mouse, score, SIZE } from "./lib/one.js";
-import * as pl from "./lib/planck.js";
 import { ADSR, biquad, envelope, karplus_strong } from "./lib/fsfx/fsfx.js";
 import * as sound from "./lib/sound.js";
 
@@ -78,21 +78,19 @@ let enemyReset;
 // Rises by one every enemyReset steps, and enemyReset itself shortens.
 let enemyNatural;
 
-// Bodies wait for the step to end: planck will not create a joint from inside
-// a contact callback.
-const deferred = [];
+// A body's position as a point, which is what every vec call here wants.
+const at = (b) => ({ x: b.x, y: b.y });
 
 export function init() {
-  world = pl.World({});
-  world.setGravity({ x: 0, y: 9.8 });
-  world.on("begin-contact", beginContact);
-  world.on("pre-solve", preSolve);
-  world.on("post-solve", postSolve);
+  // The engine holds 32 worlds for the life of the page, so the round that
+  // just ended has to hand its slot back.
+  world?.destroy();
+  world = new World({ gravity: { x: 0, y: 9.8 } });
+  world.presolve = presolve;
 
   ropes = new Set();
   shot = null;
   time = 0;
-  deferred.length = 0;
 
   path = [{ x: 0, y: -5 }];
   pathDir = { x: 0, y: -1 };
@@ -123,20 +121,26 @@ function createEnemy() {
   enemyNatural = 0;
   enemyPhase = 0;
 
-  enemy = world.createBody({ userData: "enemy" });
-  enemy.setPosition({ x: 0, y: 5 * ZOOM });
+  // Kinematic, since it is moved by hand every step, and never asleep.
+  enemy = world.body({
+    y: 5 * ZOOM,
+    type: "kinematic",
+    canSleep: false,
+    data: "enemy",
+  });
   // A wide, thin sensor bar. Only the head's category collides with it.
   const dim = 6.5 * 4;
-  enemy.createFixture(pl.Box(dim, dim / 8, { x: 0, y: dim / 8 }), {
-    isSensor: true,
-    filterGroupIndex: 5,
-    filterCategoryBits: 4,
-    filterMaskBits: 4,
+  enemy.box({
+    w: 2 * dim,
+    h: dim / 4,
+    y: dim / 8,
+    sensor: true,
+    filter: { group: 5, category: 4, mask: 4 },
   });
 }
 
-// Head, two tail segments, two arms. Each arm is hand -> elbow -> head, with a
-// rope joint for the hard limit and a spring for the give.
+// Head, two tail segments, two arms. Each arm is hand -> elbow -> head, held
+// by a link() at each step of the chain.
 function createPlayer() {
   player = {
     arms: [
@@ -158,93 +162,74 @@ function createPlayer() {
 
   const density = 1 / 10;
 
-  player.head = world.createDynamicBody({ userData: "head" });
-  player.head.createFixture(pl.Circle(pl.Vec2(0, 0), 0.6), {
-    density,
-    filterGroupIndex: 5,
-    filterCategoryBits: 0,
-  });
-  player.head.setPosition({ x: 0, y: 0 });
+  player.head = world.body({ x: 0, y: 0, type: "dynamic", data: "head" });
+  player.head.circle({ r: 0.6, density, filter: { group: 5, category: 0 } });
 
   let last = player.head;
   for (let i = 0; i < 2; ++i) {
-    const o = world.createDynamicBody({ gravityScale: 1 });
+    const o = world.body({ x: 0, y: i, type: "dynamic" });
     o.radius = 0.4 - i * 0.2;
-    o.createFixture(pl.Circle(pl.Vec2(0, 0), o.radius), {
+    o.circle({
+      r: o.radius,
       density,
-      isSensor: true,
-      filterGroupIndex: -1,
-      filterCategoryBits: 0,
+      sensor: true,
+      filter: { group: -1, category: 0 },
     });
-    o.setPosition({ x: 0, y: i });
 
-    world.createJoint(pl.RopeJoint(
-      {
-        maxLength: 1 - i * 0.4,
-        localAnchorA: pl.Vec2(0, 0),
-        localAnchorB: pl.Vec2(0, 0),
-      },
-      last,
-      o,
-    ));
+    link(last, o, { max: 1 - i * 0.4 });
     last = o;
     player.body.push(o);
   }
 
   let first = true;
   for (const a of player.arms) {
-    a.hand = world.createDynamicBody({
-      userData: "hand",
+    const side = first ? -1 : 1;
+    first = false;
+
+    a.hand = world.body({
+      x: 1.5 * side,
+      y: -1,
+      type: "dynamic",
       bullet: true,
-      linearDamping: 0.1,
+      damping: 0.1,
+      data: "hand",
     });
     // A wide sensor for a click near the hand, a tiny one for the pointer
     // query, and a small solid one that meets rope.
-    a.hand.createFixture(pl.Circle(pl.Vec2(0, 0), 0.8 * ZOOM), {
-      isSensor: true,
-    });
-    a.hand.createFixture(pl.Circle(pl.Vec2(0, 0), 0.1), {
-      density: 0,
-      filterGroupIndex: 3,
-    });
-    a.hand.createFixture(pl.Circle(pl.Vec2(0, 0), 0.3), {
+    a.hand.circle({ r: 0.8 * ZOOM, sensor: true });
+    a.hand.circle({ r: 0.1, density: 0, filter: { group: 3 } });
+    a.hand.circle({
+      r: 0.3,
       density: 1,
-      filterCategoryBits: 4,
-      filterMaskBits: 4,
+      preSolveEvents: true,
+      filter: { category: 4, mask: 4 },
     });
 
-    a.joint = world.createDynamicBody({});
-    a.joint.createFixture(pl.Circle(pl.Vec2(0, 0), 0.1), { density: 0.1 });
-
-    const side = first ? -1 : 1;
-    first = false;
-    a.hand.setPosition({ x: 1.5 * side, y: -1 });
-    a.joint.setPosition({ x: side, y: -0.5 });
+    a.joint = world.body({ x: side, y: -0.5, type: "dynamic" });
+    a.joint.circle({ r: 0.1, density: 0.1 });
 
     for (const [x, y] of [[a.hand, a.joint], [a.joint, player.head]]) {
-      world.createJoint(pl.RopeJoint(
-        {
-          maxLength: 0.9,
-          localAnchorA: pl.Vec2(0, 0),
-          localAnchorB: pl.Vec2(0, 0),
-        },
-        x,
-        y,
-      ));
-      world.createJoint(pl.DistanceJoint(
-        {
-          length: 0.85,
-          localAnchorA: pl.Vec2(0, 0),
-          localAnchorB: pl.Vec2(0, 0),
-          collideConnected: false,
-          frequencyHz: 10,
-          dampingRatio: 0.5,
-        },
-        x,
-        y,
-      ));
+      link(x, y, { max: 0.9, length: 0.85, hertz: 10, damping: 0.5 });
     }
   }
+}
+
+// The hard limit and the give in one joint: below `max` a spring at `hertz`
+// pulls toward `length`, and `max` is where it stops paying out. Left at the
+// default 0 hertz the spring is off and the joint is a rope, which is how the
+// tail hangs off the head.
+function link(a, b, { max, length = max, hertz, damping, localB }) {
+  return world.distance(a, b, {
+    localA: [0, 0],
+    localB: localB ?? [0, 0],
+    length,
+    min: 0,
+    max,
+    spring: true,
+    hertz,
+    damping,
+    collide: false,
+  });
 }
 
 // A chain of one-metre links from a to b. `close` pins the far end; an open
@@ -271,64 +256,42 @@ function addRopeTwo(a, b, close = true) {
   const ang = vec.angle(v) - Math.PI / 2;
   const obj = [];
 
-  const ha = world.createBody();
-  ha.setPosition(a);
+  const ha = world.body(a);
   obj.push(ha);
 
   // A hanging rope starts kicked to one side, so it does not balance upright.
   const dir = close ? 1 : Math.sign(2 * Math.random() - 1);
   for (let i = 0; i < parts; ++i) {
-    const p = world.createDynamicBody({
-      userData: "rope",
-      linearDamping: 0.25,
-    });
-    p.parent = obj;
-    p.createFixture(pl.Box(0.025, size / 2, { x: 0, y: -size / 2 }), {
-      density: 9.5 - i * 0.2,
-      filterGroupIndex: -3,
-      filterCategoryBits: 4,
-      filterMaskBits: 4,
-    });
-    p.setPosition({
+    const p = world.body({
       x: a.x + v.x * size * (i + 1) + dir * n.x * 0.5,
       y: a.y + v.y * size * (i + 1) + dir * n.y * 0.5,
+      angle: ang,
+      type: "dynamic",
+      damping: 0.25,
+      data: "rope",
     });
-    p.setAngle(ang);
+    p.parent = obj;
+    p.box({
+      w: 0.05,
+      h: size,
+      y: -size / 2,
+      density: 9.5 - i * 0.2,
+      filter: { group: -3, category: 4, mask: 4 },
+    });
     obj.push(p);
   }
 
-  if (close) {
-    const hb = world.createBody();
-    hb.setPosition(b);
-    obj.push(hb);
-  }
+  if (close) obj.push(world.body(b));
 
-  const aa = pl.Vec2(0, 0);
   for (let i = 0; i < obj.length - 1; ++i) {
     // The last link meets the far anchor at its centre, not at its tip.
-    const ab = close && i === obj.length - 2 ? aa : pl.Vec2(0, -size);
-    world.createJoint(pl.RopeJoint(
-      {
-        maxLength: 0.1,
-        collideConnected: false,
-        localAnchorA: aa,
-        localAnchorB: ab,
-      },
-      obj[i],
-      obj[i + 1],
-    ));
-    world.createJoint(pl.DistanceJoint(
-      {
-        length: 0.1,
-        frequencyHz: 10,
-        dampingRatio: size / 2,
-        collideConnected: false,
-        localAnchorA: aa,
-        localAnchorB: ab,
-      },
-      obj[i],
-      obj[i + 1],
-    ));
+    const tip = close && i === obj.length - 2 ? [0, 0] : [0, -size];
+    link(obj[i], obj[i + 1], {
+      max: 0.1,
+      hertz: 10,
+      damping: size / 2,
+      localB: tip,
+    });
   }
 
   ropes.add(obj);
@@ -346,7 +309,7 @@ function addRopeOne(a, length = 5) {
 // rope, a hanging one, or nothing. pathHorizon is the clear air left in each
 // column, so bands never stack.
 function stepPath() {
-  const here = player.head.getPosition();
+  const here = at(player.head);
   const last = path[path.length - 1];
   if (vec.len(vec.sub(last, here)) > REACH) return;
 
@@ -466,86 +429,68 @@ function stepPath() {
 }
 
 function updateMap() {
-  const pos = player.head.getPosition();
+  const pos = at(player.head);
   stepPath();
 
   for (const r of ropes) {
-    if (vec.len(vec.sub(r[0].getPosition(), pos)) < CULL) continue;
-    for (const x of r) {
-      for (let j = x.getJointList(); j; j = j.next) world.destroyJoint(j.joint);
-      world.destroyBody(x);
-    }
+    if (vec.len(vec.sub(at(r[0]), pos)) < CULL) continue;
+    // A rope a hand still holds stays: destroying it would take the hold
+    // joint with it and leave the arm pointing at a dead one.
+    if (player.arms.some((a) => a.hold && r.includes(a.hold.b))) continue;
+    for (const x of r) x.destroy();
     ropes.delete(r);
   }
 }
 
 // CONTACTS ///
 
-function pair(contact, a, b) {
-  const ba = contact.getFixtureA().getBody();
-  const bb = contact.getFixtureB().getBody();
-  const first = ba.getUserData() === a ? ba : bb.getUserData() === a ? bb : null;
-  const second = ba.getUserData() === b ? ba : bb.getUserData() === b ? bb : null;
-  return first && second ? [first, second] : null;
+function pair(a, b, first, second) {
+  const x = a.data === first ? a : b.data === first ? b : null;
+  const y = a.data === second ? a : b.data === second ? b : null;
+  return x && y ? [x, y] : null;
 }
 
 function armOf(hand) {
   return player.arms[0].hand === hand ? player.arms[0] : player.arms[1];
 }
 
-function beginContact(contact) {
-  if (pair(contact, "head", "enemy")) gameOver({ score: true });
-}
-
 // A hand holding something passes through rope, and so does one that just let
-// go: 300ms for the rope it left, 50ms for any other.
-function preSolve(contact) {
-  const hit = pair(contact, "hand", "rope");
-  if (!hit) return;
+// go: 300ms for the rope it left, 50ms for any other. Dropping the contact
+// here is also what holds the grab off, since a contact that never touches
+// reports nothing to begin().
+function presolve(fa, fb) {
+  const hit = pair(fa.body, fb.body, "hand", "rope");
+  if (!hit) return true;
   const [hand, rope] = hit;
 
   const arm = armOf(hand);
-  if (arm.hold !== null) {
-    contact.setEnabled(false);
-    return;
-  }
-  if (arm.holderTime === -1) return;
+  if (arm.hold !== null) return false;
+  if (arm.holderTime === -1) return true;
 
   const delta = performance.now() - arm.holderTime;
   const grace = arm.holder === rope.parent ? 300 : 50;
-  if (delta > grace) return;
-  contact.setEnabled(false);
+  return delta > grace;
 }
 
 // Touching rope with a free hand grabs it, at the contact point.
-function postSolve(contact) {
-  const hit = pair(contact, "hand", "rope");
+function begin(contact) {
+  const hit = pair(contact.a.body, contact.b.body, "hand", "rope");
   if (!hit) return;
   const [hand, rope] = hit;
 
   const arm = armOf(hand);
-  const delta = performance.now() - arm.holderTime;
-  if (arm.holder === rope.parent && (arm.holderTime === -1 || delta < 300)) {
-    return;
-  }
+  if (arm.hold !== null) return;
 
-  const p = contact.getWorldManifold().points[0];
-  deferred.push(() => {
-    if (arm.hold) world.destroyJoint(arm.hold);
-    sound.play("hold", 800 * (2 * Math.random() - 1));
-    arm.hold = pl.DistanceJoint(
-      {
-        length: 0,
-        collideConnected: false,
-        frequencyHz: 10,
-        dampingRatio: 0.5,
-      },
-      hand,
-      rope,
-      hand.getPosition(),
-      p,
-    );
-    world.createJoint(arm.hold);
+  const p = contact.points[0];
+  sound.play("hold", 800 * (2 * Math.random() - 1));
+  arm.hold = world.distance(hand, rope, {
+    localA: [0, 0],
+    localB: rope.toLocal(p.x, p.y),
+    length: 0,
+    spring: true,
+    hertz: 10,
+    damping: 0.5,
+    collide: false,
   });
   arm.holder = rope.parent;
   arm.holderTime = -1;
@@ -594,16 +539,14 @@ function updatePlayer(dt) {
     player.eyelook.x = -1 + 2 * Math.random();
     player.eyelook.y = -1 + 2 * Math.random();
   } else if (player.focuson) {
-    const d = vec.normalize(
-      vec.sub(player.focuson.getPosition(), player.head.getPosition()),
-    );
+    const d = vec.normalize(vec.sub(at(player.focuson), at(player.head)));
     player.eyelook.x = d.x;
     player.eyelook.y = d.y;
   }
 }
 
 function updateCamera(dt) {
-  const p = player.head.getPosition();
+  const p = at(player.head);
 
   const ang = TAU * -(p.x - camera.x) / 40;
   const angle = Math.abs(ang) < TAU / 40 ? 0 : ang;
@@ -623,25 +566,22 @@ function updateCamera(dt) {
 function updateShot() {
   if (mouse.click) {
     const p = camera.toWorld(mouse.x, mouse.y);
-    const aabb = pl.AABB(
-      { x: p.x - 0.001, y: p.y - 0.001 },
-      { x: p.x + 0.001, y: p.y + 0.001 },
-    );
 
+    // The hand's wide sensor is what makes a press near one count.
     let hand = null;
     let dist = Infinity;
-    world.queryAABB(aabb, (x) => {
-      const b = x.getBody();
-      if (b.getUserData() !== "hand") return;
+    for (const f of world.pick(p.x, p.y)) {
+      const b = f.body;
+      if (b.data !== "hand") continue;
       // A free hand already flying fast is not catchable.
-      if (!armOf(b).hold && vec.len(b.getLinearVelocity()) > 5) return;
+      if (!armOf(b).hold && vec.len({ x: b.vx, y: b.vy }) > 5) continue;
 
-      const d = vec.len(vec.sub(p, b.getPosition()));
+      const d = vec.len(vec.sub(p, at(b)));
       if (d < dist) {
         hand = b;
         dist = d;
       }
-    });
+    }
 
     if (hand !== null) {
       shot = { hand, offset: 0, target: { x: mouse.x, y: mouse.y } };
@@ -653,14 +593,14 @@ function updateShot() {
 
   if (mouse.press) {
     const p = camera.toWorld(mouse.x, mouse.y);
-    const o = shot.hand.getPosition();
+    const o = at(shot.hand);
     shot.target = vec.add(o, vec.clamp(vec.sub(p, o), 0, 3));
     return;
   }
 
   if (!mouse.release) return;
 
-  const p = shot.hand.getPosition();
+  const p = at(shot.hand);
   const v = vec.sub(p, shot.target);
   const l = vec.len(v);
   // Too short a drag is a tap, not a throw.
@@ -671,11 +611,12 @@ function updateShot() {
 
   const arm = armOf(shot.hand);
   if (arm.hold) {
-    world.destroyJoint(arm.hold);
+    arm.hold.destroy();
     arm.holderTime = performance.now();
     arm.hold = null;
   }
-  shot.hand.applyForceToCenter(vec.mul(v, 50 * l));
+  const f = vec.mul(v, 50 * l);
+  shot.hand.push(f.x, f.y);
   shot = null;
 }
 
@@ -693,15 +634,15 @@ function updateEnemy() {
     angle: vec.angle(vec.sub(here, last)) + TAU / 4,
   };
 
-  const p = enemy.getPosition();
+  const p = at(enemy);
   const mv = 0.001 * enemySpeed;
   const full = vec.sub(target, p);
-  enemy.setPosition(vec.add(p, vec.clamp(full, -mv, mv)));
+  const next = vec.add(p, vec.clamp(full, -mv, mv));
 
-  const a = enemy.getAngle();
+  const a = enemy.angle;
   let da = (target.angle - a + Math.PI) % TAU - Math.PI;
   if (da < -Math.PI) da += TAU;
-  enemy.setAngle(a + clamp(da, -0.0035, 0.0035));
+  enemy.moveTo(next.x, next.y, a + clamp(da, -0.0035, 0.0035));
 
   if (vec.len(full) < 0.001) enemyPath++;
 
@@ -711,7 +652,7 @@ function updateEnemy() {
     enemyNatural++;
   }
 
-  const away = vec.len(vec.sub(player.head.getPosition(), p));
+  const away = vec.len(vec.sub(at(player.head), p));
   enemySpeed = away > 20 ? 100 : enemyNatural;
 }
 
@@ -719,12 +660,15 @@ export function update(dt) {
   time += dt;
 
   // The saw shares the physics clock: its speeds are per-step, not per-second.
+  // Events are read inside the loop, since a step clears the one before it.
   fixed(60, (h) => {
     world.step(h);
+    for (const c of world.began) begin(c);
+    for (const s of world.sensorBegan) {
+      if (s.visitor.body.data === "head") gameOver({ score: true });
+    }
     updateEnemy();
   });
-  for (const w of deferred) w();
-  deferred.length = 0;
 
   // Scored in seconds survived, once the cave proper has started.
   if (path.length > 12) score.value += dt;
@@ -795,42 +739,37 @@ function renderBG(ctx) {
 // The chain drawn as one curve through the link centres, with a dot on each
 // pinned end.
 function renderRope(ctx, r) {
-  let prev = r[0].getPosition();
+  let prev = at(r[0]);
 
   ctx.strokeStyle = ROPE;
   ctx.lineWidth = 0.1;
   ctx.beginPath();
   for (const p of r) {
-    const c = p.getWorldCenter();
-    ctx.quadraticCurveTo(prev.x, prev.y, c.x, c.y);
-    prev = p.getPosition();
+    ctx.quadraticCurveTo(prev.x, prev.y, p.cx, p.cy);
+    prev = at(p);
   }
   ctx.lineTo(prev.x, prev.y);
   ctx.stroke();
 
   ctx.fillStyle = ANCHOR;
-  const a = r[0].getPosition();
-  ctx.fillCircle(a.x, a.y, 0.2);
+  ctx.fillCircle(r[0].x, r[0].y, 0.2);
 
   const end = r[r.length - 1];
-  if (end.getUserData() !== "rope") {
-    const b = end.getPosition();
-    ctx.fillCircle(b.x, b.y, 0.2);
-  }
+  if (end.data !== "rope") ctx.fillCircle(end.x, end.y, 0.2);
 }
 
 const BIGARM = 0.6;
 const SMALLARM = 0.15;
 
 function renderPlayer(ctx) {
-  const h = player.head.getPosition();
+  const h = at(player.head);
 
   // A tapered band, wide at the shoulder and narrow at the hand, bending
   // through the elbow body.
   ctx.fillStyle = BODY;
   for (const arm of player.arms) {
-    const p = arm.hand.getPosition();
-    const j = arm.joint.getPosition();
+    const p = at(arm.hand);
+    const j = at(arm.joint);
     const n = vec.normalize(vec.perp(vec.sub(h, p)));
 
     ctx.beginPath();
@@ -843,19 +782,15 @@ function renderPlayer(ctx) {
 
   ctx.fillStyle = SKIN;
   for (const arm of player.arms) {
-    const p = arm.hand.getPosition();
-    ctx.fillCircle(p.x, p.y, arm.hold ? 0.22 : 0.3);
+    ctx.fillCircle(arm.hand.x, arm.hand.y, arm.hold ? 0.22 : 0.3);
   }
 
   // Second segment up to the head, round capped. The first is pulled back
   // towards the midpoint so it cannot fold through the head.
   const b = player.body[1];
-  const p = b.getPosition();
+  const p = at(b);
   const mid = vec.mul(vec.add(h, p), 0.5);
-  const m = vec.add(
-    mid,
-    vec.clamp(vec.sub(player.body[0].getPosition(), mid), 0, 0.3),
-  );
+  const m = vec.add(mid, vec.clamp(vec.sub(at(player.body[0]), mid), 0, 0.3));
 
   const nm = vec.normalize(vec.perp(vec.sub(h, m)));
   const v = vec.sub(m, p);
@@ -939,7 +874,7 @@ function renderHead(ctx, h) {
 function renderShot(ctx) {
   if (!shot) return;
 
-  const p = shot.hand.getPosition();
+  const p = at(shot.hand);
   const t = vec.sub(shot.target, p);
   const v = vec.normalize(t);
   const n = vec.perp(v);
@@ -971,8 +906,8 @@ const TEETH_PHASE = 50;
 // An infinite line, so draw only the span crossing the view: sliding triangles
 // along it, filled solid on the far side.
 function renderEnemy(ctx) {
-  const pos = enemy.getPosition();
-  const dir = vec.rotate({ x: 1, y: 0 }, enemy.getAngle());
+  const pos = at(enemy);
+  const dir = vec.rotate({ x: 1, y: 0 }, enemy.angle);
   const centre = { x: camera.x, y: camera.y };
 
   const half = SIZE / camera.scale / 2;
