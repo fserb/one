@@ -7,10 +7,17 @@
  * The module writes op.sound on the way in; a silent game leaves that null and
  * the bundler drops fsfx and alma's Audio.
  *
+ * voice() is the sfxr path: one options object, no track, since twelve of the
+ * ported games want the voice exactly as sfxr renders it. src/lib/fsfx/sfxr.js
+ * says what the options are.
+ *
  * A Track is callable: one call per stage, each processing what the last left.
  * The game imports the stages by name, so its bundle carries those and not the
  * other forty; handing the callback the whole `fsfx` namespace would pin every
  * module in the directory.
+ *
+ * make() takes the rate the Track runs at, which only sfxr's stage has a reason
+ * to move: it counts a period in whole samples, so 48000 would be another pitch.
  *
  * ```js
  * import { ADSR, biquad, envelope, linear, oscillator } from "./lib/fsfx/fsfx.js";
@@ -26,7 +33,11 @@
 
 import { Audio } from "../alma/src/index.js";
 import { op } from "./state.js";
-import { Track } from "./fsfx/fsfx.js";
+import {
+  render as sfxrRender,
+  SAMPLE_RATE as SFXR_RATE,
+  Track,
+} from "./fsfx/fsfx.js";
 
 const SAMPLE_RATE = 48000;
 
@@ -72,10 +83,19 @@ export function arm(target) {
   target.addEventListener("keydown", go, opts);
 }
 
-export function make(name, duration, func) {
-  const track = new Track(duration, SAMPLE_RATE, 1);
+// `rate` is here for sfxr, which counts a period in whole samples and so only
+// renders right on a track at its own 44100.
+export function make(name, duration, func, rate = SAMPLE_RATE) {
+  const track = new Track(duration, rate, 1);
   func(track);
-  add(name, track.build(), SAMPLE_RATE);
+  add(name, track.build(), rate);
+}
+
+// One sfxr voice, played as it comes out. sfxr renders at its own 44100 and
+// alma resamples; a voice that wants an fsfx stage after it goes through make()
+// with that rate instead.
+export function voice(name, opts) {
+  add(name, sfxrRender(opts), SFXR_RATE);
 }
 
 // Samples somebody else rendered, at whatever rate they rendered at.

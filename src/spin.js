@@ -23,8 +23,8 @@
  * leaves only the Haxe's own end-of-turn work: turn the map array and put every
  * position where the drawing had it.
  *
- * The room is 456 across, not 480: the bar covers the top 21 and a room that
- * turns onto itself has to be square. The 12 either side is meta.bg.
+ * The room fills the box: 24 tiles of 20, square, because a room that turns
+ * onto itself has to be.
  *
  * The Haxe's sight polygon is gone: it is the same `castLOS` demo Wall.hx has,
  * and src/wall.js is already that game.
@@ -32,7 +32,7 @@
 
 import * as ent from "./lib/entity.js";
 import { gameOver, hint, score, SIZE } from "./lib/one.js";
-import * as sfxr from "./lib/sfxr.js";
+import { blip, coin, jump } from "./lib/fsfx/sfxr.js";
 import * as sound from "./lib/sound.js";
 
 export const meta = {
@@ -47,16 +47,15 @@ the needle says which way the room turns
   date: "2015-10-04",
 };
 
-// The box the game thinks in, and the strip of it the shell's 44px bar covers.
+// The box the game thinks in.
 const W = 480;
-const TOP = 21;
 
-// Square, so it turns onto itself: 24 tiles of 19, the rest margin.
+// Square, so it turns onto itself: 24 tiles of 20, the whole box.
 const GRID = 24;
-const TILE = 19;
+const TILE = 20;
 const ROOM = GRID * TILE;
 const ROOMX = (W - ROOM) / 2;
-const ROOMY = TOP + (W - TOP - ROOM) / 2;
+const ROOMY = ROOMX;
 const CX = ROOMX + ROOM / 2;
 const CY = ROOMY + ROOM / 2;
 
@@ -76,7 +75,7 @@ const T_RIGHT = 2;
 const T_DOWN = 4;
 const T_LEFT = 8;
 
-// Half the player's box, under the 19-unit tile on both axes so a one-tile
+// Half the player's box, under the 20-unit tile on both axes so a one-tile
 // gap is a gap. EDGE is how far into a tile a stop lands.
 const HW = 7;
 const HH = 8;
@@ -120,7 +119,7 @@ const ARROW = 13;
 const MARK_GAP = 150;
 const MARK_R = 7;
 // Tiles the flood lets a jump climb. JUMP*JUMP/(2*GRAV) is 92 units, so four
-// 19-unit tiles is a shade under.
+// 20-unit tiles is a shade under.
 const CLIMB = 4;
 // How often the mark's reachability is checked, and how long it may fail.
 const LOOK = 0.4;
@@ -162,31 +161,26 @@ const MAP = `
 000000000000000000000000
 `;
 
-// ugl's Sound.vol(v) set masterVolume to 2v, and sfxr squares that.
-voice("jump", sfxr.jump(2801), 0.09);
-voice("mark", sfxr.coin(2833), 0.13);
-voice("wind", sfxr.blip(2851), 0.05);
-voice("turn", rumble(), 0.2);
-
-function voice(name, params, vol) {
-  params.masterVolume = 2 * vol;
-  sound.put(name, sfxr.render(params), sfxr.SAMPLE_RATE);
-}
+// The vols are the vault game's own ugl volumes.
+sound.voice("jump", { ...jump(2801), vol: 0.09 });
+sound.voice("mark", { ...coin(2833), vol: 0.13 });
+sound.voice("wind", { ...blip(2851), vol: 0.05 });
+sound.voice("turn", { ...rumble(), vol: 0.2 });
 
 // A sine sliding down under slow noise: the nearest sfxr's seven generators
 // get to something heavy moving.
 function rumble() {
-  const p = sfxr.params();
-  p.waveType = 2;
-  p.startFrequency = 0.2;
-  p.minFrequency = 0.05;
-  p.slide = -0.12;
-  p.attackTime = 0.05;
-  p.sustainTime = 0.25;
-  p.decayTime = 0.35;
-  p.vibratoDepth = 0.25;
-  p.vibratoSpeed = 0.35;
-  return p;
+  return {
+    waveType: 2,
+    startFrequency: 0.2,
+    minFrequency: 0.05,
+    slide: -0.12,
+    attackTime: 0.05,
+    sustainTime: 0.25,
+    decayTime: 0.35,
+    vibratoDepth: 0.25,
+    vibratoSpeed: 0.35,
+  };
 }
 
 // 1 wall, 2 platform, 0 air. Rewritten in place by a turn.

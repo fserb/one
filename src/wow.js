@@ -27,6 +27,9 @@ const ROWS = 4;
 const TILE = 234;
 // The art is drawn at 2x and downsampled by drawImage.
 const ART = TILE * 2;
+// Every tile drops its shadow down and right, so the block the puzzle makes is
+// this much wider and taller than the grid, and centring counts it.
+const SHADOW_OFF = 15;
 
 let pieces;
 let empty;
@@ -94,8 +97,8 @@ export function init() {
   }
 
   tiles = drawTiles();
-  ox = (SIZE - COLS * TILE) / 2;
-  oy = SIZE - ROWS * TILE - 28;
+  ox = (SIZE - COLS * TILE - SHADOW_OFF) / 2;
+  oy = (SIZE - ROWS * TILE - SHADOW_OFF) / 2;
 }
 
 function check() {
@@ -130,7 +133,7 @@ export function update() {
 }
 
 export function render(ctx) {
-  const s = 15;
+  const s = SHADOW_OFF;
   ctx.fillStyle = SHADOW;
   for (const p of pieces) {
     ctx.fillRect(ox + p.x * TILE + s, oy + p.y * TILE + s, TILE, TILE);

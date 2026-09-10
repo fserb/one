@@ -43,9 +43,6 @@ const WHITE = "#F2F0E5";
 const IRIS = "#212123";
 const RIM = "#B9A588";
 
-// The shell's bar, which the board stays clear of.
-const BAR = 44;
-
 sound.make("hit", 0.3, (track) => {
   track(karplus_strong, { b: 0.5, freq: 40, S: 0.1 });
   track(biquad, { type: "lowpass", freq: 1500 });
@@ -397,7 +394,7 @@ function recenter() {
 
   const border = 30;
   rect.minx -= border;
-  rect.miny -= border + BAR;
+  rect.miny -= border;
   rect.maxx += border;
   rect.maxy += border;
 

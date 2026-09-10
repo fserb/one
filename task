@@ -68,6 +68,7 @@ function planck {
 function test {
   deno run --allow-read tools/loop_test.js
   deno run --allow-read tools/entity_test.js
+  deno run --allow-read tools/sfxr_test.js
 }
 
 function fmt {

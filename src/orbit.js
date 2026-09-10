@@ -17,9 +17,7 @@
  * Haxe walked the arc into a polygon because that was all ugl had; in polar
  * coordinates the slice is two comparisons, which is `covers()`. Both bullets
  * collide as circles, since a hit box does not turn with the drawing.
- *
- * The bar covers the top 21 units and everything is radial about one point, so
- * the centre moves down and the orbit comes in.
+
  *
  * Hitstop runs a frame at dt 0 here, where ugl skipped the frame outright, so
  * the two places that divide by dt guard against it.
@@ -29,7 +27,7 @@ import { css } from "./lib/art.js";
 import * as ent from "./lib/entity.js";
 import "./lib/gfx.js";
 import { flash, gameOver, hint, msg, score } from "./lib/one.js";
-import * as sfxr from "./lib/sfxr.js";
+import { explosion, hit, laser, powerup } from "./lib/fsfx/sfxr.js";
 import * as sound from "./lib/sound.js";
 
 export const meta = {
@@ -54,16 +52,13 @@ const HALFBLACK = mix(BLACK, COLOR, 0.75);
 
 const TAU = 2 * Math.PI;
 
-// The 480 box, and the strip the shell's bar covers.
+// The 480 box the game thinks in, and the point it all turns about.
 const W = 480;
-const TOP = 21;
 const CX = W / 2;
-// The middle of what the bar leaves, not the middle of the box.
-const CY = (TOP + W) / 2;
+const CY = W / 2;
 
-// The Haxe orbited at 200 about the centre of the whole box, reaching 238.5
-// out with the recoil and the shield ring. Here the same sum has 229.5.
-const ORBIT = 190;
+// The Haxe's: 200, reaching 238.5 out with the recoil and the shield ring.
+const ORBIT = 200;
 const RECOIL = 20;
 const FALLBACK = 50;
 const SETTLE = 50;
@@ -93,21 +88,15 @@ const SHIELD_BONUS = 50;
 // On top of the hitstop.
 const DEATH = 0.6;
 
-// ugl's Sound.vol(v) set masterVolume to 2v, which sfxr squares. Its default
-// was vol(0.2).
-voice("shot", sfxr.laser(1350), 0.15);
-voice("pop", sfxr.explosion(1002), 0.1);
-voice("chunk", sfxr.hit(95446), 0.1);
-voice("enemyshot", sfxr.laser(1006), 0.075);
-voice("shield", sfxr.explosion(39969), 0.2);
-voice("boom", sfxr.explosion(81796), 0.2);
-voice("build", sfxr.powerup(31331), 0.2);
-voice("die", sfxr.explosion(1032), 0.2);
-
-function voice(name, params, vol) {
-  params.masterVolume = 2 * vol;
-  sound.put(name, sfxr.render(params), sfxr.SAMPLE_RATE);
-}
+// ugl's Sound.vol() defaulted to 0.2; orbit set most of them itself.
+sound.voice("shot", { ...laser(1350), vol: 0.15 });
+sound.voice("pop", { ...explosion(1002), vol: 0.1 });
+sound.voice("chunk", { ...hit(95446), vol: 0.1 });
+sound.voice("enemyshot", { ...laser(1006), vol: 0.075 });
+sound.voice("shield", { ...explosion(39969), vol: 0.2 });
+sound.voice("boom", { ...explosion(81796), vol: 0.2 });
+sound.voice("build", { ...powerup(31331), vol: 0.2 });
+sound.voice("die", { ...explosion(1032), vol: 0.2 });
 
 /*
  * A level is a list of rings, each a pattern and a weight read digit by digit.

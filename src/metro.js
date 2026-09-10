@@ -26,7 +26,7 @@
 import * as ent from "./lib/entity.js";
 import "./lib/gfx.js";
 import { gameOver, score } from "./lib/one.js";
-import * as sfxr from "./lib/sfxr.js";
+import { coin, explosion, hit } from "./lib/fsfx/sfxr.js";
 import * as sound from "./lib/sound.js";
 
 export const meta = {
@@ -59,9 +59,8 @@ const RINGS = [[8, DOT], [6, HOLE], [4, DOT]];
 
 const TAU = 2 * Math.PI;
 
-// The 480 box, and the strip the shell's bar covers.
+// The 480 box the game thinks in.
 const W = 480;
-const TOP = 21;
 
 // Four screens a side. Stations land no closer than GAP, and TRIES throws fill
 // it with about 375.
@@ -87,17 +86,12 @@ const BAR = 270;
 const OFF = 500;
 const ON = 440;
 
-// ugl's Sound.vol(v) set masterVolume to 2v, and sfxr squares that.
-voice("reach", sfxr.coin(82), 0.25);
-voice("timeup", sfxr.explosion(4073), 0.1);
-voice("crash", sfxr.explosion(4005), 0.25);
-voice("station", sfxr.coin(112), 0.15);
-voice("switch", sfxr.hit(764), 0.25);
-
-function voice(name, params, vol) {
-  params.masterVolume = 2 * vol;
-  sound.put(name, sfxr.render(params), sfxr.SAMPLE_RATE);
-}
+// The vols are the vault game's own ugl volumes.
+sound.voice("reach", { ...coin(82), vol: 0.25 });
+sound.voice("timeup", { ...explosion(4073), vol: 0.1 });
+sound.voice("crash", { ...explosion(4005), vol: 0.25 });
+sound.voice("station", { ...coin(112), vol: 0.15 });
+sound.voice("switch", { ...hit(764), vol: 0.25 });
 
 // In the shell's 480 coordinates: follow() slides every station once a frame
 // so the car stays in the middle, which is why nothing here needs a camera.
@@ -611,7 +605,7 @@ class Target extends ent.Entity {
     this.gfx.cache(1).fill(RED).mt(0, 0).lt(15, 7.5).lt(0, 15).lt(0, 0);
     this.angle = Math.atan2(y - W / 2, x - W / 2);
     this.pos.x = Math.max(10, Math.min(W - 10, x));
-    this.pos.y = Math.max(TOP + 10, Math.min(W - 10, y));
+    this.pos.y = Math.max(10, Math.min(W - 10, y));
   }
 }
 

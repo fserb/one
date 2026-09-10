@@ -12,9 +12,8 @@
  * waves a timing pattern runs the formation in bursts of up to three times
  * speed. Hits chain: a kill is worth (waves + 1) times the length of its chain.
  *
- * The shell's bar costs the top 21 units, and the game's own bar loses the
- * score line it used to carry, 70 units down to 49. 480 - 21 - 49 leaves
- * exactly the 410 field the Haxe had, so every constant in it is untouched.
+ * The bar loses the score line it used to carry, 70 units down to 49, so the
+ * field is 431 where the Haxe's was 410. Every constant in it is the Haxe's.
  *
  * The shooter is drawn at random from the enemies on screen, which is what the
  * Haxe's unbuilt to-do list wanted to change. A wave fires 0.2 to 1.2 bullets a
@@ -25,7 +24,7 @@
 import * as ent from "./lib/entity.js";
 import "./lib/gfx.js";
 import { gameOver, msg, score } from "./lib/one.js";
-import * as sfxr from "./lib/sfxr.js";
+import { explosion, laser, powerup } from "./lib/fsfx/sfxr.js";
 import * as sound from "./lib/sound.js";
 
 export const meta = {
@@ -42,7 +41,7 @@ the bar is the clock, and every shot spends it
 
 const WHITE = 0xffffff;
 const BLACK = 0x000000;
-// meta.fg is PANEL too, so the shell's bar and the game's are one colour.
+// meta.fg is PANEL too: the bar is the darkest thing on the board.
 const PANEL = 0x024972;
 const DEEP = 0x011f30;
 const ORANGE = 0xe65205;
@@ -50,8 +49,7 @@ const FLASH = 0xffffcc;
 const EMBER = 0xb23f04;
 
 const W = 480;
-// The shell's bar, in the 480 box.
-const TOP = 21;
+// The game's own bar, along the bottom.
 const BARH = 49;
 const BOT = W - BARH;
 
@@ -72,7 +70,7 @@ const PX = 18;
 const SHOTY = PY - 18;
 const UP = 500;
 const DOWN = 400;
-const CEIL = TOP + 9;
+const CEIL = 9;
 const SINK = BOT + 10;
 
 // A full bar is two minutes of holding still.
@@ -86,7 +84,8 @@ const BEAT = 0.1;
 // in place at the other.
 const WRAPX = W + 15;
 const BANDX = W + 30;
-const WRAPY = TOP + 415;
+// The Haxe wrapped 5 past the foot of the field, and still does.
+const WRAPY = BOT + 5;
 const BANDY = 430;
 
 // 5x4 pixels at 6 units each.
@@ -99,19 +98,14 @@ const LIGHT = 0.05;
 const WHITEOUT = 0.1;
 const POP = 0.2;
 
-// ugl's Sound.vol(v) is masterVolume = 2v, which sfxr squares. All took the
-// constructor's 0.2 except the spend, which plays ten times a second.
-voice("begin", sfxr.powerup(8428), 0.2);
-voice("spend", sfxr.explosion(1345), 0.1);
-voice("shot", sfxr.laser(1350), 0.2);
-voice("dead", sfxr.explosion(1344), 0.2);
-voice("enemyshot", sfxr.laser(1403), 0.2);
-voice("boom", sfxr.explosion(1345), 0.2);
-
-function voice(name, params, vol) {
-  params.masterVolume = 2 * vol;
-  sound.put(name, sfxr.render(params), sfxr.SAMPLE_RATE);
-}
+// All took ugl's constructor default of 0.2 except the spend, which plays ten
+// times a second.
+sound.voice("begin", { ...powerup(8428), vol: 0.2 });
+sound.voice("spend", { ...explosion(1345), vol: 0.1 });
+sound.voice("shot", { ...laser(1350), vol: 0.2 });
+sound.voice("dead", { ...explosion(1344), vol: 0.2 });
+sound.voice("enemyshot", { ...laser(1403), vol: 0.2 });
+sound.voice("boom", { ...explosion(1345), vol: 0.2 });
 
 /*
  * The eight formations, in the Haxe's order. `across` spawns w by h off the
@@ -448,14 +442,14 @@ class Wave extends ent.Entity {
       const gap = BANDX / w;
       for (let y = 0; y < h; ++y) {
         for (let x = 0; x < w; ++x) {
-          add(y, x * gap + (y % 2) * (gap / 2) - 496, TOP + 50 + y * dy);
+          add(y, x * gap + (y % 2) * (gap / 2) - 496, 50 + y * dy);
         }
       }
     } else {
       const gap = BANDY / h;
       for (let y = 0; y < h; ++y) {
         for (let x = 0; x < w; ++x) {
-          add(y, 15 + x * dx + this.strat.xmove(y, 0), TOP - gap * y);
+          add(y, 15 + x * dx + this.strat.xmove(y, 0), -gap * y);
         }
       }
     }
@@ -466,7 +460,7 @@ class Wave extends ent.Entity {
       if (max > 0) { for (const e of this.all) e.pos.x -= max + 100; }
     } else {
       const max = Math.max(...this.all.map((e) => e.pos.y));
-      if (max > TOP) { for (const e of this.all) e.pos.y -= max - TOP + 30; }
+      if (max > 0) { for (const e of this.all) e.pos.y -= max + 30; }
     }
   }
 
@@ -500,7 +494,7 @@ class Wave extends ent.Entity {
         if (e.pos.y >= WRAPY) e.pos.y -= BANDY;
       }
 
-      if (!shoot || e.pos.y <= TOP) continue;
+      if (!shoot || e.pos.y <= 0) continue;
       seen += 1;
       if (shooter === null || Math.random() < 1 / seen) shooter = e;
     }

@@ -27,6 +27,10 @@ Low level:
 - biquad: biquad filter (lowpass, highpass, bandpass, notch, peak, allpass,
   lowshelf, highshelf)
 
+Whole voices:
+- sfxr: Tomas Pettersson's synth, seven generators over one fixed voice. It
+  renders at its own 44100 and does not resample, so its Track has to run there.
+
 High level:
 - phaser
 - compressor
@@ -48,3 +52,4 @@ export * from "./modules.js";
 export * from "./karplus.strong.js";
 export * from "./fm.js";
 export * from "./music.js";
+export * from "./sfxr.js";

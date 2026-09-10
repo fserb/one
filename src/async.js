@@ -42,6 +42,9 @@ const BOARDPOS = [
 // Belt units draw in a unit square, scaled up by this.
 const SZ = 100;
 const STRIDE = 1.2;
+// The belt rides the strip above the boards, low enough to clear the score chip
+// in the corner.
+const BELT_Y = 117;
 
 const board = [];
 const selected = [null, null];
@@ -626,7 +629,7 @@ function renderPiece(ctx, p) {
 
 function renderBelt(ctx) {
   ctx.save();
-  ctx.translate(0, (290 + 44 - SZ) / 2);
+  ctx.translate(0, BELT_Y);
   ctx.scale(SZ, SZ);
 
   let p = (beltPos - 1) * STRIDE;

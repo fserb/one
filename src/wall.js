@@ -31,7 +31,7 @@
 
 import * as ent from "./lib/entity.js";
 import { gameOver, hint, msg, score, SIZE } from "./lib/one.js";
-import * as sfxr from "./lib/sfxr.js";
+import { coin, explosion, powerup } from "./lib/fsfx/sfxr.js";
 import * as sound from "./lib/sound.js";
 
 export const meta = {
@@ -46,16 +46,15 @@ the orange moves only while you cannot see it
   date: "2015-10-10",
 };
 
-// The 480 box, and the strip the shell's bar covers.
+// The 480 box the game thinks in.
 const W = 480;
-const TOP = 21;
 
 // The Haxe's 20-unit tile. Two screens across and one down, so the camera only
-// moves sideways. The top row is wall and the bar hides its first unit.
+// moves sideways. 23 rows is 460, so the room sits 10 off the top and bottom.
 const TILE = 20;
 const GW = 48;
 const GH = 23;
-const LY = TOP - 1;
+const LY = (W - GH * TILE) / 2;
 const RW = GW * TILE;
 const RH = GH * TILE;
 
@@ -155,28 +154,23 @@ const PIP = `
 ..0..
 `;
 
-// ugl's Sound.vol(v) set masterVolume to 2v, and sfxr squares that.
-voice("coin", sfxr.coin(4021), 0.14);
-voice("die", sfxr.explosion(4057), 0.2);
-voice("more", sfxr.powerup(4093), 0.14);
-voice("beat", thud(), 0.16);
-
-function voice(name, params, vol) {
-  params.masterVolume = 2 * vol;
-  sound.put(name, sfxr.render(params), sfxr.SAMPLE_RATE);
-}
+// The vols are the vault game's own ugl volumes.
+sound.voice("coin", { ...coin(4021), vol: 0.14 });
+sound.voice("die", { ...explosion(4057), vol: 0.2 });
+sound.voice("more", { ...powerup(4093), vol: 0.14 });
+sound.voice("beat", { ...thud(), vol: 0.16 });
 
 // About 70Hz: sfxr's period is 100/(f*f + 0.001) eighths of a sample, so f of
 // 0.14 is 8*44100/5040 Hz.
 function thud() {
-  const p = sfxr.params();
-  p.waveType = 2;
-  p.startFrequency = 0.14;
-  p.slide = -0.1;
-  p.sustainTime = 0.02;
-  p.sustainPunch = 0.5;
-  p.decayTime = 0.16;
-  return p;
+  return {
+    waveType: 2,
+    startFrequency: 0.14,
+    slide: -0.1,
+    sustainTime: 0.02,
+    sustainPunch: 0.5,
+    decayTime: 0.16,
+  };
 }
 
 let range = LIGHT;
@@ -791,7 +785,7 @@ function drawMarks(ctx) {
   for (const c of ent.get(Coin)) {
     const sx = c.pos.x + cam.x;
     const sy = c.pos.y + cam.y;
-    if (sx >= 0 && sy >= TOP && sx < W && sy < W) {
+    if (sx >= 0 && sy >= 0 && sx < W && sy < W) {
       ctx.fillRect(c.pos.x - DOT / 2, c.pos.y - DOT / 2, DOT, DOT);
       continue;
     }
@@ -799,7 +793,7 @@ function drawMarks(ctx) {
     ctx.save();
     ctx.translate(
       clamp(sx, ARROW, W - ARROW) - cam.x,
-      clamp(sy, TOP + ARROW, W - ARROW) - cam.y,
+      clamp(sy, ARROW, W - ARROW) - cam.y,
     );
     ctx.rotate(Math.atan2(sy - W / 2, sx - W / 2));
     ctx.beginPath();

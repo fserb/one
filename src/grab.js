@@ -15,15 +15,17 @@
  * 1.5/speed yellow's first shot lands 2.9 seconds in, before the hint has
  * faded, and the Haxe had a title card where this shell has none.
  *
- * The bar covers the top 21 units of the 480 box, so the walls and the ghosts'
- * starting corners move down. A hit shape does not turn with the drawing, so
- * the hook's 20x18 claw box is a circle on the claw.
+ * A hit shape does not turn with the drawing, so the hook's 20x18 claw box is a
+ * circle on the claw.
+ *
+ * Death runs the Haxe's EndGame quad rather than a countdown: the board goes
+ * black out of the body before the finish panel arrives.
  */
 
 import * as ent from "./lib/entity.js";
 import "./lib/gfx.js";
 import { gameOver, hint, score } from "./lib/one.js";
-import * as sfxr from "./lib/sfxr.js";
+import { explosion, hit, laser } from "./lib/fsfx/sfxr.js";
 import * as sound from "./lib/sound.js";
 
 export const meta = {
@@ -50,9 +52,8 @@ const PURPLE = 0xaa00ff;
 const BLUE = 0x00aaff;
 const FLOORS = [YELLOW, PURPLE, BLUE, PINK];
 
-// The 480 box, and the strip the shell's bar covers.
+// The 480 box the game thinks in.
 const W = 480;
-const TOP = 21;
 // How far off each wall the ghosts start, and where the player's wall is. A
 // radius of the player pokes past it, as in the Haxe.
 const EDGE = 10;
@@ -60,8 +61,9 @@ const EDGE = 10;
 const PR = 16;
 const PUSH = 1700;
 const DRAG = 5;
-// On top of the hitstop.
-const DEATH = 0.2;
+// The hitstop the death holds for, and how fast the black quad's corners fly.
+const HITSTOP = 0.2;
+const FLY = 5000;
 
 const IDLE = 0;
 const OUT = 1;
@@ -85,16 +87,10 @@ const DODGE = 50;
 const WALK = 50;
 const SHOT = 100;
 
-// ugl's Sound.vol(v) set masterVolume to 2v and sfxr squares it, so the hook
-// is a quarter the loudness of the other two.
-voice("hook", sfxr.laser(1249), 0.1);
-voice("grab", sfxr.hit(1249), 0.2);
-voice("hit", sfxr.explosion(1238), 0.2);
-
-function voice(name, params, vol) {
-  params.masterVolume = 2 * vol;
-  sound.put(name, sfxr.render(params), sfxr.SAMPLE_RATE);
-}
+// sfxr squares the vol, so the hook is a quarter the loudness of the other two.
+sound.voice("hook", { ...laser(1249), vol: 0.1 });
+sound.voice("grab", { ...hit(1249), vol: 0.2 });
+sound.voice("hit", { ...explosion(1238), vol: 0.2 });
 
 let speed = 1.5;
 let floor = YELLOW;
@@ -116,19 +112,16 @@ class Player extends ent.Entity {
   constructor() {
     super();
     this.pos.x = this.pos.y = W / 2;
-    this.dying = 0;
+    this.dying = false;
     this.gfx.fill(BLACK).circle(0, 0, PR);
     this.hitCircle(PR);
   }
 
   update() {
-    const { key, time } = ent.game;
+    const { key } = ent.game;
 
-    if (this.dying > 0) {
-      this.dying -= time;
-      if (this.dying <= 0) gameOver({ score: true });
-      return;
-    }
+    // EndGame ends the round once the board is black.
+    if (this.dying) return;
 
     if (hook.action === IDLE) {
       let mx = 0;
@@ -155,8 +148,8 @@ class Player extends ent.Entity {
       this.pos.x = W - EDGE;
       this.vel.x = -Math.abs(this.vel.x);
     }
-    if (this.pos.y <= TOP + EDGE) {
-      this.pos.y = TOP + EDGE;
+    if (this.pos.y <= EDGE) {
+      this.pos.y = EDGE;
       this.vel.y = Math.abs(this.vel.y);
     }
     if (this.pos.y >= W - EDGE) {
@@ -176,9 +169,10 @@ class Player extends ent.Entity {
     sound.play("hit");
     this.clearHits();
     this.vel.x = this.vel.y = 0;
-    this.dying = DEATH;
-    ent.delay(0.2);
+    this.dying = true;
+    ent.delay(HITSTOP);
     ent.shake(0.5);
+    new EndGame(this.pos.x, this.pos.y);
   }
 }
 
@@ -211,7 +205,7 @@ class Hook extends ent.Entity {
   }
 
   update() {
-    if (player.dying > 0) return;
+    if (player.dying) return;
     const { key, mouse, time } = ent.game;
     const p = player.pos;
 
@@ -286,7 +280,7 @@ class Bullet extends ent.Entity {
     // leave the board.
     if (this.color === PINK || this.color === PURPLE) return;
     const { x, y } = this.pos;
-    if (x < 0 || x > W || y < TOP || y > W) this.remove();
+    if (x < 0 || x > W || y < 0 || y > W) this.remove();
   }
 }
 
@@ -298,7 +292,7 @@ class Ghost extends ent.Entity {
     this.color = color;
     // The corner furthest from the player, unless the round opened with four.
     this.pos.x = x ?? (player.pos.x <= W / 2 ? W - 20 : 20);
-    this.pos.y = y ?? (player.pos.y <= W / 2 ? W - 20 : TOP + 20);
+    this.pos.y = y ?? (player.pos.y <= W / 2 ? W - 20 : 20);
     this.grabbed = false;
     this.wait = GRACE / speed;
     this.bullet = null;
@@ -427,6 +421,54 @@ class Ghost extends ent.Entity {
   }
 }
 
+/*
+ * The Haxe's EndGame: a black 20x20 square on the spot where you died, whose
+ * four corners then fly to the four corners of the board. One corner at a time,
+ * in this order, and each waits for the one before it: all four at once would
+ * expand the square, where one at a time drags the black out of the body.
+ * Nothing here interpolates, so it is four hard pulls and not a fade.
+ *
+ * gameOver() waits for the last corner. The board is already meta.bg by then,
+ * so the shell's dim under the finish panel changes nothing.
+ */
+// [corner, x, y]: top-left, bottom-left, top-right, bottom-right.
+const SWEEP = [[0, 0, 0], [3, 0, W], [1, W, 0], [2, W, W]];
+
+class EndGame extends ent.Entity {
+  constructor(x, y) {
+    super();
+    this.pos.x = this.pos.y = W / 2;
+    this.stage = 0;
+    this.p = [
+      { x: x - 10, y: y - 10 },
+      { x: x + 10, y: y - 10 },
+      { x: x + 10, y: y + 10 },
+      { x: x - 10, y: y + 10 },
+    ];
+    this.draw();
+  }
+
+  update() {
+    if (this.stage >= SWEEP.length) return;
+
+    const [i, tx, ty] = SWEEP[this.stage];
+    const p = this.p[i];
+    towards(p, tx, ty, FLY * ent.game.time);
+    if (p.x === tx && p.y === ty) this.stage += 1;
+    this.draw();
+
+    if (this.stage === SWEEP.length) gameOver({ score: true });
+  }
+
+  // size() pins the box to the whole board, so the corners moving inside it do
+  // not drag the drawing's own centre around with them.
+  draw() {
+    const [a, b, c, d] = this.p;
+    this.gfx.clear().size(W, W, W / 2, W / 2).fill(BLACK)
+      .mt(a.x, a.y).lt(b.x, b.y).lt(c.x, c.y).lt(d.x, d.y);
+  }
+}
+
 // A claw: a bar 5 across and 10 long out of the hook's hub at `a`.
 function prong(gfx, a) {
   const vx = Math.cos(a);
@@ -451,14 +493,12 @@ function towards(p, x, y, max) {
   p.y += (y - p.y) * s;
 }
 
-// The board is a torus, but nothing wraps through the bar: a ghost leaving the
-// bottom comes back at the bar's edge.
+// The board is a torus: a ghost leaving one edge comes back at the other.
 function wrap(p) {
-  const h = W - TOP;
   if (p.x < 0) p.x += W;
   if (p.x >= W) p.x -= W;
-  if (p.y < TOP) p.y += h;
-  if (p.y >= W) p.y -= h;
+  if (p.y < 0) p.y += W;
+  if (p.y >= W) p.y -= W;
 }
 
 // One bullet, fired at the player and then left to itself. Yellow's and blue's.
@@ -485,7 +525,7 @@ export function init() {
   hint(meta.desc);
   ent.reset();
   ent.world(W);
-  ent.order([Floor, Bullet, Ghost, Hook, Player]);
+  ent.order([Floor, Bullet, Ghost, Hook, Player, EndGame]);
 
   speed = 1.5;
   floor = FLOORS[Math.floor(Math.random() * FLOORS.length)];
@@ -500,8 +540,8 @@ export function init() {
   // hint has faded, and the Haxe had a title card where this shell has none.
   // hint() is 0 from the first input, so the grace ends when the reading does.
   const corners = [
-    [YELLOW, EDGE, TOP + EDGE],
-    [PURPLE, W - EDGE, TOP + EDGE],
+    [YELLOW, EDGE, EDGE],
+    [PURPLE, W - EDGE, EDGE],
     [BLUE, W - EDGE, W - EDGE],
     [PINK, EDGE, W - EDGE],
   ];

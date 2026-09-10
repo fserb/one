@@ -16,10 +16,9 @@
  * Sixteen cards almost always hold a set, and almost always is not never, so a
  * board without one is dealt again.
  *
- * The layout is not the Haxe's: the shell takes 21 units off the top, so the
- * pitch is 100 rather than 110 and the room freed carries the clock and the
- * last set. Cards still draw in the Haxe's own 100-unit box, scaled by
- * `CELL / 100` on the way out.
+ * The layout is not the Haxe's: the pitch is 100 rather than 110, and the room
+ * that frees up along the bottom carries the clock and the last set. Cards still
+ * draw in the Haxe's own 100-unit box, scaled by `CELL / 100` on the way out.
  */
 
 import * as ent from "./lib/entity.js";

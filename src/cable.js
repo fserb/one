@@ -34,7 +34,7 @@
 import * as ent from "./lib/entity.js";
 import "./lib/gfx.js";
 import { flash, gameOver, msg, score, SIZE } from "./lib/one.js";
-import * as sfxr from "./lib/sfxr.js";
+import { explosion, hit, powerup } from "./lib/fsfx/sfxr.js";
 import * as sound from "./lib/sound.js";
 
 export const meta = {
@@ -57,9 +57,8 @@ const YELLOW = 0xffe0a5;
 const DARKYELLOW = 0xe4b455;
 const DARKRED = 0xe25458;
 
-// The 480 box, and the strip the shell's bar covers.
+// The 480 box the game thinks in.
 const W = 480;
-const TOP = 21;
 
 // ugl's glow(5) is a sigma of 5, and a canvas shadow's sigma is half its blur.
 const GLOW = 10;
@@ -103,22 +102,19 @@ const WIPE = 1;
 const FADE = 1.5;
 const FLASH = 0.05;
 
+// The clock sits 15 off the bottom; the planets gauge hangs just under the
+// chrome, whose score chip and msg own the top of the board down to 50.
 const PIECES_X = 60;
-const PIECES_Y = 27;
+const PIECES_Y = 55;
 const CLOCK_X = 60;
 const CLOCK_Y = 455;
 const ZONE_ALPHA = 0.25;
 
-// ugl's Sound.vol(v) set masterVolume to 2v, and sfxr squares that.
-voice("hit", sfxr.explosion(1238), 0.1);
-voice("connect", sfxr.powerup(1246), 0.1);
-voice("leave", sfxr.hit(1259), 0.1);
-voice("done", sfxr.powerup(1274), 0.1);
-
-function voice(name, params, vol) {
-  params.masterVolume = 2 * vol;
-  sound.put(name, sfxr.render(params), sfxr.SAMPLE_RATE);
-}
+// The vols are the vault game's own ugl volumes.
+sound.voice("hit", { ...explosion(1238), vol: 0.1 });
+sound.voice("connect", { ...powerup(1246), vol: 0.1 });
+sound.voice("leave", { ...hit(1259), vol: 0.1 });
+sound.voice("done", { ...powerup(1274), vol: 0.1 });
 
 let level = 0;
 let planets = [];
@@ -602,7 +598,7 @@ function drawArrows(ctx) {
 
     const d = Math.hypot(sx - W / 2, sy - W / 2) - W / 2;
     const x = clamp(sx, 10, W - 10);
-    const y = clamp(sy, TOP + 10, W - 10);
+    const y = clamp(sy, 10, W - 10);
 
     ctx.globalAlpha = 1 - clamp(d / (2 * W), 0, 0.9);
     ctx.save();

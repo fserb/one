@@ -10,8 +10,6 @@
  * the art and the coin are the port; the game is new. A coin lands a random
  * distance along the path the bird is already on, no further off its height
  * than it can climb on the way, so every coin is one the sweep could reach.
- *
- * The ceiling is at 42, not 20: the bar covers the top 21 of the 480 box.
  */
 
 import * as ent from "./lib/entity.js";
@@ -45,7 +43,7 @@ const COIN_EDGE = 0x847f7f;
 
 const LEFT = 20;
 const RIGHT = 460;
-const TOP = 42;
+const TOP = 20;
 const BOTTOM = 460;
 
 // Sideways speed never changes, only a wall turns it. ugl ran at 60fps and

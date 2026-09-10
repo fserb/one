@@ -44,9 +44,8 @@ go too far and the loop swallows it
   date: "2015-09-08",
 };
 
-// The 480 box, the bar over the top, and one world unit in the shell's 1024.
+// The 480 box, and one world unit in the shell's 1024.
 const W = 480;
-const BAR = 44;
 const K = SIZE / W;
 
 const WHITE = 0xf7f0e8;
@@ -597,10 +596,10 @@ export function update(dt) {
 }
 
 export function render(ctx) {
-  const z = (SIZE - BAR) / (view.d * K);
+  const z = SIZE / (view.d * K);
 
   ctx.save();
-  ctx.translate(SIZE / 2, (SIZE + BAR) / 2);
+  ctx.translate(SIZE / 2, SIZE / 2);
   ctx.scale(z, z);
   ctx.translate(-view.x * K, -view.y * K);
   ent.render(ctx);

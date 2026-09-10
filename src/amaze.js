@@ -11,8 +11,8 @@
  * tried in an order set by which way the cell lies from the centre. That is
  * what makes the corridors run around the centre rather than at it.
  *
- * Not the Haxe's: cells are 30 rather than 32, so the 15x15 maze fits under the
- * bar; the level change is on a clock rather than a key press, because a modal
+ * Not the Haxe's: cells are 30 rather than 32, so the 15x15 maze has a margin
+ * around it; the level change is on a clock rather than a key press, because a modal
  * mid-round is a place where input does nothing; the jump is the tap and
  * walking is the hold, since one pointer has to do both; and the bots stand
  * still for STILL seconds, without which two of fourteen bench rounds ended
@@ -22,7 +22,7 @@
 import * as ent from "./lib/entity.js";
 import { glyphs } from "./lib/art.js";
 import { gameOver, hint, mouse, score, SIZE } from "./lib/one.js";
-import * as sfxr from "./lib/sfxr.js";
+import { coin, explosion, jump, powerup } from "./lib/fsfx/sfxr.js";
 import * as sound from "./lib/sound.js";
 
 export const meta = {
@@ -37,16 +37,15 @@ tap to jump one wall, hold to walk
   date: "2014-04-02",
 };
 
-// The 480 box, and the strip the shell's bar covers.
+// The 480 box the game thinks in.
 const W = 480;
-const TOP = 21;
 
-// 15 cells of 30 is 450, leaving the bar its 21 and a margin either side.
+// 15 cells of 30 is 450, leaving a margin either side.
 const N = 15;
 const CELL = 30;
 const MAZE = N * CELL;
 const MX = (W - MAZE) / 2;
-const MY = TOP + (W - TOP - MAZE) / 2;
+const MY = MX;
 // Where the maze grows from, and where you start.
 const MID = (N - 1) / 2;
 
@@ -100,17 +99,11 @@ const YOU = 0xffffff;
 const BOT = 0xc24079;
 const BG = 0x3dbf86;
 
-// ugl's Sound.vol(v) set masterVolume to 2v, and sfxr squares that. The seeds
-// are the Haxe's.
-voice("jump", sfxr.jump(4), 0.1);
-voice("key", sfxr.coin(12), 0.13);
-voice("gate", sfxr.powerup(3), 0.13);
-voice("dead", sfxr.explosion(2), 0.2);
-
-function voice(name, params, vol) {
-  params.masterVolume = 2 * vol;
-  sound.put(name, sfxr.render(params), sfxr.SAMPLE_RATE);
-}
+// The seeds and the vols are the Haxe's.
+sound.voice("jump", { ...jump(4), vol: 0.1 });
+sound.voice("key", { ...coin(12), vol: 0.13 });
+sound.voice("gate", { ...powerup(3), vol: 0.13 });
+sound.voice("dead", { ...explosion(2), vol: 0.2 });
 
 // Four wall bits a cell.
 const map = new Uint8Array(N * N);

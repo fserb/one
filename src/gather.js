@@ -29,7 +29,7 @@
 import * as ent from "./lib/entity.js";
 import "./lib/gfx.js";
 import { gameOver, hint, mouse, score } from "./lib/one.js";
-import * as sfxr from "./lib/sfxr.js";
+import { coin, explosion, jump } from "./lib/fsfx/sfxr.js";
 import * as sound from "./lib/sound.js";
 
 export const meta = {
@@ -56,16 +56,15 @@ const CELL = 38;
 const X0 = 88;
 const Y0 = 69;
 
-// The bar in the 480 box, the lines the board hangs from and ends on, and the
-// depth a cursor dies at.
-const TOP = 21;
+// The lines the board hangs from and ends on, and the depth a cursor dies at.
 const HEAD = 50;
 const FOOT = 468;
 const DIE = 450;
 
-// Top left of the tray, in the strip between bar and board.
-const TRAY_X = 50;
-const TRAY_Y = TOP + 2;
+// The tray hangs from the top of the head strip, right-aligned on the line the
+// board ends at: the top-left corner is the score chip's.
+const TRAY_R = 420;
+const TRAY_Y = 5;
 const FLY = 0.3;
 const FLYUP = 20;
 
@@ -140,17 +139,11 @@ const INTRO = [
 // Taken from the end, so the last line is the first said.
 const NOTES = ["good luck", "two colours or more, same count"];
 
-// ugl's Sound.vol() defaulted to 0.2, set masterVolume to twice that, and sfxr
-// squares it.
-voice("move", sfxr.jump(12));
-voice("gather", sfxr.explosion(25));
-voice("score", sfxr.coin(12));
-voice("over", sfxr.explosion(30));
-
-function voice(name, params, vol = 0.2) {
-  params.masterVolume = 2 * vol;
-  sound.put(name, sfxr.render(params), sfxr.SAMPLE_RATE);
-}
+// ugl's Sound.vol() defaulted to 0.2 and gather never set it.
+sound.voice("move", { ...jump(12), vol: 0.2 });
+sound.voice("gather", { ...explosion(25), vol: 0.2 });
+sound.voice("score", { ...coin(12), vol: 0.2 });
+sound.voice("over", { ...explosion(30), vol: 0.2 });
 
 // grid[x][y] is a Piece or null. y grows downward: row 0 is what the next shift
 // pushes in, ROWS-1 what it drops.
@@ -302,7 +295,7 @@ class Cursor extends ent.Entity {
 /*
  * What the chain is holding: one row per colour, longest first, one square per
  * box. It is the whole readout the win condition needs - equal rows, two of
- * them or more - and on a gather it flies up into the bar carrying the points.
+ * them or more - and on a gather it flies up off the top carrying the points.
  */
 class Tray extends ent.Entity {
   constructor() {
@@ -311,7 +304,7 @@ class Tray extends ent.Entity {
     this.moving = false;
     this.points = 0;
     this.from = TRAY_Y;
-    this.pos.x = TRAY_X;
+    this.pos.x = TRAY_R;
     this.pos.y = TRAY_Y;
   }
 
@@ -328,8 +321,8 @@ class Tray extends ent.Entity {
       row += 1;
     }
 
-    // gfx centres on its own box and the tray hangs off its top left corner.
-    this.pos.x = TRAY_X + (8 * Math.max(...counts) - 1) / 2;
+    // gfx centres on its own box and the tray hangs off its top right corner.
+    this.pos.x = TRAY_R - (8 * Math.max(...counts) - 1) / 2;
     this.pos.y = TRAY_Y + (8 * row - 1) / 2;
     this.from = this.pos.y;
   }
@@ -384,7 +377,7 @@ function addScore(v) {
     .text(`+${Math.floor(v)}`)
     .size(2)
     .color(BLACK)
-    .xy(TRAY_X + 8, TRAY_Y + 8)
+    .xy(TRAY_R - 8, TRAY_Y + 8)
     .move(0, -30)
     .duration(0.5);
 }

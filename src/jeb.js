@@ -30,7 +30,7 @@
 
 import * as ent from "./lib/entity.js";
 import { gameOver, hint, score, SIZE } from "./lib/one.js";
-import * as sfxr from "./lib/sfxr.js";
+import { blip, explosion, powerup } from "./lib/fsfx/sfxr.js";
 import * as sound from "./lib/sound.js";
 
 export const meta = {
@@ -45,11 +45,10 @@ drag to aim the nose, hold to burn
   date: "2014-03-30",
 };
 
-// The 480 box, the strip the shell's bar covers, and where the ship is pinned.
+// The 480 box, and where the ship is pinned.
 const W = 480;
-const TOP = 21;
 const EYEX = W / 2;
-const EYEY = (W + TOP) / 2;
+const EYEY = W / 2;
 
 // A planet is drawn as a chunky circle PX units to the pixel, so its radius is
 // PX times its own cell count.
@@ -126,15 +125,10 @@ const SHIP = `
 02220
 `;
 
-// ugl's Sound.vol(v) set masterVolume to 2v, and sfxr squares that.
-voice("burn", sfxr.blip(511), 0.05);
-voice("land", sfxr.powerup(3607), 0.13);
-voice("crash", sfxr.explosion(3613), 0.2);
-
-function voice(name, params, vol) {
-  params.masterVolume = 2 * vol;
-  sound.put(name, sfxr.render(params), sfxr.SAMPLE_RATE);
-}
+// The vols are the vault game's own ugl volumes.
+sound.voice("burn", { ...blip(511), vol: 0.05 });
+sound.voice("land", { ...powerup(3607), vol: 0.13 });
+sound.voice("crash", { ...explosion(3613), vol: 0.2 });
 
 let ship = null;
 // Not read back out of entity.js: ent.get() hides entities that have not begun,
@@ -587,7 +581,7 @@ function drawArrow(ctx, ox, oy) {
   const sx = target.pos.x + ox;
   const sy = target.pos.y + oy;
   if (
-    sx > -target.r && sy > TOP - target.r && sx < W + target.r &&
+    sx > -target.r && sy > -target.r && sx < W + target.r &&
     sy < W + target.r
   ) {
     return;
@@ -596,7 +590,7 @@ function drawArrow(ctx, ox, oy) {
   ctx.save();
   ctx.translate(
     clamp(sx, ARROW, W - ARROW),
-    clamp(sy, TOP + ARROW, W - ARROW - 20),
+    clamp(sy, ARROW, W - ARROW - 20),
   );
   ctx.rotate(Math.atan2(sy - EYEY, sx - EYEX));
   ctx.fillStyle = css(BROWN);

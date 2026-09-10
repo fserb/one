@@ -37,7 +37,7 @@
 
 import * as ent from "./lib/entity.js";
 import { gameOver, hint, msg, score, SIZE } from "./lib/one.js";
-import * as sfxr from "./lib/sfxr.js";
+import { blip, coin, explosion, hit } from "./lib/fsfx/sfxr.js";
 import * as sound from "./lib/sound.js";
 
 export const meta = {
@@ -157,18 +157,12 @@ const HAT = `
 .00.
 `;
 
-// ugl's Sound.vol(v) set masterVolume to 2v, and sfxr squares that. The first
-// three seeds are the Haxe's.
-voice("note", sfxr.blip(0), 0.13);
-voice("tick", sfxr.blip(0), 0.035);
-voice("coin", sfxr.coin(12), 0.12);
-voice("miss", sfxr.hit(3), 0.12);
-voice("tomato", sfxr.explosion(16), 0.2);
-
-function voice(name, params, vol) {
-  params.masterVolume = 2 * vol;
-  sound.put(name, sfxr.render(params), sfxr.SAMPLE_RATE);
-}
+// The first three seeds are the Haxe's.
+sound.voice("note", { ...blip(0), vol: 0.13 });
+sound.voice("tick", { ...blip(0), vol: 0.035 });
+sound.voice("coin", { ...coin(12), vol: 0.12 });
+sound.voice("miss", { ...hit(3), vol: 0.12 });
+sound.voice("tomato", { ...explosion(16), vol: 0.2 });
 
 let player = null;
 let bpm = BPM0;

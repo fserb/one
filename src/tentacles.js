@@ -55,12 +55,11 @@ const PLAYER = "#D64550";
 const TENT = "#3C6E71";
 const TENT_HEAD = "#82CED5";
 
-const BAR = 44;
 const W = 13;
 const H = 13;
 const CELL = 72;
 const OX = (SIZE - W * CELL) / 2;
-const OY = BAR + (SIZE - BAR - H * CELL) / 2;
+const OY = (SIZE - H * CELL) / 2;
 
 // Every tentacle gains a segment this often, and a new one arrives this often.
 const GROW = 6;

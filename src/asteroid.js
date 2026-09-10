@@ -16,10 +16,6 @@
  * either way round, and at a fiftieth speed you watch the bullet arrive and can
  * see which. entity.js grew hitPoly() for this game.
  *
- * The bar covers the top 21 units, so the wrap field is 480x459 and everything
- * the Haxe scattered over 480 scatters over that. Wrapping needs the whole
- * field visible: an edge under the bar is one a ship shoots from unseen.
- *
  * The death is the Haxe's 2.5 seconds of full-speed board with title and score
  * swapping over it, but it cannot wait for input: the click is the shell's
  * finish screen, so holding the flip until a key would cost two clicks.
@@ -28,7 +24,7 @@
 import * as ent from "./lib/entity.js";
 import "./lib/gfx.js";
 import { gameOver, score } from "./lib/one.js";
-import * as sfxr from "./lib/sfxr.js";
+import { explosion, laser } from "./lib/fsfx/sfxr.js";
 import * as sound from "./lib/sound.js";
 
 export const meta = {
@@ -48,15 +44,13 @@ const BLACK = 0x000000;
 
 const TAU = 2 * Math.PI;
 
-// The 480 box, and the strip the shell's bar covers.
+// The 480 box the game thinks in.
 const W = 480;
-const TOP = 21;
 
 const SLOW = 50;
 // ugl's `holdback`: how long the Haxe ignored input, and the whole length of
 // the end screen here.
 const DYING = 2.5;
-// Centred on the field, not the Haxe's unshifted 480 box.
 const FLIP = 1;
 const FLIP_GAP = 120;
 
@@ -103,16 +97,12 @@ const CONE = Math.PI / 6;
 const SIGHT = Math.PI / 12;
 
 // Asteroid never called ugl's Sound.vol(), so all six are at sfxr's default.
-voice("shot", sfxr.laser(1008));
-voice("enemyshot", sfxr.laser(1006));
-voice("pop", sfxr.explosion(1002));
-voice("rock", sfxr.explosion(1010));
-voice("enemy", sfxr.explosion(1005));
-voice("player", sfxr.explosion(1032));
-
-function voice(name, params) {
-  sound.put(name, sfxr.render(params), sfxr.SAMPLE_RATE);
-}
+sound.voice("shot", laser(1008));
+sound.voice("enemyshot", laser(1006));
+sound.voice("pop", explosion(1002));
+sound.voice("rock", explosion(1010));
+sound.voice("enemy", explosion(1005));
+sound.voice("player", explosion(1032));
 
 let realtime = 0;
 let rockTime = 0;
@@ -130,7 +120,7 @@ let flipped = [];
 class Player extends ent.Entity {
   begin() {
     this.pos.x = W / 2;
-    this.pos.y = (TOP + W) / 2;
+    this.pos.y = W / 2;
     this.reload = 0;
     dart(this, WHITE);
     this.hitPoly(SHIP);
@@ -257,10 +247,10 @@ class Enemy extends Target {
 
     if (Math.random() < 0.5) {
       this.pos.x = W * Math.random();
-      this.pos.y = Math.random() < 0.5 ? TOP : W;
+      this.pos.y = Math.random() < 0.5 ? 0 : W;
     } else {
       this.pos.x = Math.random() < 0.5 ? 0 : W;
-      this.pos.y = TOP + (W - TOP) * Math.random();
+      this.pos.y = W * Math.random();
     }
 
     this.findTarget();
@@ -272,7 +262,7 @@ class Enemy extends Target {
   // flies three quarters of the way at you.
   findTarget() {
     const x = W * Math.random();
-    const y = TOP + (W - TOP) * Math.random();
+    const y = W * Math.random();
     const p = ent.one(Player);
     if (p === null) {
       this.target = { x, y };
@@ -412,7 +402,7 @@ function explode(p) {
 function turnOver() {
   for (const t of flipped) t.remove();
   flip = !flip;
-  const mid = (TOP + W) / 2;
+  const mid = W / 2;
   flipped = flip ? [label(mid, 12, Math.floor(score.value))] : [
     label(mid - FLIP_GAP, 9, "SUPER"),
     label(mid, 9, "HOT"),
@@ -442,12 +432,12 @@ function newRock() {
   const size = ROCK_MIN + ROCK_VAR * Math.random();
   const angle = TAU * Math.random();
   if (Math.random() < 0.5) {
-    const y = Math.random() < 0.5 ? TOP - size : W + size;
+    const y = Math.random() < 0.5 ? -size : W + size;
     new Rock(size, W * Math.random(), y, angle, ROCK_SPEED);
     return;
   }
   const x = Math.random() < 0.5 ? -size : W + size;
-  new Rock(size, x, TOP + (W - TOP) * Math.random(), angle, ROCK_SPEED);
+  new Rock(size, x, W * Math.random(), angle, ROCK_SPEED);
 }
 
 // Back on a unit short of the threshold it would leave by. `s` is how far past
@@ -457,8 +447,8 @@ function wrap(e, s) {
   if (pos.x < -s / 2) pos.x = W + s / 2 - 1;
   else if (pos.x > W + s / 2) pos.x = -s / 2 + 1;
 
-  if (pos.y < TOP - s / 2) pos.y = W + s / 2 - 1;
-  else if (pos.y > W + s / 2) pos.y = TOP - s / 2 + 1;
+  if (pos.y < -s / 2) pos.y = W + s / 2 - 1;
+  else if (pos.y > W + s / 2) pos.y = -s / 2 + 1;
 }
 
 function fold(a) {

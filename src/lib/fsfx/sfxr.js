@@ -7,19 +7,51 @@
  *
  * This is not a second general-purpose synth beside fsfx. It is one fixed
  * voice - an oscillator, an envelope, a slide, two filters and a phaser - with
- * randomisers tuned to land on arcade noises.
+ * randomisers tuned to land on arcade noises. What makes it sound like itself
+ * is what fsfx has no module for: the noise is a 32-entry buffer refilled once
+ * a period, so it is pitched rather than white; the period is a whole number of
+ * samples, so the pitch crunches as it climbs; and eight sub-samples average
+ * into every output sample.
+ *
+ * One options object describes a sound everywhere. A generator returns a whole
+ * one off its seed, and spreading it leaves every field open to override, so a
+ * rolled sound and a hand-built sound are the same kind of thing. `vol` is ugl's
+ * Sound.vol(v), which set masterVolume to 2v, and render() squares that. A key
+ * sfxr does not have throws rather than going silently unheard.
+ *
+ * The game names the generators it wants, so the ones it never asks for stay out
+ * of its bundle. Dispatching on a string instead read better and cost every game
+ * all seven, about 1 KB.
  *
  * ```js
- * const block = sfxr.render(sfxr.explosion());
- * sfxr.render(sfxr.laser(1234));           // a seed fixes the sound
- * sfxr.render(sfxr.hit(), { volume: 0.4 });
+ * sound.voice("boom", { ...explosion(1238), vol: 0.2 });
+ * sound.voice("slow", { ...explosion(1238), decayTime: 0.9, vol: 0.2 });
+ * sound.voice("thud", { waveType: 2, startFrequency: 0.14, slide: -0.1 });
+ * const block = render(laser()); // no seed, a new laser every call
  * ```
  *
+ * `sfxr` is an fsfx stage as well, so a voice can go on through fsfx's filters
+ * and delays. It renders at SAMPLE_RATE and does not resample, so the Track has
+ * to run at that rate; it throws when the Track does not. sound.js has the one
+ * call that just plays a voice as it comes out.
+ *
+ * ```js
+ * sound.make("boom", 0.6, (track) => {
+ *   track(sfxr, { ...explosion(1238), vol: 0.2 });
+ *   track(multidelay, { delay: 0.03, M: 4, wet: 0.3 });
+ * }, SAMPLE_RATE);
+ * ```
+ *
+ * A set is all numbers, which is why the generator runs before the track rather
+ * than riding in as a parameter: fsfx's State reads any function among its
+ * parameters as a signal of time and would call the generator with one.
+ *
  * Two things differ from the Haxe. It writes 16-bit shorts; this keeps floats,
- * which is what the Web Audio API wants anyway. And it fills the noise buffer
- * from an unseeded Math.random(), so a seeded noise sound came out different
- * every time; here the seeded generator fills it too, so a seed fully
- * determines the result.
+ * which is what the Web Audio API wants anyway. And it filled the noise buffer
+ * from an unseeded Math.random(), so a seeded explosion came out different every
+ * render; here `seed` starts a second stream for the noise, and a seed fixes the
+ * whole sound. Without one both streams are random, as the Haxe's noise always
+ * was.
  */
 
 // The constants below are tuned for this rate. alma's Audio.put() takes it, so
@@ -41,48 +73,51 @@ function rng(seed) {
   };
 }
 
-export function params() {
-  return {
-    // 0 square, 1 saw, 2 sine, 3 noise.
-    waveType: 0,
-    masterVolume: 0.5,
+// Every field sfxr has, at its rest value. This is also the whole set of keys
+// an options object is allowed to override.
+const DEFAULTS = {
+  // 0 square, 1 saw, 2 sine, 3 noise.
+  waveType: 0,
+  masterVolume: 0.5,
 
-    attackTime: 0,
-    sustainTime: 0.3,
-    sustainPunch: 0,
-    decayTime: 0.4,
+  attackTime: 0,
+  sustainTime: 0.3,
+  sustainPunch: 0,
+  decayTime: 0.4,
 
-    startFrequency: 0.3,
-    minFrequency: 0,
+  startFrequency: 0.3,
+  minFrequency: 0,
 
-    slide: 0,
-    deltaSlide: 0,
+  slide: 0,
+  deltaSlide: 0,
 
-    vibratoDepth: 0,
-    vibratoSpeed: 0,
+  vibratoDepth: 0,
+  vibratoSpeed: 0,
 
-    changeAmount: 0,
-    changeSpeed: 0,
+  changeAmount: 0,
+  changeSpeed: 0,
 
-    squareDuty: 0,
-    dutySweep: 0,
+  squareDuty: 0,
+  dutySweep: 0,
 
-    repeatSpeed: 0,
+  repeatSpeed: 0,
 
-    phaserOffset: 0,
-    phaserSweep: 0,
+  phaserOffset: 0,
+  phaserSweep: 0,
 
-    lpFilterCutoff: 1,
-    lpFilterCutoffSweep: 0,
-    lpFilterResonance: 0,
+  lpFilterCutoff: 1,
+  lpFilterCutoffSweep: 0,
+  lpFilterResonance: 0,
 
-    hpFilterCutoff: 0,
-    hpFilterCutoffSweep: 0,
-  };
-}
+  hpFilterCutoff: 0,
+  hpFilterCutoffSweep: 0,
+};
 
+// The seven generators. Each returns a whole set, so a roll and a hand-built
+// sound are the same kind of thing and spread the same way. `seed` rides along
+// for render() to start the noise from.
 export function coin(seed) {
-  const p = params();
+  const p = { ...DEFAULTS, seed };
   const r = rng(seed);
   p.startFrequency = 0.4 + r() * 0.5;
   p.sustainTime = r() * 0.1;
@@ -96,7 +131,7 @@ export function coin(seed) {
 }
 
 export function laser(seed) {
-  const p = params();
+  const p = { ...DEFAULTS, seed };
   const r = rng(seed);
   p.waveType = Math.trunc(r() * 3);
   if (p.waveType === 2 && r() < 0.5) p.waveType = Math.trunc(r() * 2);
@@ -128,7 +163,7 @@ export function laser(seed) {
 }
 
 export function explosion(seed) {
-  const p = params();
+  const p = { ...DEFAULTS, seed };
   const r = rng(seed);
   p.waveType = 3;
   if (r() < 0.5) {
@@ -159,7 +194,7 @@ export function explosion(seed) {
 }
 
 export function powerup(seed) {
-  const p = params();
+  const p = { ...DEFAULTS, seed };
   const r = rng(seed);
   if (r() < 0.5) p.waveType = 1;
   else p.squareDuty = r() * 0.6;
@@ -181,7 +216,7 @@ export function powerup(seed) {
 }
 
 export function hit(seed) {
-  const p = params();
+  const p = { ...DEFAULTS, seed };
   const r = rng(seed);
   p.waveType = Math.trunc(r() * 3);
   if (p.waveType === 2) p.waveType = 3;
@@ -195,7 +230,7 @@ export function hit(seed) {
 }
 
 export function jump(seed) {
-  const p = params();
+  const p = { ...DEFAULTS, seed };
   const r = rng(seed);
   p.waveType = 0;
   p.squareDuty = r() * 0.6;
@@ -209,7 +244,7 @@ export function jump(seed) {
 }
 
 export function blip(seed) {
-  const p = params();
+  const p = { ...DEFAULTS, seed };
   const r = rng(seed);
   p.waveType = Math.trunc(r() * 2);
   if (p.waveType === 0) p.squareDuty = r() * 0.6;
@@ -217,6 +252,17 @@ export function blip(seed) {
   p.sustainTime = 0.1 + r() * 0.1;
   p.decayTime = r() * 0.2;
   p.hpFilterCutoff = 0.1;
+  return p;
+}
+
+// An options set filled out into every field render() reads.
+export function params({ seed: _seed, vol, ...over } = {}) {
+  for (const k of Object.keys(over)) {
+    if (!(k in DEFAULTS)) throw new Error(`sfxr: no parameter named ${k}`);
+  }
+
+  const p = { ...DEFAULTS, ...over };
+  if (vol !== undefined) p.masterVolume = 2 * vol;
   return p;
 }
 
@@ -262,14 +308,16 @@ export function fromString(s) {
 }
 
 /*
- * Renders a parameter set to mono Float32 at SAMPLE_RATE.
+ * Renders an options set to mono Float32 at SAMPLE_RATE.
  *
  * One outer step is one output sample, built from eight sub-samples of the
- * oscillator. `volume` scales the whole thing after masterVolume.
+ * oscillator.
  */
-export function render(p, { volume = 1 } = {}) {
-  // reset() normalises the envelope times in place, so work on a copy.
-  p = { ...p };
+export function render(opts = {}) {
+  // Normalising the envelope times below writes to the set, and params() hands
+  // back one nobody else holds.
+  const p = params(opts);
+  const seed = opts.seed;
 
   let period, maxPeriod, slide, deltaSlide;
   let squareDuty = 0, dutySweep = 0;
@@ -299,7 +347,7 @@ export function render(p, { volume = 1 } = {}) {
 
   partial();
 
-  const masterVolume = p.masterVolume * p.masterVolume * volume;
+  const masterVolume = p.masterVolume * p.masterVolume;
   const waveType = p.waveType;
 
   if (p.sustainTime < 0.01) p.sustainTime = 0.01;
@@ -350,7 +398,8 @@ export function render(p, { volume = 1 } = {}) {
   let phaserInt = 0;
   const phaserBuffer = new Float32Array(1024);
 
-  const noise = rng();
+  // A second stream off the same seed. The generator above drew from the first.
+  const noise = rng(seed);
   const noiseBuffer = new Float32Array(32);
   for (let i = 0; i < 32; ++i) noiseBuffer[i] = noise() * 2 - 1;
 
@@ -468,7 +517,10 @@ export function render(p, { volume = 1 } = {}) {
           break;
         }
         case 3:
-          sample = noiseBuffer[Math.trunc(phase * 32 / periodTemp)];
+          // A repeat cuts the period short without touching the phase, so the
+          // index runs past the buffer for one period and reads undefined. The
+          // Haxe read whatever sat after the array; this holds the last entry.
+          sample = noiseBuffer[Math.min(31, Math.trunc(phase * 32 / periodTemp))];
           break;
       }
 
@@ -508,4 +560,31 @@ export function render(p, { volume = 1 } = {}) {
   }
 
   return Float32Array.from(out);
+}
+
+/*
+ * The fsfx stage: render()'s options, plus `amp`, added into the track.
+ *
+ * sfxr counts a period in whole samples rather than in Hz, so the same
+ * parameters at another rate are another pitch and another length. Rather than
+ * resample, which would put the stage and voice() on different sounds, it asks
+ * the Track to run at 44100.
+ */
+export function sfxr(block, state) {
+  state.param("amp", 1);
+  if (state.SR !== SAMPLE_RATE) {
+    throw new Error(`sfxr: track runs at ${state.SR}, not ${SAMPLE_RATE}`);
+  }
+
+  // What to pick out of the State, which carries the Track's own keys as well.
+  // Built here rather than at module scope: an Object.keys() call up there is
+  // one esbuild will not drop, and it holds DEFAULTS in every fsfx bundle.
+  const opts = {};
+  for (const k of [...Object.keys(DEFAULTS), "seed", "vol"]) {
+    if (state.out[k] !== undefined) opts[k] = state.out[k];
+  }
+
+  const wave = render(opts);
+  const n = Math.min(block.length, wave.length);
+  for (let i = 0; i < n; ++i) block[i] += state(i).amp * wave[i];
 }

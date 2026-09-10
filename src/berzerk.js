@@ -38,8 +38,6 @@ const BLACK = 0x000000;
 
 const TAU = Math.PI * 2;
 
-// The shell's bar, in the 480 box.
-const TOP = 21;
 // Enemies land no nearer than this to a wall, or SAFE to the player.
 const EDGE = 40;
 const SAFE = 200;
@@ -139,7 +137,7 @@ class Player extends ent.Entity {
     // Nothing draws the walls, but the box is the board: without it you walk
     // off the side where nothing can reach you.
     this.pos.x = clamp(this.pos.x, PR, ent.game.width - PR);
-    this.pos.y = clamp(this.pos.y, TOP + PR, ent.game.height - PR);
+    this.pos.y = clamp(this.pos.y, PR, ent.game.height - PR);
 
     if (hitBullet(this) !== null) return this.die();
     if (this.hitGroup(EnemyChaser) !== null) return this.die();
@@ -254,11 +252,10 @@ class EnemyChaser extends ent.Entity {
   }
 
   postUpdate() {
-    // The bar covers the top of the board, so a chaser up there is invisible
-    // and still lethal.
+    // The board is the box, same as the player's.
     const h = CHASER / 2;
     this.pos.x = clamp(this.pos.x, h, ent.game.width - h);
-    this.pos.y = clamp(this.pos.y, TOP + h, ent.game.height - h);
+    this.pos.y = clamp(this.pos.y, h, ent.game.height - h);
   }
 }
 
