@@ -1,5 +1,5 @@
 /*
- * grow - a port of ~/prj/vault/games/sketch/src/Grow.hx, September 2015.
+ * grow, September 2015.
  *
  * A bead runs round a closed loop. Hold the button and it climbs off the
  * surface along the outward normal, dragging a new stretch with it; let go and
@@ -11,17 +11,13 @@
  * loop round it and it is gone, under leaves it for the next lap. So a pull has
  * to be started about a second early and let go of at the right height.
  *
- * The Haxe is three commits ending in one called "Grow fail": no gold, no
- * clock, no score, nothing to do but pull. What is its own here is the physics
- * of the climb, the splice, and the ring it opens on.
- *
  * The size of the loop sets the scale for everything else: thrust, travel, the
  * gap two nodes are kept apart. So the picture holds its size and pace as the
  * loop grows, rather than the bead crawling round a longer loop.
  *
- * Every cut smooths a little, which the Haxe did not. The curve the bead draws
- * is the loop offset outwards, and an outward offset inside a dip folds over
- * itself, so a dip left alone grows spikes that grow their own.
+ * Every cut smooths a little. The curve the bead draws is the loop offset
+ * outwards, and an outward offset inside a dip folds over itself, so a dip left
+ * alone grows spikes that grow their own.
  *
  * A pull that has covered SPAN of the loop stops pushing, or it carries the
  * bead round to its own takeoff and the splice has nothing left to cut.
@@ -30,6 +26,7 @@
  */
 
 import * as ent from "./lib/entity.js";
+import { camera } from "./lib/camera.js";
 import { gameOver, hint, score, SIZE } from "./lib/one.js";
 
 export const meta = {
@@ -56,8 +53,8 @@ const R0 = 100;
 const NODES = 28;
 const MINGAP = 10;
 
-// ugl's three numbers for the climb: a push out along the normal, drag on the
-// square of the speed, and a spring back. They settle at REACH.
+// Three numbers for the climb: a push out along the normal, drag on the square
+// of the speed, and a spring back. They settle at REACH.
 const SPEED = 80;
 const THRUST = 500;
 const DRAG = 0.1;
@@ -100,7 +97,6 @@ let cursor = null;
 let golds = [];
 let clock = 0;
 let version = -1;
-let view = null;
 
 /*
  * The loop: a cycle of nodes, each carrying the outward normal at it and the
@@ -128,7 +124,7 @@ class Path extends ent.Entity {
     this.measure();
   }
 
-  // ugl's calcLength(), plus dropping nodes that landed on top of each other.
+  // Remeasure the loop, dropping nodes that landed on top of each other.
   rebuild() {
     this.version += 1;
     const gap = MINGAP * scale;
@@ -533,7 +529,9 @@ function place() {
   golds.push(new Gold(last.x, last.y));
 }
 
-// The loop, the gold, and PAD of air round the lot.
+// A camera framing that holds the loop, the gold, and PAD of air round the
+// lot. The box is square, so the diameter is one number and the scale one
+// division.
 function frame() {
   let [x0, y0, x1, y1] = path.box;
   for (const g of golds) {
@@ -543,11 +541,8 @@ function frame() {
     x1 = Math.max(x1, g.pos.x + r);
     y1 = Math.max(y1, g.pos.y + r);
   }
-  return {
-    x: (x0 + x1) / 2,
-    y: (y0 + y1) / 2,
-    d: Math.max(x1 - x0, y1 - y0) + 2 * PAD * scale,
-  };
+  const d = Math.max(x1 - x0, y1 - y0) + 2 * PAD * scale;
+  return { x: (x0 + x1) / 2, y: (y0 + y1) / 2, scale: SIZE / d };
 }
 
 export function init() {
@@ -563,7 +558,7 @@ export function init() {
   path = new Path();
   cursor = new Cursor();
   for (let i = 0; i < GOLDS; ++i) place();
-  view = frame();
+  camera.moveTo(frame());
 }
 
 export function update(dt) {
@@ -582,10 +577,10 @@ export function update(dt) {
     }
   }
 
-  const t = frame();
-  view.x += (t.x - view.x) * 0.06;
-  view.y += (t.y - view.y) * 0.06;
-  view.d += (t.d - view.d) * 0.04;
+  // A 6%-a-frame lerp, 4% for the zoom, is a different chase at 120Hz.
+  // approach() is the same closing speed written as a rate: 0.06 a frame at
+  // 60Hz is -60 * ln(0.94) a second.
+  camera.approach(frame(), dt, { x: 3.71, y: 3.71, scale: 2.45 });
 
   if (hint() > 0) return;
   clock -= dt * (1 + (cursor.pushing ? HOLDCOST : 0));
@@ -596,14 +591,7 @@ export function update(dt) {
 }
 
 export function render(ctx) {
-  const z = SIZE / (view.d * K);
-
-  ctx.save();
-  ctx.translate(SIZE / 2, SIZE / 2);
-  ctx.scale(z, z);
-  ctx.translate(-view.x * K, -view.y * K);
   ent.render(ctx);
-  ctx.restore();
 
   ctx.save();
   ctx.scale(K, K);

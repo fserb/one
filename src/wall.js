@@ -1,5 +1,5 @@
 /*
- * wall - a port of ~/prj/vault/games/sketch/src/Wall.hx.
+ * wall.
  *
  * You see only what you can see: a lamp's worth of room is lit, the rest is a
  * flat grey plan, and the orange thing that wants you is drawn only inside the
@@ -7,13 +7,8 @@
  * away from what you are looking at towards a coin you are not. Every fourth
  * coin sends another hunter, up to five.
  *
- * The Haxe is the sight engine and none of the game. The port keeps `Sight`,
- * the rect merge in `Grid.getSight`, the 20-unit tile, the sprite, the trailing
- * camera, and the palette down to `C.p2`, the orange it declares and never
- * draws. That is the hunter.
- *
- * `castLOS` returned a fan of `Tri2` and the port returns the polygon: as a
- * clip the fan shows a seam down every shared edge.
+ * `Sight` answers one polygon rather than a fan of triangles: as a clip a fan
+ * shows a seam down every shared edge.
  *
  * Sight has a range, and that range is the clock. A hunter settles exactly at
  * the edge of the light, because a step inside freezes it, so only the edge
@@ -30,6 +25,7 @@
  */
 
 import * as ent from "./lib/entity.js";
+import { camera } from "./lib/camera.js";
 import { gameOver, hint, msg, score, SIZE } from "./lib/one.js";
 import { coin, explosion, powerup } from "./lib/fsfx/sfxr.js";
 import * as sound from "./lib/sound.js";
@@ -49,8 +45,8 @@ the orange moves only while you cannot see it
 // The 480 box the game thinks in.
 const W = 480;
 
-// The Haxe's 20-unit tile. Two screens across and one down, so the camera only
-// moves sideways. 23 rows is 460, so the room sits 10 off the top and bottom.
+// A 20-unit tile. Two screens across and one down, so the camera only moves
+// sideways. 23 rows is 460, so the room sits 10 off the top and bottom.
 const TILE = 20;
 const GW = 48;
 const GH = 23;
@@ -58,7 +54,6 @@ const LY = (W - GH * TILE) / 2;
 const RW = GW * TILE;
 const RH = GH * TILE;
 
-// The Haxe's palette.
 const WALL = 0x606060;
 const FLOOR = 0xfafafa;
 const CYAN = 0x1ebed8;
@@ -66,7 +61,6 @@ const ORANGE = 0xff6819;
 // Outside the light, where the room is a plan rather than a place.
 const DIMFLOOR = 0x3c3c3c;
 const DIMWALL = 0x252528;
-// The Haxe's triangles were this at 0.2 over a fully lit room.
 const TINT = 0.12;
 // A coin you cannot see yet, drawn through the dark so there is somewhere to go.
 const MARK = 0.45;
@@ -85,8 +79,8 @@ const RAYS = 64;
 // wall's face. Without it the polygon's edge is the wall, and a lit wall is
 // indistinguishable from the edge of a shadow.
 const BLEED = 4;
-// The Haxe's nudge either side of a corner: one ray becomes the two edges of
-// the shadow behind it.
+// A nudge either side of a corner: one ray becomes the two edges of the shadow
+// behind it.
 const NUDGE = 0.00001;
 // Always lit, whatever the walls say, so the sprite never draws half clipped.
 const NEAR = 11;
@@ -125,7 +119,7 @@ const BEAT_NEAR = 300;
 const BEAT_FAST = 0.22;
 const BEAT_SLOW = 1;
 
-// The Haxe's player, less the two rows it swapped to face right.
+// The player. It never turns, so there is one facing.
 const BODY = `
 00000..
 000000.
@@ -154,7 +148,7 @@ const PIP = `
 ..0..
 `;
 
-// The vols are the vault game's own ugl volumes.
+// The vols are the original game's own volumes.
 sound.voice("coin", { ...coin(4021), vol: 0.14 });
 sound.voice("die", { ...explosion(4057), vol: 0.2 });
 sound.voice("more", { ...powerup(4093), vol: 0.14 });
@@ -185,8 +179,6 @@ let flowAt = -1;
 let sight = null;
 let poly = [];
 let player = null;
-// Screen minus world. y never moves.
-const cam = { x: 0, y: 0 };
 let hold = 0;
 let dying = 0;
 let beat = 0;
@@ -201,8 +193,8 @@ const cx = (i) => (i % GW + 0.5) * TILE;
 const cy = (i) => (Math.floor(i / GW) + 0.5) * TILE + LY;
 
 /*
- * vault.Sight. Walls are segments, corners are the points worth aiming a ray
- * at, and cast() answers the polygon you can see from a point.
+ * Walls are segments, corners are the points worth aiming a ray at, and cast()
+ * answers the polygon you can see from a point.
  */
 class Sight {
   constructor() {
@@ -232,7 +224,7 @@ class Sight {
     this.pts.push(x, y);
   }
 
-  // The Haxe's castMinRay, over a ray that carries its own length.
+  // The nearest wall along a ray that carries its own length.
   reach(fx, fy, dx, dy) {
     let best = Infinity;
     const w = this.walls;
@@ -329,9 +321,8 @@ function vacant(x, y, w, h) {
   return true;
 }
 
-// Grid.getSight: blocked tiles merged into as few rects as they go. Straight
-// out of the Haxe, including the one-tile offset that keeps the two rects of a
-// corner from overlapping.
+// Blocked tiles merged into as few rects as they go, with a one-tile offset
+// that keeps the two rects of a corner from overlapping.
 function buildSight() {
   const s = new Sight();
   const free = new Uint8Array(GW * GH);
@@ -494,8 +485,8 @@ class Player extends ent.Entity {
     // The camera trails rather than centres, so the pointer is a heading off
     // wherever the player is on screen.
     if (mx === 0 && my === 0 && mouse.press) {
-      mx = mouse.x - this.pos.x - cam.x;
-      my = mouse.y - this.pos.y - cam.y;
+      mx = mouse.x - this.pos.x;
+      my = mouse.y - this.pos.y;
       if (Math.hypot(mx, my) < DEAD) return;
     }
 
@@ -649,6 +640,9 @@ export function init() {
   ent.reset();
   ent.world(W);
   ent.order([Coin, Hunter, Player]);
+  // The room is two screens across and one down, so the camera only moves
+  // sideways: the bounds run the width of the room and pin y at the middle.
+  camera.bounds = { x: 0, y: 0, width: RW, height: W };
 
   buildMap();
   const sx = Math.floor(GW / 4);
@@ -673,7 +667,7 @@ export function init() {
   for (let i = 0; i < COINS; ++i) addCoin();
   addHunter();
 
-  cam.x = clamp(W / 2 - player.pos.x, W - RW, 0);
+  camera.moveTo({ x: player.pos.x });
   poly = sight.cast(player.pos.x, player.pos.y);
 }
 
@@ -692,10 +686,12 @@ export function update(dt) {
   hold = Math.max(hold - t, hint());
   if (hold <= 0 && dying <= 0) range = Math.max(LIGHT_MIN, range - DRAIN * t);
 
-  const want = clamp(W / 2 - player.pos.x, W - RW, 0);
-  const d = want - cam.x;
+  // A constant-speed trail rather than approach(): it catches the player
+  // exactly, and standing still is the one thing that centres them. moveTo()
+  // holds it inside `bounds`, which is where the clamp on the room went.
+  const d = player.pos.x - camera.x;
   const m = CAM * t;
-  cam.x += Math.abs(d) <= m ? d : Math.sign(d) * m;
+  camera.moveTo({ x: camera.x + (Math.abs(d) <= m ? d : Math.sign(d) * m) });
 
   poly = sight.cast(player.pos.x, player.pos.y);
   pulse(t);
@@ -725,12 +721,10 @@ function pulse(t) {
 }
 
 export function render(ctx) {
-  const k = SIZE / W;
   const base = ctx.getTransform();
 
   ctx.save();
-  ctx.scale(k, k);
-  ctx.translate(cam.x, cam.y);
+  camera.apply(ctx);
 
   drawRoom(ctx, DIMFLOOR, DIMWALL);
   drawMarks(ctx);
@@ -751,9 +745,10 @@ export function render(ctx) {
   ctx.fillRect(0, LY, RW, RH);
   ctx.globalAlpha = 1;
 
-  // The same clip: a hunter out of the light is not drawn at all.
+  // The same clip: a hunter out of the light is not drawn at all. A clip is
+  // in device space once it is set, so dropping back to `base` keeps it while
+  // ent.render() puts the camera on again itself.
   ctx.setTransform(base);
-  ctx.translate(cam.x * k, cam.y * k);
   ent.render(ctx);
 
   ctx.restore();
@@ -764,8 +759,9 @@ function drawRoom(ctx, floor, wall) {
   ctx.fillRect(0, LY, RW, RH);
   ctx.fillStyle = css(wall);
 
-  const x0 = Math.max(0, tx(-cam.x));
-  const x1 = Math.min(GW - 1, tx(-cam.x + W));
+  const v = camera.view;
+  const x0 = Math.max(0, tx(v.x));
+  const x1 = Math.min(GW - 1, tx(v.x + v.width));
   for (let y = 0; y < GH; ++y) {
     for (let x = x0; x <= x1; ++x) {
       if (!map[y * GW + x]) continue;
@@ -783,19 +779,19 @@ function drawMarks(ctx) {
   ctx.globalAlpha = MARK;
   ctx.fillStyle = css(CYAN);
   for (const c of ent.get(Coin)) {
-    const sx = c.pos.x + cam.x;
-    const sy = c.pos.y + cam.y;
-    if (sx >= 0 && sy >= 0 && sx < W && sy < W) {
+    const s = camera.toScreen(c.pos.x, c.pos.y);
+    if (s.x >= 0 && s.y >= 0 && s.x < SIZE && s.y < SIZE) {
       ctx.fillRect(c.pos.x - DOT / 2, c.pos.y - DOT / 2, DOT, DOT);
       continue;
     }
 
+    // Held ARROW off the edge of the screen and read back into the world,
+    // since this draws under the camera.
+    const m = camera.pixels(ARROW);
+    const p = camera.toWorld(clamp(s.x, m, SIZE - m), clamp(s.y, m, SIZE - m));
     ctx.save();
-    ctx.translate(
-      clamp(sx, ARROW, W - ARROW) - cam.x,
-      clamp(sy, ARROW, W - ARROW) - cam.y,
-    );
-    ctx.rotate(Math.atan2(sy - W / 2, sx - W / 2));
+    ctx.translate(p.x, p.y);
+    ctx.rotate(Math.atan2(s.y - SIZE / 2, s.x - SIZE / 2));
     ctx.beginPath();
     ctx.moveTo(-ARROW / 2, -ARROW / 2);
     ctx.lineTo(ARROW / 2, 0);

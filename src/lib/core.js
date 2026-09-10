@@ -5,12 +5,14 @@
  * update() walks the groups in draw order once a frame. entity.js is the
  * file a game imports; it re-exports the three.
  *
- * The games think in a 480x480 box. world() sets it and render() scales onto
- * one's 1024, so ported code keeps its constants.
+ * The games think in a 480x480 box. world() sets it and render() puts it on
+ * one's 1024, so a game writes its constants once. A game that imports
+ * lib/camera.js gets that box as the camera's opening framing and moves the
+ * camera instead of writing its own transform, and game.mouse comes back
+ * through it, so nothing has to subtract the view by hand.
  *
- * There is no screen space, and none is wanted: a game that moves the view
- * wraps ent.render() in its own transform and draws the furniture that holds
- * still outside it.
+ * There is still no screen space: a game draws the furniture that holds still
+ * outside ent.render(), in a render() of its own.
  *
  * Every entity owns an `art` and a `gfx`, the two drawing buffers: pixels and
  * paths. Both are always there, so a game imports neither file itself.
@@ -22,16 +24,15 @@
  * begin() cannot run from the constructor, since a subclass's field
  * initialisers run after super() returns and would overwrite it. It runs at
  * the top of the entity's first frame, before its first update(). So an entity
- * is drawn on the frame it was made with only what its constructor set, and
- * ugl code that drew from the constructor loses a frame moving into begin().
- * An entity built inside another's update() first steps on the next frame.
+ * is drawn on the frame it was made with only what its constructor set, and an
+ * entity built inside another's update() first steps on the next frame.
  */
 
 import { Collider } from "../alma/src/collider.js";
 import { Art } from "./art.js";
 import { Gfx } from "./gfx.js";
 import { key, mouse } from "./input.js";
-import { SIZE } from "./one.js";
+import { op, SIZE } from "./one.js";
 
 export const game = {
   time: 0,
@@ -47,9 +48,21 @@ export const game = {
 // construction order.
 const groups = new Map();
 
+/*
+ * The box the game thinks in, and with a camera the framing it opens on. The
+ * bounds go with it: they belong to a round, and a round starts here.
+ *
+ * A camera has one scale, so that path wants w === h. Every game calls
+ * world(480).
+ */
 export function world(w = 480, h = w) {
   game.width = w;
   game.height = h;
+  if (!op.camera) return;
+  op.camera.bounds = null;
+  op.camera.moveTo({ x: w / 2, y: h / 2, scale: SIZE / w, angle: 0 }).settle();
+  op.camera.shakeBase = SHAKE_BASE * SIZE / w;
+  op.camera.shakeHz = SHAKE_HZ;
 }
 
 function groupOf(cls) {
@@ -87,22 +100,63 @@ export function reset() {
   game.time = 0;
   game.totalTime = 0;
   shaking = held = 0;
+  shakeHold = shakeX = shakeY = 0;
+  // The world it was rattling is gone, and settle() is where the camera keeps
+  // its own copy of that state.
+  op.camera?.settle();
 }
 
 /*
- * ugl's two screen-wide effects. shake() jitters the world under render();
+ * The two screen-wide effects. shake() jitters the world under render();
  * delay() is hitstop, holding every entity while the clock runs on. Each takes
  * the longer of what is asked and what is already running.
+ *
+ * The rattle is BASE + FALL times the seconds it has left, a fresh offset HZ
+ * times a second and held in between. Held, or it runs twice as fast at 120Hz
+ * as at 60. Camera2D rattles on those same three numbers, so with a camera
+ * shake() hands them over rather than jittering the world under a frame that
+ * is already jittering: one call and one rattle either way. world() is what
+ * gives the camera BASE and HZ, since turning these world units into the
+ * screen ones it counts in needs the box.
  */
+const SHAKE_BASE = 5;
+const SHAKE_FALL = 10;
+const SHAKE_HZ = 30;
+
 let shaking = 0;
+let shakeHold = 0;
+let shakeX = 0;
+let shakeY = 0;
 let held = 0;
 
 export function shake(t = 0.4) {
+  if (op.camera) {
+    op.camera.shake(t, SHAKE_FALL * SIZE / game.width);
+    return;
+  }
   shaking = Math.max(shaking, t);
 }
 
 export function delay(t) {
   held = Math.max(held, t);
+}
+
+// Camera2D's own step, on this file's clock. Math.random and not a seeded
+// stream: how often the screen is painted must not move a game along.
+function stepShake(dt) {
+  shaking = Math.max(0, shaking - dt);
+  if (shaking <= 0) {
+    shakeHold = shakeX = shakeY = 0;
+    return;
+  }
+  shakeHold -= dt;
+  if (shakeHold > 0) return;
+  shakeHold = 1 / SHAKE_HZ;
+  // Square, not circle: a constant radius makes successive throws orbit the
+  // centre and the eye tracks it.
+  const amp = SHAKE_BASE + SHAKE_FALL * shaking;
+  shakeX = amp * (2 * Math.random() - 1);
+  shakeY = amp * (2 * Math.random() - 1);
 }
 
 // Every pair of two entities' world shapes, stopping at the first overlap.
@@ -127,9 +181,9 @@ export class Entity {
     this.dead = false;
     this.art = new Art();
     this.gfx = new Gfx();
-    // Mirror the drawing, ugl's sprite.scaleX = -1.
+    // Mirror the drawing.
     this.flipX = false;
-    // ugl's sprite scale and alpha. Uniform: no port has wanted two axes.
+    // Uniform scale: no game has wanted two axes.
     this.scale = 1;
     this.alpha = 1;
     this.hits = [];
@@ -141,7 +195,7 @@ export class Entity {
   update() {}
   postUpdate() {}
 
-  // Each centres on its own bounding box; ugl centred the union. An entity
+  // Each centres on its own bounding box, not the union of the two. An entity
   // drawing with both sits differently unless they share a centre.
   render(ctx) {
     this.art.render(ctx);
@@ -163,7 +217,7 @@ export class Entity {
     this.acc.y += y;
   }
 
-  // ugl's clearHitBox(): drops every shape, so nothing overlaps either way.
+  // Drops every shape, so nothing overlaps either way.
   clearHits() {
     this.hits.length = 0;
     return this;
@@ -181,7 +235,7 @@ export class Entity {
     return this;
   }
 
-  // alma centres nothing: its rect is a corner and two extents, ugl's box a
+  // alma centres nothing: its rect is a corner and two extents, this box a
   // centre and two widths.
   hitBox(w, h = w, x = 0, y = 0) {
     const shape = Collider.rect(x - w / 2, y - h / 2, w, h);
@@ -254,7 +308,7 @@ function ordered() {
 }
 
 export function update(dt) {
-  shaking = Math.max(0, shaking - dt);
+  stepShake(dt);
   // A held frame still runs at dt 0: entities read input, nothing moves.
   if (held > 0) {
     held -= dt;
@@ -264,8 +318,13 @@ export function update(dt) {
   game.time = dt;
   game.totalTime += dt;
 
-  game.mouse.x = mouse.x * game.width / SIZE;
-  game.mouse.y = mouse.y * game.height / SIZE;
+  // Where the pointer points in the world, which under a camera is not where
+  // it sits on the board.
+  const m = op.camera
+    ? op.camera.toWorld(mouse.x, mouse.y)
+    : { x: mouse.x * game.width / SIZE, y: mouse.y * game.height / SIZE };
+  game.mouse.x = m.x;
+  game.mouse.y = m.y;
   game.mouse.click = mouse.click;
   game.mouse.press = mouse.press;
   game.mouse.release = mouse.release;
@@ -296,13 +355,12 @@ export function update(dt) {
 
 export function render(ctx) {
   ctx.save();
-  ctx.scale(SIZE / game.width, SIZE / game.height);
-  if (shaking > 0) {
-    // World units, so a shake is the same size whatever the box is. The
-    // background goes with it and meta.bg shows along the edge it leaves.
-    const mag = 5 + 10 * shaking;
-    ctx.translate(mag * (2 * Math.random() - 1), mag * (2 * Math.random() - 1));
-  }
+  if (op.camera) op.camera.apply(ctx);
+  else ctx.scale(SIZE / game.width, SIZE / game.height);
+  // World units, so a shake is the same size whatever the box is. The
+  // background goes with it and meta.bg shows along the edge it leaves. With a
+  // camera there is nothing to add: apply() above carried its own.
+  if (shaking > 0) ctx.translate(shakeX, shakeY);
   for (const g of ordered()) {
     for (const e of g.list) {
       if (!e.dead) e._draw(ctx);
