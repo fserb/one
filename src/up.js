@@ -1,24 +1,19 @@
 /*
- * up - a port of ~/prj/vault/games/sketch/src/Up.hx.
- * Based on Aba Games' WASD THRUST.
+ * up. Based on Aba Games' WASD THRUST.
  *
  * Four thrusters, one per arrow key, each lettered with its key, and each
  * pushing the ship away from itself: the one on top drives you down. The world
  * slides down 50 units a second, so the game is holding enough upward thrust to
  * stay off the bottom while a field of red crosses comes at you.
  *
- * The Haxe never shipped; the file is marked `ugl.skip`.
- *
  * No camera: the scene moves the world, not the view, so the ship sits at a
  * fixed 240 across and never above 200 down.
  *
- * The thrust and drag are new numbers; the Haxe's 5 and 0.01 cannot fly the
- * ship at all. THRUST says what they are picked against.
+ * THRUST says what the thrust and drag are picked against.
  *
- * The ship collides as two polygons, which turn. ugl ran two hit boxes through
- * the sprite matrix; entity.js only turns a polygon. The thrusters draw on top
- * of the ship, where ugl's orderGroups() left the Engine group underneath and
- * the ship's own cross hid all four letters.
+ * The ship collides as two polygons, which turn: entity.js only turns a
+ * polygon, not a box. The thrusters draw on top of the ship, or the ship's own
+ * cross hides all four letters.
  */
 
 import * as ent from "./lib/entity.js";
@@ -54,10 +49,8 @@ const DEATH = 0.5;
 // Thruster acceleration, drag, how far out a thruster sits, spin rate, exhaust
 // speed.
 //
-// The Haxe's 5 and 0.01 cannot fly: 5 a second against a 50 a second slide
-// needs ten seconds of one key to break even, and the slide is off the bottom
-// in five. Thrust over drag is the top speed and one over drag the time to
-// reach it, so these give 125 (over the slide, under a dive into a field it
+// Thrust over drag is the top speed and one over drag the time to reach it, so
+// these give 125 (over the 50 a second slide, under a dive into a field it
 // cannot see coming) in half a second.
 const THRUST = 250;
 const DRAG = 2;
@@ -157,9 +150,8 @@ class Player extends ent.Entity {
       .count(100)
       .xy(this.pos.x, this.pos.y)
       .size(5, 25)
-      // The Haxe threw these at 20 to 50 a second, on the frame ugl cleared
-      // the board, so none was ever drawn. Seen, that is a green lump. At 200
-      // to 400 it is a ship coming apart.
+      // At 20 to 50 a second this is a green lump. At 200 to 400 it is a ship
+      // coming apart.
       .speed(200, 200)
       .delay(0)
       .duration(2, 0.5);
@@ -251,8 +243,8 @@ export function update(dt) {
     return;
   }
 
-  // ugl ran the scene before the entities, and the order matters: this slides
-  // the world out from under a step that has not run.
+  // The scene runs before the entities, and the order matters: this slides the
+  // world out from under a step that has not run.
   const dx = W / 2 - player.pos.x;
   // Still while the hint is up: a ship falling over a player who is reading
   // has spent its altitude before they touch a key, and the bottom is fatal.
@@ -287,6 +279,4 @@ export function update(dt) {
   ent.update(dt);
 }
 
-export function render(ctx) {
-  ent.render(ctx);
-}
+export { render } from "./lib/entity.js";

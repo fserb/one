@@ -1,6 +1,6 @@
 /*
- * asteroid - a port of ~/prj/vault/games/sketch/src/Asteroid.hx, "Super Hot
- * Asteroid", April 2014. Atari's Asteroids crossed with SUPERHOT.
+ * asteroid - "Super Hot Asteroid", April 2014. Atari's Asteroids crossed with
+ * SUPERHOT.
  *
  * Time runs at a fiftieth of its speed unless you are thrusting or shooting.
  * Turning always runs on the wall clock, so a frozen board is a place to aim
@@ -16,9 +16,9 @@
  * either way round, and at a fiftieth speed you watch the bullet arrive and can
  * see which. entity.js grew hitPoly() for this game.
  *
- * The death is the Haxe's 2.5 seconds of full-speed board with title and score
- * swapping over it, but it cannot wait for input: the click belongs to overlay.js's
- * finish screen, so holding the flip until a key would cost two clicks.
+ * The death is 2.5 seconds of full-speed board with title and score swapping
+ * over it, and cannot wait for input: the click belongs to overlay.js's finish
+ * screen, so holding the flip until a key would cost two clicks.
  */
 
 import * as ent from "./lib/entity.js";
@@ -47,8 +47,7 @@ const TAU = 2 * Math.PI;
 const W = 480;
 
 const SLOW = 50;
-// ugl's `holdback`: how long the Haxe ignored input, and the whole length of
-// the end screen here.
+// How long input is ignored, and the whole length of the end screen.
 const DYING = 2.5;
 const FLIP = 1;
 const FLIP_GAP = 120;
@@ -95,7 +94,7 @@ const STALLED = 20;
 const CONE = Math.PI / 6;
 const SIGHT = Math.PI / 12;
 
-// Asteroid never called ugl's Sound.vol(), so all six are at sfxr's default.
+// No volume is set on any of them, so all six are at sfxr's default.
 sound.voice("shot", laser(1008));
 sound.voice("enemyshot", laser(1006));
 sound.voice("pop", explosion(1002));
@@ -195,7 +194,6 @@ class Target extends ent.Entity {
   }
 }
 
-// `Ball` in the Haxe, which is what ugl's circle primitive called it.
 class Rock extends Target {
   // A fresh rock drifts in off an edge, a split one is placed by its parent.
   constructor(size, x, y, angle, speed) {
@@ -278,7 +276,7 @@ class Enemy extends Target {
     const { time } = ent.game;
     const tx = this.target.x - this.pos.x;
     const ty = this.target.y - this.pos.y;
-    // The Haxe steered by the difference it took before re-targeting. Kept.
+    // Steer for the target until within ARRIVE of it, then pick another.
     if (Math.hypot(tx, ty) < ARRIVE) this.findTarget();
 
     const p = ent.one(Player);
@@ -390,14 +388,14 @@ function explode(p) {
   sound.play("player");
   p.remove();
   dying = DYING;
-  // The Haxe set `flip` true and turned it over on the first frame, so the
-  // title is the face seen first. Kept, order included.
+  // `flip` starts true and turns over on the first frame, so the title is the
+  // face seen first.
   flip = true;
   flipTime = 0;
 }
 
-// The Haxe removed and remade the labels every second, and `Text` has no way to
-// move or retext one, so this does too.
+// `Text` has no way to move or retext one, so the labels are removed and remade
+// every second.
 function turnOver() {
   for (const t of flipped) t.remove();
   flip = !flip;
@@ -440,7 +438,7 @@ function newRock() {
 }
 
 // Back on a unit short of the threshold it would leave by. `s` is how far past
-// the edge an entity runs first, which the Haxe read as its width.
+// the edge an entity runs first, which is its width.
 function wrap(e, s) {
   const { pos } = e;
   if (pos.x < -s / 2) pos.x = W + s / 2 - 1;
@@ -521,6 +519,4 @@ export function update(dt) {
   ent.update(time);
 }
 
-export function render(ctx) {
-  ent.render(ctx);
-}
+export { render } from "./lib/entity.js";

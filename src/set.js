@@ -1,14 +1,13 @@
 /*
- * set - a port of ~/prj/vault/games/sketch/src/SET.hx.
+ * set.
  *
  * The card game. Sixteen cards, four traits with three values each, and three
  * cards are a set when every trait is all the same or all different. Take one
  * and the three are replaced off an 81-card deck.
  *
- * The Haxe is the puzzle and none of the game: it deals, marks and checks, with
- * no score, no clock and no way to end. The clock is what makes a wrong guess
- * cost anything, since the board holds 560 triples and about five sets, so with
- * a free guess the game is 560 button presses rather than looking.
+ * The clock is what makes a wrong guess cost anything, since the board holds
+ * 560 triples and about five sets, so with a free guess the game is 560 button
+ * presses rather than looking.
  *
  * The cursor follows the pointer when it moves and the arrows when it is still,
  * so there is no mode and a tap plays with one finger.
@@ -16,9 +15,9 @@
  * Sixteen cards almost always hold a set, and almost always is not never, so a
  * board without one is dealt again.
  *
- * The layout is not the Haxe's: the pitch is 100 rather than 110, and the room
- * that frees up along the bottom carries the clock and the last set. Cards still
- * draw in the Haxe's own 100-unit box, scaled by `CELL / 100` on the way out.
+ * The pitch is 100, and the room that leaves along the bottom carries the clock
+ * and the last set. Cards draw in a 100-unit box, scaled by `CELL / 100` on the
+ * way out.
  */
 
 import * as ent from "./lib/entity.js";
@@ -36,8 +35,7 @@ each trait all same or all different
   date: "2015-05-03",
 };
 
-// C.COLORS in the Haxe. The first three are the cards, the other two the mark
-// and the cursor.
+// The first three are the cards, the other two the mark and the cursor.
 const COLORS = [0xff6819, 0xc0dc61, 0x1ebed8];
 const MARKED = 0xfec804;
 const POINTED = 0xe284cc;
@@ -154,7 +152,7 @@ function cellAt(x, y) {
   return col + row * COLS;
 }
 
-// The stripes of a hollow shape, a half width and a height each: ugl had no
+// The stripes of a hollow shape, a half width and a height each: there is no
 // hatch, so a striped card is a shape with four lines inside it.
 const STRIPES = [
   [[10, -6], [10, -2], [10, 2], [10, 6]],
@@ -186,8 +184,8 @@ function symbol(gfx, x, y, color, fill, type) {
 
 /*
  * A card, built in the constructor so it is on screen the frame it replaces
- * one. The Haxe drew in a 0..100 box pinned by gfx.size(100, 100); size() is
- * centred on the entity here, so every coordinate below is the Haxe's less 50.
+ * one. gfx.size(100, 100) pins the box and size() centres it on the entity, so
+ * every coordinate below runs -50..50.
  */
 class Card extends ent.Entity {
   constructor(code, x, y) {
@@ -417,6 +415,4 @@ export function update(dt) {
   mark(cursor.selected);
 }
 
-export function render(ctx) {
-  ent.render(ctx);
-}
+export { render } from "./lib/entity.js";

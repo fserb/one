@@ -1,6 +1,5 @@
 /*
- * gather - a port of ~/prj/vault/games/sketch/src/Gather.hx, the sketch the
- * full Gather (fserb.com/vault/gather) grew out of.
+ * gather - the sketch the full Gather (fserb.com/vault/gather) grew out of.
  *
  * A board of five-colour boxes slides down at you. The cursor walks onto a box
  * and drags a chain behind it, one box per press, and the chain cashes in the
@@ -14,16 +13,14 @@
  * The first round opens on a scripted board that resets the score and hands
  * over to the random feed. Dying inside it replays it; finishing retires it.
  *
- * The Haxe moved the chain as far as it could go on one press, because its
- * cursors lived in an array ugl's frame loop iterated while each new cursor
- * appended to it. The chain is an explicit list here and one press is one step.
+ * The chain is an explicit list, and one press moves it one step.
  *
  * Undo waits for the pointer to lift, and a lift that turned out to be a swipe
- * undoes nothing: b1 carries the click, so undoing on the press as the Haxe did
- * would unravel the chain before the swipe arrived.
+ * undoes nothing: b1 carries the click, so undoing on the press would unravel
+ * the chain before the swipe arrived.
  *
- * ugl gave art and gfx one sprite and centred the union. Here each centres on
- * its own box, so a box's pupils need `gfx.size()` to hold them on the body.
+ * art and gfx each centre on their own box, so a box's pupils need `gfx.size()`
+ * to hold them on the body.
  */
 
 import * as ent from "./lib/entity.js";
@@ -56,9 +53,9 @@ const X0 = 88;
 const Y0 = 73;
 
 // The lines the board hangs from and ends on, and the depth a cursor dies at.
-// The Haxe hung the board at 50, which is where the score chip's bottom edge
-// now lands: the chip covered the left end of the line. The board sits 4 lower
-// and the strip below it gives up the same 4.
+// The score chip's bottom edge lands at 50, so a board hung there has the chip
+// over the left end of the line. The board sits 4 lower and the strip below it
+// gives up the same 4.
 const HEAD = 54;
 const FOOT = 472;
 const DIE = 454;
@@ -79,8 +76,8 @@ const HELD = 0.5;
 const CRAWL = 5;
 const NEAR = 240;
 const NEARRATE = 9 / 70;
-// Snaps on rather than ramping in: the Haxe tests against 122 and measures from
-// 240, so the multiplier is already 4.4 the frame it applies. Left as found.
+// Snaps on rather than ramping in: the test is against 122 and the measure runs
+// from 240, so the multiplier is already 4.4 the frame it applies.
 const HIGH = 122;
 const HIGHRATE = 5 / 172;
 // Per minute, for ever.
@@ -141,7 +138,7 @@ const INTRO = [
 // Taken from the end, so the last line is the first said.
 const NOTES = ["good luck", "two colours or more, same count"];
 
-// ugl's Sound.vol() defaulted to 0.2 and gather never set it.
+// 0.2 is the volume these four were made against.
 sound.voice("move", { ...jump(12), vol: 0.2 });
 sound.voice("gather", { ...explosion(25), vol: 0.2 });
 sound.voice("score", { ...coin(12), vol: 0.2 });
@@ -224,8 +221,8 @@ class Piece extends ent.Entity {
   draw() {
     this.art.size(4, 9, 9).obj([COLORS[this.color], BLACK, SHADE, WHITE], BODY);
 
-    // size() holds the pupils on the art's own 36x36 box, which is what ugl
-    // got for free by giving art and gfx one sprite.
+    // size() holds the pupils on the art's own 36x36 box, which gfx otherwise
+    // knows nothing about.
     const dx = this.eye.x - this.pos.x;
     const dy = this.eye.y - this.pos.y;
     const d = Math.hypot(dx, dy);
@@ -602,6 +599,4 @@ export function update(dt) {
   ent.update(dt);
 }
 
-export function render(ctx) {
-  ent.render(ctx);
-}
+export { render } from "./lib/entity.js";

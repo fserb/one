@@ -1,6 +1,6 @@
 /*
- * metro - a port of ~/prj/vault/games/sketch/src/LD29.hx, "You are a metro
- * car". Ludum Dare 29, April 2014, written in about ten hours.
+ * metro - "You are a metro car". Ludum Dare 29, April 2014, written in about
+ * ten hours.
  *
  * You drive one car. Up runs it forward, down backs it up, and left and right
  * pick which tunnel it leaves by at the station ahead; the purple stub is the
@@ -14,9 +14,7 @@
  *
  * Tunnels longer than LONG are dropped and only the largest connected piece is
  * kept. Delaunay joins two points whenever some empty circle passes through
- * both, and out past the edge of the cloud that circle can be enormous. The
- * Haxe was spared them by the diagram it read its pairs off: the wall between
- * two such cells sits far outside the clip box, so clipping dropped the pair.
+ * both, and out past the edge of the cloud that circle can be enormous.
  *
  * Stations are data, not one entity each: 380 entities are 380 draws whether on
  * screen or not. A car collides as the 34x16 box it is drawn as, since it
@@ -85,7 +83,7 @@ const BAR = 270;
 const OFF = 500;
 const ON = 440;
 
-// The vols are the vault game's own ugl volumes.
+// The vols are the original game's own volumes.
 sound.voice("reach", { ...coin(82), vol: 0.25 });
 sound.voice("timeup", { ...explosion(4073), vol: 0.1 });
 sound.voice("crash", { ...explosion(4005), vol: 0.25 });
@@ -103,9 +101,8 @@ let enemies = 0;
 /*
  * The map.
  *
- * Stations are thrown down at random and kept when nothing else is within GAP,
- * which is the Haxe's sampler; tunnels() joins the pairs whose Voronoi cells
- * share a wall.
+ * Stations are thrown down at random and kept when nothing else is within GAP;
+ * tunnels() joins the pairs whose Voronoi cells share a wall.
  */
 function build() {
   // A cell is GAP across the diagonal, so it holds one station at most and
@@ -312,7 +309,7 @@ class Grid extends ent.Entity {
     }
     ctx.stroke();
 
-    // Under the stations, as ugl layered them.
+    // Under the stations.
     ctx.lineWidth = 8;
     stub(ctx, HERE, train.from, train.to);
     stub(ctx, AHEAD, train.to, train.next);
@@ -672,6 +669,4 @@ export function update(dt) {
   score.value += dt * Math.sqrt(enemies) / 50;
 }
 
-export function render(ctx) {
-  ent.render(ctx);
-}
+export { render } from "./lib/entity.js";

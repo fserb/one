@@ -1,10 +1,9 @@
 /*
- * entity.js - the entity model the vault micro-games are written against.
+ * entity.js - the entity model the micro-games are written against.
  *
- * ~/prj/vault/games/sketch/src is 20 single-file games on `ugl`, a
- * retained-mode framework. This is the same model over one.js's immediate
- * mode: an entity registers itself when constructed, and update() walks the
- * groups in draw order once a frame.
+ * A retained-mode model over one.js's immediate mode: an entity registers
+ * itself when constructed, and update() walks the groups in draw order once a
+ * frame.
  *
  * A game wires it into the three exports one.js calls:
  *
@@ -17,9 +16,11 @@
  * }
  *
  * export function init() { ent.reset(); new Enemy(); }
- * export function update(dt) { ent.update(dt); }
- * export function render(ctx) { ent.render(ctx); }
+ * export { render, update } from "./lib/entity.js";
  * ```
+ *
+ * update(dt) and render(ctx) here already have one.js's signatures, so a game
+ * that adds nothing of its own re-exports them rather than wrapping them.
  *
  * This file is two `export *` lines. Behind them:
  *

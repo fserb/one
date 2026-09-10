@@ -1,5 +1,5 @@
 /*
- * hypermania - a port of ~/prj/vault/games/sketch/src/Hypermania.hx.
+ * hypermania.
  *
  * Megamania on a fuse. A formation crosses the screen, you hold one bullet in
  * the air at a time, and the orange bar is both clock and magazine: it drains
@@ -12,13 +12,12 @@
  * waves a timing pattern runs the formation in bursts of up to three times
  * speed. Hits chain: a kill is worth (waves + 1) times the length of its chain.
  *
- * The bar loses the score line it used to carry, 70 units down to 49, so the
- * field is 431 where the Haxe's was 410. Every constant in it is the Haxe's.
+ * The bar carries no score line, so it is 49 units rather than 70 and the field
+ * is 431.
  *
- * The shooter is drawn at random from the enemies on screen, which is what the
- * Haxe's unbuilt to-do list wanted to change. A wave fires 0.2 to 1.2 bullets a
- * second, and if each came down your own column there would be nothing to do
- * but dodge.
+ * The shooter is drawn at random from the enemies on screen. A wave fires 0.2
+ * to 1.2 bullets a second, and if each came down your own column there would be
+ * nothing to do but dodge.
  */
 
 import * as ent from "./lib/entity.js";
@@ -83,7 +82,7 @@ const BEAT = 0.1;
 // in place at the other.
 const WRAPX = W + 15;
 const BANDX = W + 30;
-// The Haxe wrapped 5 past the foot of the field, and still does.
+// Wrapping happens 5 past the foot of the field.
 const WRAPY = BOT + 5;
 const BANDY = 430;
 
@@ -97,8 +96,7 @@ const LIGHT = 0.05;
 const WHITEOUT = 0.1;
 const POP = 0.2;
 
-// All took ugl's constructor default of 0.2 except the spend, which plays ten
-// times a second.
+// All at 0.2 except the spend, which plays ten times a second.
 sound.voice("begin", { ...powerup(8428), vol: 0.2 });
 sound.voice("spend", { ...explosion(1345), vol: 0.1 });
 sound.voice("shot", { ...laser(1350), vol: 0.2 });
@@ -107,10 +105,10 @@ sound.voice("enemyshot", { ...laser(1403), vol: 0.2 });
 sound.voice("boom", { ...explosion(1345), vol: 0.2 });
 
 /*
- * The eight formations, in the Haxe's order. `across` spawns w by h off the
- * left edge and walks them right; the other spawns a column every dx and walks
- * them down. `xmove(row, t)` at t == 0 is not a speed but the spawn offset of
- * that row, which is the one place spawn() reads it for.
+ * The eight formations. `across` spawns w by h off the left edge and walks them
+ * right; the other spawns a column every dx and walks them down. At t == 0,
+ * `xmove(row, t)` is not a speed but the spawn offset of that row, which is the
+ * one place spawn() reads it for.
  */
 const STRATS = [
   {
@@ -207,8 +205,8 @@ class Bar extends ent.Entity {
   }
 
   update() {
-    // The Haxe split frame and gauge into two entities so the frame could stay
-    // cached. Three rectangles a frame is not worth a class.
+    // Frame and gauge in one entity: three rectangles a frame is not worth
+    // splitting to keep the frame cached.
     const y = EY - this.pos.y;
     const left = Math.max(0, energy) / 100;
     this.gfx.clear()
@@ -340,9 +338,8 @@ class EnemyBullet extends ent.Entity {
 }
 
 /*
- * A muzzle flash, at the end of the barrel that fired. ugl drew one for the
- * single frame it lived, which is 16ms on one screen and 8 on another; this
- * holds for LIGHT either way.
+ * A muzzle flash, at the end of the barrel that fired. One frame is 16ms on one
+ * screen and 8 on another, so it holds for LIGHT instead.
  */
 class Light extends ent.Entity {
   constructor(x, y, mine) {
@@ -570,8 +567,8 @@ function beginLevel() {
 export function init() {
   ent.reset();
   ent.world(W);
-  // Update order as much as draw order, and the Haxe's: ship moves its bullet,
-  // wave moves the formation, then an enemy asks what it is touching.
+  // Update order as much as draw order: ship moves its bullet, wave moves the
+  // formation, then an enemy asks what it is touching.
   ent.order([
     Player,
     Wave,
@@ -596,9 +593,9 @@ export function init() {
 }
 
 export function update(dt) {
-  // Entities first, then the scene, the other way round from ugl: ugl skipped
-  // a whole frame to hold a hit, and entity.js runs it at dt 0 instead, which
-  // the drain below only sees by running after.
+  // Entities first, then the scene: entity.js holds a hit by running a frame
+  // at dt 0 rather than skipping it, which the drain below only sees by
+  // running after.
   ent.update(dt);
 
   if (dying > 0) {
@@ -614,6 +611,4 @@ export function update(dt) {
   if (energy <= 0) player.explode();
 }
 
-export function render(ctx) {
-  ent.render(ctx);
-}
+export { render } from "./lib/entity.js";

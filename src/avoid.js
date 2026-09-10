@@ -1,10 +1,8 @@
 /*
- * avoid - a port of ~/prj/vault/games/sketch/src/Avoid.hx.
- * Based on Aba Games' Satellite Catch.
+ * avoid. Based on Aba Games' Satellite Catch.
  *
- * The Haxe never cleared an entity's art before redrawing, so a shrinking enemy
- * left its old outline behind and the list grew without bound. This clears
- * first.
+ * An entity's art is cleared before it is redrawn, so a shrinking enemy does
+ * not leave its old outline behind and the list does not grow without bound.
  */
 
 import * as ent from "./lib/entity.js";
@@ -182,10 +180,4 @@ export function init() {
   });
 }
 
-export function update(dt) {
-  ent.update(dt);
-}
-
-export function render(ctx) {
-  ent.render(ctx);
-}
+export { render, update } from "./lib/entity.js";

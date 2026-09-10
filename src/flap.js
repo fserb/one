@@ -1,5 +1,5 @@
 /*
- * flap - a port of ~/prj/vault/games/sketch/src/FBP.hx, "FlappyBird Puzzle".
+ * flap - a FlappyBird puzzle.
  *
  * No steering. The bird flies flat out sideways, turns only at a wall, and one
  * button pushes it up against gravity. Getting to the coin with that much
@@ -45,8 +45,8 @@ const RIGHT = 460;
 const TOP = 20;
 const BOTTOM = 460;
 
-// Sideways speed never changes, only a wall turns it. ugl ran at 60fps and
-// added 5 to vel.y a frame, which is this gravity.
+// Sideways speed never changes, only a wall turns it. GRAVITY is 5 a frame at
+// 60fps.
 const SPEED = 100;
 const FLAP = 200;
 const GRAVITY = 300;
@@ -163,10 +163,4 @@ export function init() {
   new Coin();
 }
 
-export function update(dt) {
-  ent.update(dt);
-}
-
-export function render(ctx) {
-  ent.render(ctx);
-}
+export { render, update } from "./lib/entity.js";

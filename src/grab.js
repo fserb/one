@@ -1,6 +1,6 @@
 /*
- * grab - a port of ~/prj/vault/games/sketch/src/LD32.hx, "the name of the game
- * is grab". Ludum Dare 32, April 2015; the weapon is Blitzcrank's hook.
+ * grab - "the name of the game is grab". Ludum Dare 32, April 2015; the weapon
+ * is Blitzcrank's hook.
  *
  * The floor is one of four colours and the ghost wearing it is off the board.
  * Hook one of the other three and reel it in: its colour becomes the floor, it
@@ -13,13 +13,13 @@
  *
  * The opening four ghosts hold fire for as long as the hint stands: at
  * 1.5/speed yellow's first shot lands 2.9 seconds in, before the hint has
- * faded, and the Haxe had a title card where this port has none.
+ * faded, and there is no title card to read the rules off.
  *
  * A hit shape does not turn with the drawing, so the hook's 20x18 claw box is a
  * circle on the claw.
  *
- * Death runs the Haxe's EndGame quad rather than a countdown: the board goes
- * black out of the body before the finish panel arrives.
+ * Death runs an EndGame quad rather than a countdown: the board goes black out
+ * of the body before the finish panel arrives.
  */
 
 import * as ent from "./lib/entity.js";
@@ -42,8 +42,8 @@ grab a ghost, its colour becomes the floor
 const BLACK = 0x010101;
 const WHITE = 0xfafafa;
 
-// Named as the author's write-up named them. Two of the Haxe's constants
-// disagree with their colour: its `cyan` is this purple, its `purple` this
+// Named as the author's write-up named them, which is not what the eye calls
+// two of them: the `cyan` of the write-up is this purple, its `purple` this
 // pink.
 const YELLOW = 0xffdc3b;
 const PINK = 0xff54b1;
@@ -54,7 +54,7 @@ const FLOORS = [YELLOW, PURPLE, BLUE, PINK];
 // The 480 box the game thinks in.
 const W = 480;
 // How far off each wall the ghosts start, and where the player's wall is. A
-// radius of the player pokes past it, as in the Haxe.
+// radius of the player pokes past it.
 const EDGE = 10;
 
 const PR = 16;
@@ -184,8 +184,7 @@ class Hook extends ent.Entity {
     this.action = IDLE;
     this.target = null;
     // A hit shape does not turn with `angle`, so the circle sits on the
-    // entity's origin and draw() puts the claw there. The Haxe's box was five
-    // further out.
+    // entity's origin and draw() puts the claw there.
     this.hitCircle(CLAW);
     this.draw();
   }
@@ -421,7 +420,7 @@ class Ghost extends ent.Entity {
 }
 
 /*
- * The Haxe's EndGame: a black 20x20 square on the spot where you died, whose
+ * EndGame: a black 20x20 square on the spot where you died, whose
  * four corners then fly to the four corners of the board. One corner at a time,
  * in this order, and each waits for the one before it: all four at once would
  * expand the square, where one at a time drags the black out of the body.
@@ -536,7 +535,7 @@ export function init() {
   // One per corner; the one wearing the floor's colour leaves on frame one.
   // They hold fire for as long as the hint stands when that beats the usual
   // grace: at 1.5/speed yellow's first shot lands 2.9 seconds in, before the
-  // hint has faded, and the Haxe had a title card where this port has none.
+  // hint has faded, and there is no title card to read the rules off.
   // hint() is 0 from the first input, so the grace ends when the reading does.
   const corners = [
     [YELLOW, EDGE, EDGE],
@@ -550,10 +549,4 @@ export function init() {
   }
 }
 
-export function update(dt) {
-  ent.update(dt);
-}
-
-export function render(ctx) {
-  ent.render(ctx);
-}
+export { render, update } from "./lib/entity.js";
