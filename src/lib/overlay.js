@@ -20,7 +20,8 @@
  */
 
 import { ease, utils } from "../alma/src/index.js";
-import { meta, mouse, op, score, SIZE } from "./state.js";
+import { mouse } from "./input.js";
+import { meta, op, score, SIZE } from "./one.js";
 
 const MARGIN = 26;
 const RADIUS = 12;

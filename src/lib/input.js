@@ -3,19 +3,63 @@
  * click edges, swipe) and `key` (the held state ported ugl games want).
  * poll() runs before the game's update and flush() after the frame, because
  * alma's Input keeps an edge alive for exactly one update() call.
+ *
+ * It owns `mouse` and `key` rather than one.js, so nothing here imports the
+ * rest of the shell and the one.js <-> input.js cycle never exists.
  */
 
 import { Input } from "../alma/src/index.js";
-import { DOWN, key, LEFT, mouse, op, RIGHT, UP } from "./state.js";
+
+export const UP = 1;
+export const RIGHT = 2;
+export const DOWN = 3;
+export const LEFT = 4;
+
+// In 1024-space, rewritten once a frame by poll().
+export const mouse = {
+  x: 0,
+  y: 0,
+  // Went down this frame.
+  click: false,
+  // Is down.
+  press: false,
+  // Went up this frame.
+  release: false,
+  // One of UP/RIGHT/DOWN/LEFT this frame, or 0.
+  swipe: 0,
+};
+
+// ugl's Game.key: held now, plus what went down this frame. b1 doubles as the
+// pointer, so every game plays with a mouse or a finger alone.
+export const key = {
+  up: false,
+  right: false,
+  down: false,
+  left: false,
+  b1: false,
+  b2: false,
+  just: {
+    up: false,
+    right: false,
+    down: false,
+    left: false,
+    b1: false,
+    b2: false,
+  },
+};
 
 const DIRS = [["up", UP], ["right", RIGHT], ["down", DOWN], ["left", LEFT]];
 const KEYS = ["up", "right", "down", "left", "b1", "b2"];
 
 let input = null;
+// alma's Screen, for toLogical(). Held here so input.js imports nothing from
+// the rest of the shell.
+let screen = null;
 
-export function init(target) {
+export function init(scr) {
+  screen = scr;
   input = new Input();
-  input.init(target);
+  input.init(screen.canvas);
 
   input.bind("click", "click", "space", "enter", "pad:a");
   input.bind("up", "arrowup", "w", "pad:up", "pad:lsup", "swipe:up");
@@ -38,7 +82,7 @@ export function init(target) {
 }
 
 export function poll() {
-  const p = op.screen.toLogical(input.pointer.x, input.pointer.y);
+  const p = screen.toLogical(input.pointer.x, input.pointer.y);
   mouse.x = p.x;
   mouse.y = p.y;
 
@@ -64,4 +108,5 @@ export function flush() {
 export function destroy() {
   input?.destroy();
   input = null;
+  screen = null;
 }

@@ -45,7 +45,8 @@
  */
 
 import { Art, glyphs } from "./art.js";
-import { key, mouse, SIZE } from "./state.js";
+import { key, mouse } from "./input.js";
+import { SIZE } from "./one.js";
 
 export const game = {
   time: 0,

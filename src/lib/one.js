@@ -11,25 +11,57 @@
  * when it ends, and the overlay does the rest, including the next round. The
  * chrome is floating panels over the board, never a strip the game has to
  * render around.
+ *
+ * It also holds the shell's shared state: meta, score, act and op. overlay.js
+ * reads them back out of here, and camera.js and sound.js write op.camera and
+ * op.sound. input.js owns mouse and key instead, since it is what writes them.
  */
 
-import { registerPlus2d, Screen } from "../alma/src/index.js";
+import { Act, registerPlus2d, Screen } from "../alma/src/index.js";
 import * as input from "./input.js";
+import { DOWN, key, LEFT, mouse, RIGHT, UP } from "./input.js";
 import * as overlay from "./overlay.js";
-import {
-  act,
-  DOWN,
-  LEFT,
-  meta,
-  mouse,
-  op,
-  RIGHT,
-  score,
-  SIZE,
-  UP,
-} from "./state.js";
 
-export { act, DOWN, LEFT, meta, mouse, RIGHT, score, SIZE, UP };
+export { DOWN, key, LEFT, mouse, RIGHT, UP };
+
+// Every game draws into this box, whatever the canvas ends up being.
+export const SIZE = 1024;
+
+// Filled in from the game module's `meta` export by run().
+export const meta = {
+  title: "untitled",
+  desc: "",
+  bg: "#f2f0e5",
+  fg: "#212123",
+  // true: a high score is the good one. false: a low one is.
+  scoreMax: true,
+  // Shown in the gallery, newest first. "YYYY-MM-DD".
+  date: null,
+};
+
+export const act = new Act();
+
+export const score = {
+  value: 0,
+  best: null,
+};
+
+/*
+ * The running round, which overlay.js reads and camera.js and sound.js write
+ * themselves into. It is a mutable object rather than exported `let`s because
+ * overlay.js imports it back out of one.js: the two are a cycle, so a binding
+ * read at module scope would still be in its dead zone. Nothing outside a
+ * function body touches it.
+ */
+export const op = {
+  game: null,
+  screen: null,
+  playing: false,
+  topmsg: null,
+  // Null keeps fsfx, alma's Audio and Camera2D out of the bundle.
+  sound: null,
+  camera: null,
+};
 
 let ctx = null;
 
@@ -46,7 +78,7 @@ export function run(game, { target = null } = {}) {
   document.title = meta.title;
   document.body.style.backgroundColor = meta.bg;
 
-  input.init(screen.canvas);
+  input.init(screen);
   // Only there if the game imported lib/sound.js.
   op.sound?.arm(document);
   overlay.init();

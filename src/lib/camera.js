@@ -5,7 +5,7 @@
  */
 
 import { Camera2D } from "../alma/src/camera.js";
-import { op, SIZE } from "./state.js";
+import { op, SIZE } from "./one.js";
 
 export const camera = new Camera2D({
   width: SIZE,
