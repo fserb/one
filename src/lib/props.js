@@ -2,11 +2,9 @@
  * props.js - the props that come with the model: a label, a burst of
  * particles, and two clocks.
  *
- * Each is one expression. Text and Particle take an options object, and an
- * unknown key throws rather than doing nothing: a misspelt option is otherwise
- * a silent no-op. Every Particle field takes either a number or a
- * [base, spread] pair, and begin() rolls one value out of the pair per
- * particle.
+ * Each is one expression. Text and Particle take an options object over the
+ * defaults. Every Particle field takes either a number or a [base, spread]
+ * pair, and begin() rolls one value out of the pair per particle.
  *
  * ```js
  * new ent.Text({ text: `+${n}`, x, y, size: 2, vel: [0, -20], duration: 1 });
@@ -18,14 +16,6 @@
 
 import { css, glyphs } from "./art.js";
 import { Entity, game } from "./core.js";
-
-// Defaults, and the list of keys there are. A key outside it is a typo.
-function fill(defs, opts) {
-  for (const k of Object.keys(opts)) {
-    if (!(k in defs)) throw new Error(`no such option: ${k}`);
-  }
-  return { ...defs, ...opts };
-}
 
 // Where align() puts the label's box against its position: the fraction of the
 // box that sits before the point. Worked out once, so nothing re-decides the
@@ -46,7 +36,7 @@ export class Text extends Entity {
 
   constructor(opts = {}) {
     super();
-    const o = fill({
+    const o = {
       text: "",
       x: 0,
       y: 0,
@@ -55,7 +45,8 @@ export class Text extends Entity {
       align: "center middle",
       vel: [0, 0],
       duration: null,
-    }, opts);
+      ...opts,
+    };
 
     this.pos.x = o.x;
     this.pos.y = o.y;
@@ -110,7 +101,7 @@ function roll(v) {
 export class Particle extends Entity {
   constructor(opts = {}) {
     super();
-    const o = this.opts = fill({
+    const o = this.opts = {
       x: null,
       y: null,
       color: 0xffffff,
@@ -122,7 +113,8 @@ export class Particle extends Entity {
       spread: 0,
       duration: [1, 0.2],
       circle: false,
-    }, opts);
+      ...opts,
+    };
 
     this.pos.x = o.x ?? game.size / 2;
     this.pos.y = o.y ?? game.size / 2;
