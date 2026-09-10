@@ -6,7 +6,7 @@
  * builds. Based on Isola.
  */
 
-import { ease, extra, vec } from "./alma/src/index.js";
+import { ease, extra, HexGrid, vec } from "./alma/src/index.js";
 import { camera } from "./lib/camera.js";
 import { act, gameOver, mouse, msg, score, SIZE } from "./lib/one.js";
 import {
@@ -122,7 +122,7 @@ const PROG = [
   5,
 ];
 
-let map;
+let grid;
 let alien;
 let level;
 let time;
@@ -138,22 +138,22 @@ export function init() {
   headstart = 0;
   time = 0;
 
-  map = {};
+  grid = new HexGrid(true, HEX);
   for (let c = 0; c < WIDTH; ++c) {
-    map[c] = {};
-    for (let r = 0; r < HEIGHT; ++r) {
-      if ((c + r) % 2 === 1) continue;
-      map[c][r] = { c, r, v: true, s: 1, border: false, astar: -1, rstar: -1 };
+    for (let r = c % 2; r < HEIGHT; r += 2) {
+      const pos = grid.fromDoubled(c, r);
+      grid.set(pos, { pos, v: true, s: 1, border: false, astar: -1, rstar: -1 });
     }
   }
   // A hex with fewer than six neighbours is on the rim: that is the way out.
   for (const v of all()) v.border = connections(v) !== 6;
 
+  const start = grid.fromDoubled(4, 8);
+  const p = grid.toPixel(start);
   alien = {
-    c: 4,
-    r: 8,
-    anim: { c: 4, r: 8 },
-    legs: [{ c: 4, r: 8 }, { c: 4, r: 8 }],
+    pos: start,
+    anim: { ...p },
+    legs: [{ ...p }, { ...p }],
     s: 1,
     eye: { x: 0, y: 0 },
     blink: 0,
@@ -216,11 +216,13 @@ function build(number) {
   }
 
   const v = avail[Math.floor(Math.random() * avail.length)];
-  alien.c = alien.anim.c = v.c;
-  alien.r = alien.anim.r = v.r;
+  const p = grid.toPixel(v.pos);
+  alien.pos = v.pos;
+  alien.anim.x = p.x;
+  alien.anim.y = p.y;
   for (const l of alien.legs) {
-    l.c = v.c;
-    l.r = v.r;
+    l.x = p.x;
+    l.y = p.y;
   }
 
   buildAStar();
@@ -296,7 +298,10 @@ async function cleanupLoose(audible = true) {
 // THE EYE ///
 
 // Legs first, then the head catches up and overshoots, then the trailing leg.
-function actAlien(target) {
+// In pixels, not hex coordinates: the two are a linear map apart, so the tween
+// comes out the same either way, and escapeAlien can aim at a point off the
+// board.
+function actAlien(to) {
   alien.looking = 10;
   sound.play("move");
 
@@ -304,28 +309,23 @@ function actAlien(target) {
     .attr("x", 0, 0.5 + 0.3 * Math.random(), ease.quadIn)
     .attr("y", 0, 0.5 + 0.3 * Math.random(), ease.quadIn);
 
-  // Only animated: there is no hex to land on.
-  if (!target.final) {
-    alien.c = target.c;
-    alien.r = target.r;
-  }
-
   const r = () => 0.3 * Math.random();
   return act(alien)
-    .attr("legs.0.c", target.c, 0.3 + r(), ease.quadIn)
-    .attr("legs.0.r", target.r, 0.3 + r(), ease.quadIn)
+    .attr("legs.0.x", to.x, 0.3 + r(), ease.quadIn)
+    .attr("legs.0.y", to.y, 0.3 + r(), ease.quadIn)
     .then()
-    .attr("anim.c", target.c, 0.5 + r(), ease.backOut(2 + 5 * r()))
-    .attr("anim.r", target.r, 0.5 + r(), ease.backOut(2 + 5 * r()))
-    .attr("legs.1.c", target.c, 0.3 + r(), ease.quadOut, 0.3)
-    .attr("legs.1.r", target.r, 0.3 + r(), ease.quadOut, 0.3);
+    .attr("anim.x", to.x, 0.5 + r(), ease.backOut(2 + 5 * r()))
+    .attr("anim.y", to.y, 0.5 + r(), ease.backOut(2 + 5 * r()))
+    .attr("legs.1.x", to.x, 0.3 + r(), ease.quadOut, 0.3)
+    .attr("legs.1.y", to.y, 0.3 + r(), ease.quadOut, 0.3);
 }
 
 function decideAlien() {
-  if (get(alien).astar === -1) return null;
+  const here = grid.get(alien.pos);
+  if (here.astar === -1) return null;
 
   let best = [];
-  for (const n of neighbors(get(alien))) {
+  for (const n of neighbors(here)) {
     if (best.length === 0 || best[0].astar > n.astar) {
       best = [n];
       continue;
@@ -333,8 +333,7 @@ function decideAlien() {
     if (best[0].astar === n.astar) best.push(n);
   }
 
-  const pick = best[Math.floor(Math.random() * best.length)];
-  return { c: pick.c, r: pick.r };
+  return best[Math.floor(Math.random() * best.length)];
 }
 
 function moveAlien() {
@@ -343,29 +342,27 @@ function moveAlien() {
     finishGame();
     return;
   }
-  return actAlien(dec).then(escapeAlien);
+  alien.pos = dec.pos;
+  return actAlien(grid.toPixel(dec.pos)).then(escapeAlien);
 }
 
+// The eye leaves by the side of the board it is standing on, walking to a
+// point outside the camera. alien.pos stays on the hex it left, since there is
+// no hex to land on.
 function escapeAlien() {
-  const v = get(alien);
+  const v = grid.get(alien.pos);
   if (!v.border) return;
   pending = 100;
 
-  const target = posHex(v);
+  const target = grid.toPixel(v.pos);
+  const { x: c, y: r } = grid.toDoubled(v.pos);
   const b = 1.1 * HEX;
   const near = camera.toWorld(-b, -b);
   const far = camera.toWorld(SIZE + b, SIZE + b);
-  if (v.c === 0) target.x = near.x;
-  else if (v.c === WIDTH - 1) target.x = far.x;
-  else if (v.r <= 1) target.y = near.y;
-  else if (v.r >= HEIGHT - 2) target.y = far.y;
-
-  // Back into fractional hex coordinates, so it can be tweened to.
-  const q = 2 / 3 * target.x / HEX;
-  const r = (-1 / 3 * target.x + SQRT3 / 3 * target.y) / HEX;
-  target.c = q;
-  target.r = 2 * r + q;
-  target.final = true;
+  if (c === 0) target.x = near.x;
+  else if (c === WIDTH - 1) target.x = far.x;
+  else if (r <= 1) target.y = near.y;
+  else if (r >= HEIGHT - 2) target.y = far.y;
 
   return actAlien(target).delay(0.5).then(() => {
     if (locked) return;
@@ -385,7 +382,7 @@ function blinkAlien() {
 function recenter() {
   const rect = { minx: SIZE, miny: SIZE, maxx: 0, maxy: 0 };
   for (const v of all()) {
-    const { x, y } = posHex(v);
+    const { x, y } = grid.toPixel(v.pos);
     rect.minx = Math.min(rect.minx, x - HEX);
     rect.maxx = Math.max(rect.maxx, x + HEX);
     rect.miny = Math.min(rect.miny, y - SQRT3 * HEX / 2);
@@ -424,7 +421,7 @@ function updateNext() {
   recenter();
   act(camera).delay(1).then(() => recenter());
 
-  if (headstart === 0 || get(alien).astar === -1) moveAlien();
+  if (headstart === 0 || grid.get(alien.pos).astar === -1) moveAlien();
   pending--;
 }
 
@@ -451,9 +448,9 @@ export function update(dt) {
   if (pending > 2) return;
   if (!mouse.click) return;
 
-  const v = get(mouseHex());
-  if (!v || !v.v) return;
-  if (v.c === alien.c && v.r === alien.r) return;
+  const v = grid.get(grid.fromPixel(camera.toWorld(mouse.x, mouse.y)));
+  if (!v?.v) return;
+  if (v === grid.get(alien.pos)) return;
 
   v.v = false;
   sound.play("drop");
@@ -484,7 +481,7 @@ export function render(ctx) {
     renderHex(ctx, v, HEX * v.s);
   }
 
-  renderAlien(ctx, posHex(alien.anim), alien.legs.map(posHex));
+  renderAlien(ctx, alien.anim, alien.legs);
   ctx.restore();
 }
 
@@ -572,31 +569,14 @@ function renderAlien(ctx, head, legs) {
 // HEX GRID ///
 
 function* all(invalid = false) {
-  for (let c = 0; c < WIDTH; ++c) {
-    for (let r = 0; r < HEIGHT; ++r) {
-      const v = get({ c, r });
-      if (!v) continue;
-      if (invalid || v.v) yield v;
-    }
+  for (const v of grid.values()) {
+    if (invalid || v.v) yield v;
   }
 }
 
-function get(p) {
-  return map[p.c]?.[p.r] ?? null;
-}
-
-const NEIGHBOURS = [
-  [+1, +1],
-  [+1, -1],
-  [0, -2],
-  [-1, -1],
-  [-1, +1],
-  [0, +2],
-];
-
 function* neighbors(p) {
-  for (const [dc, dr] of NEIGHBOURS) {
-    const v = get({ c: p.c + dc, r: p.r + dr });
+  for (const n of grid.neighbors(p.pos)) {
+    const v = grid.get(n);
     if (v?.v) yield v;
   }
 }
@@ -605,10 +585,6 @@ function connections(p) {
   let n = 0;
   for (const _ of neighbors(p)) n++;
   return n;
-}
-
-function posHex(p) {
-  return { x: HEX * 3 / 2 * p.c, y: HEX * H2 * p.r };
 }
 
 // A unit hexagon, scaled at draw time. Built on first use, not at module
@@ -629,7 +605,7 @@ function unitHex() {
 
 function renderHex(ctx, p, size, delta = 0) {
   hexPath ??= unitHex();
-  const { x, y } = posHex(p);
+  const { x, y } = grid.toPixel(p.pos);
   ctx.save();
   ctx.translate(x + delta, y + delta);
   ctx.scale(size, size);
@@ -640,28 +616,6 @@ function renderHex(ctx, p, size, delta = 0) {
   ctx.stroke(hexPath);
   ctx.lineWidth = w;
   ctx.restore();
-}
-
-// Pointer to hex: into cube coordinates, round all three, then fix whichever
-// moved furthest so they sum to zero.
-function mouseHex() {
-  const m = camera.toWorld(mouse.x, mouse.y);
-  const q = 2 / 3 * m.x / HEX;
-  const r = (-1 / 3 * m.x + SQRT3 / 3 * m.y) / HEX;
-
-  let rx = Math.round(q);
-  let ry = Math.round(-q - r);
-  let rz = Math.round(r);
-
-  const dx = Math.abs(rx - q);
-  const dy = Math.abs(ry + q + r);
-  const dz = Math.abs(rz - r);
-
-  if (dx > dy && dx > dz) rx = -ry - rz;
-  else if (dy > dz) ry = -rx - rz;
-  else rz = -rx - ry;
-
-  return { c: rx, r: 2 * rz + rx };
 }
 
 // Breadth-first from `beach`, writing the step count into v[name].
@@ -695,6 +649,6 @@ function buildAStar() {
   }
   astarPropagate(beach, "astar");
 
-  const here = get(alien);
+  const here = grid.get(alien.pos);
   if (here) astarPropagate([here], "rstar");
 }
