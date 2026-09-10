@@ -214,14 +214,20 @@ class Bar extends ent.Entity {
       .fill(DEEP).rect(-EW / 2, y, EW, EH)
       .fill(ORANGE).rect(-EW / 2, y, EW * left, EH);
 
-    if (buffer < 1 || this.ticks < POP) return;
+    if (buffer < 1 || this.age < POP) return;
     const n = Math.floor(buffer);
     buffer -= n;
     score.value += n;
-    this.ticks = 0;
-    new ent.Text().text(`+${n}`).size(2).color(ORANGE)
-      .xy(W / 2 + EW / 2 - 15, BOT - 10)
-      .move(0, -40).duration(0.3);
+    this.age = 0;
+    new ent.Text({
+      text: `+${n}`,
+      x: W / 2 + EW / 2 - 15,
+      y: BOT - 10,
+      size: 2,
+      color: ORANGE,
+      vel: [0, -40],
+      duration: 0.3,
+    });
   }
 }
 
@@ -256,8 +262,15 @@ class Player extends ent.Entity {
     this.bullet?.remove();
     this.remove();
     sound.play("dead");
-    new ent.Particle().xy(this.pos.x, this.pos.y).color(WHITE)
-      .count(80).size(6).speed(20, 50).duration(1.5);
+    new ent.Particle({
+      x: this.pos.x,
+      y: this.pos.y,
+      color: WHITE,
+      count: 80,
+      size: 6,
+      speed: [20, 50],
+      duration: 1.5,
+    });
     ent.shake(1);
     dying = DEATH;
   }
@@ -298,8 +311,15 @@ class Bullet extends ent.Entity {
   explode(hit) {
     player.combo = hit ? player.combo + 1 : 0;
     if (player.combo > 1) {
-      new ent.Text().text(`x${player.combo}`).size(2).color(EMBER)
-        .xy(this.pos.x, this.pos.y).move(0, -50).duration(0.5);
+      new ent.Text({
+        text: `x${player.combo}`,
+        x: this.pos.x,
+        y: this.pos.y,
+        size: 2,
+        color: EMBER,
+        vel: [0, -50],
+        duration: 0.5,
+      });
     }
     player.bullet = null;
     this.remove();
@@ -323,10 +343,7 @@ class EnemyBullet extends ent.Entity {
       // Shot down: white, held, and harmless on the way.
       this.clearHits();
       this.art.clear().size(2).color(WHITE).rect(0, 0, 2, 6);
-      new ent.Timer().delay(WHITEOUT).run(() => {
-        this.remove();
-        return false;
-      });
+      ent.after(WHITEOUT, () => this.remove());
       return;
     }
 
@@ -350,7 +367,7 @@ class Light extends ent.Entity {
   }
 
   update() {
-    if (this.ticks >= LIGHT) this.remove();
+    if (this.age >= LIGHT) this.remove();
   }
 }
 
@@ -402,12 +419,19 @@ class Enemy extends ent.Entity {
     ent.delay(0.01);
     player.bullet.explode(true);
     addScore((waves + 1) * player.combo);
-    new ent.Timer().delay(WHITEOUT).run(() => {
+    ent.after(WHITEOUT, () => {
       this.remove();
       this.wave.drop(this);
-      new ent.Particle().xy(this.pos.x, this.pos.y).color(WHITE)
-        .count(this.sprite.dots).size(6).speed(20, 50).spread(5).duration(0.5);
-      return false;
+      new ent.Particle({
+        x: this.pos.x,
+        y: this.pos.y,
+        color: WHITE,
+        count: this.sprite.dots,
+        size: 6,
+        speed: [20, 50],
+        spread: 5,
+        duration: 0.5,
+      });
     });
   }
 }
@@ -469,7 +493,7 @@ class Wave extends ent.Entity {
     const { time } = ent.game;
     const { across } = this.strat.spawn;
     const { xmove, ymove, shooting } = this.strat;
-    const steps = 10 + this.ticker(this.ticks);
+    const steps = 10 + this.ticker(this.age);
 
     // One bullet at a time from the whole wave. Reservoir sampling: each of the
     // n on screen gets the same 1/n chance without counting them first.
@@ -479,7 +503,7 @@ class Wave extends ent.Entity {
 
     for (const e of this.all) {
       for (let s = 0; s < steps; ++s) {
-        const t = this.ticks + s * time / 10;
+        const t = this.age + s * time / 10;
         e.pos.x += xmove(e.row, t) * time / 10;
         e.pos.y += ymove(t) * time / 10;
       }
@@ -495,7 +519,7 @@ class Wave extends ent.Entity {
       if (shooter === null || Math.random() < 1 / seen) shooter = e;
     }
 
-    this.ticks += this.ticker(this.ticks) * time / 10;
+    this.age += this.ticker(this.age) * time / 10;
     shooter?.shoot();
 
     if (this.all.length > 0) return;
@@ -531,7 +555,7 @@ function nextLevel() {
   wave = null;
 
   let beat = 0;
-  new ent.Timer().run(() => {
+  ent.every(0, () => {
     const was = energy;
     energy = Math.max(1, energy - ent.game.time * 100 / DUMP);
     addScore(waves * 2 * (was - energy));
@@ -553,33 +577,18 @@ function beginLevel() {
   sound.play("begin");
   msg(`WAVE ${waves + 1}`);
 
-  new ent.Timer()
-    .run(() => {
-      energy = Math.min(100, energy + ent.game.time * 100 / FILL);
-      return energy < 100;
-    })
-    .run(() => {
-      wave = new Wave();
-      return false;
-    });
+  ent.every(0, () => {
+    energy = Math.min(100, energy + ent.game.time * 100 / FILL);
+    if (energy < 100) return true;
+    wave = new Wave();
+    return false;
+  });
 }
 
 export function init() {
-  ent.reset();
-  ent.world(W);
   // Update order as much as draw order: ship moves its bullet, wave moves the
   // formation, then an enemy asks what it is touching.
-  ent.order([
-    Player,
-    Wave,
-    Enemy,
-    EnemyBullet,
-    Bullet,
-    Light,
-    ent.Particle,
-    Bar,
-    ent.Text,
-  ]);
+  ent.reset([Player, Wave, Enemy, EnemyBullet, Bullet, Light, ent.Particle, Bar]);
 
   energy = 0;
   wave = null;

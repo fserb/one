@@ -1,181 +1,149 @@
 /*
- * props.js - the three entities that come with the model.
+ * props.js - the props that come with the model: a label, a burst of
+ * particles, and two clocks.
  *
- * A label, a burst of particles and a clock. No port subclasses them: a game
- * builds one and chains setters onto it, and the entity removes itself when it
- * is spent.
+ * Each is one expression. Text and Particle take an options object, and an
+ * unknown key throws rather than doing nothing: a misspelt option is otherwise
+ * a silent no-op. Every Particle field takes either a number or a
+ * [base, spread] pair, and begin() rolls one value out of the pair per
+ * particle.
  *
  * ```js
- * new ent.Text().text(`+${n}`).xy(x, y).size(2).move(0, -20).duration(1);
- * new ent.Particle().xy(x, y).count(20).speed(50, 20).circle();
- * new ent.Timer().every(1.5).run(() => { new Enemy(); return true; });
+ * new ent.Text({ text: `+${n}`, x, y, size: 2, vel: [0, -20], duration: 1 });
+ * new ent.Particle({ x, y, count: 20, speed: [50, 20], circle: true });
+ * ent.every(1.5, () => { new Enemy(); });
+ * ent.after(0.75, () => gameOver({ score: true }));
  * ```
  */
 
 import { css, glyphs } from "./art.js";
 import { Entity, game } from "./core.js";
 
+// Defaults, and the list of keys there are. A key outside it is a typo.
+function fill(defs, opts) {
+  for (const k of Object.keys(opts)) {
+    if (!(k in defs)) throw new Error(`no such option: ${k}`);
+  }
+  return { ...defs, ...opts };
+}
+
 // Where align() puts the label's box against its position: the fraction of the
-// box that sits before the point. Held as the number render() multiplies by,
-// not as the word, so nothing re-decides the anchor every frame.
+// box that sits before the point. Worked out once, so nothing re-decides the
+// anchor every frame.
 const ALIGN = { left: 0, center: 0.5, right: 1 };
 const VALIGN = { top: 0, middle: 0.5, bottom: 1 };
 
-// A label, centred on its position until align() says otherwise. Lives until
-// removed, or duration() seconds if one is set.
+/*
+ * A label, centred on its position until `align` says otherwise. Lives until
+ * removed, or `duration` seconds if one is set. `vel` is what lets a score
+ * label drift off the thing that scored it.
+ *
+ * align: "left"|"center"|"right" and "top"|"middle"|"bottom", in either order,
+ * space separated. A word that is neither is ignored.
+ */
 export class Text extends Entity {
   static layer = 1000;
 
-  constructor() {
+  constructor(opts = {}) {
     super();
-    this._text = "";
-    this._size = 1;
-    this._color = 0xffffff;
-    this._ax = 0.5;
-    this._ay = 0.5;
-    this._duration = null;
-  }
+    const o = fill({
+      text: "",
+      x: 0,
+      y: 0,
+      size: 1,
+      color: 0xffffff,
+      align: "center middle",
+      vel: [0, 0],
+      duration: null,
+    }, opts);
 
-  text(s) {
-    this._text = String(s);
-    return this;
-  }
+    this.pos.x = o.x;
+    this.pos.y = o.y;
+    this.vel.x = o.vel[0];
+    this.vel.y = o.vel[1];
+    this.text = String(o.text);
+    this.size = o.size;
+    this.color = o.color;
+    this.duration = o.duration;
 
-  // Velocity, so a score label can drift off the thing that scored it.
-  move(x, y) {
-    this.vel.x = x;
-    this.vel.y = y;
-    return this;
-  }
-
-  // "left"|"center"|"right" and "top"|"middle"|"bottom", in either order,
-  // space separated: align("top left"). A word that is neither is ignored.
-  align(a) {
-    for (const w of a.toLowerCase().split(/[\s_]+/)) {
-      this._ax = ALIGN[w] ?? this._ax;
-      this._ay = VALIGN[w] ?? this._ay;
+    this.ax = 0.5;
+    this.ay = 0.5;
+    for (const w of o.align.toLowerCase().split(/[\s_]+/)) {
+      this.ax = ALIGN[w] ?? this.ax;
+      this.ay = VALIGN[w] ?? this.ay;
     }
-    return this;
-  }
-
-  size(s) {
-    this._size = s;
-    return this;
-  }
-
-  color(c) {
-    this._color = c;
-    return this;
-  }
-
-  duration(v) {
-    this._duration = v;
-    return this;
   }
 
   update() {
-    if (this._duration === null) return;
-    this._duration -= game.time;
-    if (this._duration <= 0) this.remove();
+    if (this.duration === null) return;
+    this.duration -= game.time;
+    if (this.duration <= 0) this.remove();
   }
 
   render(ctx) {
-    if (this._text.length === 0) return;
-    const g = glyphs(this._text);
-    const s = this._size;
-    const x = -g.width * s * this._ax;
-    const y = -g.height * s * this._ay;
+    if (this.text.length === 0) return;
+    const g = glyphs(this.text);
+    const s = this.size;
+    const x = -g.width * s * this.ax;
+    const y = -g.height * s * this.ay;
 
-    ctx.fillStyle = css(this._color);
+    ctx.fillStyle = css(this.color);
     for (let i = 0; i < g.dots.length; i += 2) {
       ctx.fillRect(x + g.dots[i] * s, y + g.dots[i + 1] * s, s, s);
     }
   }
 }
 
-// A one-shot burst. Every setter takes a base and a spread, and begin() rolls
-// one value per particle out of the pair. The step scales velocity by the
-// fraction of life left, so particles decelerate as they age, and fade with
-// the same number.
+// A number, or a [base, spread] pair to roll one out of.
+function roll(v) {
+  return Array.isArray(v) ? v[0] + v[1] * Math.random() : v;
+}
+
+/*
+ * A one-shot burst, centred on the board unless it is given a position. The
+ * step scales velocity by the fraction of life left, so particles decelerate
+ * as they age, and fade with the same number.
+ *
+ * `spread` is how far out each particle starts along its own heading, which is
+ * what makes a ring hollow. `circle` draws discs instead of squares.
+ */
 export class Particle extends Entity {
-  constructor() {
+  constructor(opts = {}) {
     super();
-    this.pos.x = game.width / 2;
-    this.pos.y = game.height / 2;
-    this._color = 0xffffff;
-    this._size = [1, 0];
-    this._count = [100, 0];
-    this._speed = [50, 0];
-    this._angle = [0, 2 * Math.PI];
-    this._delay = [0, 0];
-    this._spread = [0, 0];
-    this._duration = [1, 0.2];
-    this._square = true;
-    // begin() fills these in, one frame after the setters have run.
+    const o = this.opts = fill({
+      x: null,
+      y: null,
+      color: 0xffffff,
+      count: 100,
+      size: 1,
+      speed: 50,
+      direction: [0, 2 * Math.PI],
+      delay: 0,
+      spread: 0,
+      duration: [1, 0.2],
+      circle: false,
+    }, opts);
+
+    this.pos.x = o.x ?? game.size / 2;
+    this.pos.y = o.y ?? game.size / 2;
+    // begin() fills these in, one frame after the constructor has run.
     this.parts = [];
   }
 
-  color(c) {
-    this._color = c;
-    return this;
-  }
-
-  count(v, r = 0) {
-    this._count = [v, r];
-    return this;
-  }
-
-  size(v, r = 0) {
-    this._size = [v, r];
-    return this;
-  }
-
-  speed(v, r = 0) {
-    this._speed = [v, r];
-    return this;
-  }
-
-  direction(v, r = 0) {
-    this._angle = [v, r];
-    return this;
-  }
-
-  delay(v, r = 0) {
-    this._delay = [v, r];
-    return this;
-  }
-
-  duration(v, r = 0) {
-    this._duration = [v, r];
-    return this;
-  }
-
-  // How far out each particle starts along its own heading, so a ring is
-  // hollow.
-  spread(v, r = 0) {
-    this._spread = [v, r];
-    return this;
-  }
-
-  circle() {
-    this._square = false;
-    return this;
-  }
-
   begin() {
-    const val = ([m, d]) => (d === 0 ? m : m + d * Math.random());
-    for (let i = 0, n = Math.round(val(this._count)); i < n; ++i) {
-      const a = val(this._angle);
-      const speed = val(this._speed);
-      const spread = val(this._spread);
+    const o = this.opts;
+    for (let i = 0, n = Math.round(roll(o.count)); i < n; ++i) {
+      const a = roll(o.direction);
+      const speed = roll(o.speed);
+      const spread = roll(o.spread);
       this.parts.push({
         x: this.pos.x + Math.cos(a) * spread,
         y: this.pos.y + Math.sin(a) * spread,
         vx: Math.cos(a) * speed,
         vy: Math.sin(a) * speed,
-        size: val(this._size),
-        delay: val(this._delay),
-        time: val(this._duration),
+        size: roll(o.size),
+        delay: roll(o.delay),
+        time: roll(o.duration),
         alpha: 1,
         done: false,
       });
@@ -184,8 +152,8 @@ export class Particle extends Entity {
 
   update() {
     for (const p of this.parts) {
-      if (this.ticks < p.delay) continue;
-      const t = 1 - (this.ticks - p.delay) / p.time;
+      if (this.age < p.delay) continue;
+      const t = 1 - (this.age - p.delay) / p.time;
       if (t < 0) {
         p.done = true;
         continue;
@@ -202,16 +170,16 @@ export class Particle extends Entity {
   // Particles carry world positions, so undo the entity translate.
   render(ctx) {
     ctx.translate(-this.pos.x, -this.pos.y);
-    ctx.fillStyle = css(this._color);
+    ctx.fillStyle = css(this.opts.color);
     for (const p of this.parts) {
-      if (this.ticks < p.delay) continue;
+      if (this.age < p.delay) continue;
       ctx.globalAlpha = p.alpha;
-      if (this._square) {
-        ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
-      } else {
+      if (this.opts.circle) {
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.size, 0, 2 * Math.PI);
         ctx.fill();
+      } else {
+        ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
       }
     }
     ctx.globalAlpha = 1;
@@ -219,52 +187,35 @@ export class Particle extends Entity {
 }
 
 /*
- * Callbacks on a clock, in one of two modes, and the timer removes itself once
- * it has no callbacks left.
- *
- * every(t).run(f) repeats f every t seconds, until f returns false.
- *
- * delay(t).run(f).run(g) is a queue: f fires t seconds in, g t seconds after
- * that, each one once, and what they return is not read.
+ * A callback on a clock. It is an entity like anything else, so reset() clears
+ * it and delay()'s hitstop holds it.
  */
-export class Timer extends Entity {
-  constructor() {
+class Clock extends Entity {
+  constructor(t, fn, repeat) {
     super();
-    this._every = 0;
-    this._delay = 0;
-    this.fns = [];
-  }
-
-  every(v) {
-    this._every = v;
-    return this;
-  }
-
-  delay(v) {
-    this._delay = v;
-    return this;
-  }
-
-  run(f) {
-    this.fns.push(f);
-    return this;
+    this.t = t;
+    this.fn = fn;
+    this.repeat = repeat;
   }
 
   update() {
-    if (this._delay > 0) this._queue();
-    else this._repeat();
-    if (this.fns.length === 0) this.remove();
+    if (this.age < this.t) return;
+    if (!this.repeat) {
+      this.remove();
+      this.fn();
+      return;
+    }
+    this.age -= this.t;
+    if (this.fn() === false) this.remove();
   }
+}
 
-  _queue() {
-    if (this.ticks < this._delay) return;
-    this.ticks = 0;
-    this.fns.shift()();
-  }
+// Once, t seconds from now.
+export function after(t, fn) {
+  return new Clock(t, fn, false);
+}
 
-  _repeat() {
-    if (this.ticks < this._every) return;
-    this.ticks -= this._every;
-    if (!this.fns[0]()) this.fns.shift();
-  }
+// Every t seconds until fn returns false, and at t 0 that is every frame.
+export function every(t, fn) {
+  return new Clock(t, fn, true);
 }

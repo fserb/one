@@ -299,8 +299,15 @@ class Coin extends ent.Entity {
     if (this.hit(player)) {
       score.value += this.value;
       sound.play("coin");
-      new ent.Text().text(`$${this.value}`).size(2).color(YELLOW)
-        .xy(this.pos.x, this.pos.y).move(0, -20).duration(1);
+      new ent.Text({
+        text: `$${this.value}`,
+        x: this.pos.x,
+        y: this.pos.y,
+        size: 2,
+        color: YELLOW,
+        vel: [0, -20],
+        duration: 1,
+      });
       this.remove();
       return;
     }
@@ -322,8 +329,15 @@ class Tomato extends ent.Entity {
     if (dying > 0) return;
 
     if (this.hit(player)) {
-      new ent.Particle().color(RED).xy(this.pos.x, this.pos.y)
-        .count(200).size(5, 6).speed(0, 200).duration(0.5, 0.5);
+      new ent.Particle({
+        x: this.pos.x,
+        y: this.pos.y,
+        color: RED,
+        count: 200,
+        size: [5, 6],
+        speed: [0, 200],
+        duration: [0.5, 0.5],
+      });
       this.remove();
       die();
       return;
@@ -408,9 +422,7 @@ function die() {
 
 export function init() {
   hint(meta.desc);
-  ent.reset();
-  ent.world(W);
-  ent.order([Hat, Mark, Coin, Tomato, Note, Player]);
+  ent.reset([Hat, Mark, Coin, Tomato, Note, Player]);
 
   new Hat();
   new Mark();

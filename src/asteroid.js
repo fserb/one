@@ -216,9 +216,15 @@ class Rock extends Target {
       sound.play("rock");
       score.value += 2;
       pop(this.pos, "+2");
-      new ent.Particle().color(BLACK).xy(this.pos.x, this.pos.y)
-        .count(2 * this.size, this.size).size(4, this.size / 2)
-        .speed(0, 100).duration(1.5, 0.5);
+      new ent.Particle({
+        x: this.pos.x,
+        y: this.pos.y,
+        color: BLACK,
+        count: [2 * this.size, this.size],
+        size: [4, this.size / 2],
+        speed: [0, 100],
+        duration: [1.5, 0.5],
+      });
 
       // Sideways to the shot, so a rock opens along the line you fired down.
       if (this.size >= ROCK_MIN) {
@@ -265,7 +271,7 @@ class Enemy extends Target {
       this.target = { x, y };
       return;
     }
-    const w = 1 - Math.min(0.75, this.ticks / 10);
+    const w = 1 - Math.min(0.75, this.age / 10);
     this.target = {
       x: w * x + (1 - w) * p.pos.x,
       y: w * y + (1 - w) * p.pos.y,
@@ -408,17 +414,30 @@ function turnOver() {
 }
 
 function label(y, size, text) {
-  return new ent.Text().text(text).color(WHITE).size(size).xy(W / 2, y);
+  return new ent.Text({ text, x: W / 2, y, size, color: WHITE });
 }
 
 function debris(pos, color, count, life) {
-  new ent.Particle().color(color).xy(pos.x, pos.y)
-    .count(count, 20).size(3, 10).speed(5, 25).duration(life, 0.5);
+  new ent.Particle({
+    x: pos.x,
+    y: pos.y,
+    color,
+    count: [count, 20],
+    size: [3, 10],
+    speed: [5, 25],
+    duration: [life, 0.5],
+  });
 }
 
 function pop(pos, text) {
-  new ent.Text().text(text).color(WHITE)
-    .xy(pos.x, pos.y).move(0, -20).duration(1);
+  new ent.Text({
+    text,
+    x: pos.x,
+    y: pos.y,
+    color: WHITE,
+    vel: [0, -20],
+    duration: 1,
+  });
 }
 
 function split(pos, size, angle) {
@@ -464,9 +483,7 @@ function between(ax, ay, bx, by) {
 }
 
 export function init() {
-  ent.reset();
-  ent.world(W);
-  ent.order([Rock, Enemy, ent.Particle, Player, Bullet, ent.Text]);
+  ent.reset([Rock, Enemy, ent.Particle, Player, Bullet]);
 
   realtime = 0;
   rockTime = ROCK_FIRST;

@@ -111,11 +111,13 @@ class Enemy extends ent.Entity {
 
   cash() {
     if (this.tads <= 0) return;
-    new ent.Text()
-      .text(`+${this.tads}`)
-      .duration(1)
-      .xy(this.pos.x, this.pos.y)
-      .move(0, -20);
+    new ent.Text({
+      text: `+${this.tads}`,
+      x: this.pos.x,
+      y: this.pos.y,
+      vel: [0, -20],
+      duration: 1,
+    });
     score.value += this.tads;
     this.tads = 0;
   }
@@ -144,39 +146,38 @@ class Player extends ent.Entity {
   chit(s) {
     this.size -= s;
     if (this.size > 0) return;
-    new ent.Particle()
-      .color(GOLD)
-      .xy(this.pos.x, this.pos.y)
-      .count(150)
-      .size(5, 9)
-      .delay(0)
-      .duration(5)
-      .speed(Math.hypot(this.vel.x, this.vel.y) / 10, 50);
+    new ent.Particle({
+      x: this.pos.x,
+      y: this.pos.y,
+      color: GOLD,
+      count: 150,
+      size: [5, 9],
+      speed: [Math.hypot(this.vel.x, this.vel.y) / 10, 50],
+      duration: 5,
+    });
     gameOver({ score: true });
   }
 }
 
 function burst(color, pos, speed) {
-  new ent.Particle()
-    .color(color)
-    .xy(pos.x, pos.y)
-    .count(100, 20)
-    .size(7, 5)
-    .delay(0)
-    .duration(0.5)
-    .speed(speed, 100);
+  new ent.Particle({
+    x: pos.x,
+    y: pos.y,
+    color,
+    count: [100, 20],
+    size: [7, 5],
+    speed: [speed, 100],
+    duration: 0.5,
+  });
 }
 
 export function init() {
   hint(meta.desc);
-  ent.reset();
-  ent.world(480);
-  ent.order([Enemy, Player, ent.Particle, ent.Text]);
+  ent.reset([Enemy, Player, ent.Particle]);
 
   new Player();
-  new ent.Timer().every(1.5).run(() => {
+  ent.every(1.5, () => {
     new Enemy();
-    return true;
   });
 }
 

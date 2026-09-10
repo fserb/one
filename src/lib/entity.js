@@ -15,9 +15,12 @@
  *   update() { this.vel.y += 10 * ent.game.time; }
  * }
  *
- * export function init() { ent.reset(); new Enemy(); }
+ * export function init() { ent.reset([Enemy, ent.Particle]); new Enemy(); }
  * export { render, update } from "./lib/entity.js";
  * ```
+ *
+ * reset() takes the draw order, bottom first, and starts the round: it clears
+ * the last one's entities and its clock and sets the 480 box back.
  *
  * update(dt) and render(ctx) here already have one.js's signatures, so a game
  * that adds nothing of its own re-exports them rather than wrapping them.
@@ -25,7 +28,7 @@
  * This file is two `export *` lines. Behind them:
  *
  *   core.js   the groups, the frame, and Entity
- *   props.js  Text, Particle and Timer, the entities that come with the model
+ *   props.js  Text, Particle and the two clocks, the props that come with it
  */
 
 export * from "./core.js";

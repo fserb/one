@@ -296,24 +296,27 @@ class Clock extends ent.Entity {
 }
 
 function pop(text) {
-  new ent.Text()
-    .text(text)
-    .color(INK)
-    .size(3)
-    .duration(0.7)
-    .xy(MID, CLOCK_Y - 8)
-    .move(0, -22);
+  new ent.Text({
+    text,
+    x: MID,
+    y: CLOCK_Y - 8,
+    size: 3,
+    color: INK,
+    vel: [0, -22],
+    duration: 0.7,
+  });
 }
 
 function burst(card) {
-  new ent.Particle()
-    .color(COLORS[(card.code >> 4) & 3])
-    .xy(card.pos.x, card.pos.y)
-    .count(40, 15)
-    .size(4, 3)
-    .delay(0)
-    .duration(0.5)
-    .speed(60, 120);
+  new ent.Particle({
+    x: card.pos.x,
+    y: card.pos.y,
+    color: COLORS[(card.code >> 4) & 3],
+    count: [40, 15],
+    size: [4, 3],
+    speed: [60, 120],
+    duration: 0.5,
+  });
 }
 
 // Every card back into the deck, then sixteen more until they hold a set.
@@ -387,9 +390,7 @@ function mark(cell) {
 
 export function init() {
   hint(meta.desc);
-  ent.reset();
-  ent.world(480);
-  ent.order([Card, Mark, Cursor, Clock, ent.Particle, ent.Text]);
+  ent.reset([Card, Mark, Cursor, Clock, ent.Particle]);
 
   deck = newDeck();
   discard = [];

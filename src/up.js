@@ -94,15 +94,17 @@ class Engine extends ent.Entity {
 
   fire() {
     this.ship.thrust(THRUST, this.offset + Math.PI);
-    new ent.Particle()
-      .color(FLAME)
-      .count(1, 2)
-      .size(5, 5)
-      .xy(this.pos.x, this.pos.y)
-      .speed(EXHAUST, 100)
-      .direction(this.angle + this.offset - Math.PI / 8, Math.PI / 4)
-      .delay(0, 0.05)
-      .duration(0.25, 0.1);
+    new ent.Particle({
+      x: this.pos.x,
+      y: this.pos.y,
+      color: FLAME,
+      count: [1, 2],
+      size: [5, 5],
+      speed: [EXHAUST, 100],
+      direction: [this.angle + this.offset - Math.PI / 8, Math.PI / 4],
+      delay: [0, 0.05],
+      duration: [0.25, 0.1],
+    });
   }
 }
 
@@ -145,16 +147,17 @@ class Player extends ent.Entity {
   }
 
   kill() {
-    new ent.Particle()
-      .color(SHIP)
-      .count(100)
-      .xy(this.pos.x, this.pos.y)
-      .size(5, 25)
-      // At 20 to 50 a second this is a green lump. At 200 to 400 it is a ship
-      // coming apart.
-      .speed(200, 200)
-      .delay(0)
-      .duration(2, 0.5);
+    // At 20 to 50 a second this is a green lump. At 200 to 400 it is a ship
+    // coming apart.
+    new ent.Particle({
+      x: this.pos.x,
+      y: this.pos.y,
+      color: SHIP,
+      count: 100,
+      size: [5, 25],
+      speed: [200, 200],
+      duration: [2, 0.5],
+    });
     for (const e of this.engines) e.remove();
     this.remove();
     dying = DEATH;
@@ -179,11 +182,13 @@ class Obstacle extends ent.Entity {
 
     if (this.pos.y < OUT) return;
     score.value += 5;
-    new ent.Text()
-      .text("+5")
-      .duration(1)
-      .xy(Math.min(Math.max(this.pos.x, 10), W - 10), W)
-      .move(0, -20);
+    new ent.Text({
+      text: "+5",
+      x: Math.min(Math.max(this.pos.x, 10), W - 10),
+      y: W,
+      vel: [0, -20],
+      duration: 1,
+    });
     this.remove();
   }
 }
@@ -202,11 +207,13 @@ class Gold extends ent.Entity {
   update() {
     if (this.hit(player)) {
       score.value += this.points;
-      new ent.Text()
-        .text(`+${this.points}`)
-        .duration(1)
-        .xy(this.pos.x, this.pos.y)
-        .move(0, -20);
+      new ent.Text({
+        text: `+${this.points}`,
+        x: this.pos.x,
+        y: this.pos.y,
+        vel: [0, -20],
+        duration: 1,
+      });
       this.remove();
       return;
     }
@@ -223,9 +230,7 @@ function place(e) {
 
 export function init() {
   hint(meta.desc);
-  ent.reset();
-  ent.world(W);
-  ent.order([Obstacle, Gold, Player, Engine, ent.Particle, ent.Text]);
+  ent.reset([Obstacle, Gold, Player, Engine, ent.Particle]);
 
   player = new Player();
   player.pos.x = player.pos.y = 240;

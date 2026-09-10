@@ -521,9 +521,7 @@ function eat(color) {
 
 export function init() {
   hint(meta.desc);
-  ent.reset();
-  ent.world(W);
-  ent.order([Floor, Bullet, Ghost, Hook, Player, EndGame]);
+  ent.reset([Floor, Bullet, Ghost, Hook, Player, EndGame]);
 
   speed = 1.5;
   floor = FLOORS[Math.floor(Math.random() * FLOORS.length)];

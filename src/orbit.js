@@ -238,7 +238,7 @@ class Bullet extends ent.Entity {
     const { x, y } = this.pos;
     if (x < 0 || y < 0 || x > W || y > W) return this.remove();
 
-    if (this.ticks > 0.06) {
+    if (this.age > 0.06) {
       this.gfx.cache(1).fill(WHITE)
         .mt(0, -6).lt(-3, 4).lt(-3, 6).lt(3, 6).lt(3, 4);
     }
@@ -267,7 +267,7 @@ class EnemyBullet extends ent.Entity {
     const { x, y } = this.pos;
     if (x < 0 || y < 0 || x > W || y > W) return this.remove();
 
-    if (this.ticks > 0.06) {
+    if (this.age > 0.06) {
       this.gfx.cache(1).fill(BLACK)
         .mt(0, -6).lt(-3, 4).lt(-3, 6).lt(3, 6).lt(3, 4);
     }
@@ -388,14 +388,16 @@ class Chunk extends ent.Entity {
       score.value += this.maxHealth;
       this.remove();
       const wide = this.arcEnd - this.arcBegin;
-      new ent.Particle()
-        .color(mix(COLOR, BLACK, 1 / 5))
-        .xy(CX - this.radius * Math.cos(a), CY - this.radius * Math.sin(a))
-        .size(6)
-        .count(wide * 100 / TAU)
-        .duration(0.2)
-        .direction(a - wide, 2 * wide)
-        .speed(200);
+      new ent.Particle({
+        x: CX - this.radius * Math.cos(a),
+        y: CY - this.radius * Math.sin(a),
+        color: mix(COLOR, BLACK, 1 / 5),
+        count: wide * 100 / TAU,
+        size: 6,
+        speed: 200,
+        direction: [a - wide, 2 * wide],
+        duration: 0.2,
+      });
       ent.shake(0.2);
       return;
     }
@@ -485,8 +487,16 @@ class Enemy extends ent.Entity {
   explode() {
     this.remove();
     sound.play("boom");
-    new ent.Particle().color(BLACK).size(2, 10).xy(CX, CY)
-      .count(100).duration(0.5).direction(0, TAU).speed(50, 50);
+    new ent.Particle({
+      x: CX,
+      y: CY,
+      color: BLACK,
+      count: 100,
+      size: [2, 10],
+      speed: [50, 50],
+      direction: [0, TAU],
+      duration: 0.5,
+    });
   }
 
   update() {
@@ -546,8 +556,8 @@ function finishLevel() {
   transition = true;
 
   const dying = rings;
-  new ent.Timer().delay(0.75).run(() => {
-    new ent.Timer().every(0.05).run(() => {
+  ent.after(0.75, () => {
+    ent.every(0.05, () => {
       for (let i = 0; i < dying.layers.length; ++i) {
         for (const c of dying.layers[i]) {
           if (c.health <= 0) continue;
@@ -563,7 +573,6 @@ function finishLevel() {
       nextLevel();
       return false;
     });
-    return false;
   });
 }
 
@@ -581,7 +590,7 @@ function nextLevel() {
   sound.play("build");
 
   const built = rings;
-  new ent.Timer().every(0.05).run(() => {
+  ent.every(0.05, () => {
     for (const ring of built.layers) {
       for (const c of ring) {
         if (c.health > 0) continue;
@@ -600,11 +609,18 @@ function die() {
   player = null;
 
   sound.play("die");
-  new ent.Particle().color(WHITE).count(70, 20).xy(x, y)
-    .size(3, 10).speed(5, 25).duration(2, 0.5);
+  new ent.Particle({
+    x,
+    y,
+    color: WHITE,
+    count: [70, 20],
+    size: [3, 10],
+    speed: [5, 25],
+    duration: [2, 0.5],
+  });
   ent.delay(0.05);
   ent.shake(0.5);
-  new ent.Timer().delay(DEATH).run(() => gameOver({ score: true }));
+  ent.after(DEATH, () => gameOver({ score: true }));
 }
 
 // Past the hand-made levels: four rings out of HARD, up to eight.
@@ -637,9 +653,7 @@ function mix(a, b, t) {
 
 export function init() {
   hint(meta.desc);
-  ent.reset();
-  ent.world(W);
-  ent.order([Enemy, Chunk, ent.Particle, Player, EnemyBullet, Bullet]);
+  ent.reset([Enemy, Chunk, ent.Particle, Player, EnemyBullet, Bullet]);
 
   level = -1;
   transition = true;

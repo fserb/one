@@ -443,13 +443,15 @@ class Mark extends ent.Entity {
     clock = Math.min(TIME_MAX, clock + FEED);
     every = Math.max(EVERY_MIN, every - EVERY_OFF);
     sound.play("mark");
-    new ent.Particle()
-      .xy(this.pos.x, this.pos.y)
-      .color(ORANGE)
-      .count(20)
-      .size(2)
-      .speed(90, 50)
-      .duration(0.35, 0.2);
+    new ent.Particle({
+      x: this.pos.x,
+      y: this.pos.y,
+      color: ORANGE,
+      count: 20,
+      size: 2,
+      speed: [90, 50],
+      duration: [0.35, 0.2],
+    });
     this.remove();
     addMark();
   }
@@ -631,9 +633,7 @@ function moveStray() {
 
 export function init() {
   hint(meta.desc);
-  ent.reset();
-  ent.world(W);
-  ent.order([Mark, Player]);
+  ent.reset([Mark, Player]);
 
   load();
   player = new Player(2, GRID - 2);

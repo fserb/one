@@ -466,7 +466,7 @@ class Gold extends ent.Entity {
   }
 
   render(ctx) {
-    const r = GOLDR * scale * (1 + 0.1 * Math.sin(this.ticks * 6));
+    const r = GOLDR * scale * (1 + 0.1 * Math.sin(this.age * 6));
     ctx.fillStyle = css(GOLD);
     ctx.beginPath();
     ctx.arc(0, 0, r, 0, TAU);
@@ -484,29 +484,33 @@ function take(g) {
   drop(g);
   score.value += 1;
   clock = Math.min(START, clock + BONUS);
-  new ent.Particle()
-    .xy(g.pos.x, g.pos.y)
-    .color(GOLD)
-    .count(12)
-    .size(3 * scale)
-    .speed(70 * scale, 40 * scale)
-    .spread(GOLDR * scale)
-    .duration(0.4, 0.2)
-    .circle();
+  new ent.Particle({
+    x: g.pos.x,
+    y: g.pos.y,
+    color: GOLD,
+    count: 12,
+    size: 3 * scale,
+    speed: [70 * scale, 40 * scale],
+    spread: GOLDR * scale,
+    duration: [0.4, 0.2],
+    circle: true,
+  });
 }
 
 // Closed over by the loop. Nothing can reach it in there.
 function lose(g) {
   drop(g);
-  new ent.Particle()
-    .xy(g.pos.x, g.pos.y)
-    .color(DARK)
-    .count(8)
-    .size(2.5 * scale)
-    .speed(26 * scale, 20 * scale)
-    .spread(GOLDR * scale)
-    .duration(0.5, 0.2)
-    .circle();
+  new ent.Particle({
+    x: g.pos.x,
+    y: g.pos.y,
+    color: DARK,
+    count: 8,
+    size: 2.5 * scale,
+    speed: [26 * scale, 20 * scale],
+    spread: GOLDR * scale,
+    duration: [0.5, 0.2],
+    circle: true,
+  });
 }
 
 // Beyond the loop and ahead of the bead, further out the more has been taken.
@@ -547,9 +551,7 @@ function frame() {
 
 export function init() {
   hint(meta.desc);
-  ent.reset();
-  ent.world(W);
-  ent.order([Path, Gold, Cursor]);
+  ent.reset([Path, Gold, Cursor]);
 
   scale = 1;
   clock = START;

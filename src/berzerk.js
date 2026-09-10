@@ -125,8 +125,8 @@ class Player extends ent.Entity {
   postUpdate() {
     // Nothing draws the walls, but the box is the board: without it you walk
     // off the side where nothing can reach you.
-    this.pos.x = extra.clamp(this.pos.x, PR, ent.game.width - PR);
-    this.pos.y = extra.clamp(this.pos.y, PR, ent.game.height - PR);
+    this.pos.x = extra.clamp(this.pos.x, PR, ent.game.size - PR);
+    this.pos.y = extra.clamp(this.pos.y, PR, ent.game.size - PR);
 
     if (hitBullet(this) !== null) return this.die();
     if (this.hitGroup(EnemyChaser) !== null) return this.die();
@@ -243,8 +243,8 @@ class EnemyChaser extends ent.Entity {
   postUpdate() {
     // The board is the box, same as the player's.
     const h = CHASER / 2;
-    this.pos.x = extra.clamp(this.pos.x, h, ent.game.width - h);
-    this.pos.y = extra.clamp(this.pos.y, h, ent.game.height - h);
+    this.pos.x = extra.clamp(this.pos.x, h, ent.game.size - h);
+    this.pos.y = extra.clamp(this.pos.y, h, ent.game.size - h);
   }
 }
 
@@ -264,13 +264,15 @@ class ScoreBox extends ent.Entity {
 
     score.value += this.n;
     next = Math.max(this.n + 1, next);
-    new ent.Text()
-      .text(`+${this.n}`)
-      .color(BLACK)
-      .size(2)
-      .duration(0.8)
-      .xy(this.pos.x, this.pos.y)
-      .move(0, -30);
+    new ent.Text({
+      text: `+${this.n}`,
+      x: this.pos.x,
+      y: this.pos.y,
+      size: 2,
+      color: BLACK,
+      vel: [0, -30],
+      duration: 0.8,
+    });
   }
 }
 
@@ -310,14 +312,15 @@ function kill(e) {
 }
 
 function burst(pos) {
-  new ent.Particle()
-    .color(BLACK)
-    .xy(pos.x, pos.y)
-    .count(60, 20)
-    .size(4, 3)
-    .delay(0)
-    .duration(0.4)
-    .speed(40, 120);
+  new ent.Particle({
+    x: pos.x,
+    y: pos.y,
+    color: BLACK,
+    count: [60, 20],
+    size: [4, 3],
+    speed: [40, 120],
+    duration: 0.4,
+  });
 }
 
 // Anywhere on the board, but not on the player.
@@ -327,8 +330,8 @@ function place(e) {
   const py = p === null ? START : p.pos.y;
 
   for (let i = 0; i < 30; ++i) {
-    e.pos.x = EDGE + Math.random() * (ent.game.width - 2 * EDGE);
-    e.pos.y = EDGE + Math.random() * (ent.game.height - 2 * EDGE);
+    e.pos.x = EDGE + Math.random() * (ent.game.size - 2 * EDGE);
+    e.pos.y = EDGE + Math.random() * (ent.game.size - 2 * EDGE);
     if (Math.hypot(e.pos.x - px, e.pos.y - py) >= SAFE) break;
   }
   return e;
@@ -336,7 +339,7 @@ function place(e) {
 
 function newEnemy(delay = 0) {
   if (delay > 0) {
-    new ent.Timer().delay(delay).run(() => newEnemy());
+    ent.after(delay, () => newEnemy());
     return;
   }
   const chase = chasers < CHASERS_MAX && Math.random() < 0.5;
@@ -344,17 +347,7 @@ function newEnemy(delay = 0) {
 }
 
 export function init() {
-  ent.reset();
-  ent.world(480);
-  ent.order([
-    ScoreBox,
-    EnemyTurret,
-    EnemyChaser,
-    Bullet,
-    Player,
-    ent.Particle,
-    ent.Text,
-  ]);
+  ent.reset([ScoreBox, EnemyTurret, EnemyChaser, Bullet, Player, ent.Particle]);
 
   next = 1;
   chasers = 0;

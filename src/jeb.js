@@ -261,14 +261,16 @@ class Ship extends ent.Entity {
     if (this.puff > 0) return;
     this.puff = 0.05;
     sound.play("burn", -4 + 8 * Math.random());
-    new ent.Particle()
-      .xy(this.pos.x - Math.cos(a) * 12, this.pos.y - Math.sin(a) * 12)
-      .color(BROWN)
-      .count(3)
-      .size(3)
-      .direction(a + Math.PI - 0.4, 0.8)
-      .speed(60, 30)
-      .duration(0.4, 0.2);
+    new ent.Particle({
+      x: this.pos.x - Math.cos(a) * 12,
+      y: this.pos.y - Math.sin(a) * 12,
+      color: BROWN,
+      count: 3,
+      size: 3,
+      speed: [60, 30],
+      direction: [a + Math.PI - 0.4, 0.8],
+      duration: [0.4, 0.2],
+    });
   }
 
   postUpdate() {
@@ -334,33 +336,39 @@ function wreck() {
   dying = DEATH;
   ent.shake(0.5);
   sound.play("crash");
-  new ent.Particle()
-    .xy(ship.pos.x, ship.pos.y)
-    .color(GREY)
-    .count(90)
-    .size(3)
-    .speed(30, 90)
-    .duration(0.7, 0.5);
-  new ent.Particle()
-    .xy(ship.pos.x, ship.pos.y)
-    .color(RED)
-    .count(40)
-    .size(4)
-    .speed(20, 60)
-    .duration(0.5, 0.4);
+  new ent.Particle({
+    x: ship.pos.x,
+    y: ship.pos.y,
+    color: GREY,
+    count: 90,
+    size: 3,
+    speed: [30, 90],
+    duration: [0.7, 0.5],
+  });
+  new ent.Particle({
+    x: ship.pos.x,
+    y: ship.pos.y,
+    color: RED,
+    count: 40,
+    size: 4,
+    speed: [20, 60],
+    duration: [0.5, 0.4],
+  });
 }
 
 function arrive(p) {
   score.value += 1;
   fuel = Math.min(TANK, fuel + Math.max(FILL_MIN, FILL - FILL_OFF * score.value));
   sound.play("land");
-  new ent.Particle()
-    .xy(ship.pos.x, ship.pos.y)
-    .color(BROWN)
-    .count(24)
-    .size(2)
-    .speed(70, 40)
-    .duration(0.5, 0.3);
+  new ent.Particle({
+    x: ship.pos.x,
+    y: ship.pos.y,
+    color: BROWN,
+    count: 24,
+    size: 2,
+    speed: [70, 40],
+    duration: [0.5, 0.3],
+  });
   pickTarget(p);
 }
 
@@ -446,9 +454,7 @@ function predict() {
 
 export function init() {
   hint(meta.desc);
-  ent.reset();
-  ent.world(W);
-  ent.order([Planet, Ship]);
+  ent.reset([Planet, Ship]);
 
   makeSystem();
   makeStars();
@@ -486,13 +492,15 @@ function expire() {
   if (dying > 0) return;
   dying = DEATH;
   sound.play("crash", -8);
-  new ent.Particle()
-    .xy(ship.pos.x, ship.pos.y)
-    .color(GREY)
-    .count(24)
-    .size(2)
-    .speed(10, 26)
-    .duration(0.8, 0.4);
+  new ent.Particle({
+    x: ship.pos.x,
+    y: ship.pos.y,
+    color: GREY,
+    count: 24,
+    size: 2,
+    speed: [10, 26],
+    duration: [0.8, 0.4],
+  });
 }
 
 // What says a mouse is in play: on a mouse the nose aims without firing, and on

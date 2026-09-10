@@ -134,13 +134,15 @@ class Coin extends ent.Entity {
     if (this.hitGroup(Bird) === null) return;
 
     score.value += 1;
-    new ent.Particle()
-      .color(COIN_LIT)
-      .xy(this.pos.x, this.pos.y)
-      .count(60, 20)
-      .size(4, 3)
-      .duration(0.6, 0.2)
-      .speed(60, 120);
+    new ent.Particle({
+      x: this.pos.x,
+      y: this.pos.y,
+      color: COIN_LIT,
+      count: [60, 20],
+      size: [4, 3],
+      speed: [60, 120],
+      duration: [0.6, 0.2],
+    });
     this.remove();
     new Coin();
   }
@@ -156,7 +158,6 @@ function along(x, dir, d) {
 export function init() {
   hint(meta.desc);
   ent.reset();
-  ent.world(480);
 
   // Bird first: a coin reads it in begin(), and groups begin in build order.
   new Bird();

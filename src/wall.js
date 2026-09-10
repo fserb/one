@@ -576,13 +576,15 @@ class Coin extends ent.Entity {
     taken += 1;
     range = Math.min(LIGHT_MAX, range + FEED);
     sound.play("coin");
-    new ent.Particle()
-      .xy(this.pos.x, this.pos.y)
-      .color(CYAN)
-      .count(18)
-      .size(2)
-      .speed(90, 50)
-      .duration(0.35, 0.2);
+    new ent.Particle({
+      x: this.pos.x,
+      y: this.pos.y,
+      color: CYAN,
+      count: 18,
+      size: 2,
+      speed: [90, 50],
+      duration: [0.35, 0.2],
+    });
     this.remove();
     addCoin();
     if (taken % PER_HUNTER === 0) addHunter();
@@ -626,20 +628,20 @@ function die() {
   dying = DEATH;
   ent.shake(0.5);
   sound.play("die");
-  new ent.Particle()
-    .xy(player.pos.x, player.pos.y)
-    .color(ORANGE)
-    .count(50)
-    .size(3)
-    .speed(170, 90)
-    .duration(0.6, 0.3);
+  new ent.Particle({
+    x: player.pos.x,
+    y: player.pos.y,
+    color: ORANGE,
+    count: 50,
+    size: 3,
+    speed: [170, 90],
+    duration: [0.6, 0.3],
+  });
 }
 
 export function init() {
   hint(meta.desc);
-  ent.reset();
-  ent.world(W);
-  ent.order([Coin, Hunter, Player]);
+  ent.reset([Coin, Hunter, Player]);
   // The room is two screens across and one down, so the camera only moves
   // sideways: the bounds run the width of the room and pin y at the middle.
   camera.bounds = { x: 0, y: 0, width: RW, height: W };

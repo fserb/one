@@ -443,14 +443,16 @@ class Train extends ent.Entity {
     this.dying = DEATH;
     ent.shake(1);
     ent.delay(0.15);
-    new ent.Particle()
-      .color(GREEN)
-      .xy(this.pos.x, this.pos.y)
-      .spread(10)
-      .count(200)
-      .size(6)
-      .speed(30, 70)
-      .duration(1);
+    new ent.Particle({
+      x: this.pos.x,
+      y: this.pos.y,
+      color: GREEN,
+      count: 200,
+      size: 6,
+      speed: [30, 70],
+      spread: 10,
+      duration: 1,
+    });
   }
 }
 
@@ -563,13 +565,13 @@ class Mission extends ent.Entity {
         newMission(10);
         return;
       }
-      this.ticks -= dt;
+      this.age -= dt;
     }
-    if (this.ticks < 0.5) {
-      this.pos.y = OFF - (OFF - ON) * cubicIn(this.ticks / 0.5);
+    if (this.age < 0.5) {
+      this.pos.y = OFF - (OFF - ON) * cubicIn(this.age / 0.5);
     }
 
-    const swept = TAU * this.ticks / this.time;
+    const swept = TAU * this.age / this.time;
     if (swept >= TAU) return this.finish();
     this.gfx.fill(WHITE).arc(BAR - 15, 15, 10, 0, swept, TAU);
   }
@@ -627,16 +629,13 @@ const cubicIn = (t) => t ** 3;
 const cubicOut = (t) => 1 - (1 - t) ** 3;
 
 function newMission(delay) {
-  new ent.Timer().delay(delay).run(() => {
+  ent.after(delay, () => {
     mission = new Mission();
-    return true;
   });
 }
 
 export function init() {
-  ent.reset();
-  ent.world(W);
-  ent.order([Grid, Enemy, Train, ent.Particle, Target, Mission]);
+  ent.reset([Grid, Enemy, Train, ent.Particle, Target, Mission]);
 
   build();
   new Grid();

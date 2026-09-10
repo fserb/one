@@ -575,13 +575,15 @@ function die() {
   dying = DEATH;
   ent.shake(0.4);
   sound.play("dead");
-  new ent.Particle()
-    .xy(player.pos.x, player.pos.y)
-    .color(YOU)
-    .count(60)
-    .size(3)
-    .speed(120, 80)
-    .duration(0.5, 0.3);
+  new ent.Particle({
+    x: player.pos.x,
+    y: player.pos.y,
+    color: YOU,
+    count: 60,
+    size: 3,
+    speed: [120, 80],
+    duration: [0.5, 0.3],
+  });
 }
 
 function leave() {
@@ -594,9 +596,7 @@ function leave() {
 }
 
 function buildLevel() {
-  ent.reset();
-  ent.world(W);
-  ent.order([Gate, Key, Bot, Player]);
+  ent.reset([Gate, Key, Bot, Player]);
 
   level += 1;
   score.value = level;

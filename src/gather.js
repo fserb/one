@@ -329,7 +329,7 @@ class Tray extends ent.Entity {
   // Every colour is equal by now, so the widest row is the count of each.
   go() {
     this.moving = true;
-    this.ticks = 0;
+    this.age = 0;
     const kinds = this.counts.filter((c) => c > 0).length;
     const each = Math.max(...this.counts);
     this.points = kinds * each * (each - 1) * (kinds - 1) * (1 + difficulty);
@@ -337,7 +337,7 @@ class Tray extends ent.Entity {
 
   update() {
     if (!this.moving) return;
-    const t = this.ticks / FLY;
+    const t = this.age / FLY;
     this.pos.y = this.from - (this.from + FLYUP) * t * t;
     this.alpha = Math.max(0, 1 - t * t);
     if (t <= 1) return;
@@ -372,18 +372,27 @@ function addScore(v) {
   score.value += v;
   ent.shake(0.25);
   sound.play("score");
-  new ent.Text()
-    .text(`+${Math.floor(v)}`)
-    .size(2)
-    .color(BLACK)
-    .xy(TRAY_R - 8, TRAY_Y + 20)
-    .move(0, -30)
-    .duration(0.5);
+  new ent.Text({
+    text: `+${Math.floor(v)}`,
+    x: TRAY_R - 8,
+    y: TRAY_Y + 20,
+    size: 2,
+    color: BLACK,
+    vel: [0, -30],
+    duration: 0.5,
+  });
 }
 
 function say(m) {
   note?.remove();
-  note = new ent.Text().xy(240, 450).size(2).color(BLACK).text(m).duration(5);
+  note = new ent.Text({
+    text: m,
+    x: 240,
+    y: 450,
+    size: 2,
+    color: BLACK,
+    duration: 5,
+  });
 }
 
 // Colour indices and holes, or null once the board has nothing left to say.
@@ -556,9 +565,7 @@ function die() {
 
 export function init() {
   hint(meta.desc);
-  ent.reset();
-  ent.world(480);
-  ent.order([Piece, Cursor, Frame, Tray, ent.Text]);
+  ent.reset([Piece, Cursor, Frame, Tray]);
 
   scroll = 0;
   difficulty = 0;

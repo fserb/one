@@ -479,9 +479,7 @@ function buildPlanets(total) {
 }
 
 function buildLevel() {
-  ent.reset();
-  ent.world(W);
-  ent.order([Zone, Rope, Planet, Earth, Player]);
+  ent.reset([Zone, Rope, Planet, Earth, Player]);
 
   planets = [];
   linked = 0;

@@ -4,7 +4,7 @@
  * begin() runs at the top of an entity's first frame, before its first
  * update(). What broke it: an entity made inside another's update() lands in a
  * group the step pass may not have reached, so it used to step the same frame
- * with begin() pending. ent.order() decides who hits it, so the bug is silent
+ * with begin() pending. The draw order decides who hits it, so the bug is silent
  * and flips when a game reorders its draw list. Hence a test, not a comment.
  *
  *   deno run --allow-read tools/entity_test.js     # or ./task test
@@ -40,7 +40,6 @@ function check(name, got, want) {
 // Maker builds a Late inside its own update(), and Late draws after Maker, so
 // the step pass reaches Late's group second.
 function run(Late, frames = 3) {
-  ent.reset();
   let made = false;
   class Maker extends ent.Entity {
     update() {
@@ -49,7 +48,7 @@ function run(Late, frames = 3) {
       new Late();
     }
   }
-  ent.order([Maker, Late]);
+  ent.reset([Maker, Late]);
   new Maker();
   for (let f = 0; f < frames; ++f) {
     ent.update(1 / 60);
@@ -103,7 +102,6 @@ function run(Late, frames = 3) {
       this.remove();
     }
   };
-  ent.reset();
   let made = false;
   class Maker extends ent.Entity {
     update() {
@@ -112,7 +110,7 @@ function run(Late, frames = 3) {
       new Flash();
     }
   }
-  ent.order([Maker, Flash]);
+  ent.reset([Maker, Flash]);
   new Maker();
   for (let f = 0; f < 3; ++f) {
     ent.update(1 / 60);
@@ -127,7 +125,6 @@ function run(Late, frames = 3) {
 {
   const seen = [];
   class Late extends ent.Entity {}
-  ent.reset();
   let made = false;
   class Maker extends ent.Entity {
     update() {
@@ -138,7 +135,7 @@ function run(Late, frames = 3) {
       seen.push(ent.get(Late).length);
     }
   }
-  ent.order([Maker, Late]);
+  ent.reset([Maker, Late]);
   new Maker();
   for (let f = 0; f < 3; ++f) {
     ent.update(1 / 60);
@@ -151,7 +148,6 @@ function run(Late, frames = 3) {
 // pass by luck.
 {
   const log = [];
-  ent.reset();
   let made = false;
   class Late extends ent.Entity {
     begin() {
@@ -168,7 +164,7 @@ function run(Late, frames = 3) {
       new Late();
     }
   }
-  ent.order([Late, Maker]);
+  ent.reset([Late, Maker]);
   new Maker();
   for (let f = 0; f < 3; ++f) {
     ent.update(1 / 60);

@@ -5,7 +5,7 @@
  * update() walks the groups in draw order once a frame. entity.js is the
  * file a game imports; it re-exports the three.
  *
- * The games think in a 480x480 box. world() sets it and render() puts it on
+ * The games think in a 480x480 box. reset() sets it and render() puts it on
  * one's 1024, so a game writes its constants once. A game that imports
  * lib/camera.js gets that box as the camera's opening framing and moves the
  * camera instead of writing its own transform, and game.mouse comes back
@@ -37,8 +37,9 @@ import { op, SIZE } from "./one.js";
 export const game = {
   time: 0,
   totalTime: 0,
-  width: 480,
-  height: 480,
+  // The side of the square box the game thinks in. Square because the canvas
+  // is, and because a camera has one scale.
+  size: 480,
   mouse: { x: 0, y: 0, click: false, press: false, release: false },
   // input.js's own object: unlike the pointer there is nothing to convert.
   key,
@@ -52,16 +53,16 @@ const groups = new Map();
  * The box the game thinks in, and with a camera the framing it opens on. The
  * bounds go with it: they belong to a round, and a round starts here.
  *
- * A camera has one scale, so that path wants w === h. Every game calls
- * world(480).
+ * reset() calls this with 480, which is the box every game uses; a game that
+ * wants another one calls it again after.
  */
-export function world(w = 480, h = w) {
-  game.width = w;
-  game.height = h;
+export function world(size) {
+  game.size = size;
   if (!op.camera) return;
   op.camera.bounds = null;
-  op.camera.moveTo({ x: w / 2, y: h / 2, scale: SIZE / w, angle: 0 }).settle();
-  op.camera.shakeBase = SHAKE_BASE * SIZE / w;
+  const half = size / 2;
+  op.camera.moveTo({ x: half, y: half, scale: SIZE / size, angle: 0 }).settle();
+  op.camera.shakeBase = SHAKE_BASE * SIZE / size;
   op.camera.shakeHz = SHAKE_HZ;
 }
 
@@ -95,15 +96,22 @@ export function one(cls) {
   return g.list.find((e) => e.started && !e.dead) ?? null;
 }
 
-export function reset() {
+/*
+ * A round starts here: the entities from the last one, the clock, the shake
+ * and the box. It takes the draw order because every game sets one in the same
+ * breath, and world(480) because that is the box all of them use. Both are
+ * still exported for a game that wants to change one mid-round.
+ */
+export function reset(classes = []) {
   groups.clear();
   game.time = 0;
   game.totalTime = 0;
   shaking = held = 0;
   shakeHold = shakeX = shakeY = 0;
-  // The world it was rattling is gone, and settle() is where the camera keeps
-  // its own copy of that state.
-  op.camera?.settle();
+  // world() ends in settle(), which is where the camera keeps its own copy of
+  // the shake it was running on a world that is now gone.
+  world(480);
+  order(classes);
 }
 
 /*
@@ -131,7 +139,7 @@ let held = 0;
 
 export function shake(t = 0.4) {
   if (op.camera) {
-    op.camera.shake(t, SHAKE_FALL * SIZE / game.width);
+    op.camera.shake(t, SHAKE_FALL * SIZE / game.size);
     return;
   }
   shaking = Math.max(shaking, t);
@@ -177,7 +185,8 @@ export class Entity {
     this.vel = { x: 0, y: 0 };
     this.acc = { x: 0, y: 0 };
     this.angle = 0;
-    this.ticks = 0;
+    // Seconds since it began.
+    this.age = 0;
     this.dead = false;
     this.art = new Art();
     this.gfx = new Gfx();
@@ -215,6 +224,7 @@ export class Entity {
   accelerate(x, y) {
     this.acc.x += x;
     this.acc.y += y;
+    return this;
   }
 
   // Drops every shape, so nothing overlaps either way.
@@ -277,7 +287,7 @@ export class Entity {
   }
 
   _step() {
-    this.ticks += game.time;
+    this.age += game.time;
     this.update();
     if (this.dead) return;
 
@@ -322,7 +332,7 @@ export function update(dt) {
   // it sits on the board.
   const m = op.camera
     ? op.camera.toWorld(mouse.x, mouse.y)
-    : { x: mouse.x * game.width / SIZE, y: mouse.y * game.height / SIZE };
+    : { x: mouse.x * game.size / SIZE, y: mouse.y * game.size / SIZE };
   game.mouse.x = m.x;
   game.mouse.y = m.y;
   game.mouse.click = mouse.click;
@@ -356,7 +366,7 @@ export function update(dt) {
 export function render(ctx) {
   ctx.save();
   if (op.camera) op.camera.apply(ctx);
-  else ctx.scale(SIZE / game.width, SIZE / game.height);
+  else ctx.scale(SIZE / game.size, SIZE / game.size);
   // World units, so a shake is the same size whatever the box is. The
   // background goes with it and meta.bg shows along the edge it leaves. With a
   // camera there is nothing to add: apply() above carried its own.
