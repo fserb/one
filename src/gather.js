@@ -54,17 +54,20 @@ const ROWS = 11;
 // ORIGIN is the centre of cell (0, 0) with the board unscrolled.
 const CELL = 38;
 const X0 = 88;
-const Y0 = 69;
+const Y0 = 73;
 
 // The lines the board hangs from and ends on, and the depth a cursor dies at.
-const HEAD = 50;
-const FOOT = 468;
-const DIE = 450;
+// The Haxe hung the board at 50, which is where the score chip's bottom edge
+// now lands: the chip covered the left end of the line. The board sits 4 lower
+// and the strip below it gives up the same 4.
+const HEAD = 54;
+const FOOT = 472;
+const DIE = 454;
 
-// The tray hangs from the top of the head strip, right-aligned on the line the
-// board ends at: the top-left corner is the score chip's.
+// The tray hangs in the top-right of the chrome's band, right-aligned on the
+// line the board ends at and level with the score chip in the opposite corner.
 const TRAY_R = 420;
-const TRAY_Y = 5;
+const TRAY_Y = 12;
 const FLY = 0.3;
 const FLYUP = 20;
 
@@ -377,7 +380,7 @@ function addScore(v) {
     .text(`+${Math.floor(v)}`)
     .size(2)
     .color(BLACK)
-    .xy(TRAY_R - 8, TRAY_Y + 8)
+    .xy(TRAY_R - 8, TRAY_Y + 20)
     .move(0, -30)
     .duration(0.5);
 }
