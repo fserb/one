@@ -177,6 +177,7 @@
 
         dev.html               every game in src/, listed
         dev.html?game=wow      that game, running, like the built page
+        &rec=0                 without the recorder, for an embedded iframe
 
       A game page also loads src/dev/rec.js, the recorder behind the "rec"
       button in the corner. It records a ten second clip for the gallery card.
@@ -197,8 +198,12 @@
       const screen = run(game);
 
       // After run(), so the recorder's frame callback lands after the game's.
-      const rec = await import("./src/dev/rec.js");
-      rec.init(screen, name);
+      // ?rec=0 skips it, so a page embedding dev.html in an iframe does not
+      // get the recorder's bar in the corner of every game.
+      if (params.get("rec") !== "0") {
+        const rec = await import("./src/dev/rec.js");
+        rec.init(screen, name);
+      }
     } else {
       await index();
     }
