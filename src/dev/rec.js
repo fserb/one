@@ -3,6 +3,7 @@
  *
  * dev.html loads this and nothing else does, so it is in no game's bundle. It
  * only reads screen.canvas, and the bar it draws is DOM, never in the footage.
+ * dev.html's own style block styles that bar; nothing here is CSS.
  *
  * A take is a fixed ten seconds and there is no editor. The recorder searches
  * it for the two frames that match most closely, cuts there so the clip loops
@@ -273,8 +274,6 @@ function el(tag, props, parent) {
 }
 
 function buildBar() {
-  el("style", { textContent: CSS }, document.head);
-
   ui.bar = el("div", { id: "rec-bar" }, document.body);
   ui.btn = el("button", { textContent: "● rec", onclick: onBar }, ui.bar);
   ui.note = el("span", {}, ui.bar);
@@ -290,30 +289,3 @@ function buildBar() {
 function onBar() {
   if (state === "idle") record();
 }
-
-const CSS = `
-#rec-bar {
-  position: fixed; left: 8px; bottom: 8px; z-index: 9;
-  display: flex; gap: 10px; align-items: center;
-  font: 12px ui-monospace, monospace; color: #0009;
-}
-#rec-bar[data-on] { color: #c22; }
-#rec-bar button, #rec-preview button {
-  font: inherit; padding: 4px 10px; cursor: pointer;
-  border: 1px solid #0003; border-radius: 4px; background: #fff8; color: inherit;
-}
-#rec-preview {
-  position: fixed; inset: 0; z-index: 10;
-  display: flex; flex-direction: column; gap: 12px;
-  align-items: center; justify-content: center;
-  background: #000c; font: 13px ui-monospace, monospace; color: #fff;
-}
-#rec-preview[hidden] { display: none; }
-/* Square and inside the window: a flex column shrinks the canvas on the main
-   axis alone and stretches the frames. */
-#rec-preview canvas { flex: none; width: 72vmin; height: 72vmin; }
-#rec-preview p { margin: 0; opacity: .7; }
-#rec-preview div { display: flex; gap: 8px; }
-#rec-preview button { background: #fff; color: #000; padding: 6px 18px; }
-#rec-preview button:disabled { opacity: .35; cursor: not-allowed; }
-`;
