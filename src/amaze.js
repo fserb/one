@@ -1,0 +1,802 @@
+/*
+ * amaze - a port of ~/prj/vault/games/sketch/src/Amaze.hx.
+ *
+ * A maze, a key, a locked square, and one jump. Walking is walking: you go
+ * where the corridors go. The jump takes you through one wall, in whatever
+ * direction you are facing, and then it is three seconds before you have
+ * another. So the maze is two mazes at once, the one you can walk and the much
+ * shorter one you can walk with a wall taken out of it, and the whole game is
+ * choosing which wall that is. Take the key, reach the square, and the next
+ * maze has one more thing hunting you in it.
+ *
+ * The bots are the pressure and they play a clean rule: they patrol along
+ * straight runs, and the moment you are in the same row or column with nothing
+ * between you they fill in, double their speed and come down it. A corridor you
+ * can see along is a corridor they can see along.
+ *
+ * The Haxe is the most finished of the five sketches and most of this is it,
+ * to the number. The maze generator is its own: a randomised Prim's growing
+ * from the middle, but the four ways out of a new cell are tried in an order
+ * that depends on which way the cell lies from the centre, perpendicular pair
+ * first and back toward the middle last. That is what makes the corridors run
+ * around the centre rather than at it.
+ *
+ * What changed:
+ *
+ * - The level change does not wait for a key. The Haxe wiped to a dark screen,
+ *   drew "Level N" and sat there until `any_pressed`. The shell's rule is that
+ *   the first input goes to the game, and a modal in the middle of a round is
+ *   the same thing as a title card: it is a place where an input does nothing.
+ *   The wipe out, the number and the wipe back are on a clock now, 1.2 seconds
+ *   of it, which is about as long as reading the number takes anyway.
+ * - The jump is the tap and walking is the hold. The Haxe read `Game.key.b1`
+ *   held, which both spammed the jump and stopped you moving while it was
+ *   down; one pointer has to do both here, so a press let go inside TAP
+ *   seconds is a jump and one held past it walks toward the finger.
+ * - The cells are 30 rather than 32, so the 15x15 maze is 450 and fits under
+ *   the shell's 44px bar. Everything that was a speed is in cells a second
+ *   rather than px, so none of it moved.
+ * - `map[mx][my] & d == d` is `&` against a comparison in Haxe's precedence
+ *   and reads as the intended `(map & d) != 0` only by luck of what the
+ *   compiler did with it. Written out here.
+ * - Death holds for half a second so the burst is seen, and the score is the
+ *   shell's bar rather than the Haxe's sliding "You've reached level N".
+ * - The bots stand still for the first STILL seconds of a level. They start
+ *   round the outside and you start in the middle, so one that happens to walk
+ *   inward reaches you before you have had a chance to be anywhere else: two
+ *   of fourteen bench rounds were over inside five seconds without it.
+ * - A bot that cannot find anywhere to go gives up after a few tries instead
+ *   of looping. `while (mx == tx && my == ty) findNewTarget();` terminates
+ *   because every cell in a maze has an opening, which is true of this
+ *   generator and is not a thing worth resting an infinite loop on.
+ * - `reduceX(mx, my, sign(player.mx - mx), true)` hangs the Haxe outright
+ *   whenever a bot is already in the player's column, because the sign is
+ *   zero, the two wall tests in the loop are each against a specific sign, and
+ *   the third breaks on `random() >= 1/(1 + 0)`, which nothing satisfies. It
+ *   needs a bot standing in the player's column at the moment it looks for
+ *   somewhere to go, which is rare enough to ship and certain enough to find:
+ *   it turned up in the fourteenth bench round.
+ */
+
+import * as ent from "./lib/entity.js";
+import { glyphs } from "./lib/art.js";
+import { gameOver, hint, mouse, score, SIZE } from "./lib/one.js";
+import * as sfxr from "./lib/sfxr.js";
+import * as sound from "./lib/sound.js";
+
+export const meta = {
+  title: "amaze",
+  desc: `
+take the key, then the square it opens
+tap to jump one wall, hold to walk
+`,
+  bg: "#3DBF86",
+  fg: "#444444",
+  scoreMax: true,
+  finishGood: false,
+  date: "2014-04-02",
+};
+
+// The box the game thinks in, and the strip of it the shell's 44px bar covers.
+const W = 480;
+const TOP = 21;
+
+// The maze: cells a side, units a cell, and where the whole of it sits in the
+// box. 15 by 30 is 450, which leaves the bar its 21 and a margin either side.
+const N = 15;
+const CELL = 30;
+const MAZE = N * CELL;
+const MX = (W - MAZE) / 2;
+const MY = TOP + (W - TOP - MAZE) / 2;
+// The middle cell, which is where the maze grows from and where you start.
+const MID = (N - 1) / 2;
+
+// Which wall a bit is: north, east, south, west, as the Haxe numbered them.
+const N_W = 1;
+const E_W = 2;
+const S_W = 4;
+const W_W = 8;
+// The other side of each, and the cell it belongs to.
+const SIDES = [
+  { bit: N_W, off: -N, back: S_W },
+  { bit: E_W, off: 1, back: W_W },
+  { bit: S_W, off: N, back: N_W },
+  { bit: W_W, off: -1, back: E_W },
+];
+
+// How thick a wall is drawn.
+const LINE = 3;
+
+// Cells a second: you, a bot on patrol, and a bot that has seen you.
+const WALK = 4;
+const PATROL = 2.5;
+const CHASE = 5;
+// How near the middle of a cell you have to be on the other axis before a turn
+// takes, in cells. The Haxe's 0.1.
+const ALIGN = 0.1;
+// Seconds a jump takes to come back, and how far into a move letting go of the
+// keys still cancels it, in cells.
+const COOL = 3;
+const BAIL = 0.94;
+// A press let go inside this is a jump; held past it, it walks.
+const TAP = 0.15;
+
+// The player, the bots, the key and the gate, as boxes. The Haxe's numbers
+// scaled from its 32-unit cell to this one.
+const YOU_R = 7.5;
+const YOU_BOX = 15;
+const BOT_R = 5.5;
+const BOT_BOX = 13;
+const KEY_BOX = 9.5;
+const GATE_BOX = 19;
+
+// Seconds a bot stands still at the start of a level, then how long before it
+// aims at you at all, then how long before it will charge. The last two are
+// the Haxe's, off a clock it resets with every level; the first is not, and it
+// is there because the bots start round the outside and you start in the
+// middle, so one that happens to walk inward catches a player who has had no
+// time to be anywhere else. Two rounds in fourteen ended inside five seconds
+// without it.
+const STILL = 1.5;
+const AIM_AT = 2;
+const CHASE_AT = 5;
+
+// The level change: the wipe each way, and how long the number holds between
+// them.
+const WIPE = 0.35;
+const SHOW = 0.5;
+// Caught, then this long before the shot the overlay takes.
+const DEATH = 0.5;
+
+const WALL = 0xeeeeee;
+const DARK = 0x444444;
+const YOU = 0xffffff;
+const BOT = 0xc24079;
+const BG = 0x3dbf86;
+
+// ugl's Sound.vol(v) set masterVolume to 2v, and sfxr squares that. The four
+// seeds are the Haxe's own.
+voice("jump", sfxr.jump(4), 0.1);
+voice("key", sfxr.coin(12), 0.13);
+voice("gate", sfxr.powerup(3), 0.13);
+voice("dead", sfxr.explosion(2), 0.2);
+
+function voice(name, params, vol) {
+  params.masterVolume = 2 * vol;
+  sound.put(name, sfxr.render(params), sfxr.SAMPLE_RATE);
+}
+
+// The maze, four wall bits a cell, and the segments to stroke it with.
+const map = new Uint8Array(N * N);
+const walls = [];
+
+let player = null;
+let gate = null;
+let level = 0;
+let dying = 0;
+// The level change, and where the wipe grows from.
+let phase = 0;
+let phaseT = 0;
+let wipeX = 0;
+let wipeY = 0;
+// Seconds the pointer has been down, and the tap it turns into on the way up.
+let pressed = 0;
+let tapped = false;
+
+const PLAY = 0;
+const WIPE_OUT = 1;
+const SHOWING = 2;
+const WIPE_IN = 3;
+
+const css = (c) => `#${c.toString(16).padStart(6, "0")}`;
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+// The middle of a cell, in the box's coordinates, and the cell a point is in.
+const cx = (i) => MX + (i + 0.5) * CELL;
+const cy = (j) => MY + (j + 0.5) * CELL;
+const ci = (x) => Math.round((x - MX) / CELL - 0.5);
+const cj = (y) => Math.round((y - MY) / CELL - 0.5);
+
+/*
+ * The Haxe's generator: a randomised Prim's from the middle cell out. A cell
+ * still at 15, every wall up, has not been reached. The frontier is every
+ * unreached cell next to a reached one, one is taken from it at random, and it
+ * is joined to whichever reached neighbour the order picks.
+ *
+ * The order is the interesting part. It depends on which way the cell lies
+ * from the centre: the two perpendicular directions first, then away, then
+ * back toward the middle. Joining perpendicular runs the corridors around the
+ * centre rather than spoking out of it.
+ */
+function generate() {
+  map.fill(15);
+  const border = [];
+
+  const add = (p) => {
+    const x = p % N;
+    const y = (p - x) / N;
+    if (x > 0 && map[p - 1] === 15) border.push(p - 1);
+    if (x < N - 1 && map[p + 1] === 15) border.push(p + 1);
+    if (y > 0 && map[p - N] === 15) border.push(p - N);
+    if (y < N - 1 && map[p + N] === 15) border.push(p + N);
+  };
+
+  const home = MID + N * MID;
+  map[home] = 0;
+  add(home);
+
+  while (border.length > 0) {
+    const at = Math.floor(border.length * Math.random());
+    const sel = border[at];
+    border.splice(at, 1);
+    if (map[sel] !== 15) continue;
+    add(sel);
+
+    const x = sel % N;
+    const y = (sel - x) / N;
+    const a = (Math.atan2(y - N / 2, x - N / 2) + 2 * Math.PI) % (2 * Math.PI);
+    for (const o of order(a)) {
+      if (!joined(sel, x, y, o)) continue;
+      carve(sel, o);
+      break;
+    }
+  }
+
+  // The middle is opened out to everything around it, which is the Haxe's last
+  // block and is what makes the cell you start in a crossroads.
+  for (let o = 0; o < 4; ++o) {
+    const x = home % N;
+    const y = (home - x) / N;
+    if (joined(home, x, y, o)) carve(home, o);
+  }
+  buildWalls();
+}
+
+// North, east, south, west, tried perpendicular first and toward the middle
+// last, by where the cell lies. The Haxe's four cases.
+function order(a) {
+  if (a < Math.PI / 4 || a >= 7 * Math.PI / 4) return [2, 0, 1, 3];
+  if (a < 3 * Math.PI / 4) return [3, 1, 2, 0];
+  if (a < 5 * Math.PI / 4) return [0, 2, 3, 1];
+  return [1, 3, 0, 2];
+}
+
+// Is the neighbour on side `o` inside the maze and already reached?
+function joined(p, x, y, o) {
+  if (o === 0 && y === 0) return false;
+  if (o === 1 && x === N - 1) return false;
+  if (o === 2 && y === N - 1) return false;
+  if (o === 3 && x === 0) return false;
+  return map[p + SIDES[o].off] !== 15;
+}
+
+// Take the wall out, from both sides of it.
+function carve(p, o) {
+  const s = SIDES[o];
+  map[p] &= ~s.bit & 15;
+  map[p + s.off] &= ~s.back & 15;
+}
+
+function wall(i, j, bit) {
+  if (i < 0 || j < 0 || i >= N || j >= N) return true;
+  return (map[j * N + i] & bit) !== 0;
+}
+
+// Every wall as a segment, once per level. Drawn from both sides, which costs
+// a second copy of each and saves having to work out which side owns it.
+function buildWalls() {
+  walls.length = 0;
+  for (let j = 0; j < N; ++j) {
+    for (let i = 0; i < N; ++i) {
+      const m = map[j * N + i];
+      const x0 = MX + i * CELL;
+      const y0 = MY + j * CELL;
+      if (m & N_W) walls.push(x0, y0, x0 + CELL, y0);
+      if (m & E_W) walls.push(x0 + CELL, y0, x0 + CELL, y0 + CELL);
+      if (m & S_W) walls.push(x0, y0 + CELL, x0 + CELL, y0 + CELL);
+      if (m & W_W) walls.push(x0, y0, x0, y0 + CELL);
+    }
+  }
+}
+
+class Player extends ent.Entity {
+  constructor() {
+    super();
+    this.mx = MID;
+    this.my = MID;
+    this.tx = MID;
+    this.ty = MID;
+    this.pos.x = cx(MID);
+    this.pos.y = cy(MID);
+    this.facing = N_W;
+    this.cool = 0;
+    // Counts down from 1 while the player is folding into the gate, and is
+    // negative the rest of the time.
+    this.leaving = -1;
+    this.hitBox(YOU_BOX);
+  }
+
+  door() {
+    if (this.leaving < 0) this.leaving = 1;
+  }
+
+  // Face `d`, and step that way if there is no wall and the other axis is
+  // lined up. Facing happens either way, which is how a jump is aimed.
+  moveTo(d) {
+    this.facing = d;
+    this.angle = d === N_W
+      ? 0
+      : d === E_W
+      ? Math.PI / 2
+      : d === S_W
+      ? Math.PI
+      : 3 * Math.PI / 2;
+    if (wall(this.mx, this.my, d)) return;
+    this.stepTo(d);
+  }
+
+  stepTo(d) {
+    const off = Math.abs(this.pos.x - cx(this.tx)) / CELL;
+    const offy = Math.abs(this.pos.y - cy(this.ty)) / CELL;
+    if (d === N_W && this.my > 0 && off < ALIGN) this.ty = this.my - 1;
+    else if (d === E_W && this.mx < N - 1 && offy < ALIGN) this.tx = this.mx + 1;
+    else if (d === S_W && this.my < N - 1 && off < ALIGN) this.ty = this.my + 1;
+    else if (d === W_W && this.mx > 0 && offy < ALIGN) this.tx = this.mx - 1;
+    else return false;
+    return true;
+  }
+
+  // Through the wall in front, once every COOL seconds. There has to be a wall:
+  // an open side is a walk, not a jump.
+  jump() {
+    if (this.cool > 0) return;
+    if (!wall(this.mx, this.my, this.facing)) return;
+    if (!this.stepTo(this.facing)) return;
+    this.cool = 1;
+    sound.play("jump");
+  }
+
+  update() {
+    if (dying > 0) return;
+    const t = ent.game.time;
+    const { key, mouse } = ent.game;
+
+    this.mx = clamp(ci(this.pos.x), 0, N - 1);
+    this.my = clamp(cj(this.pos.y), 0, N - 1);
+
+    if (this.leaving < 0) {
+      if (tapped) this.jump();
+      let d = 0;
+      if (key.left) d = W_W;
+      else if (key.right) d = E_W;
+      else if (key.up) d = N_W;
+      else if (key.down) d = S_W;
+      // The pointer names a side rather than a place: the bigger of the two
+      // offsets from the player wins, so a finger below and a little left is
+      // down.
+      if (d === 0 && pressed > TAP) {
+        const dx = mouse.x - this.pos.x;
+        const dy = mouse.y - this.pos.y;
+        if (Math.max(Math.abs(dx), Math.abs(dy)) > YOU_R) {
+          d = Math.abs(dx) > Math.abs(dy)
+            ? (dx > 0 ? E_W : W_W)
+            : (dy > 0 ? S_W : N_W);
+        }
+      }
+      if (d !== 0) this.moveTo(d);
+
+      // Let go early enough and the step is called off rather than finished.
+      // Per axis, which is what the Haxe's two separate tests are: turn into a
+      // wall while a sideways step is still barely under way and the step is
+      // dropped, or the wall stops the turn and the old target quietly carries
+      // you on sideways for ever.
+      const across = d === E_W || d === W_W;
+      const along = d === N_W || d === S_W;
+      if (
+        !across && Math.abs(this.pos.x - cx(this.tx)) > BAIL * CELL
+      ) this.tx = this.mx;
+      if (
+        !along && Math.abs(this.pos.y - cy(this.ty)) > BAIL * CELL
+      ) this.ty = this.my;
+    }
+
+    // Slide toward the target cell, at most WALK cells this frame.
+    const dx = cx(this.tx) - this.pos.x;
+    const dy = cy(this.ty) - this.pos.y;
+    const l = Math.hypot(dx, dy);
+    const step = WALK * CELL * t;
+    if (l <= step) {
+      this.pos.x = cx(this.tx);
+      this.pos.y = cy(this.ty);
+    } else {
+      this.pos.x += dx / l * step;
+      this.pos.y += dy / l * step;
+    }
+
+    if (this.leaving >= 0) {
+      this.leaving = Math.max(0, this.leaving - 2 * t);
+      if (this.leaving === 0) leave();
+      return;
+    }
+    this.cool = Math.max(0, this.cool - t / COOL);
+  }
+
+  // A disc with a flat bottom, which is the Haxe's circle with a rect of the
+  // background over it. The flat rises as the jump comes back, so the shape
+  // itself is the only gauge there is.
+  render(ctx) {
+    const r = this.leaving >= 0 ? YOU_R * this.leaving : YOU_R;
+    if (r <= 0) return;
+    ctx.fillStyle = css(YOU);
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, 2 * Math.PI);
+    ctx.fill();
+    // The Haxe's 5 of 17 with the jump ready and 8 of 17 without it.
+    const cut = this.leaving >= 0 ? 0.29 : 0.29 + 0.18 * this.cool;
+    if (cut <= 0) return;
+    ctx.fillStyle = css(BG);
+    ctx.fillRect(-r, r - 2 * r * cut, 2 * r, 2 * r * cut);
+  }
+}
+
+class Bot extends ent.Entity {
+  constructor() {
+    super();
+    // Somewhere round the outside, which is as far from the middle as the
+    // Haxe puts them.
+    const d = Math.floor(5 * Math.random());
+    if (Math.random() < 0.5) {
+      this.mx = Math.random() < 0.5 ? d : N - 1 - d;
+      this.my = Math.floor(N * Math.random());
+    } else {
+      this.mx = Math.floor(N * Math.random());
+      this.my = Math.random() < 0.5 ? d : N - 1 - d;
+    }
+    this.tx = this.mx;
+    this.ty = this.my;
+    this.evil = false;
+    this.pos.x = cx(this.mx);
+    this.pos.y = cy(this.my);
+    this.hitBox(BOT_BOX);
+  }
+
+  update() {
+    if (dying > 0 || phase !== PLAY) return;
+    if (ent.game.totalTime < STILL) return;
+    const t = ent.game.time;
+
+    const dx = cx(this.mx) - this.pos.x;
+    const dy = cy(this.my) - this.pos.y;
+    const l = Math.hypot(dx, dy);
+    const step = (this.evil ? CHASE : PATROL) * CELL * t;
+    if (l >= step) {
+      this.pos.x += dx / l * step;
+      this.pos.y += dy / l * step;
+    } else {
+      this.pos.x = cx(this.mx);
+      this.pos.y = cy(this.my);
+      if (ent.game.totalTime >= CHASE_AT) this.chase();
+      for (let n = 0; n < 40 && this.mx === this.tx && this.my === this.ty; ++n) {
+        this.retarget();
+      }
+      if (this.tx > this.mx) this.mx += 1;
+      else if (this.tx < this.mx) this.mx -= 1;
+      else if (this.ty > this.my) this.my += 1;
+      else if (this.ty < this.my) this.my -= 1;
+    }
+
+    if (player === null || player.leaving >= 0) return;
+    if (this.hit(player)) die();
+  }
+
+  // How far a straight run goes from (x0, y) before a wall stops it. On patrol
+  // it also gives up early at anything with a way out of the run, more readily
+  // the further it has come, which is what turns a corridor sweep into a
+  // wander.
+  runX(x0, y, dx, wander) {
+    // Nowhere is not a direction. `retarget` asks for the sign of the gap to
+    // the player, which is zero whenever the bot is already in the player's
+    // column, and the Haxe's loop adds that sign to x for ever: the two wall
+    // tests are both against a specific sign, and the third is a coin that
+    // comes up `random() >= 1/(1+0)`, which is never.
+    if (dx === 0) return x0;
+    let x = x0;
+    while (x >= 0 && x < N) {
+      const m = map[y * N + x];
+      if (dx === 1 && (m & E_W)) break;
+      if (dx === -1 && (m & W_W)) break;
+      if (
+        wander && Math.random() >= 1 / (1 + Math.abs(x - x0)) &&
+        (!(m & N_W) || !(m & S_W))
+      ) break;
+      x += dx;
+    }
+    return x;
+  }
+
+  runY(x, y0, dy, wander) {
+    if (dy === 0) return y0;
+    let y = y0;
+    while (y >= 0 && y < N) {
+      const m = map[y * N + x];
+      if (dy === 1 && (m & S_W)) break;
+      if (dy === -1 && (m & N_W)) break;
+      if (
+        wander && Math.random() >= 1 / (1 + Math.abs(y - y0)) &&
+        (!(m & E_W) || !(m & W_W))
+      ) break;
+      y += dy;
+    }
+    return y;
+  }
+
+  retarget() {
+    if (player !== null && ent.game.totalTime >= AIM_AT) {
+      if (Math.random() < 0.5) {
+        const k = this.runX(this.mx, this.my, Math.sign(player.mx - this.mx), true);
+        if (k !== this.mx) {
+          this.tx = k;
+          return;
+        }
+      } else {
+        const k = this.runY(this.mx, this.my, Math.sign(player.my - this.my), true);
+        if (k !== this.my) {
+          this.ty = k;
+          return;
+        }
+      }
+    }
+    switch (Math.floor(4 * Math.random())) {
+      case 0:
+        this.ty = this.runY(this.mx, this.my, -1, true);
+        break;
+      case 1:
+        this.ty = this.runY(this.mx, this.my, 1, true);
+        break;
+      case 2:
+        this.tx = this.runX(this.mx, this.my, -1, true);
+        break;
+      default:
+        this.tx = this.runX(this.mx, this.my, 1, true);
+    }
+  }
+
+  // In the same row or column with nothing in the way: fill in, double the
+  // speed and come down it.
+  chase() {
+    if (player === null) return;
+    this.evil = false;
+    if (player.mx === this.mx) {
+      const y = this.runY(this.mx, this.my, player.my > this.my ? 1 : -1, false);
+      if (Math.abs(player.my - this.my) <= Math.abs(y - this.my)) {
+        this.evil = true;
+        this.tx = this.mx;
+        this.ty = player.my;
+      }
+    }
+    if (player.my === this.my) {
+      const x = this.runX(this.mx, this.my, player.mx > this.mx ? 1 : -1, false);
+      if (Math.abs(player.mx - this.mx) <= Math.abs(x - this.mx)) {
+        this.evil = true;
+        this.ty = this.my;
+        this.tx = player.mx;
+      }
+    }
+  }
+
+  render(ctx) {
+    ctx.beginPath();
+    ctx.arc(0, 0, BOT_R, 0, 2 * Math.PI);
+    if (this.evil) {
+      ctx.fillStyle = css(BOT);
+      ctx.fill();
+      return;
+    }
+    ctx.strokeStyle = css(BOT);
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+}
+
+class Key extends ent.Entity {
+  constructor(i, j) {
+    super();
+    this.pos.x = cx(i);
+    this.pos.y = cy(j);
+    this.hitBox(KEY_BOX);
+  }
+
+  update() {
+    if (dying > 0 || player === null) return;
+    if (!this.hit(player)) return;
+    gate.open();
+    sound.play("key");
+    this.remove();
+  }
+
+  render(ctx) {
+    ctx.fillStyle = css(DARK);
+    ctx.fillRect(-KEY_BOX / 2, -KEY_BOX / 2, KEY_BOX, KEY_BOX);
+  }
+}
+
+class Gate extends ent.Entity {
+  constructor(i, j) {
+    super();
+    this.pos.x = cx(i);
+    this.pos.y = cy(j);
+    this.unlocked = false;
+    // 1 while the middle is still filled in, 0 once it has opened.
+    this.shut = 1;
+    this.hitBox(GATE_BOX);
+  }
+
+  open() {
+    this.unlocked = true;
+  }
+
+  update() {
+    if (dying > 0) return;
+    if (this.unlocked && this.shut > 0) {
+      this.shut = Math.max(0, this.shut - 4 * ent.game.time);
+    }
+    if (!this.unlocked || player === null || player.leaving >= 0) return;
+    if (!this.hit(player)) return;
+    sound.play("gate");
+    player.door();
+  }
+
+  render(ctx) {
+    const h = GATE_BOX / 2;
+    ctx.fillStyle = css(DARK);
+    ctx.fillRect(-h, -h, GATE_BOX, GATE_BOX);
+    if (this.shut <= 0) return;
+    const s = GATE_BOX / 2 * this.shut;
+    ctx.fillStyle = css(BG);
+    ctx.fillRect(-s, -s, 2 * s, 2 * s);
+  }
+}
+
+function die() {
+  if (dying > 0) return;
+  dying = DEATH;
+  ent.shake(0.4);
+  sound.play("dead");
+  new ent.Particle()
+    .xy(player.pos.x, player.pos.y)
+    .color(YOU)
+    .count(60)
+    .size(3)
+    .speed(120, 80)
+    .duration(0.5, 0.3);
+}
+
+// The player has folded into the gate: hold where it was, and start the wipe.
+function leave() {
+  wipeX = gate.pos.x;
+  wipeY = gate.pos.y;
+  phase = WIPE_OUT;
+  phaseT = 0;
+  player.remove();
+  player = null;
+}
+
+function buildLevel() {
+  ent.reset();
+  ent.world(W);
+  ent.order([Gate, Key, Bot, Player]);
+
+  level += 1;
+  score.value = level;
+  generate();
+
+  player = new Player();
+  // Key and gate are point symmetric about the middle, which is the Haxe's
+  // `p1 = 15*15 - 1 - p0`: whichever corner of the maze one is in, the other
+  // is in the far one, so a level is always a there and a back.
+  // Not the middle, where the player is standing: p1 is its own mirror there,
+  // so the key and the gate would both be underfoot and the level would be
+  // over before it started.
+  const home = MID + N * MID;
+  let p0 = home;
+  while (p0 === home) p0 = Math.floor(N * N * Math.random());
+  const p1 = N * N - 1 - p0;
+  gate = new Gate(p0 % N, Math.floor(p0 / N));
+  new Key(p1 % N, Math.floor(p1 / N));
+  for (let i = 0; i < level; ++i) new Bot();
+}
+
+export function init() {
+  level = 0;
+  dying = 0;
+  phase = PLAY;
+  phaseT = 0;
+  pressed = 0;
+  tapped = false;
+  buildLevel();
+}
+
+export function update(dt) {
+  // A press let go inside TAP seconds is a jump, one held past it is a walk.
+  // Off the shell's own pointer rather than entity.js's copy, because the
+  // player reads the answer during ent.update() and the copy is only a frame
+  // behind it.
+  tapped = mouse.release && pressed > 0 && pressed <= TAP;
+  pressed = mouse.press ? pressed + dt : 0;
+
+  // Nothing moves while the hint is up or while a level is changing.
+  ent.update(phase === PLAY && hint() <= 0 ? dt : 0);
+
+  if (dying > 0) {
+    if ((dying -= dt) <= 0) gameOver();
+    return;
+  }
+  if (phase === PLAY) return;
+
+  phaseT += dt;
+  if (phase === WIPE_OUT && phaseT >= WIPE) {
+    phaseT = 0;
+    phase = SHOWING;
+    buildLevel();
+  } else if (phase === SHOWING && phaseT >= SHOW) {
+    phaseT = 0;
+    phase = WIPE_IN;
+  } else if (phase === WIPE_IN && phaseT >= WIPE) {
+    phaseT = 0;
+    phase = PLAY;
+  }
+}
+
+export function render(ctx) {
+  ctx.save();
+  ctx.scale(SIZE / W, SIZE / W);
+
+  ctx.strokeStyle = css(WALL);
+  ctx.lineWidth = LINE;
+  ctx.lineCap = "square";
+  ctx.beginPath();
+  for (let i = 0; i < walls.length; i += 4) {
+    ctx.moveTo(walls[i], walls[i + 1]);
+    ctx.lineTo(walls[i + 2], walls[i + 3]);
+  }
+  ctx.stroke();
+  ctx.restore();
+
+  ent.render(ctx);
+
+  ctx.save();
+  ctx.scale(SIZE / W, SIZE / W);
+  drawWipe(ctx);
+  ctx.restore();
+}
+
+// The level change: a dark square out of the gate, the number, and a hole back
+// out of the middle. The Haxe's shape, on a clock instead of a key press.
+function drawWipe(ctx) {
+  if (phase === PLAY) return;
+  ctx.fillStyle = css(DARK);
+
+  if (phase === WIPE_OUT) {
+    const s = 2 * W * (phaseT / WIPE);
+    ctx.fillRect(wipeX - s / 2, wipeY - s / 2, s, s);
+    return;
+  }
+
+  ctx.fillRect(0, 0, W, W);
+  if (phase === WIPE_IN) {
+    const s = W * (phaseT / WIPE);
+    ctx.fillStyle = css(BG);
+    ctx.fillRect(W / 2 - s / 2, W / 2 - s / 2, s, s);
+    return;
+  }
+  label(ctx, `LEVEL ${level}`, W / 2, W / 2, 4, YOU);
+}
+
+function label(ctx, s, x, y, size, color) {
+  const g = glyphs(s);
+  ctx.fillStyle = css(color);
+  const x0 = x - g.width * size / 2;
+  const y0 = y - g.height * size / 2;
+  for (let i = 0; i < g.dots.length; i += 2) {
+    ctx.fillRect(x0 + g.dots[i] * size, y0 + g.dots[i + 1] * size, size, size);
+  }
+}

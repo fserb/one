@@ -14,7 +14,7 @@
 import { ease, extra, vec } from "./alma/src/index.js";
 import { camera } from "./lib/camera.js";
 import { act, fixed, gameOver, mouse, score, SIZE } from "./lib/one.js";
-import pl from "./lib/planck.js";
+import * as pl from "./lib/planck.js";
 import { ADSR, biquad, envelope, karplus_strong } from "./lib/fsfx/fsfx.js";
 import * as sound from "./lib/sound.js";
 
