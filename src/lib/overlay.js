@@ -19,7 +19,7 @@
  * render() after the game draws.
  */
 
-import { ease, utils } from "../alma/src/index.js";
+import { color, ease, utils } from "../alma/src/index.js";
 import { mouse } from "./input.js";
 import { meta, op, score, SIZE } from "./one.js";
 
@@ -298,33 +298,18 @@ function width(ctx, txt, size) {
 }
 
 /*
- * The theme the board contrasts with more, by contrast ratio against meta.bg.
- * Not "is the background light or dark": the crossover between these two themes
- * sits at luminance 0.19, not at the 0.5 midpoint, because a mid-tone field is
- * much closer to white than it looks. Splitting at the midpoint puts berzerk's
- * red on the light panel at 3.3:1 where the dark one gives 5.0:1.
+ * The theme the board contrasts with more, by WCAG contrast ratio against
+ * meta.bg. Not "is the background light or dark": the crossover between these
+ * two themes sits at luminance 0.19, not at the 0.5 midpoint, because a
+ * mid-tone field is much closer to white than it looks. Splitting at the
+ * midpoint puts berzerk's red on the light panel at 3.3:1 where the dark one
+ * gives 5.0:1. It comes out 12 dark and 11 light over the 23.
+ *
+ * alma's contrast() linearises sRGB before weighting the channels, which is
+ * the step that matters: the weights on the raw bytes call #3DBF86 a 0.62 when
+ * it is a 0.40, most of the way to the wrong panel.
  */
 function pick(hex) {
-  const l = luma(hex);
-  return ratio(l, luma(DARK.bg)) >= ratio(l, luma(LIGHT.bg)) ? DARK : LIGHT;
-}
-
-function ratio(a, b) {
-  return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
-}
-
-// WCAG relative luminance. sRGB has to come out of its gamma curve before the
-// channel weights mean anything: the weights on the raw bytes call #3DBF86 a
-// 0.62 when it is a 0.40, which is most of the way to the wrong panel.
-function luma(hex) {
-  let h = hex.replace("#", "");
-  if (h.length === 3) h = h.split("").map((c) => c + c).join("");
-  const n = parseInt(h, 16);
-  return 0.2126 * lin((n >> 16) & 255) + 0.7152 * lin((n >> 8) & 255) +
-    0.0722 * lin(n & 255);
-}
-
-function lin(v) {
-  const c = v / 255;
-  return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  const c = color(hex);
+  return c.contrast(DARK.bg) >= c.contrast(LIGHT.bg) ? DARK : LIGHT;
 }
