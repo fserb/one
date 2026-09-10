@@ -144,6 +144,23 @@ const esc = (s) =>
 
 const kb = (bytes) => `${(bytes / 1024).toFixed(1)} KB`;
 
+/*
+ * The gallery card names its game in the same two colours the in-game chrome
+ * uses, from overlay.js's pick(): #17171b or #f5f4f0, whichever has the higher
+ * contrast against the card. Not the same as asking whether meta.bg is light,
+ * since the crossover sits at luminance 0.19, not at 0.5.
+ *
+ * meta.fg stays out of it. rope's fg is #402F2E on a #000000 bg and grab's is
+ * nearly its own bg too, so a title drawn in fg is unreadable on both.
+ */
+function luma(hex) {
+  const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+    .map((v) => v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+  return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+}
+
+const ink = (bg) => luma(bg) > 0.19 ? "#17171b" : "#f5f4f0";
+
 // The mark in the game's two colours: a disc with a round-capped bar cut out
 // of the bottom, reading as an "n". Measured off ~/web/games/one/icon.png and
 // normalised from its 512 box to 32: disc r=180.9, bar half-width 49, cap
@@ -179,8 +196,12 @@ function gallery(entries) {
     fill(TEMPLATE.card, {
       game,
       title: esc(m.title),
+      // Both lines of it: the card has the room, and it is the only place the
+      // rules of a game are written down outside the game.
+      desc: esc(m.desc.trim()).replace(/\s*\n\s*/g, "<br>"),
+      date: esc(m.date ?? ""),
       bg: m.bg,
-      fg: m.fg,
+      ink: ink(m.bg),
       media: s.mp4
         ? `<video src="./${game}/card.mp4"${
           s.png ? ` poster="./${game}/card.png"` : ""

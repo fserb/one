@@ -13,66 +13,159 @@
 <meta name="theme-color" content="#f2f0e5">
 <link rel="icon" href="{{icon}}">
 <style>
-:root { --card: 400px; }
-html { background: #f2f0e5; }
+* { box-sizing: border-box; }
+html { background: #f2f0e5; scrollbar-gutter: stable; }
+/* While a game is up the page behind it does not scroll. The gutter is
+   reserved either way, so nothing shifts under the card in flight. */
+html.playing { overflow: hidden; }
 body {
   margin: 0;
-  padding: 20px;
-  font-family: Verdana, sans-serif;
+  padding: 26px;
+  font: 14px/1.45 Verdana, sans-serif;
   color: #212123;
 }
-h1 { font-size: 250%; line-height: 1; margin: 0 0 .2em; }
-p.by { font-size: 75%; margin: 0; }
-a { color: inherit; }
-ul {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(var(--card), 1fr));
-  gap: 40px;
+header { display: flex; align-items: baseline; gap: 12px; margin: 0 0 24px; }
+h1 { font-size: 19px; margin: 0; letter-spacing: -.02em; }
+header p { margin: 0; font-size: 11px; color: #21212399; }
+header a { color: inherit; }
+
+/* Flex, not grid: the count sizes the card and a row of n fills the width
+   exactly, so the wall stays on one rhythm without a grid's fixed tracks. */
+#cards {
+  --gap: 14px;
+  --n: 2;
+  --card: calc((100% - (var(--n) - 1) * var(--gap)) / var(--n));
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gap);
   list-style: none;
-  margin: 40px 0 0;
+  margin: 0;
   padding: 0;
 }
-li { aspect-ratio: 1; }
-li > * { width: 100%; height: 100%; border: 0; display: block; }
-li > a {
-  background: var(--bg);
-  color: var(--fg);
-  display: flex;
-  align-items: flex-end;
-  padding: .5em;
-  box-sizing: border-box;
-  font-size: 2.4em;
-  font-weight: bold;
-  text-decoration: none;
+@media (min-width: 560px) { #cards { --n: 3; } }
+@media (min-width: 820px) { #cards { --n: 4; } }
+@media (min-width: 1080px) { #cards { --n: 5; } }
+@media (min-width: 1340px) { #cards { --n: 6; } }
+
+li {
+  flex: 0 0 var(--card);
   position: relative;
+  aspect-ratio: 1;
   overflow: hidden;
+  background: var(--bg);
+  color: var(--ink);
+  transition: transform .25s cubic-bezier(.3,.9,.25,1);
 }
+li:hover { transform: translateY(-4px); }
+li > a { position: absolute; inset: 0; color: inherit; text-decoration: none; }
 /* The recorded clip, under the title. A game without one is flat --bg, which
    is also what the clip's own background is, so the title reads either way. */
-li > a > video {
+li video {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
-  display: block;
 }
-li > a > span { position: relative; }
-@media (max-width: 480px) { :root { --card: 100%; } body { padding: 20px 0; } }
+.tag { position: absolute; top: 0; left: 0; }
+.tag b { display: block; padding: 9px 10px 0; font: bold 13px/1.2 Verdana; }
+.tag p { margin: 5px 10px 0; font: 11px/1.45 Verdana; opacity: .72; }
+.tag time {
+  display: block;
+  margin: 6px 10px 0;
+  font: 10px Verdana, sans-serif;
+  opacity: .5;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Laid out but not painted until .on, so the board can be measured before it
+   is ever shown; display:none would leave no box to measure. It has no
+   background of its own: the wall behind it fades, and html is this colour. */
+#sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  visibility: hidden;
+}
+#sheet.on { visibility: visible; }
+/* Out of sight until the card has finished arriving. It is full size from the
+   first frame, so showing it while the card is still small puts a board on
+   screen that nothing moved into. */
+.square {
+  visibility: hidden;
+  position: relative;
+  width: min(calc(100dvh - 32px), calc(100vw - 32px));
+  aspect-ratio: 1;
+  background: var(--bg);
+}
+.square.lit { visibility: visible; }
+.square iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  opacity: 0;
+}
+/* The game's last frame, riding home inside the shrinking card. */
+.shot { position: absolute; inset: 0; width: 100%; height: 100%; }
+/* The only chrome over a running game. It sits in the margin the square
+   leaves, and carries its own backing for a window that has no margin. */
+#back {
+  position: fixed;
+  top: 22px;
+  left: 22px;
+  z-index: 21;
+  display: none;
+  gap: 8px;
+  border: 0;
+  border-radius: 5px;
+  padding: 7px 12px;
+  background: #f2f0e5e8;
+  color: inherit;
+  font: bold 13px Verdana, sans-serif;
+  cursor: pointer;
+}
+#sheet.on ~ #back { display: flex; }
 </style>
 </head>
 <body>
-<header>
-  <h1>one tiny game</h1>
-  <p class="by">by <a href="https://fserb.com">fserb</a></p>
-</header>
-<ul id="games">
+<div id="page">
+  <header>
+    <h1>one tiny game</h1>
+    <p>by <a href="https://fserb.com">fserb</a></p>
+  </header>
+  <ul id="cards">
 {{cards}}
-</ul>
+  </ul>
+</div>
+<div id="sheet"><div class="square"></div></div>
+<button id="back"></button>
 <script type="module">
-// One game runs at a time: opening a second puts the first card back.
-const list = document.getElementById("games");
-let playing = null;
+/*
+ * Pressing a card gives its game the whole page. The card itself makes the
+ * trip: the <li> is pinned where it was drawn, leaves a same-sized hole so the
+ * wall does not reflow, and grows to the board with its clip still playing.
+ * The game loads behind it and the card only fades once the game has drawn a
+ * frame, so there is never a blank square and never a cut.
+ *
+ * It moves in left/top/width/height rather than a transform. That costs a
+ * layout a frame, which for one element is nothing, and the video resamples at
+ * the size it is drawn instead of one rasterisation being magnified.
+ *
+ * The card is a real link, so this page works with the script off: a click
+ * goes to the game's own page, which is the same game.
+ */
+const DUR = 480;
+const EASE = "cubic-bezier(.4,0,.15,1)";
+
+const page = document.getElementById("page");
+const list = document.getElementById("cards");
+const sheet = document.getElementById("sheet");
+const square = document.querySelector(".square");
+const backBtn = document.getElementById("back");
 
 // Cards play only while they are on screen. The videos carry preload="none",
 // so a card below the fold costs its poster and nothing else until you reach
@@ -85,19 +178,183 @@ const onscreen = new IntersectionObserver((es) => {
 }, { rootMargin: "200px" });
 for (const v of list.querySelectorAll("video")) onscreen.observe(v);
 
-list.addEventListener("click", ev => {
+let live = null; // the card that is out of the wall, and how to put it back
+let frame = null;
+let busy = false;
+
+list.addEventListener("click", (ev) => {
   const a = ev.target.closest("a[data-game]");
-  if (!a || ev.metaKey || ev.ctrlKey || ev.shiftKey) return;
+  if (!a || ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.button) return;
   ev.preventDefault();
+  show(a.closest("li"), a.getAttribute("href"), a.dataset.game);
+});
 
-  playing?.replaceWith(playing.card);
+function setBox(el, b) {
+  Object.assign(el.style, {
+    left: `${b.left}px`,
+    top: `${b.top}px`,
+    width: `${b.width}px`,
+    height: `${b.height}px`,
+  });
+}
 
-  const frame = document.createElement("iframe");
-  frame.src = a.getAttribute("href");
-  frame.card = a;
-  frame.allow = "autoplay; fullscreen; gamepad";
-  a.replaceWith(frame);
-  playing = frame;
+// Eased in as well as out. The card starts at rest, and a curve that only
+// eases out throws it a third of the way in the first two frames.
+function glide(el, to) {
+  const at = (b) => ({
+    left: `${b.left}px`,
+    top: `${b.top}px`,
+    width: `${b.width}px`,
+    height: `${b.height}px`,
+  });
+  return el.animate([at(el.getBoundingClientRect()), at(to)], {
+    duration: DUR,
+    easing: EASE,
+    fill: "forwards",
+  }).finished;
+}
+
+async function show(li, href, name) {
+  if (busy || live) return;
+  busy = true;
+
+  /*
+   * Out of the wall and onto the body, not just pinned in place: a fixed
+   * descendant still takes its ancestors' opacity, and the wall fades to
+   * nothing while a game is up.
+   */
+  const box = li.getBoundingClientRect();
+  const hole = document.createElement("li");
+  hole.style.visibility = "hidden";
+  li.replaceWith(hole);
+  document.body.append(li);
+  const keep = li.getAttribute("style") ?? "";
+  setBox(li, box);
+  Object.assign(li.style, {
+    position: "fixed",
+    margin: "0",
+    zIndex: "40",
+    pointerEvents: "none",
+  });
+  live = { li, hole, keep, box };
+
+  sheet.classList.add("on");
+  document.documentElement.classList.add("playing");
+  history.pushState({ game: name }, "", href);
+
+  const drawn = load(href);
+  page.animate([{ opacity: 1 }, { opacity: 0 }], {
+    duration: 200,
+    fill: "forwards",
+  });
+  li.querySelector(".tag").animate([{ opacity: 1 }, { opacity: 0 }], {
+    duration: DUR * .45,
+    fill: "forwards",
+  });
+  backBtn.textContent = `← ${name}`;
+  backBtn.animate([{ opacity: 0 }, { opacity: 1 }], {
+    duration: 200,
+    delay: 260,
+    fill: "both",
+  });
+
+  // Both, not either: the card goes on covering the board until there is a
+  // game drawing under it, however long that takes.
+  await Promise.all([glide(li, square.getBoundingClientRect()), drawn]);
+  square.classList.add("lit");
+  await li.animate([{ opacity: 1 }, { opacity: 0 }], {
+    duration: 220,
+    fill: "forwards",
+  }).finished;
+  busy = false;
+}
+
+// Resolves once the game has drawn, not once the iframe fired load: load waits
+// for the page's script, and two frames after that it has put something up.
+function load(href) {
+  return new Promise((done) => {
+    frame = document.createElement("iframe");
+    frame.allow = "autoplay; fullscreen; gamepad";
+    frame.onload = async () => {
+      await new Promise(requestAnimationFrame);
+      await new Promise(requestAnimationFrame);
+      frame.style.opacity = "1";
+      done();
+    };
+    square.append(frame);
+    frame.src = href;
+  });
+}
+
+// A copy of the last frame the game drew. Same origin, so its canvas is
+// readable, and copying it is one drawImage rather than an encode. It is what
+// lets the card shrink out of the game instead of cutting to its own colour.
+function grab() {
+  const src = frame?.contentDocument?.querySelector("canvas");
+  if (!src?.width) return null;
+  const out = document.createElement("canvas");
+  out.width = src.width;
+  out.height = src.height;
+  out.getContext("2d").drawImage(src, 0, 0);
+  return out;
+}
+
+async function hide() {
+  if (busy || !live) return;
+  busy = true;
+  const { li, hole, keep, box } = live;
+  live = null;
+
+  const shot = grab();
+  if (shot) {
+    shot.className = "shot";
+    li.querySelector("a").append(shot);
+  }
+  setBox(li, square.getBoundingClientRect());
+  square.classList.remove("lit");
+  document.documentElement.classList.remove("playing");
+  sheet.classList.remove("on");
+  frame?.remove();
+  frame = null;
+
+  backBtn.animate([{ opacity: 1 }, { opacity: 0 }], {
+    duration: 140,
+    fill: "forwards",
+  });
+  page.animate([{ opacity: 0 }, { opacity: 1 }], {
+    duration: 240,
+    delay: DUR * .35,
+    fill: "forwards",
+  });
+  shot?.animate([{ opacity: 1 }, { opacity: 0 }], {
+    duration: DUR * .5,
+    delay: DUR * .35,
+    fill: "forwards",
+  });
+  // Held at 0 rather than set inline: the styles are restored by putting the
+  // card back, and an inline opacity would survive that and leave it blank.
+  li.querySelector(".tag").animate([
+    { opacity: 0, offset: 0 },
+    { opacity: 0, offset: .4 },
+    { opacity: 1, offset: 1 },
+  ], { duration: DUR, fill: "forwards" });
+
+  await glide(li, box);
+  shot?.remove();
+  // subtree: the title carries its own fade, and a fill of "forwards" on it
+  // outlives the card's own animation otherwise.
+  for (const a of li.getAnimations({ subtree: true })) a.cancel();
+  li.setAttribute("style", keep);
+  hole.replaceWith(li);
+  busy = false;
+}
+
+// The URL is the game's own page while it is up, so back leaves it and a
+// reload lands on the same game standalone.
+backBtn.onclick = () => history.back();
+addEventListener("popstate", hide);
+addEventListener("keydown", (ev) => {
+  if (ev.key === "Escape" && live) history.back();
 });
 </script>
 </body>
