@@ -44,7 +44,7 @@ go too far and the loop swallows it
   date: "2015-09-08",
 };
 
-// The 480 box, and one world unit in the shell's 1024.
+// The 480 box, and one world unit in one.js's 1024.
 const W = 480;
 const K = SIZE / W;
 

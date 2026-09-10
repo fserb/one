@@ -1,5 +1,5 @@
 /*
- * overlay.js - the chrome every game shares. Floating panels over the board,
+ * overlay.js - the panels every game shares. Floating panels over the board,
  * and nothing else: no bar, no reserved strip, no mute button.
  *
  *   playing  a chip in the top-left corner once the score leaves zero, and
@@ -10,7 +10,7 @@
  *   finish   the frozen board, dimmed, and whatever gameOver() asked for. A
  *            click starts the next round.
  *
- * Every panel is one of two skins, picked from the lightness of meta.bg: a
+ * Every panel is one of two themes, picked from the lightness of meta.bg: a
  * light game gets the dark panel, a dark game the light one. The game's own
  * palette never enters, so rope and grab, whose fg and bg are almost the same
  * colour, still get a panel you can read.
@@ -43,7 +43,7 @@ const AGAIN = "TAP TO PLAY AGAIN";
 // A click this soon after the round ends is the click that ended it.
 const DEAD = 0.4;
 
-let skin = DARK;
+let theme = DARK;
 
 const tip = {
   lines: [],
@@ -61,7 +61,7 @@ const seen = new Set();
 const finish = {
   on: false,
   t: 0,
-  // The last frame of the board, taken before any chrome went over it.
+  // The last frame of the board, taken before any panel went over it.
   shot: null,
   panel: false,
   title: null,
@@ -71,7 +71,7 @@ const finish = {
 export function init() {
   score.best = localStorage.getItem(`one#${meta.title}`);
   if (score.best !== null) score.best = Number(score.best);
-  skin = pick(meta.bg);
+  theme = pick(meta.bg);
   seen.clear();
   clear();
 }
@@ -119,7 +119,7 @@ export function gameOver(
 }
 
 // one.js draws the board once more after the round ends and hands the canvas
-// here, so the frozen shot holds the game and none of the chrome.
+// here, so the frozen shot holds the game and none of the panels.
 export function shoot(canvas) {
   const [shot, sctx] = utils.newCanvas(canvas.width, canvas.height);
   sctx.drawImage(canvas, 0, 0);
@@ -263,7 +263,7 @@ function renderFinish(ctx) {
 }
 
 /*
- * One floating rectangle, filled in the skin and left as the current fillStyle
+ * One floating rectangle, filled in the theme and left as the current fillStyle
  * for the text that follows. x,y is the anchor and ax,ay say which point of the
  * box that is: 0 left/top, 0.5 centre, 1 right/bottom.
  */
@@ -274,12 +274,12 @@ function box(ctx, x, y, w, h, ax, ay) {
   ctx.shadowColor = "#0000004d";
   ctx.shadowBlur = 18;
   ctx.shadowOffsetY = 4;
-  ctx.fillStyle = skin.bg;
+  ctx.fillStyle = theme.bg;
   ctx.beginPath();
   ctx.roundRect(bx, by, w, h, RADIUS);
   ctx.fill();
   ctx.restore();
-  ctx.fillStyle = skin.fg;
+  ctx.fillStyle = theme.fg;
   return [bx, by];
 }
 
@@ -298,8 +298,8 @@ function width(ctx, txt, size) {
 }
 
 /*
- * The skin the board contrasts with more, by contrast ratio against meta.bg.
- * Not "is the background light or dark": the crossover between these two skins
+ * The theme the board contrasts with more, by contrast ratio against meta.bg.
+ * Not "is the background light or dark": the crossover between these two themes
  * sits at luminance 0.19, not at the 0.5 midpoint, because a mid-tone field is
  * much closer to white than it looks. Splitting at the midpoint puts berzerk's
  * red on the light panel at 3.3:1 where the dark one gives 5.0:1.

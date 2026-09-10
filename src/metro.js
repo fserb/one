@@ -92,7 +92,7 @@ sound.voice("crash", { ...explosion(4005), vol: 0.25 });
 sound.voice("station", { ...coin(112), vol: 0.15 });
 sound.voice("switch", { ...hit(764), vol: 0.25 });
 
-// In the shell's 480 coordinates: follow() slides every station once a frame
+// In entity.js's 480 coordinates: follow() slides every station once a frame
 // so the car stays in the middle, which is why nothing here needs a camera.
 let stations = [];
 let edges = [];

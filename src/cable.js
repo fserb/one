@@ -102,7 +102,7 @@ const FADE = 1.5;
 const FLASH = 0.05;
 
 // The clock sits 15 off the bottom; the planets gauge hangs just under the
-// chrome, whose score chip and msg own the top of the board down to 50.
+// overlay, whose score chip and msg own the top of the board down to 50.
 const PIECES_X = 60;
 const PIECES_Y = 55;
 const CLOCK_X = 60;

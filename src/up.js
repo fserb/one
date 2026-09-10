@@ -47,7 +47,7 @@ const HOLD = 200;
 const OUT = 500;
 
 // Pieces the scene keeps stocked, counting those still above the screen, and
-// the seconds the wreck holds before the shell takes over.
+// the seconds the wreck holds before gameOver() runs.
 const FIELD = 10;
 const DEATH = 0.5;
 

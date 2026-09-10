@@ -1,5 +1,5 @@
 /*
- * one.js - the shell every game runs inside. run() owns the canvas, the frame
+ * one.js - the code every game runs inside. run() owns the canvas, the frame
  * loop, input, the score and the game-over screen.
  *
  * A game is a module exporting meta, init(), update(dt) and render(ctx), with
@@ -9,10 +9,10 @@
  *
  * There is no intro; the round starts on frame one. A game calls gameOver()
  * when it ends, and the overlay does the rest, including the next round. The
- * chrome is floating panels over the board, never a strip the game has to
+ * overlay is floating panels over the board, never a strip the game has to
  * render around.
  *
- * It also holds the shell's shared state: meta, score, act and op. overlay.js
+ * It also holds the shared state: meta, score, act and op. overlay.js
  * reads them back out of here, and camera.js and sound.js write op.camera and
  * op.sound. input.js owns mouse and key instead, since it is what writes them.
  */
@@ -136,7 +136,7 @@ export function msg(m) {
 
 /*
  * ugl's Micro.flash(): the whole board one colour, over the game and under the
- * chrome. `color` is CSS, so a game on ugl's numeric palette passes css(c).
+ * overlay. `color` is CSS, so a game on ugl's numeric palette passes css(c).
  *
  * The clock runs after the draw, so t = 0 is one frame and never none whatever
  * the frame rate. cable asks for 0.05 and gets however many frames fit.

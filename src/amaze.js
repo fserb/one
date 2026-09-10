@@ -630,7 +630,7 @@ export function init() {
 }
 
 export function update(dt) {
-  // Off the shell's pointer, not entity.js's copy, which the player would read
+  // Off input.js's mouse, not entity.js's copy, which the player would read
   // a frame behind during ent.update().
   tapped = mouse.release && pressed > 0 && pressed <= TAP;
   pressed = mouse.press ? pressed + dt : 0;

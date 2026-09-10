@@ -13,7 +13,7 @@
  *
  * The opening four ghosts hold fire for as long as the hint stands: at
  * 1.5/speed yellow's first shot lands 2.9 seconds in, before the hint has
- * faded, and the Haxe had a title card where this shell has none.
+ * faded, and the Haxe had a title card where this port has none.
  *
  * A hit shape does not turn with the drawing, so the hook's 20x18 claw box is a
  * circle on the claw.
@@ -428,7 +428,7 @@ class Ghost extends ent.Entity {
  * Nothing here interpolates, so it is four hard pulls and not a fade.
  *
  * gameOver() waits for the last corner. The board is already meta.bg by then,
- * so the shell's dim under the finish panel changes nothing.
+ * so overlay.js's dim under the finish panel changes nothing.
  */
 // [corner, x, y]: top-left, bottom-left, top-right, bottom-right.
 const SWEEP = [[0, 0, 0], [3, 0, W], [1, W, 0], [2, W, W]];
@@ -536,7 +536,7 @@ export function init() {
   // One per corner; the one wearing the floor's colour leaves on frame one.
   // They hold fire for as long as the hint stands when that beats the usual
   // grace: at 1.5/speed yellow's first shot lands 2.9 seconds in, before the
-  // hint has faded, and the Haxe had a title card where this shell has none.
+  // hint has faded, and the Haxe had a title card where this port has none.
   // hint() is 0 from the first input, so the grace ends when the reading does.
   const corners = [
     [YELLOW, EDGE, EDGE],

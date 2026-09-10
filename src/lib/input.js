@@ -5,7 +5,7 @@
  * alma's Input keeps an edge alive for exactly one update() call.
  *
  * It owns `mouse` and `key` rather than one.js, so nothing here imports the
- * rest of the shell and the one.js <-> input.js cycle never exists.
+ * rest of src/lib and the one.js <-> input.js cycle never exists.
  */
 
 import { Input } from "../alma/src/index.js";
@@ -53,7 +53,7 @@ const KEYS = ["up", "right", "down", "left", "b1", "b2"];
 
 let input = null;
 // alma's Screen, for toLogical(). Held here so input.js imports nothing from
-// the rest of the shell.
+// the rest of src/lib.
 let screen = null;
 
 export function init(scr) {

@@ -63,8 +63,8 @@ const HEAD = 54;
 const FOOT = 472;
 const DIE = 454;
 
-// The tray hangs in the top-right of the chrome's band, right-aligned on the
-// line the board ends at and level with the score chip in the opposite corner.
+// The tray sits in the top-right corner, right-aligned on the line the board
+// ends at and level with the score chip in the opposite corner.
 const TRAY_R = 420;
 const TRAY_Y = 12;
 const FLY = 0.3;
