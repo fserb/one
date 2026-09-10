@@ -28,7 +28,7 @@
 
 import * as ent from "./lib/entity.js";
 import "./lib/gfx.js";
-import { gameOver, mouse, score } from "./lib/one.js";
+import { gameOver, hint, mouse, score } from "./lib/one.js";
 import * as sfxr from "./lib/sfxr.js";
 import * as sound from "./lib/sound.js";
 
@@ -41,7 +41,6 @@ take an equal count of every colour you touch
   bg: "#FFFFFF",
   fg: "#000000",
   scoreMax: true,
-  finishGood: false,
   date: "2014-04-15",
 };
 
@@ -564,6 +563,7 @@ function die() {
 }
 
 export function init() {
+  hint(meta.desc);
   ent.reset();
   ent.world(480);
   ent.order([Piece, Cursor, Frame, Tray, ent.Text]);
@@ -598,7 +598,7 @@ export function init() {
 export function update(dt) {
   if (dying > 0) {
     dying -= dt;
-    if (dying <= 0) return gameOver();
+    if (dying <= 0) return gameOver({ score: true });
   } else {
     advance(dt);
     if (chain.some((c) => cellY(c.py) >= DIE)) die();

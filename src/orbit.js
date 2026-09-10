@@ -41,7 +41,6 @@ shoot the core; what you leave standing scores
   bg: "#8232CD",
   fg: "#222222",
   scoreMax: true,
-  finishGood: false,
   date: "2014-05-01",
 };
 
@@ -618,7 +617,7 @@ function die() {
     .size(3, 10).speed(5, 25).duration(2, 0.5);
   ent.delay(0.05);
   ent.shake(0.5);
-  new ent.Timer().delay(DEATH).run(() => gameOver());
+  new ent.Timer().delay(DEATH).run(() => gameOver({ score: true }));
 }
 
 // Past the hand-made levels: four rings out of HARD, up to eight.
@@ -661,6 +660,7 @@ function shuffle(a) {
 }
 
 export function init() {
+  hint(meta.desc);
   ent.reset();
   ent.world(W);
   ent.order([Enemy, Chunk, ent.Particle, Player, EnemyBullet, Bullet]);

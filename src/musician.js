@@ -49,7 +49,6 @@ slide to catch coins and dodge tomatoes
   bg: "#444444",
   fg: "#F7E26B",
   scoreMax: true,
-  finishGood: false,
   date: "2014-03-31",
 };
 
@@ -416,6 +415,7 @@ function die() {
 }
 
 export function init() {
+  hint(meta.desc);
   ent.reset();
   ent.world(W);
   ent.order([Hat, Mark, Coin, Tomato, Note, Player]);
@@ -462,7 +462,7 @@ export function update(dt) {
   }
 
   msg(combo > 1 ? `${combo} IN A ROW` : "");
-  if (dying > 0 && (dying -= t) <= 0) gameOver();
+  if (dying > 0 && (dying -= t) <= 0) gameOver({ score: true });
 }
 
 export function render(ctx) {

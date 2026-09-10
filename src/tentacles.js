@@ -45,7 +45,6 @@ they leave their bodies behind
   bg: "#9AAAB2",
   fg: "#2F3E46",
   scoreMax: true,
-  finishGood: false,
   date: "2022-01-02",
 };
 
@@ -342,7 +341,7 @@ function tick(dir) {
     if (!stepTentacle(t)) continue;
     dead = true;
     sound.play("caught");
-    gameOver();
+    gameOver({ score: true });
     return;
   }
 

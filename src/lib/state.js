@@ -17,8 +17,6 @@ export const meta = {
   fg: "#212123",
   // true: a high score is the good one. false: a low one is.
   scoreMax: true,
-  // true: the end screen says WELL DONE instead of GAME OVER.
-  finishGood: false,
   // Shown in the gallery, newest first. "YYYY-MM-DD".
   date: null,
 };

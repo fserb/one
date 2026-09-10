@@ -8,7 +8,7 @@
  */
 
 import * as ent from "./lib/entity.js";
-import { gameOver, score } from "./lib/one.js";
+import { gameOver, hint, score } from "./lib/one.js";
 
 export const meta = {
   title: "avoid",
@@ -19,7 +19,6 @@ touching it costs you size
   bg: "#464248",
   fg: "#E1B81F",
   scoreMax: true,
-  finishGood: false,
   date: "2014-03-30",
 };
 
@@ -155,7 +154,7 @@ class Player extends ent.Entity {
       .delay(0)
       .duration(5)
       .speed(Math.hypot(this.vel.x, this.vel.y) / 10, 50);
-    gameOver();
+    gameOver({ score: true });
   }
 }
 
@@ -171,6 +170,7 @@ function burst(color, pos, speed) {
 }
 
 export function init() {
+  hint(meta.desc);
   ent.reset();
   ent.world(480);
   ent.order([Enemy, Player, ent.Particle, ent.Text]);

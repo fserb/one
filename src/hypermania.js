@@ -37,7 +37,6 @@ the bar is the clock, and every shot spends it
   bg: "#04a2fc",
   fg: "#024972",
   scoreMax: true,
-  finishGood: false,
   date: "2014-04-13",
 };
 
@@ -611,7 +610,7 @@ export function update(dt) {
 
   if (dying > 0) {
     dying -= dt;
-    if (dying <= 0) gameOver();
+    if (dying <= 0) gameOver({ score: true });
     return;
   }
 

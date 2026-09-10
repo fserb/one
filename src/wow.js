@@ -15,7 +15,6 @@ inside the bigger circle
   bg: "#B8B5B9",
   fg: "#4B4158",
   scoreMax: false,
-  finishGood: true,
   date: "2021-05-08",
 };
 
@@ -104,7 +103,7 @@ function check() {
     if (!p.goal) continue;
     if (p.x !== p.gx || p.y !== p.gy) return;
   }
-  gameOver();
+  gameOver({ win: true, score: true });
 }
 
 export function update() {

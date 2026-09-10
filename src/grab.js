@@ -35,7 +35,6 @@ grab a ghost, its colour becomes the floor
   bg: "#010101",
   fg: "#FAFAFA",
   scoreMax: true,
-  finishGood: false,
   date: "2015-04-18",
 };
 
@@ -127,7 +126,7 @@ class Player extends ent.Entity {
 
     if (this.dying > 0) {
       this.dying -= time;
-      if (this.dying <= 0) gameOver();
+      if (this.dying <= 0) gameOver({ score: true });
       return;
     }
 
@@ -483,6 +482,7 @@ function eat(color) {
 }
 
 export function init() {
+  hint(meta.desc);
   ent.reset();
   ent.world(W);
   ent.order([Floor, Bullet, Ghost, Hook, Player]);

@@ -35,7 +35,6 @@ each trait all same or all different
   bg: "#FAFAFA",
   fg: "#010101",
   scoreMax: true,
-  finishGood: false,
   date: "2015-05-03",
 };
 
@@ -296,7 +295,7 @@ class Clock extends ent.Entity {
       .fill(INK, 0.12).rect(-w / 2, -CLOCK_H / 2, w, CLOCK_H)
       .fill(INK).rect(-w / 2, -CLOCK_H / 2, w * clock / CLOCK_MAX, CLOCK_H);
 
-    if (clock <= 0) gameOver();
+    if (clock <= 0) gameOver({ score: true });
   }
 }
 
@@ -391,6 +390,7 @@ function mark(cell) {
 }
 
 export function init() {
+  hint(meta.desc);
   ent.reset();
   ent.world(480);
   ent.order([Card, Mark, Cursor, Clock, ent.Particle, ent.Text]);

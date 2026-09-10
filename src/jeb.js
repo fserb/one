@@ -42,7 +42,6 @@ drag to aim the nose, hold to burn
   bg: "#000000",
   fg: "#EEB62F",
   scoreMax: true,
-  finishGood: false,
   date: "2014-03-30",
 };
 
@@ -453,6 +452,7 @@ function predict() {
 }
 
 export function init() {
+  hint(meta.desc);
   ent.reset();
   ent.world(W);
   ent.order([Planet, Ship]);
@@ -474,7 +474,7 @@ export function update(dt) {
   const t = ent.game.time;
 
   if (dying > 0) {
-    if ((dying -= t) <= 0) gameOver();
+    if ((dying -= t) <= 0) gameOver({ score: true });
     return;
   }
 

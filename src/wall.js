@@ -43,7 +43,6 @@ the orange moves only while you cannot see it
   bg: "#303030",
   fg: "#1EBED8",
   scoreMax: true,
-  finishGood: false,
   date: "2015-10-10",
 };
 
@@ -652,6 +651,7 @@ function die() {
 }
 
 export function init() {
+  hint(meta.desc);
   ent.reset();
   ent.world(W);
   ent.order([Coin, Hunter, Player]);
@@ -706,7 +706,7 @@ export function update(dt) {
   poly = sight.cast(player.pos.x, player.pos.y);
   pulse(t);
 
-  if (dying > 0 && (dying -= t) <= 0) gameOver();
+  if (dying > 0 && (dying -= t) <= 0) gameOver({ score: true });
 }
 
 function pulse(t) {

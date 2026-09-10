@@ -8,7 +8,9 @@
  * imports, so a game that wants neither pays for neither.
  *
  * There is no intro; the round starts on frame one. A game calls gameOver()
- * when it ends, and the overlay does the rest, including the next round.
+ * when it ends, and the overlay does the rest, including the next round. The
+ * chrome is floating panels over the board, never a strip the game has to
+ * render around.
  */
 
 import { registerPlus2d, Screen } from "../alma/src/index.js";
@@ -55,6 +57,7 @@ export function run(game, { target = null } = {}) {
 }
 
 export function start() {
+  act.reset();
   // Only there if the game imported lib/camera.js. Back on the whole board, so
   // init() sets only what it wants different.
   op.camera?.moveTo({ x: SIZE / 2, y: SIZE / 2, scale: 1, angle: 0 }).settle();
@@ -64,10 +67,17 @@ export function start() {
   op.game.init?.();
 }
 
-export function gameOver() {
-  act.reset();
+/*
+ * Ends the round. opts says what the finish screen holds and an empty one says
+ * nothing; see overlay.gameOver(). The board is drawn one more time after this
+ * frame's update, so the frozen shot is the game at the moment it ended.
+ */
+export function gameOver(opts) {
+  // Two collision paths can both end the same round; the first one wins.
+  if (!op.playing) return;
   op.playing = false;
-  overlay.gameOver();
+  ending = true;
+  overlay.gameOver(opts);
 }
 
 // Runs `func` `rate` times a second in whole steps. Call it from update(), so
@@ -76,9 +86,15 @@ export function fixed(rate, func) {
   return op.screen.fixed(rate, func);
 }
 
-// Seconds of meta.desc hint left, 0 once dismissed or gone. An opening move
-// waits this out rather than landing on a player who is still reading.
-export function hint() {
+/*
+ * hint("line\nline") raises the hint panel; a game calls it from init() when
+ * the rules are not on the board, or mid-round for something that just turned
+ * up. hint() with no text answers the seconds left, 0 once dismissed or gone,
+ * so an opening move can wait out a player who is still reading.
+ */
+export function hint(text) {
+  if (text === undefined) return overlay.hint();
+  overlay.show(text);
   return overlay.hint();
 }
 
@@ -88,13 +104,16 @@ export function msg(m) {
 
 /*
  * ugl's Micro.flash(): the whole board one colour, over the game and under the
- * bar. `color` is CSS, so a game on ugl's numeric palette passes css(c).
+ * chrome. `color` is CSS, so a game on ugl's numeric palette passes css(c).
  *
  * The clock runs after the draw, so t = 0 is one frame and never none whatever
  * the frame rate. cable asks for 0.05 and gets however many frames fit.
  */
 let flashColor = null;
 let flashTime = 0;
+
+// The round ended this frame: draw the board once more, then keep it.
+let ending = false;
 
 export function flash(color, t = 0) {
   flashColor = color;
@@ -114,6 +133,11 @@ function frame(dt) {
   }
 
   render();
+  if (ending) {
+    ending = false;
+    overlay.shoot(op.screen.canvas);
+    act.reset();
+  }
   if (flashColor !== null && (flashTime -= dt) <= 0) flashColor = null;
   input.flush();
 }
@@ -125,11 +149,13 @@ function render() {
   ctx.fillStyle = meta.bg;
   ctx.fillRect(0, 0, SIZE, SIZE);
 
-  if (op.playing) {
+  // `ending` draws the last board, without the flash: a game that flashes on
+  // death would otherwise freeze the whole screen one colour.
+  if (op.playing || ending) {
     ctx.save();
     op.game.render?.(ctx);
     ctx.restore();
-    if (flashColor !== null) {
+    if (op.playing && flashColor !== null) {
       ctx.fillStyle = flashColor;
       ctx.fillRect(0, 0, SIZE, SIZE);
     }

@@ -41,7 +41,6 @@ go too far and the loop swallows it
   bg: "#bf1b25",
   fg: "#f7f0e8",
   scoreMax: true,
-  finishGood: false,
   date: "2015-09-08",
 };
 
@@ -553,6 +552,7 @@ function frame() {
 }
 
 export function init() {
+  hint(meta.desc);
   ent.reset();
   ent.world(W);
   ent.order([Path, Gold, Cursor]);
@@ -592,7 +592,7 @@ export function update(dt) {
   clock -= dt * (1 + (cursor.pushing ? HOLDCOST : 0));
   if (clock <= 0) {
     clock = 0;
-    gameOver();
+    gameOver({ score: true });
   }
 }
 

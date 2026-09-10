@@ -29,7 +29,6 @@ stay alive
   bg: "#000000",
   fg: "#402F2E",
   scoreMax: true,
-  finishGood: false,
   date: "2021-05-23",
 };
 
@@ -495,7 +494,7 @@ function armOf(hand) {
 }
 
 function beginContact(contact) {
-  if (pair(contact, "head", "enemy")) gameOver();
+  if (pair(contact, "head", "enemy")) gameOver({ score: true });
 }
 
 // A hand holding something passes through rope, and so does one that just let
@@ -574,7 +573,7 @@ function updatePlayer(dt) {
     player.eyelook.x = player.eyelook.y = 0;
     player.looking = 5 + Math.random();
     player.onair += dt;
-    if (player.onair > 5) gameOver();
+    if (player.onair > 5) gameOver({ score: true });
     return;
   }
   player.onair = 0;

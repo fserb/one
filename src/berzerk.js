@@ -30,7 +30,6 @@ each number taken raises the next
   bg: "#FF3155",
   fg: "#000000",
   scoreMax: true,
-  finishGood: false,
   date: "2015-09-20",
 };
 
@@ -149,7 +148,7 @@ class Player extends ent.Entity {
 
   die() {
     this.remove();
-    gameOver();
+    gameOver({ score: true });
   }
 }
 

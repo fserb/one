@@ -38,7 +38,6 @@ up drives, left and right switch
   bg: "#FFFFFF",
   fg: "#1C140D",
   scoreMax: true,
-  finishGood: false,
   date: "2014-04-27",
 };
 
@@ -373,7 +372,7 @@ class Train extends ent.Entity {
 
     if (this.dying > 0) {
       this.dying -= time;
-      if (this.dying <= 0) gameOver();
+      if (this.dying <= 0) gameOver({ score: true });
       return;
     }
 

@@ -16,7 +16,7 @@
 
 import * as ent from "./lib/entity.js";
 import "./lib/gfx.js";
-import { gameOver, score } from "./lib/one.js";
+import { gameOver, hint, score } from "./lib/one.js";
 
 export const meta = {
   title: "flap",
@@ -27,7 +27,6 @@ catch the coin before it goes
   bg: "#4EC0CA",
   fg: "#533846",
   scoreMax: true,
-  finishGood: false,
   date: "2015-03-29",
 };
 
@@ -130,7 +129,7 @@ class Coin extends ent.Entity {
     this.life -= ent.game.time;
     if (this.life <= 0) {
       this.remove();
-      gameOver();
+      gameOver({ score: true });
       return;
     }
     this.draw();
@@ -158,6 +157,7 @@ function along(x, dir, d) {
 }
 
 export function init() {
+  hint(meta.desc);
   ent.reset();
   ent.world(480);
 

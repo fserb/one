@@ -34,7 +34,6 @@ don't let the eye escape
   bg: "#68C2D3",
   fg: "#402F2E",
   scoreMax: true,
-  finishGood: false,
   date: "2021-05-09",
 };
 
@@ -375,7 +374,7 @@ function escapeAlien() {
     if (locked) return;
     score.value = level - 1;
     locked = true;
-    gameOver();
+    gameOver({ score: true });
   });
 }
 

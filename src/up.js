@@ -33,7 +33,6 @@ which pushes you off it. x and c spin
   bg: "#464248",
   fg: "#E3C61E",
   scoreMax: true,
-  finishGood: false,
   date: "2014-03-30",
 };
 
@@ -231,6 +230,7 @@ function place(e) {
 }
 
 export function init() {
+  hint(meta.desc);
   ent.reset();
   ent.world(W);
   ent.order([Obstacle, Gold, Player, Engine, ent.Particle, ent.Text]);
@@ -247,7 +247,7 @@ export function update(dt) {
   if (dying > 0) {
     dying -= dt;
     ent.update(dt);
-    if (dying <= 0) gameOver();
+    if (dying <= 0) gameOver({ score: true });
     return;
   }
 

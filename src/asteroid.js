@@ -40,7 +40,6 @@ time crawls until you thrust or shoot
   bg: "#BF1B25",
   fg: "#FFFFFF",
   scoreMax: true,
-  finishGood: false,
   date: "2014-04-03",
 };
 
@@ -506,7 +505,7 @@ export function update(dt) {
       turnOver();
     }
     ent.update(dt);
-    if (dying <= 0) gameOver();
+    if (dying <= 0) gameOver({ score: true });
     return;
   }
 

@@ -34,7 +34,6 @@ tap to jump one wall, hold to walk
   bg: "#3DBF86",
   fg: "#444444",
   scoreMax: true,
-  finishGood: false,
   date: "2014-04-02",
 };
 
@@ -627,6 +626,7 @@ function buildLevel() {
 }
 
 export function init() {
+  hint(meta.desc);
   level = 0;
   dying = 0;
   phase = PLAY;
@@ -645,7 +645,7 @@ export function update(dt) {
   ent.update(phase === PLAY && hint() <= 0 ? dt : 0);
 
   if (dying > 0) {
-    if ((dying -= dt) <= 0) gameOver();
+    if ((dying -= dt) <= 0) gameOver({ score: true });
     return;
   }
   if (phase === PLAY) return;

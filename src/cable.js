@@ -46,7 +46,6 @@ loop every planet, then leave the quadrant
   bg: "#83CBC8",
   fg: "#323431",
   scoreMax: true,
-  finishGood: false,
   date: "2014-08-24",
 };
 
@@ -561,7 +560,7 @@ export function update(dt) {
     }
     clock.flip += t / FLIP;
   }
-  if (clock.spent >= clock.total && !transition) gameOver();
+  if (clock.spent >= clock.total && !transition) gameOver({ score: true });
 }
 
 export function render(ctx) {

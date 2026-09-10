@@ -11,7 +11,7 @@
 
 import { ease, extra, vec } from "./alma/src/index.js";
 import { camera } from "./lib/camera.js";
-import { act, gameOver, mouse, score, SIZE } from "./lib/one.js";
+import { act, gameOver, hint, mouse, score, SIZE } from "./lib/one.js";
 
 const { arrayRemove, promiseSleep, TAU } = extra;
 
@@ -24,7 +24,6 @@ to build mega blocks
   bg: "#FFFFFF",
   fg: "#424B54",
   scoreMax: true,
-  finishGood: false,
   date: "2021-05-28",
 };
 
@@ -63,6 +62,7 @@ let beltNext;
 let milestone;
 
 export function init() {
+  hint(meta.desc);
   board.length = 0;
   belt.length = 0;
   selected[0] = selected[1] = null;
@@ -444,7 +444,7 @@ function updateBelt(dt) {
   if (belt.length === 0) return;
   if (act.is()) return;
 
-  if (lp <= 0) return gameOver();
+  if (lp <= 0) return gameOver({ score: true });
 
   // The last two units of room: the front order blinks, faster as it closes.
   if (lp <= 2 * SZ) {

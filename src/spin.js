@@ -44,7 +44,6 @@ the needle says which way the room turns
   bg: "#303030",
   fg: "#FF6819",
   scoreMax: true,
-  finishGood: false,
   date: "2015-10-04",
 };
 
@@ -645,6 +644,7 @@ function moveStray() {
 }
 
 export function init() {
+  hint(meta.desc);
   ent.reset();
   ent.world(W);
   ent.order([Mark, Player]);
@@ -678,7 +678,7 @@ export function update(dt) {
   clock -= t * (1 + DRAIN_UP * score.value);
   if (clock > 0) return;
   clock = 0;
-  gameOver();
+  gameOver({ score: true });
 }
 
 export function render(ctx) {

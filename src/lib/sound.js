@@ -31,6 +31,7 @@ import { Track } from "./fsfx/fsfx.js";
 const SAMPLE_RATE = 48000;
 
 let audio = null;
+// Nothing rendered yet, so play() has nothing to play.
 let muted = true;
 let hasSound = false;
 
@@ -87,22 +88,9 @@ export function play(name, detune = 0, delay = 0) {
   audio.play(name, { detune, delay });
 }
 
-export function available() {
-  return hasSound;
-}
-
-export function isMuted() {
-  return muted;
-}
-
-export function toggle() {
-  if (!hasSound) return;
-  muted = !muted;
-}
-
 export function setVolume(v) {
   if (audio) audio.volume = v;
 }
 
-// The only way one.js and overlay.js reach this module.
-op.sound = { arm, available, isMuted, toggle };
+// The only way one.js reaches this module.
+op.sound = { arm };
