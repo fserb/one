@@ -128,14 +128,15 @@ function createEnemy() {
     canSleep: false,
     data: "enemy",
   });
-  // A wide, thin sensor bar. Only the head's category collides with it.
+  // A wide, thin sensor bar. Only the head's category meets it, and the head
+  // meets nothing else.
   const dim = 6.5 * 4;
   enemy.box({
     w: 2 * dim,
     h: dim / 4,
     y: dim / 8,
     sensor: true,
-    filter: { group: 5, category: 4, mask: 4 },
+    filter: { category: 8, mask: 8 },
   });
 }
 
@@ -163,11 +164,24 @@ function createPlayer() {
   const density = 1 / 10;
 
   player.head = world.body({ x: 0, y: 0, type: "dynamic", data: "head" });
-  player.head.circle({ r: 0.6, density, filter: { group: 5, category: 0 } });
+  // A category of its own, which only the saw carries and only the saw's mask
+  // takes. planck read the shared group index first, so a head at category 0
+  // still met the saw; box2d asks the broadphase for the sensor's mask against
+  // the shape's category before it asks whether the two collide at all, and a
+  // category of 0 answers no to every query, so the saw ran straight over the
+  // head and the round never ended.
+  player.head.circle({ r: 0.6, density, filter: { category: 8, mask: 8 } });
 
   let last = player.head;
   for (let i = 0; i < 2; ++i) {
-    const o = world.body({ x: 0, y: i, type: "dynamic" });
+    // Damped, where planck's tail needed nothing. planck's rope joint stopped
+    // a link dead the moment it went taut, and that inelastic stop took the
+    // energy of a jump back out of the tail. box2d solves the same limit
+    // softly and returns the energy, so the tail kept every jump and wound
+    // round the head for seconds afterwards. Damping is the only thing that
+    // reaches that: the joint holds the length, and a tail spinning round the
+    // head is not changing its length.
+    const o = world.body({ x: 0, y: i, type: "dynamic", damping: 6 });
     o.radius = 0.4 - i * 0.2;
     o.circle({
       r: o.radius,
@@ -194,16 +208,21 @@ function createPlayer() {
       damping: 0.1,
       data: "hand",
     });
-    // A wide sensor for a click near the hand, a tiny one for the pointer
-    // query, and a small solid one that meets rope.
-    a.hand.circle({ r: 0.8 * ZOOM, sensor: true });
-    a.hand.circle({ r: 0.1, density: 0, filter: { group: 3 } });
+    // A small solid one that meets rope, a wide sensor for a click near the
+    // hand, and a tiny one for the pointer query. Only the solid one carries
+    // mass: rigid leaves density at 1 where planck left it at 0, and a sensor
+    // weighs what its density says like any other shape, so the 1.2 metre one
+    // at the default made the hand 4.8 kg against 0.28 and a full-strength
+    // fling carried it 1.5 metres instead of 25. The dense shape is built
+    // first, since box2d asserts on a body that is momentarily massless.
     a.hand.circle({
       r: 0.3,
       density: 1,
       preSolveEvents: true,
       filter: { category: 4, mask: 4 },
     });
+    a.hand.circle({ r: 0.8 * ZOOM, sensor: true, density: 0 });
+    a.hand.circle({ r: 0.1, density: 0, filter: { group: 3 } });
 
     a.joint = world.body({ x: side, y: -0.5, type: "dynamic" });
     a.joint.circle({ r: 0.1, density: 0.1 });
@@ -583,9 +602,11 @@ function updateShot() {
       }
     }
 
-    if (hand !== null) {
-      shot = { hand, offset: 0, target: { x: mouse.x, y: mouse.y } };
-    }
+    // The target is metres, like every other point here. A click and a
+    // release inside one frame skips the press branch below, and a target in
+    // 1024-space would read as a 600 metre drag and fling the hand off the
+    // world.
+    if (hand !== null) shot = { hand, offset: 0, target: at(hand) };
   }
 
   if (!shot) return;
