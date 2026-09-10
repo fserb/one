@@ -263,6 +263,32 @@ export function css(c) {
 }
 
 /*
+ * The midpoint circle walk, one point per step over the first octant, which
+ * circle() mirrors into four spans and lcircle() into eight dots. Held here
+ * because the two have to agree: an outline drawn by one walk and a fill by
+ * another sit a pixel apart at half the radii.
+ *
+ * alma's bresenhamCircle() is the other midpoint variant, off `3 - 2r` rather
+ * than `1 - x`, and picks different pixels at 29 of the first 60 radii. At
+ * size 3 to 8 that is a visible change to every sprite, so this stays.
+ */
+function octant(r, step) {
+  let x = Math.round(r);
+  let y = 0;
+  let err = 1 - x;
+  while (x >= y) {
+    step(x, y);
+    y++;
+    if (err < 0) {
+      err += 2 * y + 1;
+    } else {
+      x--;
+      err += 2 * (y - x + 1);
+    }
+  }
+}
+
+/*
  * A bag of chunky pixels in pixel coordinates. Every shape reduces to dot(),
  * which resolves the dither and appends to a run; render() blits the lot
  * centred on the origin. ugl centred the sprite's bounding box only when it
@@ -397,31 +423,18 @@ export class Art {
 
   circle(x0, y0, r) {
     if (this.disabled) return this;
-    let x = Math.round(r);
-    let y = 0;
-    let err = 1 - x;
-    while (x >= y) {
+    octant(r, (x, y) => {
       this.hline(x0 - x, x0 + x, y0 + y);
       this.hline(x0 - y, x0 + y, y0 + x);
       this.hline(x0 - x, x0 + x, y0 - y);
       this.hline(x0 - y, x0 + y, y0 - x);
-      y++;
-      if (err < 0) {
-        err += 2 * y + 1;
-      } else {
-        x--;
-        err += 2 * (y - x + 1);
-      }
-    }
+    });
     return this;
   }
 
   lcircle(x0, y0, r) {
     if (this.disabled) return this;
-    let x = Math.round(r);
-    let y = 0;
-    let err = 1 - x;
-    while (x >= y) {
+    octant(r, (x, y) => {
       this.dot(x0 + x, y0 + y);
       this.dot(x0 + y, y0 + x);
       this.dot(x0 - x, y0 + y);
@@ -430,14 +443,7 @@ export class Art {
       this.dot(x0 - y, y0 - x);
       this.dot(x0 + x, y0 - y);
       this.dot(x0 + y, y0 - x);
-      y++;
-      if (err < 0) {
-        err += 2 * y + 1;
-      } else {
-        x--;
-        err += 2 * (y - x + 1);
-      }
-    }
+    });
     return this;
   }
 
