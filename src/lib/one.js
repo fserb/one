@@ -31,8 +31,12 @@ export const SIZE = 1024;
 export const meta = {
   title: "untitled",
   desc: "",
+  // The board, and the colour the game draws it with.
   bg: "#f2f0e5",
   fg: "#212123",
+  // The two colours the overlay's panels are drawn in, { bg, fg }, either half
+  // optional. Absent derives both from meta.bg; see overlay.js's theme().
+  overlay: null,
   // true: a high score is the good one. false: a low one is.
   scoreMax: true,
   // Shown in the gallery, newest first. "YYYY-MM-DD".
@@ -135,8 +139,8 @@ export function msg(m) {
 }
 
 /*
- * ugl's Micro.flash(): the whole board one colour, over the game and under the
- * overlay. `color` is CSS, so a game on ugl's numeric palette passes css(c).
+ * The whole board one colour, over the game and under the overlay. `color` is
+ * CSS, so a game holding a numeric palette passes css(c).
  *
  * The clock runs after the draw, so t = 0 is one frame and never none whatever
  * the frame rate. cable asks for 0.05 and gets however many frames fit.

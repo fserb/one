@@ -10,10 +10,11 @@
  *   finish   the frozen board, dimmed, and whatever gameOver() asked for. A
  *            click starts the next round.
  *
- * Every panel is one of two themes, picked from the lightness of meta.bg: a
- * light game gets the dark panel, a dark game the light one. The game's own
- * palette never enters, so rope and grab, whose fg and bg are almost the same
- * colour, still get a panel you can read.
+ * Every panel is drawn in one pair of colours, meta.overlay, which a game may
+ * set and usually does not: the default fill is whichever of two off-neutrals
+ * reads over the board, and the default text is whichever reads over that
+ * fill. meta.fg never enters unasked, so rope and grab, whose fg and bg are
+ * almost the same colour, still get a panel you can read.
  *
  * Nothing here consumes a click. one.js calls update() only between rounds and
  * render() after the game draws.
@@ -27,8 +28,10 @@ const MARGIN = 26;
 const RADIUS = 12;
 
 // Off black and off white: a panel over a black game still reads as a panel.
-const DARK = { bg: "#17171b", fg: "#f5f4f0" };
-const LIGHT = { bg: "#f5f4f0", fg: "#17171b" };
+// These two are only the defaults; a game naming meta.overlay is not held to
+// them.
+const DARK = "#17171b";
+const LIGHT = "#f5f4f0";
 
 // A hint holds, then fades. Input cuts it short with the quicker fade. A game
 // reads the sum off hint() rather than either number.
@@ -43,7 +46,8 @@ const AGAIN = "TAP TO PLAY AGAIN";
 // A click this soon after the round ends is the click that ended it.
 const DEAD = 0.4;
 
-let theme = DARK;
+// The two colours this round's panels are drawn in, from theme(meta).
+let panel = { bg: DARK, fg: LIGHT };
 
 const tip = {
   lines: [],
@@ -63,7 +67,7 @@ const finish = {
   t: 0,
   // The last frame of the board, taken before any panel went over it.
   shot: null,
-  panel: false,
+  showPanel: false,
   title: null,
   score: false,
 };
@@ -71,7 +75,7 @@ const finish = {
 export function init() {
   score.best = localStorage.getItem(`one#${meta.title}`);
   if (score.best !== null) score.best = Number(score.best);
-  theme = pick(meta.bg);
+  panel = theme(meta);
   seen.clear();
   clear();
 }
@@ -114,8 +118,8 @@ export function gameOver(
   finish.t = 0;
   finish.shot = null;
   finish.score = wantScore;
-  finish.panel = msg !== null || wantScore || win;
-  finish.title = !finish.panel ? null : msg ?? (win ? "WELL DONE" : "GAME OVER");
+  finish.showPanel = msg !== null || wantScore || win;
+  finish.title = !finish.showPanel ? null : msg ?? (win ? "WELL DONE" : "GAME OVER");
 }
 
 // one.js draws the board once more after the round ends and hands the canvas
@@ -213,7 +217,7 @@ function renderFinish(ctx) {
   ctx.fillStyle = meta.bg;
   ctx.fillRect(0, 0, SIZE, SIZE);
   ctx.globalAlpha = 1;
-  if (!finish.panel || e === 0) return;
+  if (!finish.showPanel || e === 0) return;
 
   const TITLE = 58;
   const ROW = 34;
@@ -274,12 +278,12 @@ function box(ctx, x, y, w, h, ax, ay) {
   ctx.shadowColor = "#0000004d";
   ctx.shadowBlur = 18;
   ctx.shadowOffsetY = 4;
-  ctx.fillStyle = theme.bg;
+  ctx.fillStyle = panel.bg;
   ctx.beginPath();
   ctx.roundRect(bx, by, w, h, RADIUS);
   ctx.fill();
   ctx.restore();
-  ctx.fillStyle = theme.fg;
+  ctx.fillStyle = panel.fg;
   return [bx, by];
 }
 
@@ -298,18 +302,44 @@ function width(ctx, txt, size) {
 }
 
 /*
- * The theme the board contrasts with more, by WCAG contrast ratio against
- * meta.bg. Not "is the background light or dark": the crossover between these
- * two themes sits at luminance 0.19, not at the 0.5 midpoint, because a
- * mid-tone field is much closer to white than it looks. Splitting at the
- * midpoint puts berzerk's red on the light panel at 3.3:1 where the dark one
- * gives 5.0:1. It comes out 12 dark and 11 light over the 23.
+ * The two colours every panel is drawn in, for a game's meta. `meta.overlay`
+ * names either half and both are optional:
+ *
+ *   overlay: { bg: "#3A2A1E", fg: "#F5E8D8" }   both named
+ *   overlay: { bg: "#3A2A1E" }                  fg derived to read over it
+ *   (absent)                                    both derived from meta.bg
+ *
+ * The chain composes because each default is picked against the colour it will
+ * actually sit on: the fill against the board, the text against the fill. So a
+ * game that dislikes only the fill names only the fill.
+ *
+ * meta.fg is never a default. rope's fg is #402F2E on a #000000 board and
+ * grab's is nearly its own board too, so a panel drawn in fg is unreadable on
+ * both; a game that does want its own colour there asks for it by name.
+ *
+ * tools/build.js calls this as well. The gallery card writes its title in the
+ * fill colour rather than the text colour: the title sits straight on the
+ * clip with no panel behind it, and the fill is the half picked to read over
+ * the board.
+ */
+export function theme(m) {
+  const bg = m.overlay?.bg ?? pick(m.bg);
+  return { bg, fg: m.overlay?.fg ?? pick(bg) };
+}
+
+/*
+ * Whichever of DARK and LIGHT reads better over `over`, by WCAG contrast ratio.
+ * Not "is `over` itself light or dark": the crossover between the two sits at
+ * luminance 0.19, not at the 0.5 midpoint, because a mid-tone field is much
+ * closer to white than it looks. Splitting at the midpoint puts berzerk's red
+ * on LIGHT at 3.3:1 where DARK gives 5.0:1. Over the 23 boards it comes out 12
+ * DARK and 11 LIGHT.
  *
  * alma's contrast() linearises sRGB before weighting the channels, which is
  * the step that matters: the weights on the raw bytes call #3DBF86 a 0.62 when
  * it is a 0.40, most of the way to the wrong panel.
  */
-function pick(hex) {
-  const c = color(hex);
-  return c.contrast(DARK.bg) >= c.contrast(LIGHT.bg) ? DARK : LIGHT;
+function pick(over) {
+  const c = color(over);
+  return c.contrast(DARK) >= c.contrast(LIGHT) ? DARK : LIGHT;
 }
