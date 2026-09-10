@@ -1,5 +1,5 @@
 /*
- * spin - a port of ~/prj/vault/games/sketch/src/Ball.hx.
+ * spin.
  *
  * A room that turns. Gravity always points down the screen, and every few
  * seconds the whole room rotates a quarter or a half turn under you: the floor
@@ -7,27 +7,20 @@
  * else. The needle in the middle swings the way the room is about to go, holds
  * there, and then the room follows it round.
  *
- * Ball.hx has no ball and nothing to do. `rotate()` is the piece worth keeping,
- * and its timing is kept to the frame: 0.4 winding, 0.5 holding, 0.6 turning
- * with the player locked and swung round the centre. 1.5 seconds of warning for
- * a move that changes every route.
+ * The turn's timing is to the frame: 0.4 winding, 0.5 holding, 0.6 turning with
+ * the player locked and swung round the centre. 1.5 seconds of warning for a
+ * move that changes every route.
  *
- * The turn is on a clock rather than the Haxe's `Game.key.b1_pressed` with a
- * random direction: a rotation you ask for and can undo is a free look at four
- * rooms. The marks and the clock are new, and a mark buys FEED seconds and
- * shortens the wait between turns.
+ * The turn is on a clock and not on a button: a rotation you ask for and can
+ * undo is a free look at four rooms. A mark buys FEED seconds and shortens the
+ * wait between turns.
  *
- * A rotation moves nothing in the room's own frame. The Haxe swung the player
- * round the centre through the tween while the room's sprite turned. Drawing
- * room, player and marks in one rotated transform says the same thing, and
- * leaves only the Haxe's own end-of-turn work: turn the map array and put every
- * position where the drawing had it.
+ * A rotation moves nothing in the room's own frame. Room, player and marks draw
+ * in one rotated transform, which leaves only the end-of-turn work: turn the
+ * map array and put every position where the drawing had it.
  *
  * The room fills the box: 24 tiles of 20, square, because a room that turns
  * onto itself has to be.
- *
- * The Haxe's sight polygon is gone: it is the same `castLOS` demo Wall.hx has,
- * and src/wall.js is already that game.
  */
 
 import * as ent from "./lib/entity.js";
@@ -59,7 +52,6 @@ const ROOMY = ROOMX;
 const CX = ROOMX + ROOM / 2;
 const CY = ROOMY + ROOM / 2;
 
-// The Haxe's palette.
 const WALL = 0x606060;
 const FLOOR = 0xfafafa;
 const LEDGE = 0xcccccc;
@@ -69,7 +61,7 @@ const NEEDLE = 0x888888;
 const RING = 0xff6819;
 const RING_BG = 0xdcdcdc;
 
-// ugl's touch bits.
+// Which sides of the box are against something.
 const T_UP = 1;
 const T_RIGHT = 2;
 const T_DOWN = 4;
@@ -95,7 +87,7 @@ const BIG = 150;
 // How far off the pointer is a direction rather than a tap.
 const DEAD = 8;
 
-// The Haxe's numbers. TURNS doubles for a half turn.
+// TURNS doubles for a half turn.
 const WIND = 0.4;
 const HELD = 0.5;
 const TURNS = 0.6;
@@ -125,15 +117,15 @@ const CLIMB = 4;
 const LOOK = 0.4;
 const LOST = 2;
 
-// The Haxe's player, Wall.hx's facing the other way. `big` splices STRETCH in
-// above the feet.
+// The player, wall.js's facing the other way. `big` splices STRETCH in above
+// the feet.
 const HEAD_L = "00000..000000.";
 const HEAD_R = "..00000.000000";
 const BODY = ".0.0.0..00000..00000...000..";
 const STRETCH = "..000....000....000..";
 const FEET = ".00000.";
 
-// 0 wall, 1 one-way platform, anything else air. Straight out of the Haxe.
+// 0 wall, 1 one-way platform, anything else air.
 const MAP = `
 000000000000000000000000
 0......................0
@@ -161,7 +153,7 @@ const MAP = `
 000000000000000000000000
 `;
 
-// The vols are the vault game's own ugl volumes.
+// The vols are the original game's own volumes.
 sound.voice("jump", { ...jump(2801), vol: 0.09 });
 sound.voice("mark", { ...coin(2833), vol: 0.13 });
 sound.voice("wind", { ...blip(2851), vol: 0.05 });
@@ -214,7 +206,7 @@ const tx = (x) => Math.floor((x - ROOMX) / TILE);
 const ty = (y) => Math.floor((y - ROOMY) / TILE);
 const ex = (i) => ROOMX + i * TILE;
 const ey = (j) => ROOMY + j * TILE;
-// The Haxe's cubicIn, which both halves of a turn are eased on.
+// cubicIn, which both halves of a turn are eased on.
 const ease = (z) => z * z * z;
 
 function load() {
@@ -229,8 +221,8 @@ function load() {
 }
 
 /*
- * A quarter turn clockwise, which is the Haxe's `oldmap[y][width-x-1]` in one
- * array. The room is square, so it lands on itself.
+ * A quarter turn clockwise, in one array. The room is square, so it lands on
+ * itself.
  */
 function spinMap() {
   for (let y = 0; y < GRID; ++y) {
@@ -251,9 +243,9 @@ function spinPoint(p) {
 
 /*
  * Is the tile solid to a box whose underside is at `bot`? A platform is solid
- * from above alone, which is the Haxe's `block = (bot <= y*tilesize)` on every
- * type 2 tile once a frame, read here off the position the move started from
- * so nothing pops up through one it was standing on.
+ * from above alone: `bot <= y*tilesize` on every type 2 tile, read off the
+ * position the move started from so nothing pops up through one it was
+ * standing on.
  */
 function blocked(i, j, bot) {
   if (i < 0 || j < 0 || i >= GRID || j >= GRID) return true;
@@ -306,7 +298,7 @@ function axis(p, dx, dy, bot) {
   else if (dy < 0) p.y = ey(ty(y - HH) + 1) + HH + EDGE;
 }
 
-// Outside the room counts as solid, as in the Haxe.
+// Outside the room counts as solid.
 function touching(p) {
   const bot = p.y + HH;
   const i0 = tx(p.x - HW);
@@ -419,8 +411,8 @@ class Player extends ent.Entity {
   }
 
   // entity.js integrates with no idea there are walls, so this puts the box
-  // back and walks it through them. The Haxe's `pos = grid.update(this, pos)`,
-  // in postUpdate for the same reason: it resolves the frame's own move.
+  // back and walks it through them. In postUpdate, so it resolves the frame's
+  // own move.
   postUpdate() {
     if (locked) return;
     const dx = this.pos.x - this.was.x;

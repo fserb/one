@@ -1,6 +1,5 @@
 /*
- * cable - a port of ~/prj/vault/games/sketch/src/LD30.hx, "Tin Can Internet".
- * Ludum Dare 30, August 2014.
+ * cable - "Tin Can Internet". Ludum Dare 30, August 2014.
  *
  * You trail a cable out of the earth and it stays where you put it. Fly past a
  * planet and it catches and wraps; fly back and it unwraps. Wrap every planet
@@ -15,20 +14,19 @@
  * it slides, starting a quarter turn in the black, and the wrap pops the moment
  * that total goes negative.
  *
- * The eight-second title crawl is gone, so level one's clock is FIRST rather
- * than the Haxe's 600, "now get out of the area" survives as a first-level
- * prompt, and the quadrant's dashes are at ZONE_ALPHA rather than 0.1 because
- * they are now the only thing that says where it is.
+ * There is no title crawl, so level one's clock is FIRST, "now get out of the
+ * area" survives as a first-level prompt, and the quadrant's dashes are at
+ * ZONE_ALPHA because they are the only thing that says where it is.
  *
  * `Pieces`, `TimerBar`, `PlanetShow`, `Fader` and `Flasher` are drawn by hand
  * rather than as entities: they are screen furniture, and everything that is an
- * entity here is in the world. ugl added the camera delta to every entity's
- * `pos` once a frame; this keeps world coordinates absolute.
+ * entity here is in the world, in absolute coordinates the camera never writes
+ * back.
  *
  * The cable tests as a segment against a planet's circle, since a hit shape
- * does not turn with `angle`. `effect.glow` is `shadowBlur`: ugl's radius is a
- * Gaussian sigma and shadowBlur is about twice one, hence GLOW. ugl clipped the
- * blur to the sprite's box and canvas does not, so the halo reaches further.
+ * does not turn with `angle`. `effect.glow` is `shadowBlur`, which is about
+ * twice the Gaussian sigma it is asked for, hence GLOW; canvas does not clip
+ * the blur to the sprite's box, so the halo reaches further than a sprite's.
  */
 
 import * as ent from "./lib/entity.js";
@@ -48,7 +46,7 @@ loop every planet, then leave the quadrant
   date: "2014-08-24",
 };
 
-// The Haxe's palette, less the two it defined and never used.
+// The palette.
 const WHITE = 0xf8e6c2;
 const BLACK = 0x323431;
 const CYAN = 0x83cbc8;
@@ -59,7 +57,7 @@ const DARKRED = 0xe25458;
 // The 480 box the game thinks in.
 const W = 480;
 
-// ugl's glow(5) is a sigma of 5, and a canvas shadow's sigma is half its blur.
+// A sigma of 5, and a canvas shadow's sigma is half its blur.
 const GLOW = 10;
 
 const LEVELS = [2, 3, 5, 8, 10, 15, 20, 30, 50];
@@ -68,8 +66,8 @@ const EXTRA = 17;
 // Seconds on the clock: BASE, plus PER per planet.
 const BASE = 7;
 const PER = 1.7;
-// The Haxe's 600 was a tutorial under a story crawl. A bar that does not move
-// teaches nothing, and the level after this one is 12.1 seconds.
+// Long enough to read the board, short enough that the bar visibly moves. The
+// level after this one is 12.1 seconds.
 const FIRST = 40;
 // How often the bar flips colour over the last fifth of the clock.
 const FLIP = 0.1;
@@ -109,7 +107,7 @@ const CLOCK_X = 60;
 const CLOCK_Y = 455;
 const ZONE_ALPHA = 0.25;
 
-// The vols are the vault game's own ugl volumes.
+// The vols are the original game's own volumes.
 sound.voice("hit", { ...explosion(1238), vol: 0.1 });
 sound.voice("connect", { ...powerup(1246), vol: 0.1 });
 sound.voice("leave", { ...hit(1259), vol: 0.1 });
@@ -174,7 +172,7 @@ class Player extends ent.Entity {
 
   bumpOut(c, r) {
     const d = Math.hypot(this.pos.x - c.x, this.pos.y - c.y);
-    // Dead centre has no way out. ugl's length setter answered +x, as here.
+    // Dead centre has no way out, so it leaves along +x.
     const ux = d === 0 ? 1 : (this.pos.x - c.x) / d;
     const uy = d === 0 ? 0 : (this.pos.y - c.y) / d;
     if (d < r) {
@@ -395,18 +393,19 @@ const css = (c) => `#${c.toString(16).padStart(6, "0")}`;
 const sub = (a, b) => ({ x: a.x - b.x, y: a.y - b.y });
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
-// ugl's Vec2.cross, which is the negative of the usual convention.
+// The negative of the usual convention, which is what the wrap angle is signed
+// against.
 const cross = (a, b) => b.y * a.x - b.x * a.y;
 
-// ugl's Vec2.angle: [0, 2pi), and zero for the zero vector.
+// [0, 2pi), and zero for the zero vector.
 function angleOf(v) {
   if (v.x === 0 && v.y === 0) return 0;
   return (2 * Math.PI + Math.atan2(v.y, v.x)) % (2 * Math.PI);
 }
 
-// The silhouette edges of `p` seen from `from`. The Haxe called these tangents;
-// they are one unit inside the rim, on the diameter square to the line of
-// sight, which is where a wrapped cable leaves the circle.
+// The silhouette edges of `p` seen from `from`. Not true tangents: they are one
+// unit inside the rim, on the diameter square to the line of sight, which is
+// where a wrapped cable leaves the circle.
 function tangents(p, from) {
   const d = sub(p.pos, from);
   const a = angleOf(d);
@@ -443,7 +442,7 @@ function crosses(rope, p) {
 
 const cubicIn = (t) => t * t * t;
 const cubicOut = (t) => (t - 1) * (t - 1) * (t - 1) + 1;
-// ugl's Ease.elasticOut. It overshoots, which is the pop the link bar makes.
+// It overshoots, which is the pop the link bar makes.
 const elasticOut = (t) => Math.sin(-13 * (t + 1) * Math.PI / 2) * 2 ** (-10 * t) + 1;
 
 /*
@@ -526,8 +525,7 @@ export function update(dt) {
     }
   }
 
-  // ugl ran the scene before the entities, and the camera is the one thing
-  // that has to keep that order.
+  // The camera moves before the entities do, or it lags them by a frame.
   cam.x = W / 2 - player.pos.x;
   cam.y = W / 2 - player.pos.y;
 

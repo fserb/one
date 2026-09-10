@@ -169,9 +169,9 @@ const GAME = [
 }
 
 {
-  // ugl's Sound.vol(v), which the render loop then squares.
+  // vol sets masterVolume to twice itself, which the render loop then squares.
   check(
-    "vol is ugl's Sound.vol",
+    "vol doubles into masterVolume",
     params({ ...blip(1), vol: 0.13 }).masterVolume === 0.26,
   );
 }

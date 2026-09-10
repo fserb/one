@@ -1,8 +1,7 @@
 /*
- * sfxr.js - Tomas Pettersson's sfxr, the synth behind the vault games.
+ * sfxr.js - Tomas Pettersson's sfxr, the synth behind the entity games.
  *
- * Ported from ~/prj/vault/libs/sfxr/vault/{Sfxr,SfxrParams}.hx, which is the
- * Haxe line of sfxr (2007) -> Mike Wiering (2009) -> as3fxr (2010). Seven
+ * Down the line sfxr (2007) -> Mike Wiering (2009) -> as3fxr (2010). Seven
  * generators roll a parameter set, and render() turns one into samples.
  *
  * This is not a second general-purpose synth beside fsfx. It is one fixed
@@ -15,9 +14,9 @@
  *
  * One options object describes a sound everywhere. A generator returns a whole
  * one off its seed, and spreading it leaves every field open to override, so a
- * rolled sound and a hand-built sound are the same kind of thing. `vol` is ugl's
- * Sound.vol(v), which set masterVolume to 2v, and render() squares that. A key
- * sfxr does not have throws rather than going silently unheard.
+ * rolled sound and a hand-built sound are the same kind of thing. `vol` sets
+ * masterVolume to 2v, and render() squares that. A key sfxr does not have
+ * throws rather than going silently unheard.
  *
  * The game names the generators it wants, so the ones it never asks for stay out
  * of its bundle. Dispatching on a string instead read better and cost every game
@@ -46,12 +45,11 @@
  * than riding in as a parameter: fsfx's State reads any function among its
  * parameters as a signal of time and would call the generator with one.
  *
- * Two things differ from the Haxe. It writes 16-bit shorts; this keeps floats,
+ * Two things differ from as3fxr. It writes 16-bit shorts; this keeps floats,
  * which is what the Web Audio API wants anyway. And it filled the noise buffer
  * from an unseeded Math.random(), so a seeded explosion came out different every
  * render; here `seed` starts a second stream for the noise, and a seed fixes the
- * whole sound. Without one both streams are random, as the Haxe's noise always
- * was.
+ * whole sound. Without one both streams are random, as that noise always was.
  */
 
 // The constants below are tuned for this rate. alma's Audio.put() takes it, so
@@ -63,8 +61,8 @@ const MAX_SAMPLES = SAMPLE_RATE * 30;
 
 const MAX_INT = 2147483647;
 
-// The generators' own PRNG, so a seed reproduces a sound exactly. Same
-// recurrence as the Haxe, including its loss of precision above 2^53.
+// The generators' own PRNG, so a seed reproduces a sound exactly. The original
+// recurrence, including its loss of precision above 2^53.
 function rng(seed) {
   let state = seed ?? Math.floor(Math.random() * MAX_INT);
   return () => {
@@ -519,7 +517,8 @@ export function render(opts = {}) {
         case 3:
           // A repeat cuts the period short without touching the phase, so the
           // index runs past the buffer for one period and reads undefined. The
-          // Haxe read whatever sat after the array; this holds the last entry.
+          // original read whatever sat after the array; this holds the last
+          // entry.
           sample = noiseBuffer[Math.min(31, Math.trunc(phase * 32 / periodTemp))];
           break;
       }

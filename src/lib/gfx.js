@@ -12,8 +12,8 @@
  *
  * fill() and line() set what every shape after them uses, and passing null
  * turns either off. mt()/lt() draw a path where the four shape calls will not.
- * text() is the exception: it carries its own colour, as ugl's did, and paints
- * the same bitmap font Art does.
+ * text() is the exception: it carries its own colour, and paints the same
+ * bitmap font Art does.
  *
  * Flash's Graphics ran every shape between beginFill and endFill into one
  * path, so overlapping shapes came out as their union. Here each shape is its
@@ -119,9 +119,9 @@ export class Gfx {
     return this.push(path);
   }
 
-  // ugl's gfx.size(w, h): an empty box that fixes what the drawing centres in,
-  // so a shape lopsided about the entity does not drag the whole entity with
-  // it. Centred on the entity here, where ugl cornered it at the origin.
+  // An empty box that fixes what the drawing centres in, so a shape lopsided
+  // about the entity does not drag the whole entity with it. Centred on the
+  // entity.
   size(w, h = w, x = 0, y = 0) {
     if (this.disabled) return this;
     const path = Path.rect(x - w / 2, y - h / 2, w, h);
@@ -136,8 +136,8 @@ export class Gfx {
     return this.push(Path.circle(x, y, r));
   }
 
-  // ugl's arc: out along r1 from b to e, back along r2, so r1 == r2 is a plain
-  // arc and r1 != r2 a ring segment. Angles turn anticlockwise on screen.
+  // Out along r1 from b to e, back along r2, so r1 == r2 is a plain arc and
+  // r1 != r2 a ring segment. Angles turn anticlockwise on screen.
   //
   // Path.arc joins two sweeps with a line the way ctx.arc does, so the band
   // closes itself.
@@ -175,7 +175,7 @@ export class Gfx {
   }
 
   // One line of the bitmap font, centred on (x, y) in screen units. The colour
-  // is an argument rather than the standing fill(), as ugl's gfx.text had it.
+  // is an argument rather than the standing fill().
   text(x, y, s, color, size = 1) {
     if (this.disabled) return this;
     this.cmds.push({

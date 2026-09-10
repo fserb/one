@@ -1,7 +1,7 @@
 /*
- * art.js - the ugl look: a 6x8 bitmap font and a chunky-pixel renderer.
+ * art.js - a 6x8 bitmap font and a chunky-pixel renderer.
  *
- * The vault games draw everything out of two-colour dithered pixels 3 to 8
+ * The entity games draw everything out of two-colour dithered pixels 3 to 8
  * screen units wide. `art` collects an entity's pixels; entity.js blits them
  * centred on its position.
  *
@@ -219,8 +219,8 @@ const FONTDATA = [
 
 const GLYPHS = new Map();
 
-// The pixels of `text` at one unit per pixel, laid out as ugl does:
-// proportional, each glyph two pixels past the rightmost lit column so far.
+// The pixels of `text` at one unit per pixel, laid out proportionally: each
+// glyph two pixels past the rightmost lit column so far.
 // Everything scales linearly, so callers multiply.
 export function glyphs(text) {
   const hit = GLYPHS.get(text);
@@ -291,8 +291,7 @@ function octant(r, step) {
 /*
  * A bag of chunky pixels in pixel coordinates. Every shape reduces to dot(),
  * which resolves the dither and appends to a run; render() blits the lot
- * centred on the origin. ugl centred the sprite's bounding box only when it
- * started at the origin, which is how the games draw. This always centres.
+ * centred on the origin.
  */
 export class Art {
   constructor() {
@@ -371,8 +370,8 @@ export class Art {
     if (this.disabled) return this;
 
     // The dither reads the whole pixel the dot falls in, the run keeps the
-    // coordinate given: ugl drew at x*px with no rounding, so
-    // `rect(0, 1.5, 4, 1)` is a one-pixel bar centred on a four-pixel box.
+    // coordinate given, drawn at x*px with no rounding: so `rect(0, 1.5, 4, 1)`
+    // is a one-pixel bar centred on a four-pixel box.
     let v = 0;
     if (this.xpat > 0) v += Math.trunc(x) % this.xpat;
     if (this.ypat > 0) v += Math.trunc(y) % this.ypat;

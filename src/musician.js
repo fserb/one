@@ -1,6 +1,5 @@
 /*
- * musician - a port of ~/prj/vault/games/sketch/src/Musician.hx, "Street
- * Musician".
+ * musician - "Street Musician".
  *
  * Two hands. One plays: notes march in from the right and you strike whichever
  * is on the mark. The other works the crowd: a clean note buys a coin thrown up
@@ -8,22 +7,21 @@
  * line a second or two later. The busker swings on an arc, and that arc is the
  * only way across to a coin or out from under a tomato.
  *
- * The Haxe's one idea worth keeping whole: `bpm` is both the tempo and the
- * speed in px a second. A grid step is a sixteenth, 60/(4*bpm) seconds, so a
- * step is 15px wide at every tempo and notes stay 75px apart however fast it
- * gets. Only the speed ramps.
+ * The idea the whole game hangs off: `bpm` is both the tempo and the speed in
+ * px a second. A grid step is a sixteenth, 60/(4*bpm) seconds, so a step is
+ * 15px wide at every tempo and notes stay 75px apart however fast it gets. Only
+ * the speed ramps.
  *
- * The Haxe put the whole game in the top third of the box and threw coins and
- * tomatoes straight up through the note lane. Here the lane is at the top, the
- * arc at 250 to 290, and a throw is a lob arriving at the top of its own arc:
+ * The lane is at the top, the arc at 250 to 290, and a throw is a lob arriving
+ * at the top of its own arc rather than a straight shot up through the lane:
  * an arc is readable out of the corner of your eye where a straight line at
  * constant speed is not. The tick on the beat is what lets the lane sit 200px
  * from the busker at all.
  *
- * The tempo climbs on notes gone by, not on score and combo. The Haxe's
- * `60 + 140*score/2000 + combo` runs away and falls back on every drop, so
- * failing made it easier. PER_NOTE doubles it every 22 seconds and nothing caps
- * it, because the note rate beats a hand long before the window does.
+ * The tempo climbs on notes gone by, not on score and combo: a tempo off score
+ * runs away and falls back on every drop, so failing makes it easier. PER_NOTE
+ * doubles it every 22 seconds and nothing caps it, because the note rate beats
+ * a hand long before the window does.
  *
  * The pointer places the busker and a click plays the note. The two are the
  * same gesture on purpose: from one pointer the press that begins a drag is the
@@ -69,8 +67,8 @@ const LEAN = Math.PI / 5;
 // Radians a second: the keys, then an untouched lean unwinding.
 const TURN = 2 * Math.PI / 3;
 const RETURN = 1.2;
-// The fraction of the lean the figure is drawn and collides at. The Haxe drew
-// the whole of it, and 36 degrees is falling over, not leaning.
+// The fraction of the lean the figure is drawn and collides at. The whole of it
+// is 36 degrees, which is falling over, not leaning.
 const TILT = 0.5;
 
 // A throw starts off the bottom, arrives at the middle of the arc, and is gone
@@ -82,7 +80,7 @@ const FLOOR = 560;
 // also the only difference between the two: a tomato lobs, a coin flicks.
 const COIN_TIME = 1;
 const TOMATO_TIME = 1.6;
-// The Haxe's launch window, which is most of the arc.
+// The launch window, which is most of the arc.
 const AIM0 = 120;
 const AIM1 = 360;
 
@@ -106,7 +104,7 @@ const FADE = 0.5;
 // Half the body: what a tomato has to reach.
 const BODYW = 26;
 const BODYH = 36;
-// How far off the body a coin still counts, and the Haxe's tomato radius.
+// How far off the body a coin still counts, and the tomato's radius.
 const CATCH = 16;
 const SPLAT = 8;
 
@@ -115,7 +113,7 @@ const HATY = 360;
 
 const DEATH = 0.6;
 
-// The Arne palette the Haxe names.
+// Arne's palette.
 const GREY = 0x697175;
 const RED = 0xbe2633;
 const ORANGE = 0xeb8931;
@@ -123,7 +121,7 @@ const PINK = 0xde65e2;
 const YELLOW = 0xf7e26b;
 const GREEN = 0x44891a;
 const BLACK = 0x000000;
-// The one colour that is not the Haxe's: it splits instrument from street.
+// The one colour outside that palette: it splits instrument from street.
 const LANE_BG = "#383838";
 
 // 0 body, 1 hat, 2 instrument, 3 face. The instrument is what makes the sprite
@@ -157,7 +155,7 @@ const HAT = `
 .00.
 `;
 
-// The first three seeds are the Haxe's.
+// The first three seeds are the original game's.
 sound.voice("note", { ...blip(0), vol: 0.13 });
 sound.voice("tick", { ...blip(0), vol: 0.035 });
 sound.voice("coin", { ...coin(12), vol: 0.12 });

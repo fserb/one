@@ -1,22 +1,21 @@
 /*
- * amaze - a port of ~/prj/vault/games/sketch/src/Amaze.hx.
+ * amaze.
  *
  * A maze, a key, a locked square, and one jump every three seconds. The jump
  * goes through one wall in whatever direction you face, so the maze is two
  * mazes at once and the game is choosing which wall. Bots patrol straight runs
  * and charge down any row or column you share with them.
  *
- * Most of this is the Haxe to the number, including the maze generator: a
- * randomised Prim's from the middle, where the four ways out of a new cell are
- * tried in an order set by which way the cell lies from the centre. That is
- * what makes the corridors run around the centre rather than at it.
+ * The maze is a randomised Prim's from the middle, where the four ways out of a
+ * new cell are tried in an order set by which way the cell lies from the
+ * centre. That is what makes the corridors run around the centre rather than at
+ * it.
  *
- * Not the Haxe's: cells are 30 rather than 32, so the 15x15 maze has a margin
- * around it; the level change is on a clock rather than a key press, because a modal
- * mid-round is a place where input does nothing; the jump is the tap and
- * walking is the hold, since one pointer has to do both; and the bots stand
- * still for STILL seconds, without which two of fourteen bench rounds ended
- * inside five seconds.
+ * Cells are 30, so the 15x15 maze has a margin around it. The level change is
+ * on a clock rather than a key press, because a modal mid-round is a place
+ * where input does nothing. The jump is the tap and walking is the hold, since
+ * one pointer has to do both. And the bots stand still for STILL seconds,
+ * without which two of fourteen bench rounds ended inside five seconds.
  */
 
 import * as ent from "./lib/entity.js";
@@ -66,7 +65,7 @@ const LINE = 3;
 const WALK = 4;
 const PATROL = 2.5;
 const CHASE = 5;
-// How near the middle of a cell a turn takes, in cells. The Haxe's.
+// How near the middle of a cell a turn takes, in cells.
 const ALIGN = 0.1;
 // Seconds to recharge, and how far into a move a release still cancels it.
 const COOL = 3;
@@ -74,7 +73,7 @@ const BAIL = 0.94;
 // A press let go inside this is a jump; held past it, it walks.
 const TAP = 0.15;
 
-// The Haxe's numbers, scaled from its 32-unit cell to this one.
+// Scaled from a 32-unit cell to this one.
 const YOU_R = 7.5;
 const YOU_BOX = 15;
 const BOT_R = 5.5;
@@ -82,9 +81,8 @@ const BOT_BOX = 13;
 const KEY_BOX = 9.5;
 const GATE_BOX = 19;
 
-// Still, then aiming, then charging. The last two are the Haxe's; STILL is not,
-// and is there because a bot walking inward otherwise catches a player who has
-// had no time to be anywhere else.
+// Still, then aiming, then charging. STILL is there because a bot walking
+// inward otherwise catches a player who has had no time to be anywhere else.
 const STILL = 1.5;
 const AIM_AT = 2;
 const CHASE_AT = 5;
@@ -99,7 +97,7 @@ const YOU = 0xffffff;
 const BOT = 0xc24079;
 const BG = 0x3dbf86;
 
-// The seeds and the vols are the Haxe's.
+// The seeds and the vols are the original game's.
 sound.voice("jump", { ...jump(4), vol: 0.1 });
 sound.voice("key", { ...coin(12), vol: 0.13 });
 sound.voice("gate", { ...powerup(3), vol: 0.13 });
@@ -133,7 +131,7 @@ const ci = (x) => Math.round((x - MX) / CELL - 0.5);
 const cj = (y) => Math.round((y - MY) / CELL - 0.5);
 
 /*
- * The Haxe's generator: a randomised Prim's from the middle cell out. A cell
+ * A randomised Prim's from the middle cell out. A cell
  * still at 15, every wall up, has not been reached. The frontier is every
  * unreached cell next to a reached one, one is taken from it at random, and it
  * is joined to whichever reached neighbour the order picks.
@@ -177,7 +175,7 @@ function generate() {
     }
   }
 
-  // The Haxe's last block: it makes the starting cell a crossroads.
+  // Make the starting cell a crossroads.
   for (let o = 0; o < 4; ++o) {
     const x = home % N;
     const y = (home - x) / N;
@@ -186,7 +184,7 @@ function generate() {
   buildWalls();
 }
 
-// Perpendicular pair first, toward the middle last. The Haxe's four cases.
+// Perpendicular pair first, toward the middle last.
 function order(a) {
   if (a < Math.PI / 4 || a >= 7 * Math.PI / 4) return [2, 0, 1, 3];
   if (a < 3 * Math.PI / 4) return [3, 1, 2, 0];
@@ -312,9 +310,8 @@ class Player extends ent.Entity {
       }
       if (d !== 0) this.moveTo(d);
 
-      // Per axis, which is what the Haxe's two separate tests are: without it,
-      // turning into a wall mid-step leaves the old target carrying you
-      // sideways for ever.
+      // Per axis, in two separate tests: without that, turning into a wall
+      // mid-step leaves the old target carrying you sideways for ever.
       const across = d === E_W || d === W_W;
       const along = d === N_W || d === S_W;
       if (
@@ -345,8 +342,8 @@ class Player extends ent.Entity {
     this.cool = Math.max(0, this.cool - t / COOL);
   }
 
-  // The Haxe's circle with a rect of background over it. The flat rises as the
-  // jump comes back, and is the only gauge there is.
+  // A circle with a rect of background over it. The flat rises as the jump
+  // comes back, and is the only gauge there is.
   render(ctx) {
     const r = this.leaving >= 0 ? YOU_R * this.leaving : YOU_R;
     if (r <= 0) return;
@@ -354,7 +351,7 @@ class Player extends ent.Entity {
     ctx.beginPath();
     ctx.arc(0, 0, r, 0, 2 * Math.PI);
     ctx.fill();
-    // The Haxe's 5 of 17 ready, 8 of 17 not.
+    // 5 of 17 ready, 8 of 17 not.
     const cut = this.leaving >= 0 ? 0.29 : 0.29 + 0.18 * this.cool;
     if (cut <= 0) return;
     ctx.fillStyle = css(BG);
@@ -365,7 +362,7 @@ class Player extends ent.Entity {
 class Bot extends ent.Entity {
   constructor() {
     super();
-    // Round the outside, as far from the middle as the Haxe puts them.
+    // Round the outside, as far from the middle as they go.
     const d = Math.floor(5 * Math.random());
     if (Math.random() < 0.5) {
       this.mx = Math.random() < 0.5 ? d : N - 1 - d;
@@ -416,8 +413,8 @@ class Bot extends ent.Entity {
   // a corridor sweep into a wander.
   runX(x0, y, dx, wander) {
     // Zero is not a direction, and it is what `retarget` asks for whenever the
-    // bot is already in the player's column. The Haxe's loop adds it to x for
-    // ever.
+    // bot is already in the player's column, where the loop below would add it
+    // to x for ever.
     if (dx === 0) return x0;
     let x = x0;
     while (x >= 0 && x < N) {
@@ -606,8 +603,8 @@ function buildLevel() {
   generate();
 
   player = new Player();
-  // Point symmetric about the middle, the Haxe's `p1 = 15*15 - 1 - p0`, so a
-  // level is always a there and a back. Not the middle itself: p1 is its own
+  // Point symmetric about the middle, `p1 = 15*15 - 1 - p0`, so a level is
+  // always a there and a back. Not the middle itself: p1 is its own
   // mirror there, and both would land underfoot.
   const home = MID + N * MID;
   let p0 = home;
@@ -680,7 +677,7 @@ export function render(ctx) {
   ctx.restore();
 }
 
-// The Haxe's shape, on a clock instead of a key press.
+// On a clock instead of a key press.
 function drawWipe(ctx) {
   if (phase === PLAY) return;
   ctx.fillStyle = css(DARK);

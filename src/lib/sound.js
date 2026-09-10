@@ -7,8 +7,8 @@
  * The module writes op.sound on the way in; a silent game leaves that null and
  * the bundler drops fsfx and alma's Audio.
  *
- * voice() is the sfxr path: one options object, no track, since twelve of the
- * ported games want the voice exactly as sfxr renders it. src/lib/fsfx/sfxr.js
+ * voice() is the sfxr path: one options object, no track, since twelve games
+ * want the voice exactly as sfxr renders it. src/lib/fsfx/sfxr.js
  * says what the options are.
  *
  * A Track is callable: one call per stage, each processing what the last left.

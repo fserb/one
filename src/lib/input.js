@@ -1,6 +1,6 @@
 /*
  * input.js - every device collapsed into `mouse` (1024-space position, three
- * click edges, swipe) and `key` (the held state ported ugl games want).
+ * click edges, swipe) and `key` (held now, plus what went down this frame).
  * poll() runs before the game's update and flush() after the frame, because
  * alma's Input keeps an edge alive for exactly one update() call.
  *
@@ -29,8 +29,8 @@ export const mouse = {
   swipe: 0,
 };
 
-// ugl's Game.key: held now, plus what went down this frame. b1 doubles as the
-// pointer, so every game plays with a mouse or a finger alone.
+// Held now, plus what went down this frame. b1 doubles as the pointer, so
+// every game plays with a mouse or a finger alone.
 export const key = {
   up: false,
   right: false,
@@ -73,7 +73,7 @@ export function init(scr) {
   );
   input.bind("down", "arrowdown", "s", "pad:down", "pad:lsdown", "swipe:down");
   input.bind("left", "arrowleft", "a", "pad:left", "pad:lsleft", "swipe:left");
-  // ugl had X and the full stop on b1, C on b2. The click is on b1 too, so the
+  // X and the full stop are on b1, C on b2. The click is on b1 too, so the
   // action button is the button the pointer already is.
   input.bind("b1", "click", "space", "enter", "x", "period", "pad:a");
   input.bind("b2", "c", "slash", "pad:b");

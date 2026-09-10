@@ -1,6 +1,5 @@
 /*
- * jeb - a port of ~/prj/vault/games/sketch/src/Jebediah.hx, "Jebediah's
- * Revenge".
+ * jeb - "Jebediah's Revenge".
  *
  * A lander in a system of planets. Gravity is the only thing moving you between
  * them: the green line out of the nose is where you go if you do nothing, drawn
@@ -8,14 +7,14 @@
  * planet is lit; land on it slowly and upright and it fills the tank and lights
  * another. The tank is the clock and drains whether you burn or not.
  *
- * The landing rule, from `Planet.update`, is the Haxe's whole: over CRASH and
- * you are scrap, more than a quarter turn off the upright of where you touched
- * down and you are scrap, otherwise the ship stops dead and snaps to the
- * vertical. The second is the one that catches you, because rotating is slow.
+ * The landing rule is the whole of it: over CRASH and you are scrap, more than
+ * a quarter turn off the upright of where you touched down and you are scrap,
+ * otherwise the ship stops dead and snaps to the vertical. The second is the
+ * one that catches you, because rotating is slow.
  *
- * That rule runs on arrival, not on every frame of contact: the Haxe re-snapped
- * the angle every frame, so there was no way to point the nose before lifting
- * off. A landed ship is put on the surface rather than left to sink into it,
+ * That rule runs on arrival, not on every frame of contact: re-snapping the
+ * angle every frame leaves no way to point the nose before lifting off. A
+ * landed ship is put on the surface rather than left to sink into it,
  * except while it is burning away, or a frame of thrust moves it less than the
  * resting rule puts back and it can never leave.
  *
@@ -68,7 +67,7 @@ const MU = 120;
 const THRUST = 320;
 const TURN = Math.PI;
 const CRASH = 62;
-// A quarter turn off the vertical of where you touched down. The Haxe's.
+// A quarter turn off the vertical of where you touched down.
 const TILT = Math.PI / 4;
 
 // One pointer has to aim and burn, so HOLD separates them: a lander that
@@ -106,7 +105,7 @@ const ARROW = 10;
 
 const DEATH = 0.7;
 
-// The Haxe's Arne colours.
+// Arne's palette.
 const GREY = 0x697175;
 const DARKGREEN = 0x2f484e;
 const GREEN = 0x44891a;
@@ -125,7 +124,7 @@ const SHIP = `
 02220
 `;
 
-// The vols are the vault game's own ugl volumes.
+// The vols are the original game's own volumes.
 sound.voice("burn", { ...blip(511), vol: 0.05 });
 sound.voice("land", { ...powerup(3607), vol: 0.13 });
 sound.voice("crash", { ...explosion(3613), vol: 0.2 });
@@ -151,7 +150,7 @@ const css = (c) => `#${c.toString(16).padStart(6, "0")}`;
 // Signed, in [-PI, PI). JS's % keeps the sign of its left side, so the usual
 // one-liner reads a quarter turn as three quarters once enough left turns have
 // taken `angle` below -3*PI. Wrapping the difference works wherever it came
-// from; the Haxe wrapped `angle` itself every frame.
+// from, where wrapping `angle` itself needs doing every frame.
 function apart(a, b) {
   const d = (a - b) % (2 * Math.PI);
   if (d < -Math.PI) return d + 2 * Math.PI;
@@ -298,15 +297,15 @@ class Ship extends ent.Entity {
   }
 
   /*
-   * The Haxe's landing rule, on arrival only: over CRASH is scrap, more than
-   * TILT off the vertical of the place you touched down is scrap, and
-   * otherwise the ship snaps to that vertical and stops dead.
+   * The landing rule, on arrival only: over CRASH is scrap, more than TILT off
+   * the vertical of the place you touched down is scrap, and otherwise the
+   * ship snaps to that vertical and stops dead.
    *
-   * Arrival only, because the Haxe ran the whole of it every frame the ship
-   * was in contact, which pinned a resting ship upright and left no way to
-   * turn on the ground. Turning is slow and it is the half of the landing that
-   * catches you; being able to point the nose before lifting off is most of
-   * what makes the next one possible.
+   * Arrival only: running the whole of it every frame the ship is in contact
+   * pins a resting ship upright and leaves no way to turn on the ground.
+   * Turning is slow and it is the half of the landing that catches you; being
+   * able to point the nose before lifting off is most of what makes the next
+   * one possible.
    */
   touch(p, nx, ny) {
     const up = Math.atan2(ny, nx) + Math.PI / 2;
