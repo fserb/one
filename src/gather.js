@@ -53,15 +53,16 @@ const X0 = 88;
 const Y0 = 73;
 
 // The lines the board hangs from and ends on, and the depth a cursor dies at.
-// The score chip's bottom edge lands at 50, so a board hung there has the chip
-// over the left end of the line. The board sits 4 lower and the strip below it
-// gives up the same 4.
+// 54 rather than 50 because the overlay used to hang a score chip over the left
+// end of the line; the chip is gone and the 4 stays, since media/gather/card.*
+// is recorded at this layout.
 const HEAD = 54;
 const FOOT = 472;
 const DIE = 454;
 
 // The tray sits in the top-right corner, right-aligned on the line the board
-// ends at and level with the score chip in the opposite corner.
+// ends at and level with the line the overlay hangs its panels from, 26 of the
+// 1024.
 const TRAY_R = 420;
 const TRAY_Y = 12;
 const FLY = 0.3;

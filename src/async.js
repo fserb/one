@@ -42,8 +42,7 @@ const BOARDPOS = [
 // Belt units draw in a unit square, scaled up by this.
 const SZ = 100;
 const STRIDE = 1.2;
-// The belt rides the strip above the boards, low enough to clear the score chip
-// in the corner.
+// The belt rides the strip above the boards, clear of the overlay's panels.
 const BELT_Y = 117;
 
 const board = [];

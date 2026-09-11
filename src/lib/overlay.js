@@ -2,9 +2,8 @@
  * overlay.js - the panels every game shares. Floating panels over the board,
  * and nothing else: no bar, no reserved strip, no mute button.
  *
- *   playing  a chip in the top-left corner once the score leaves zero, and
- *            msg() in a chip at the top-centre. A game that scores nothing and
- *            says nothing runs on a bare board.
+ *   playing  msg() in a chip at the top-centre, and nothing else. A game that
+ *            says nothing runs on a bare board, which is most of them.
  *   hint     hint("...") raises a panel at the bottom, which fades on the first
  *            input or a few seconds in. Opt-in: meta.desc no longer draws.
  *   finish   the frozen board, dimmed, and whatever gameOver() asked for. A
@@ -15,6 +14,11 @@
  * reads over the board, and the default text is whichever reads over that
  * fill. meta.fg never enters unasked, so rope and grab, whose fg and bg are
  * almost the same colour, still get a panel you can read.
+ *
+ * There is no running score. The score is kept, and it is on the finish screen,
+ * but a number in the corner for the whole round is a HUD, and this is a board
+ * with panels over it. A game that wants a number in play draws it itself, the
+ * way asteroid draws its own on the way out.
  *
  * Nothing here consumes a click. one.js calls update() only between rounds and
  * render() after the game draws.
@@ -175,14 +179,12 @@ export function update(_dt, start) {
 export function render(ctx) {
   ctx.save();
   if (finish.on) renderFinish(ctx);
-  else renderChips(ctx);
+  else renderMsg(ctx);
   if (tip.alpha > 0) renderHint(ctx);
   ctx.restore();
 }
 
-function renderChips(ctx) {
-  const value = Math.floor(score.value);
-  if (value > 0) chip(ctx, `${value}`, MARGIN, MARGIN, 44, 0, 0);
+function renderMsg(ctx) {
   if (op.topmsg) chip(ctx, op.topmsg, SIZE / 2, MARGIN, 28, 0.5, 0);
 }
 
