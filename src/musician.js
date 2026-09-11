@@ -34,7 +34,7 @@
  */
 
 import * as ent from "./lib/entity.js";
-import { gameOver, hint, msg, score, SIZE } from "./lib/one.js";
+import { gameOver, msg, score, SIZE } from "./lib/one.js";
 import { blip, coin, explosion, hit } from "./lib/fsfx/sfxr.js";
 import * as sound from "./lib/sound.js";
 
@@ -170,8 +170,6 @@ let resolved = 0;
 let step = 0;
 let steps = 0;
 let strike = false;
-// An opening the player is still reading is a dropped note.
-let frozen = false;
 let dying = 0;
 // Only a pointer that has moved takes over, so a parked mouse does not drag
 // the busker on frame one. A held key takes it back.
@@ -219,7 +217,7 @@ class Note extends ent.Entity {
   }
 
   update() {
-    if (frozen || dying > 0) return;
+    if (dying > 0) return;
     const t = ent.game.time;
 
     if (this.done) {
@@ -421,7 +419,6 @@ function die() {
 }
 
 export function init() {
-  hint(meta.desc);
   ent.reset([Hat, Mark, Coin, Tomato, Note, Player]);
 
   new Hat();
@@ -436,7 +433,6 @@ export function init() {
   step = 0;
   steps = 0;
   strike = false;
-  frozen = true;
   dying = 0;
   aiming = false;
   lastx = null;
@@ -444,17 +440,16 @@ export function init() {
 }
 
 export function update(dt) {
-  frozen = hint() > 0;
   // This frame's, not entity.js's copy, which only refreshes inside
   // ent.update(). Every note has to see the same answer.
   const { key } = ent.game;
-  strike = !frozen && dying <= 0 && (key.just.b1 || key.just.up);
+  strike = dying <= 0 && (key.just.b1 || key.just.up);
 
   bpm = BPM0 + PER_NOTE * resolved;
   ent.update(dt);
 
   const t = ent.game.time;
-  if (!frozen && dying <= 0) {
+  if (dying <= 0) {
     const grid = 60 / (4 * bpm);
     step += t;
     while (step >= grid) {

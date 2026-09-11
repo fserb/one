@@ -6,7 +6,7 @@
  */
 
 import * as ent from "./lib/entity.js";
-import { gameOver, hint, score } from "./lib/one.js";
+import { gameOver, score } from "./lib/one.js";
 
 export const meta = {
   title: "avoid",
@@ -172,7 +172,6 @@ function burst(color, pos, speed) {
 }
 
 export function init() {
-  hint(meta.desc);
   ent.reset([Enemy, Player, ent.Particle]);
 
   new Player();

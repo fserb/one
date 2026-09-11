@@ -40,7 +40,7 @@ import {
 } from "./alma/src/index.js";
 import { camera } from "./lib/camera.js";
 import * as ent from "./lib/entity.js";
-import { fixed, gameOver, hint, key, mouse, op, score, SIZE } from "./lib/one.js";
+import { fixed, gameOver, key, mouse, op, score, SIZE } from "./lib/one.js";
 import * as sound from "./lib/sound.js";
 
 export const meta = {
@@ -1527,7 +1527,6 @@ export function init() {
 
   resetLauncher();
   random.seed(Date.now() | 0);
-  hint(meta.desc);
 }
 
 export function update(dt) {

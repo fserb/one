@@ -28,7 +28,7 @@
  */
 
 import * as ent from "./lib/entity.js";
-import { gameOver, hint, score, SIZE } from "./lib/one.js";
+import { gameOver, score, SIZE } from "./lib/one.js";
 import { blip, explosion, powerup } from "./lib/fsfx/sfxr.js";
 import * as sound from "./lib/sound.js";
 
@@ -453,7 +453,6 @@ function predict() {
 }
 
 export function init() {
-  hint(meta.desc);
   ent.reset([Planet, Ship]);
 
   makeSystem();
@@ -477,10 +476,7 @@ export function update(dt) {
     return;
   }
 
-  // The tank holds while the hint is up. The ship starts landed anyway.
-  if (hint() <= 0) {
-    fuel -= (LIFE + (ship.burning ? BURN : 0)) * t;
-  }
+  fuel -= (LIFE + (ship.burning ? BURN : 0)) * t;
   predict();
   if (fuel > 0) return;
   fuel = 0;

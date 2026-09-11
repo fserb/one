@@ -27,7 +27,7 @@
 
 import * as ent from "./lib/entity.js";
 import { camera } from "./lib/camera.js";
-import { gameOver, hint, score, SIZE } from "./lib/one.js";
+import { gameOver, score, SIZE } from "./lib/one.js";
 
 export const meta = {
   title: "grow",
@@ -550,7 +550,6 @@ function frame() {
 }
 
 export function init() {
-  hint(meta.desc);
   ent.reset([Path, Gold, Cursor]);
 
   scale = 1;
@@ -584,7 +583,6 @@ export function update(dt) {
   // 60Hz is -60 * ln(0.94) a second.
   camera.approach(frame(), dt, { x: 3.71, y: 3.71, scale: 2.45 });
 
-  if (hint() > 0) return;
   clock -= dt * (1 + (cursor.pushing ? HOLDCOST : 0));
   if (clock <= 0) {
     clock = 0;

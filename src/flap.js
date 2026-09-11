@@ -13,7 +13,7 @@
  */
 
 import * as ent from "./lib/entity.js";
-import { gameOver, hint, score } from "./lib/one.js";
+import { gameOver, score } from "./lib/one.js";
 
 export const meta = {
   title: "flap",
@@ -156,7 +156,6 @@ function along(x, dir, d) {
 }
 
 export function init() {
-  hint(meta.desc);
   ent.reset();
 
   // Bird first: a coin reads it in begin(), and groups begin in build order.

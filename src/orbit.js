@@ -25,7 +25,7 @@
 import { extra, random } from "./alma/src/index.js";
 import { css } from "./lib/art.js";
 import * as ent from "./lib/entity.js";
-import { flash, gameOver, hint, msg, score } from "./lib/one.js";
+import { flash, gameOver, msg, score } from "./lib/one.js";
 import { explosion, hit, laser, powerup } from "./lib/fsfx/sfxr.js";
 import * as sound from "./lib/sound.js";
 
@@ -75,9 +75,8 @@ const REPOINT = 12;
 
 const ENEMY_R = 17;
 const ENEMY_TURN = 10;
-// Or as long as the hint stands, when that is longer: on ENEMY_FIRST alone the
-// opening shot lands at 2.2s and the one past the shield at 3.3s, both while
-// the hint is still up.
+// Seconds the turret holds before its first shot: 2.2s to the opening shot,
+// 3.3s to the one past the shield.
 const ENEMY_FIRST = 1.5;
 // Frames of player angle the turret averages to lead its shot.
 const HISTORY = 60;
@@ -435,7 +434,7 @@ class Level extends ent.Entity {
     }
 
     this.repoint = REPOINT / this.want.length;
-    new Enemy(Math.max(ENEMY_FIRST, hint()));
+    new Enemy(ENEMY_FIRST);
   }
 
   update() {
@@ -652,7 +651,6 @@ function mix(a, b, t) {
 }
 
 export function init() {
-  hint(meta.desc);
   ent.reset([Enemy, Chunk, ent.Particle, Player, EnemyBullet, Bullet]);
 
   level = -1;

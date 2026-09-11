@@ -26,7 +26,7 @@
 
 import * as ent from "./lib/entity.js";
 import { camera } from "./lib/camera.js";
-import { gameOver, hint, msg, score, SIZE } from "./lib/one.js";
+import { gameOver, msg, score, SIZE } from "./lib/one.js";
 import { coin, explosion, powerup } from "./lib/fsfx/sfxr.js";
 import * as sound from "./lib/sound.js";
 
@@ -109,7 +109,7 @@ const PER_HUNTER = 4;
 const HUNTERS = 5;
 const COIN_GAP = 90;
 const HUNT_GAP = 360;
-// Hunters hold this long at the start of a round, or until the hint has gone.
+// Hunters hold this long at the start of a round.
 const GRACE = 2.5;
 // On top of the hitstop.
 const DEATH = 0.7;
@@ -640,7 +640,6 @@ function die() {
 }
 
 export function init() {
-  hint(meta.desc);
   ent.reset([Coin, Hunter, Player]);
   // The room is two screens across and one down, so the camera only moves
   // sideways: the bounds run the width of the room and pin y at the middle.
@@ -685,7 +684,7 @@ export function update(dt) {
 
   // The entities' own clock, so a hitstop holds it too.
   const t = ent.game.time;
-  hold = Math.max(hold - t, hint());
+  hold = Math.max(0, hold - t);
   if (hold <= 0 && dying <= 0) range = Math.max(LIGHT_MIN, range - DRAIN * t);
 
   // A constant-speed trail rather than approach(): it catches the player

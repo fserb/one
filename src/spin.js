@@ -24,7 +24,7 @@
  */
 
 import * as ent from "./lib/entity.js";
-import { gameOver, hint, score, SIZE } from "./lib/one.js";
+import { gameOver, score, SIZE } from "./lib/one.js";
 import { blip, coin, jump } from "./lib/fsfx/sfxr.js";
 import * as sound from "./lib/sound.js";
 
@@ -632,7 +632,6 @@ function moveStray() {
 }
 
 export function init() {
-  hint(meta.desc);
   ent.reset([Mark, Player]);
 
   load();
@@ -654,10 +653,6 @@ export function init() {
 export function update(dt) {
   ent.update(dt);
   const t = ent.game.time;
-
-  // Turn and clock hold while the hint is up: a turn landing on a player who
-  // is still reading is not one they had.
-  if (hint() > 0) return;
 
   turnClock(t);
   checkMark(t);

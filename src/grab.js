@@ -11,10 +11,6 @@
  * It needs a keyboard or gamepad to move and a pointer to aim. Alone in the
  * collection, it is not playable with either one alone.
  *
- * The opening four ghosts hold fire for as long as the hint stands: at
- * 1.5/speed yellow's first shot lands 2.9 seconds in, before the hint has
- * faded, and there is no title card to read the rules off.
- *
  * A hit shape does not turn with the drawing, so the hook's 20x18 claw box is a
  * circle on the claw.
  *
@@ -23,7 +19,7 @@
  */
 
 import * as ent from "./lib/entity.js";
-import { gameOver, hint, score } from "./lib/one.js";
+import { gameOver, score } from "./lib/one.js";
 import { explosion, hit, laser } from "./lib/fsfx/sfxr.js";
 import * as sound from "./lib/sound.js";
 
@@ -520,7 +516,6 @@ function eat(color) {
 }
 
 export function init() {
-  hint(meta.desc);
   ent.reset([Floor, Bullet, Ghost, Hook, Player, EndGame]);
 
   speed = 1.5;
@@ -531,20 +526,13 @@ export function init() {
   hook = new Hook();
 
   // One per corner; the one wearing the floor's colour leaves on frame one.
-  // They hold fire for as long as the hint stands when that beats the usual
-  // grace: at 1.5/speed yellow's first shot lands 2.9 seconds in, before the
-  // hint has faded, and there is no title card to read the rules off.
-  // hint() is 0 from the first input, so the grace ends when the reading does.
   const corners = [
     [YELLOW, EDGE, EDGE],
     [PURPLE, W - EDGE, EDGE],
     [BLUE, W - EDGE, W - EDGE],
     [PINK, EDGE, W - EDGE],
   ];
-  for (const [color, x, y] of corners) {
-    const g = new Ghost(color, x, y);
-    g.wait = Math.max(g.wait, hint());
-  }
+  for (const [color, x, y] of corners) new Ghost(color, x, y);
 }
 
 export { render, update } from "./lib/entity.js";

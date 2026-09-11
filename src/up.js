@@ -17,7 +17,7 @@
  */
 
 import * as ent from "./lib/entity.js";
-import { gameOver, hint, score } from "./lib/one.js";
+import { gameOver, score } from "./lib/one.js";
 
 export const meta = {
   title: "up",
@@ -229,7 +229,6 @@ function place(e) {
 }
 
 export function init() {
-  hint(meta.desc);
   ent.reset([Obstacle, Gold, Player, Engine, ent.Particle]);
 
   player = new Player();
@@ -251,9 +250,7 @@ export function update(dt) {
   // The scene runs before the entities, and the order matters: this slides the
   // world out from under a step that has not run.
   const dx = W / 2 - player.pos.x;
-  // Still while the hint is up: a ship falling over a player who is reading
-  // has spent its altitude before they touch a key, and the bottom is fatal.
-  const dy = Math.max(hint() > 0 ? 0 : SCROLL * dt, HOLD - player.pos.y);
+  const dy = Math.max(SCROLL * dt, HOLD - player.pos.y);
   player.pos.x += dx;
   player.pos.y += dy;
 
