@@ -258,7 +258,9 @@ async function finishGame() {
     wait.push(
       act(v)
         .delay(delay)
-        .then(() => sound.play("drop", (2 * Math.random() - 1) * 1200, 0.1))
+        .then(() =>
+          sound.play("drop", { detune: (2 * Math.random() - 1) * 1200, delay: 0.1 })
+        )
         .attr("s", 0, 0.5, ease.quadIn),
     );
     delay += 0.15;
@@ -289,7 +291,10 @@ async function cleanupLoose(audible = true) {
     snd += 0.01;
     if (audible && snd >= 0.085) {
       snd -= 0.085;
-      sound.play("drop", (2 * Math.random() - 1) * 1200, delay + 0.1);
+      sound.play("drop", {
+        detune: (2 * Math.random() - 1) * 1200,
+        delay: delay + 0.1,
+      });
     }
   }
   await Promise.all(wait);

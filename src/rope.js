@@ -504,7 +504,7 @@ function begin(contact) {
   if (arm.hold !== null) return;
 
   const p = contact.points[0];
-  sound.play("hold", 800 * (2 * Math.random() - 1));
+  sound.play("hold", { detune: 800 * (2 * Math.random() - 1) });
   arm.hold = world.distance(hand, rope, {
     localA: [0, 0],
     localB: rope.toLocal(p.x, p.y),

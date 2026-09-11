@@ -260,7 +260,7 @@ class Ship extends ent.Entity {
     this.puff -= t;
     if (this.puff > 0) return;
     this.puff = 0.05;
-    sound.play("burn", -4 + 8 * Math.random());
+    sound.play("burn", { detune: -4 + 8 * Math.random() });
     new ent.Particle({
       x: this.pos.x - Math.cos(a) * 12,
       y: this.pos.y - Math.sin(a) * 12,
@@ -491,7 +491,7 @@ export function update(dt) {
 function expire() {
   if (dying > 0) return;
   dying = DEATH;
-  sound.play("crash", -8);
+  sound.play("crash", { detune: -8 });
   new ent.Particle({
     x: ship.pos.x,
     y: ship.pos.y,

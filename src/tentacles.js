@@ -292,7 +292,7 @@ function breakThrough(t) {
   for (const n of neighbors(head)) {
     if (n.entity === null || !n.entity.crate) continue;
     n.entity = null;
-    sound.play("crunch", (2 * Math.random() - 1) * 400);
+    sound.play("crunch", { detune: (2 * Math.random() - 1) * 400 });
     return false;
   }
 

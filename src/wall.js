@@ -719,7 +719,7 @@ function pulse(t) {
   if (beat > 0) return;
   const f = near / BEAT_NEAR;
   beat = BEAT_FAST + (BEAT_SLOW - BEAT_FAST) * f;
-  sound.play("beat", -6 * (1 - f));
+  sound.play("beat", { detune: -6 * (1 - f) });
 }
 
 export function render(ctx) {
