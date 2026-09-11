@@ -180,10 +180,6 @@ function gallery(entries) {
     fill(TEMPLATE.card, {
       game,
       title: esc(m.title),
-      // Both lines of it, and a newline between them an attribute keeps: the
-      // card shows this on hover, and it is the only place the rules of a game
-      // are written down outside the game.
-      desc: esc(m.desc.trim()),
       year: esc((m.date ?? "").slice(0, 4)),
       bg: m.bg,
       // The panel fill, not the panel text: the title sits straight on the
