@@ -17,7 +17,9 @@
  * op.sound. input.js owns mouse and key instead, since it is what writes them.
  */
 
-import { Act, registerPlus2d, Screen } from "../alma/src/index.js";
+import Act from "../alma/src/Act.js";
+import { register as registerPlus2d } from "../alma/src/gfx/plus2d.js";
+import { Screen } from "../alma/src/screen.js";
 import * as input from "./input.js";
 import { DOWN, key, LEFT, mouse, RIGHT, UP } from "./input.js";
 import * as overlay from "./overlay.js";

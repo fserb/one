@@ -8,7 +8,7 @@
  * rest of src/lib and the one.js <-> input.js cycle never exists.
  */
 
-import { Input } from "../alma/src/index.js";
+import { Input } from "../alma/src/input/input.js";
 
 export const UP = 1;
 export const RIGHT = 2;

@@ -34,7 +34,7 @@
  * ```
  */
 
-import { Audio } from "../alma/src/index.js";
+import { Audio } from "../alma/src/audio.js";
 import { op } from "./one.js";
 import {
   render as sfxrRender,

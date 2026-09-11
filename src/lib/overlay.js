@@ -24,7 +24,8 @@
  * render() after the game draws.
  */
 
-import { color, ease, utils } from "../alma/src/index.js";
+import { fastOutSlowIn } from "../alma/src/ease.js";
+import { newCanvas } from "../alma/src/utils/utils.js";
 import { mouse } from "./input.js";
 import { meta, op, score, SIZE } from "./one.js";
 
@@ -129,7 +130,7 @@ export function gameOver(
 // one.js draws the board once more after the round ends and hands the canvas
 // here, so the frozen shot holds the game and none of the panels.
 export function shoot(canvas) {
-  const [shot, sctx] = utils.newCanvas(canvas.width, canvas.height);
+  const [shot, sctx] = newCanvas(canvas.width, canvas.height);
   sctx.drawImage(canvas, 0, 0);
   finish.shot = shot;
 }
@@ -212,7 +213,7 @@ function renderHint(ctx) {
  * and leaves the board one.js just drew alone on the canvas.
  */
 function renderFinish(ctx) {
-  const e = ease.fastOutSlowIn(Math.min(1, finish.t / RISE));
+  const e = fastOutSlowIn(Math.min(1, finish.t / RISE));
 
   if (finish.shot) ctx.drawImage(finish.shot, 0, 0, SIZE, SIZE);
   ctx.globalAlpha = DIM * e;
@@ -330,18 +331,40 @@ export function theme(m) {
 }
 
 /*
+ * WCAG relative luminance of a #rrggbb colour: each channel off its gamma
+ * curve, then weighted. The curve is the step that matters. Weighting the raw
+ * bytes calls #3DBF86 a 0.62 when it is a 0.40, which is most of the way to
+ * the wrong panel.
+ *
+ * Six-digit hex only, which is what every meta.bg and meta.overlay is. This
+ * used to be alma's color().contrast(), and that read any CSS colour; it also
+ * cost 12 KB in every game's bundle, since the Color class carries OKLAB,
+ * deltaE2000, gamut mapping and a CSS parser and class methods do not
+ * tree-shake.
+ */
+function lum(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  let y = 0;
+  for (const [shift, weight] of [[16, 0.2126], [8, 0.7152], [0, 0.0722]]) {
+    const c = ((n >> shift) & 255) / 255;
+    y += weight * (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+  }
+  return y;
+}
+
+const L_DARK = lum(DARK);
+const L_LIGHT = lum(LIGHT);
+const ratio = (a, b) => (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+
+/*
  * Whichever of DARK and LIGHT reads better over `over`, by WCAG contrast ratio.
  * Not "is `over` itself light or dark": the crossover between the two sits at
  * luminance 0.19, not at the 0.5 midpoint, because a mid-tone field is much
  * closer to white than it looks. Splitting at the midpoint puts berzerk's red
  * on LIGHT at 3.3:1 where DARK gives 5.0:1. Over the 23 boards it comes out 12
  * DARK and 11 LIGHT.
- *
- * alma's contrast() linearises sRGB before weighting the channels, which is
- * the step that matters: the weights on the raw bytes call #3DBF86 a 0.62 when
- * it is a 0.40, most of the way to the wrong panel.
  */
 function pick(over) {
-  const c = color(over);
-  return c.contrast(DARK) >= c.contrast(LIGHT) ? DARK : LIGHT;
+  const y = lum(over);
+  return ratio(y, L_DARK) >= ratio(y, L_LIGHT) ? DARK : LIGHT;
 }
