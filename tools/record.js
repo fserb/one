@@ -1,0 +1,276 @@
+/*
+ * record.js - records a game's gallery clip with nothing at the keyboard.
+ *
+ * It serves this directory, opens dev.html?game=<name> in headless Chrome,
+ * and calls the rec.auto() that src/dev/rec.js exports: the same two second
+ * countdown, ten second take and loop search the rec button runs. The zip it
+ * hands back goes into ~/Downloads under the name the button would have
+ * downloaded, so `./task media` is the other half of this exactly as it is of
+ * a take recorded by hand.
+ *
+ * What it cannot do is play: it sends no input, so it records the opening
+ * seconds of whatever the round does with nobody in it. For a game that moves
+ * by itself that is a card. For one that waits for a key it is a still board,
+ * and motion() catches that: the take comes back frozen, the game is named at
+ * the end as one to record by hand, and nothing is written for it.
+ *
+ * It talks CDP over a WebSocket, which needs no dependency: Chrome's HTTP
+ * endpoint names the page's socket and Runtime.evaluate runs the call.
+ */
+
+const ROOT = new URL("..", import.meta.url).pathname.replace(/\/$/, "");
+const CHROME = [
+  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+  "/Applications/Chromium.app/Contents/MacOS/Chromium",
+  "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
+  "/usr/bin/google-chrome",
+  "/usr/bin/chromium",
+];
+// Big enough that the canvas is at least the 1024 box the games draw in, so
+// the 512 frames are a downscale and never an upscale.
+const WINDOW = 1100;
+const TIMEOUT = 90; // seconds one game gets, countdown and take included
+
+const TYPES = {
+  html: "text/html",
+  js: "text/javascript",
+  json: "application/json",
+  png: "image/png",
+  mp4: "video/mp4",
+  gif: "image/gif",
+  svg: "image/svg+xml",
+};
+
+const MIME = (path) => TYPES[path.split(".").pop()] ?? "application/octet-stream";
+
+// dev.html needs a server: it loads the games as ES modules, which file://
+// refuses. Files only, and no listing, since ?game= asks for none.
+function serve() {
+  const server = Deno.serve(
+    { port: 0, hostname: "127.0.0.1", onListen: () => {} },
+    async (req) => {
+      const path = decodeURIComponent(new URL(req.url).pathname);
+      if (path.includes("..")) return new Response("no", { status: 403 });
+      try {
+        const file = await Deno.open(ROOT + (path === "/" ? "/dev.html" : path));
+        return new Response(file.readable, {
+          headers: { "content-type": MIME(path) },
+        });
+      } catch {
+        return new Response("not found", { status: 404 });
+      }
+    },
+  );
+  return { port: server.addr.port, stop: () => server.shutdown() };
+}
+
+async function chrome() {
+  const bin = CHROME.find((p) => {
+    try {
+      return Deno.statSync(p).isFile;
+    } catch {
+      return false;
+    }
+  });
+  if (!bin) throw new Error(`no chrome in:\n  ${CHROME.join("\n  ")}`);
+
+  const dir = Deno.makeTempDirSync({ prefix: "one-record-" });
+  const proc = new Deno.Command(bin, {
+    args: [
+      "--headless=new",
+      "--remote-debugging-port=0",
+      `--user-data-dir=${dir}`,
+      `--window-size=${WINDOW},${WINDOW}`,
+      "--hide-scrollbars",
+      "--mute-audio",
+      "--no-first-run",
+      "--no-default-browser-check",
+      "--disable-extensions",
+      "--disable-background-timer-throttling",
+      "--disable-backgrounding-occluded-windows",
+      "about:blank",
+    ],
+    stdout: "null",
+    stderr: "null",
+  }).spawn();
+
+  // Port 0 means Chrome picks one and writes it here, once it is listening.
+  const portFile = `${dir}/DevToolsActivePort`;
+  let port = null;
+  for (let i = 0; i < 200 && port === null; i++) {
+    await new Promise((r) => setTimeout(r, 50));
+    try {
+      port = Number(Deno.readTextFileSync(portFile).split("\n")[0]);
+    } catch { /* not up yet */ }
+  }
+  if (!port) throw new Error("chrome never opened a debugging port");
+
+  return {
+    port,
+    kill: () => {
+      try {
+        proc.kill("SIGKILL");
+      } catch { /* already gone */ }
+      // Chrome is still writing its profile out as it dies, and a directory
+      // that stays behind in /tmp is not worth failing the sweep over.
+      try {
+        Deno.removeSync(dir, { recursive: true });
+      } catch { /* it goes with the next reboot */ }
+    },
+  };
+}
+
+// The page's CDP socket: send() answers one command's result.
+async function connect(port) {
+  const list = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
+  const target = list.find((t) => t.type === "page");
+  const ws = new WebSocket(target.webSocketDebuggerUrl);
+  await new Promise((res, rej) => {
+    ws.onopen = res;
+    ws.onerror = () => rej(new Error("cdp socket refused"));
+  });
+
+  let id = 0;
+  const open = new Map();
+  ws.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+    const call = open.get(msg.id);
+    if (!call) return; // an event nothing here listens for
+    open.delete(msg.id);
+    if (msg.error) call.rej(new Error(msg.error.message));
+    else call.res(msg.result);
+  };
+
+  const send = (method, params = {}) =>
+    new Promise((res, rej) => {
+      open.set(++id, { res, rej });
+      ws.send(JSON.stringify({ id, method, params }));
+    });
+
+  return { send, close: () => ws.close() };
+}
+
+// One game: navigate, wait for the module script to put rec on window, then
+// run the take. Any throw inside the page comes back as one here.
+async function record(cdp, url, game) {
+  await cdp.send("Page.navigate", { url: `${url}/dev.html?game=${game}` });
+
+  const ready = await evaluate(
+    cdp,
+    `new Promise((res) => {
+      const t = setInterval(() => {
+        if (!window.rec) return;
+        clearInterval(t);
+        res("ok");
+      }, 50);
+      setTimeout(() => res("timeout"), 15000);
+    })`,
+  );
+  if (ready !== "ok") throw new Error("dev.html never loaded the recorder");
+
+  return await evaluate(cdp, "window.rec.auto()", TIMEOUT * 1000);
+}
+
+async function evaluate(cdp, expression, timeout = 20000) {
+  const call = cdp.send("Runtime.evaluate", {
+    expression,
+    awaitPromise: true,
+    returnByValue: true,
+  });
+  // Cleared whichever way the race goes: a timer still pending is a minute of
+  // a sweep that has already finished, since Deno runs the loop out first.
+  let timer = null;
+  const late = new Promise((_, rej) => {
+    timer = setTimeout(
+      () => rej(new Error("the page did not answer in time")),
+      timeout,
+    );
+  });
+  let res;
+  try {
+    res = await Promise.race([call, late]);
+  } finally {
+    clearTimeout(timer);
+  }
+  if (res.exceptionDetails) {
+    throw new Error(res.exceptionDetails.exception?.description ?? "page threw");
+  }
+  return res.result.value;
+}
+
+function write(take) {
+  const bytes = Uint8Array.from(atob(take.zip), (c) => c.charCodeAt(0));
+  const path = `${Deno.env.get("HOME")}/Downloads/${take.file}`;
+  Deno.writeFileSync(path, bytes);
+  return path;
+}
+
+// With no game named: the ones with no card. A card recorded by hand is
+// better than anything this can take, so a sweep never goes over one.
+function missing() {
+  return [...Deno.readDirSync(`${ROOT}/src`)]
+    .filter((e) => e.isFile && e.name.endsWith(".js") && !e.name.startsWith("_"))
+    .map((e) => e.name.slice(0, -3))
+    .filter((game) => {
+      try {
+        return !Deno.statSync(`${ROOT}/media/${game}/card.mp4`).isFile;
+      } catch {
+        return true;
+      }
+    })
+    .sort();
+}
+
+const names = Deno.args.length > 0 ? Deno.args : missing();
+const web = serve();
+const url = `http://127.0.0.1:${web.port}`;
+const browser = await chrome();
+const cdp = await connect(browser.port);
+
+const idle = []; // nothing moved: the game waits for a player
+const short = []; // the round ended before a loop's worth of it was recorded
+let failed = 0;
+for (const game of names) {
+  const label = `${game}`.padEnd(12);
+  try {
+    const take = await record(cdp, url, game);
+    if (!take.zip) {
+      idle.push(game);
+      console.log(`${label} nothing moved: it needs a player`);
+      continue;
+    }
+    // findLoop returns a clip shorter than MIN_LOOP only when the take ran
+    // out of game: the round ended with nobody playing, and what it dropped
+    // was the frozen finish screen. Under a second of that is the ending and
+    // not a clip, so it is not worth a card.
+    const secs = take.frames / take.fps;
+    if (secs < 1) {
+      short.push(game);
+      console.log(`${label} ${secs.toFixed(1)}s: the round ended at once`);
+      continue;
+    }
+    if (secs < 3.5) short.push(game);
+    const path = write(take);
+    const pct = Math.round(take.moved * 100);
+    console.log(
+      `${label} ${secs.toFixed(1)}s from ${take.from.toFixed(1)}s` +
+        `${pct < 90 ? ` · ${pct}% moving` : ""} · ${path.split("/").pop()}`,
+    );
+  } catch (err) {
+    failed++;
+    console.log(`${label} ${err.message.split("\n")[0]}`);
+  }
+}
+
+cdp.close();
+browser.kill();
+await web.stop();
+
+const hand = [...idle, ...short];
+if (hand.length > 0) {
+  console.log(
+    `\nworth a take by hand: ${hand.join(" ")}\n` +
+      `  dev.html?game=${hand[0]}, press r, and play it`,
+  );
+}
+if (failed > 0) Deno.exit(1);

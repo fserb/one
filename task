@@ -38,7 +38,7 @@ function _media {
   zip=$(ls -t "$HOME"/Downloads/one-"$game"-*.zip 2>/dev/null | head -1 || true)
   if [[ -z "$zip" ]]; then
     if [[ -n "$sweep" ]]; then return 0; fi
-    echo "no ~/Downloads/one-$game-*.zip. record one: dev.html?game=$game&go"
+    echo "no ~/Downloads/one-$game-*.zip. record one: ./task record $game"
     exit 1
   fi
   if [[ -n "$sweep" && "media/$game/card.mp4" -nt "$zip" ]]; then return 0; fi
@@ -80,6 +80,15 @@ function _media {
   # Not at exit: the trap above is reset by the next game, so each dir has to
   # go while it is still the one the trap names.
   rm -rf "$dir"
+}
+
+# Record a take of each game with nothing at the keyboard, and turn the takes
+# into cards. With no name: every game that has no card yet, since a card
+# recorded by hand beats one nobody played. A game that only moves when it is
+# played comes back named as one to record by hand.
+function record {
+  deno run -A tools/record.js "$@"
+  media
 }
 
 function test {

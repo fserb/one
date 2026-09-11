@@ -181,6 +181,7 @@
 
       A game page also loads src/dev/rec.js, the recorder behind the "rec"
       button in the corner. It records a ten second clip for the gallery card.
+      `./task record` opens this page in headless Chrome and presses it.
 
       The built pages under www/ are what actually ships. `./task build` makes them.
     -->
@@ -203,6 +204,9 @@
       if (params.get("rec") !== "0") {
         const rec = await import("./src/dev/rec.js");
         rec.init(screen, name);
+        // tools/record.js drives rec.auto() over CDP, and a module's exports
+        // are reachable from nowhere else.
+        window.rec = rec;
       }
     } else {
       await index();

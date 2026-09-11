@@ -16,6 +16,7 @@
  */
 
 import { zipSync } from "../alma/src/3rdp/fflate.js";
+import { hint } from "../lib/one.js";
 
 const FPS = 30; // capture cadence, an exact half of a 60Hz display
 const TAKE = 10; // seconds in a take
@@ -39,6 +40,7 @@ let frames = []; // a PNG blob per frame, or its promise while recording
 let sigs = []; // Float32Array(SIG*SIG) per frame
 let count = 0;
 let t0 = 0;
+let waiting = null; // auto()'s resolver, while a hands-off take runs
 const ui = {};
 
 export function init(scr, game) {
@@ -183,8 +185,8 @@ function record() {
   ui.bar.dataset.on = "1";
 }
 
-// Only from the countdown: once a take is running it runs out.
-function cancel() {
+// Back to the bar with the rec button on it, from wherever the take got to.
+function idle() {
   state = "idle";
   ui.btn.textContent = "● rec";
   ui.bar.dataset.on = "";
@@ -207,7 +209,14 @@ async function finish() {
 
   // The cut, not the take: a round ending at 3s leaves seven frozen seconds
   // the take as a whole still counts as movement.
-  await showPreview(cut, motion(sigs.slice(cut.in, cut.out)));
+  const moved = motion(sigs.slice(cut.in, cut.out));
+  if (waiting) {
+    const hand = waiting;
+    waiting = null;
+    hand({ cut, moved });
+    return;
+  }
+  await showPreview(cut, moved);
 }
 
 async function showPreview(cut, moved) {
@@ -245,18 +254,15 @@ async function showPreview(cut, moved) {
   tick();
 
   ui.done = () => {
-    state = "idle";
     box.hidden = true;
     for (const b of bmp) b.close();
-    ui.btn.textContent = "● rec";
-    ui.bar.dataset.on = "";
+    idle();
   };
   ui.cut = cut;
 }
 
-async function keep() {
-  const { in: a, out: b } = ui.cut;
-  ui.note.textContent = "zipping";
+// The chosen clip as the bytes of a zip of PNG frames. ./task media reads it.
+async function zipCut({ in: a, out: b }) {
   const files = {};
   for (let i = a; i < b; i++) {
     const buf = new Uint8Array(await frames[i].arrayBuffer());
@@ -264,11 +270,20 @@ async function keep() {
     files[`${String(i - a).padStart(4, "0")}.png`] = [buf, { level: 0 }];
   }
   files["fps.txt"] = [new TextEncoder().encode(`${FPS}\n`), { level: 0 }];
+  return zipSync(files);
+}
 
+function zipName() {
   const stamp = new Date().toISOString().replace(/[-:]/g, "").slice(0, 15);
-  const file = `one-${name}-${stamp}.zip`;
+  return `one-${name}-${stamp}.zip`;
+}
+
+async function keep() {
+  ui.note.textContent = "zipping";
+  const bytes = await zipCut(ui.cut);
+  const file = zipName();
   const url = URL.createObjectURL(
-    new Blob([zipSync(files)], { type: "application/zip" }),
+    new Blob([bytes], { type: "application/zip" }),
   );
   const a2 = document.createElement("a");
   a2.href = url;
@@ -280,9 +295,49 @@ async function keep() {
   ui.note.textContent = `${file} · ./task media ${name}`;
 }
 
+// One take with nothing at the keyboard, for tools/record.js: the same
+// countdown, take and loop search the button runs, and the zip keep() would
+// have downloaded, handed back as base64 over CDP. A game that needs input to
+// move records an idle board, so a frozen cut comes back as zip: null and the
+// driver reports it rather than writing a still card.
+export async function auto() {
+  if (state !== "idle") throw new Error(`recorder is ${state}`);
+  // A hint panel is up for its first 3.6 seconds and nothing here will press
+  // it away, so wait it out rather than record the card with a panel across
+  // the bottom. hint() is the seconds it has left, and 0 for the games that
+  // raise none, which are most of them.
+  while (hint() > 0) await new Promise((r) => requestAnimationFrame(r));
+  const take = new Promise((r) => (waiting = r));
+  record();
+  const { cut, moved } = await take;
+  const bytes = moved === 0 ? null : await zipCut(cut);
+  idle();
+  return {
+    file: zipName(),
+    zip: bytes && await base64(bytes),
+    frames: cut.out - cut.in,
+    from: cut.in / FPS,
+    fps: FPS,
+    moved,
+  };
+}
+
+// Runtime.evaluate hands back JSON, so the zip travels as base64. FileReader
+// rather than btoa over the bytes: a String.fromCharCode of a few MB either
+// blows the stack or needs a chunking loop written here.
+function base64(bytes) {
+  return new Promise((res, rej) => {
+    const fr = new FileReader();
+    fr.onload = () => res(fr.result.slice(fr.result.indexOf(",") + 1));
+    fr.onerror = () => rej(fr.error);
+    fr.readAsDataURL(new Blob([bytes]));
+  });
+}
+
 function onKey(e) {
   if (e.key === "r" && state === "idle") record();
-  if (e.key === "Escape" && state === "lead") cancel();
+  // Only from the countdown: once a take is running it runs out.
+  if (e.key === "Escape" && state === "lead") idle();
   if (e.key === "Escape" && state === "preview") ui.done();
 }
 
