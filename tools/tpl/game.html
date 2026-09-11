@@ -18,30 +18,76 @@
 <meta name="apple-mobile-web-app-title" content="{{title}}">
 <link rel="icon" href="{{icon}}">
 <style>
-/* This page is the game, framed the way the gallery frames it: the same square
-   board on the gallery's own colour. So following this URL lands where pressing
-   the card on the front page lands, and the card can be handed straight to it. */
+/* This page is the game, framed the way the gallery frames it: the same header
+   over the same square board on the gallery's own colour. So following this URL
+   lands where pressing the card on the front page lands, and the card can be
+   handed straight to it. */
 @view-transition { navigation: auto; }
-html, body { margin: 0; height: 100%; overflow: hidden; }
+* { box-sizing: border-box; }
+html, body { margin: 0; overflow: hidden; }
 /* Reserved here as well as on the gallery, so the viewport is the same width
    on both sides of the transition and nothing slides sideways. */
 html { background: #f2f0e5; scrollbar-gutter: stable; }
 /* Nothing on this page is text to take away: a drag across the board is the
    game being played, not a selection. */
 body {
+  height: 100dvh;
+  padding: 26px;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
+  font: 14px/1.45 Verdana, sans-serif;
+  color: #212123;
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
   -webkit-tap-highlight-color: transparent;
 }
-/* The board. one.js paints it meta.bg too, for dev.html and anywhere else the
-   canvas is hung; this rule is what colours it in the first frame drawn. */
+
+/* The same rules as the gallery's, so the site's name is in the same place and
+   the same size on both pages and the transition leaves it where it is. Here
+   it carries an arrow and is the link back; the game's name is the middle. The
+   height is fixed because the board below is sized off it. */
+header {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  height: 28px;
+  margin: 0 0 24px;
+}
+.site { margin: 0; font: bold 19px/1.45 Verdana, sans-serif; letter-spacing: -.02em; }
+.by { margin: 0; font-size: 11px; color: #21212399; }
+.game {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  font: bold 19px/1.45 Verdana, sans-serif;
+  letter-spacing: -.02em;
+}
+header a { color: inherit; }
+.site a { text-decoration: none; }
+.site a:hover { text-decoration: underline; }
+/* The arrow is the way back, and only leads anywhere on a game's page. The wall
+   carries the same glyph and hides it, so the site's name starts at the same x
+   on both pages and the transition does not slide it sideways. */
+.arrow { visibility: hidden; }
+a .arrow { visibility: visible; }
+/* Too narrow to centre the game's name without it landing on the byline, so it
+   goes to the far end instead. */
+@media (max-width: 560px) {
+  .game { position: static; transform: none; margin-left: auto; }
+}
+
+/* The board, centred in what the header leaves: 100dvh less this page's
+   padding, the header and its margin. one.js paints it meta.bg too, for
+   dev.html and anywhere else the canvas is hung; this rule is what colours it
+   in the first frame drawn. */
 .board {
   position: relative;
-  width: min(calc(100dvh - 32px), calc(100vw - 32px));
+  margin: auto;
+  width: min(calc(100dvh - 104px), 100%);
   aspect-ratio: 1;
   background: {{bg}};
   view-transition-name: board;
@@ -50,19 +96,6 @@ body {
    without a click first, and that is a focus nobody asked for. */
 canvas:focus-visible { outline: none; }
 canvas { display: block; cursor: pointer; touch-action: none; }
-/* The only thing over the board. It sits in the margin the square leaves, and
-   carries its own backing for a window with no margin to spare. */
-#back {
-  position: fixed;
-  top: 22px;
-  left: 22px;
-  border-radius: 5px;
-  padding: 7px 12px;
-  background: #f2f0e5e8;
-  color: #212123;
-  font: bold 13px Verdana, sans-serif;
-  text-decoration: none;
-}
 /* Both pages carry these: the pseudo-elements belong to whichever document is
    arriving, so each direction reads the destination's copy. The board morphs
    for 420ms; the game underneath is solid a third of the way in, since it has
@@ -76,7 +109,11 @@ canvas { display: block; cursor: pointer; touch-action: none; }
 </style>
 </head>
 <body>
-<a id="back" href="../">&larr; one</a>
+<header>
+  <p class="site"><a id="back" href="../"><span class="arrow">&larr;</span> one tiny game</a></p>
+  <p class="by">by <a href="https://fserb.com">fserb</a></p>
+  <h1 class="game">{{title}}</h1>
+</header>
 <main class="board"><canvas id="canvas"></canvas></main>
 <script type="module">
 /*

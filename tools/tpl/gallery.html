@@ -27,10 +27,39 @@ body {
   font: 14px/1.45 Verdana, sans-serif;
   color: #212123;
 }
-header { display: flex; align-items: baseline; gap: 12px; margin: 0 0 24px; }
-h1 { font-size: 19px; margin: 0; letter-spacing: -.02em; }
-header p { margin: 0; font-size: 11px; color: #21212399; }
+/* The same rules as a game's page, so the site's name is in the same place and
+   the same size on both and the transition leaves it where it is. There it
+   carries an arrow back to here, and the game's name sits in the middle. */
+header {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  height: 28px;
+  margin: 0 0 24px;
+}
+.site { margin: 0; font: bold 19px/1.45 Verdana, sans-serif; letter-spacing: -.02em; }
+.by { margin: 0; font-size: 11px; color: #21212399; }
+.game {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  font: bold 19px/1.45 Verdana, sans-serif;
+  letter-spacing: -.02em;
+}
 header a { color: inherit; }
+.site a { text-decoration: none; }
+.site a:hover { text-decoration: underline; }
+/* The arrow is the way back, and only leads anywhere on a game's page. The wall
+   carries the same glyph and hides it, so the site's name starts at the same x
+   on both pages and the transition does not slide it sideways. */
+.arrow { visibility: hidden; }
+a .arrow { visibility: visible; }
+@media (max-width: 560px) {
+  .game { position: static; transform: none; margin-left: auto; }
+}
 
 /* Flex, not grid: the count sizes the card and a row of n fills the width
    exactly, so the wall stays on one rhythm without a grid's fixed tracks. */
@@ -108,8 +137,8 @@ li video {
 </head>
 <body>
 <header>
-  <h1>one tiny game</h1>
-  <p>by <a href="https://fserb.com">fserb</a></p>
+  <h1 class="site"><span class="arrow">&larr;</span> one tiny game</h1>
+  <p class="by">by <a href="https://fserb.com">fserb</a></p>
 </header>
 <ul id="cards">
 {{cards}}
