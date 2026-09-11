@@ -24,7 +24,7 @@
  */
 
 import * as ent from "./lib/entity.js";
-import { gameOver, hint, mouse, score } from "./lib/one.js";
+import { gameOver, mouse, score } from "./lib/one.js";
 import { coin, explosion, jump } from "./lib/fsfx/sfxr.js";
 import * as sound from "./lib/sound.js";
 
@@ -61,10 +61,11 @@ const FOOT = 472;
 const DIE = 454;
 
 // The tray sits in the top-right corner, right-aligned on the line the board
-// ends at and level with the line the overlay hangs its panels from, 26 of the
-// 1024.
+// ends at and centred in the strip above that line. TRAY_Y is that centre and
+// not a top edge, so a tray of one row and a tray of five sit on the same
+// middle instead of hanging from the same ceiling.
 const TRAY_R = 420;
-const TRAY_Y = 12;
+const TRAY_Y = HEAD / 2;
 const FLY = 0.3;
 const FLYUP = 20;
 
@@ -136,8 +137,13 @@ const INTRO = [
   [_, _, _, _, 0, _, _, _, _],
 ];
 
-// Taken from the end, so the last line is the first said.
-const NOTES = ["good luck", "two colours or more, same count"];
+// Taken from the end, so the last line is the first said. init() says that one
+// on frame one and the empty rows in INTRO say the other two.
+const NOTES = [
+  "good luck",
+  "group with same number of each color",
+  "use keys to move, space to undo",
+];
 
 // 0.2 is the volume these four were made against.
 sound.voice("move", { ...jump(12), vol: 0.2 });
@@ -303,7 +309,6 @@ class Tray extends ent.Entity {
     this.counts = null;
     this.moving = false;
     this.points = 0;
-    this.from = TRAY_Y;
     this.pos.x = TRAY_R;
     this.pos.y = TRAY_Y;
   }
@@ -321,10 +326,10 @@ class Tray extends ent.Entity {
       row += 1;
     }
 
-    // gfx centres on its own box and the tray hangs off its top right corner.
+    // gfx centres on its own box: the right edge costs half the width, and the
+    // middle costs nothing however many rows there are.
     this.pos.x = TRAY_R - (8 * Math.max(...counts) - 1) / 2;
-    this.pos.y = TRAY_Y + (8 * row - 1) / 2;
-    this.from = this.pos.y;
+    this.pos.y = TRAY_Y;
   }
 
   // Every colour is equal by now, so the widest row is the count of each.
@@ -339,7 +344,7 @@ class Tray extends ent.Entity {
   update() {
     if (!this.moving) return;
     const t = this.age / FLY;
-    this.pos.y = this.from - (this.from + FLYUP) * t * t;
+    this.pos.y = TRAY_Y - (TRAY_Y + FLYUP) * t * t;
     this.alpha = Math.max(0, 1 - t * t);
     if (t <= 1) return;
     addScore(this.points);
@@ -375,8 +380,9 @@ function addScore(v) {
   sound.play("score");
   new ent.Text({
     text: `+${Math.floor(v)}`,
-    x: TRAY_R - 8,
-    y: TRAY_Y + 20,
+    x: TRAY_R,
+    y: TRAY_Y,
+    align: "right middle",
     size: 2,
     color: BLACK,
     vel: [0, -30],
@@ -565,7 +571,6 @@ function die() {
 }
 
 export function init() {
-  hint(meta.desc);
   ent.reset([Piece, Cursor, Frame, Tray]);
 
   scroll = 0;
@@ -591,6 +596,7 @@ export function init() {
       grid[x][y] = new Piece(x, y, row[x]);
     }
   }
+  if (introAt >= 0) say(NOTES[--noteAt]);
 
   chain = [new Cursor(4, 4)];
 }
