@@ -180,15 +180,16 @@ function gallery(entries) {
     fill(TEMPLATE.card, {
       game,
       title: esc(m.title),
-      // Both lines of it: the card has the room, and it is the only place the
-      // rules of a game are written down outside the game.
-      desc: esc(m.desc.trim()).replace(/\s*\n\s*/g, "<br>"),
-      date: esc(m.date ?? ""),
+      // Both lines of it, and a newline between them an attribute keeps: the
+      // card shows this on hover, and it is the only place the rules of a game
+      // are written down outside the game.
+      desc: esc(m.desc.trim()),
+      year: esc((m.date ?? "").slice(0, 4)),
       bg: m.bg,
       // The panel fill, not the panel text: the title sits straight on the
       // clip with no panel behind it, and the fill is the half overlay.js
       // picked to read over the board. So the card names its game in the same
-      // colour the game's own score chip is drawn in.
+      // colour that game's own panels are drawn in.
       ink: theme(m).bg,
       media: s.mp4
         ? `<video src="./${game}/card.mp4"${

@@ -80,7 +80,10 @@ export function run(game, { target = null } = {}) {
   ctx = screen.canvas.getContext("2d");
 
   document.title = meta.title;
-  document.body.style.backgroundColor = meta.bg;
+  // The board and not the document: the built page hangs the canvas in a square
+  // on the gallery's colour, and dev.html's canvas has the body for a parent
+  // anyway, so both come out where they were.
+  screen.canvas.parentElement.style.backgroundColor = meta.bg;
 
   input.init(screen);
   // Only there if the game imported lib/sound.js.

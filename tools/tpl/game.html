@@ -11,33 +11,94 @@
 <meta property="og:description" content="{{desc}}">
 <meta property="og:url" content="{{url}}">
 {{image}}
-<meta name="theme-color" content="{{bg}}">
+<meta name="theme-color" content="#f2f0e5">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="{{title}}">
 <link rel="icon" href="{{icon}}">
 <style>
+/* This page is the game, framed the way the gallery frames it: the same square
+   board on the gallery's own colour. So following this URL lands where pressing
+   the card on the front page lands, and the card can be handed straight to it. */
+@view-transition { navigation: auto; }
 html, body { margin: 0; height: 100%; overflow: hidden; }
+/* Reserved here as well as on the gallery, so the viewport is the same width
+   on both sides of the transition and nothing slides sideways. */
+html { background: #f2f0e5; scrollbar-gutter: stable; }
+/* Nothing on this page is text to take away: a drag across the board is the
+   game being played, not a selection. */
 body {
-  background: {{bg}};
   display: flex;
   align-items: center;
   justify-content: center;
-  touch-action: none;
-}
-canvas {
-  display: block;
-  cursor: pointer;
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
   -webkit-tap-highlight-color: transparent;
 }
+/* The board. one.js paints it meta.bg too, for dev.html and anywhere else the
+   canvas is hung; this rule is what colours it in the first frame drawn. */
+.board {
+  position: relative;
+  width: min(calc(100dvh - 32px), calc(100vw - 32px));
+  aspect-ratio: 1;
+  background: {{bg}};
+  view-transition-name: board;
+}
+/* No ring: alma's Input focuses the canvas at startup so the keys arrive
+   without a click first, and that is a focus nobody asked for. */
+canvas:focus-visible { outline: none; }
+canvas { display: block; cursor: pointer; touch-action: none; }
+/* The only thing over the board. It sits in the margin the square leaves, and
+   carries its own backing for a window with no margin to spare. */
+#back {
+  position: fixed;
+  top: 22px;
+  left: 22px;
+  border-radius: 5px;
+  padding: 7px 12px;
+  background: #f2f0e5e8;
+  color: #212123;
+  font: bold 13px Verdana, sans-serif;
+  text-decoration: none;
+}
+/* Both pages carry these: the pseudo-elements belong to whichever document is
+   arriving, so each direction reads the destination's copy. The board morphs
+   for 420ms; the game underneath is solid a third of the way in, since it has
+   drawn a frame before this page is ever shown. */
+::view-transition-group(board) {
+  animation-duration: 420ms;
+  animation-timing-function: cubic-bezier(.4,0,.15,1);
+}
+::view-transition-old(board) { animation-duration: 300ms; }
+::view-transition-new(board) { animation-duration: 140ms; }
 </style>
 </head>
 <body>
-<canvas id="canvas"></canvas>
+<a id="back" href="../">&larr; one</a>
+<main class="board"><canvas id="canvas"></canvas></main>
+<script type="module">
+/*
+ * Back to the wall. Going back restores it from the back/forward cache, scroll
+ * and playing clips and all, so a traversal is the right move whenever this
+ * page was reached from there. Anything else follows the link and loads it.
+ */
+const back = document.getElementById("back");
+const home = new URL("../", location.href).href;
+
+back.addEventListener("click", (ev) => {
+  if (globalThis.navigation?.activation?.from?.url !== home) return;
+  ev.preventDefault();
+  history.back();
+});
+
+// alma's Input cancels the default on every key it tracks but never stops the
+// event, so Escape still arrives here with the board holding the keyboard.
+addEventListener("keydown", (ev) => {
+  if (ev.key === "Escape") back.click();
+});
+</script>
 <script type="module">{{script}}</script>
 </body>
 </html>
