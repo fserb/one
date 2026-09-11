@@ -91,10 +91,8 @@ li {
   user-select: none;
   -webkit-user-select: none;
   -webkit-tap-highlight-color: transparent;
-  transition: transform .25s cubic-bezier(.3,.9,.25,1);
   container-type: inline-size;
 }
-li:hover { transform: translateY(-4px); }
 li > a { position: absolute; inset: 0; color: inherit; text-decoration: none; }
 /* The recorded clip, under the title. A game without one is flat --bg, which
    is also what the clip's own background is, so the title reads either way. */
@@ -156,16 +154,39 @@ li video {
  */
 const list = document.getElementById("cards");
 
-// Cards play only while they are on screen. The videos carry preload="none",
-// so a card below the fold costs its poster and nothing else until you reach
-// it, and a page of twenty is not decoding twenty loops at once.
-const onscreen = new IntersectionObserver((es) => {
-  for (const e of es) {
-    if (e.isIntersecting) e.target.play().catch(() => {});
-    else e.target.pause();
+// The one card under the pointer is the one running; the rest hold the frame
+// they stopped on, and one never pointed at holds its poster. Pause and no
+// rewind, so pointing at a card again carries on from where it was left.
+//
+// A screen with no pointer has no way to ask, so there the clips play while
+// they are on screen. Either way the videos carry preload="none", so a card
+// below the fold costs its poster and nothing else until you reach it.
+const videos = [...list.querySelectorAll("video")];
+
+if (matchMedia("(hover: hover)").matches) {
+  for (const v of videos) {
+    const li = v.closest("li");
+    // pointermove rather than pointerenter, so the card the pointer is already
+    // on can start: coming back from a game restores this page under a pointer
+    // that never crossed a card's edge, and no enter event is owed.
+    li.addEventListener("pointermove", () => {
+      if (v.paused) v.play().catch(() => {});
+    });
+    li.addEventListener("pointerleave", () => v.pause());
   }
-}, { rootMargin: "200px" });
-for (const v of list.querySelectorAll("video")) onscreen.observe(v);
+  // A clip restored from the back/forward cache picks up where it was paused,
+  // which is playing if the card was pressed through. The pointer may be
+  // anywhere by then, so the wall stops and the pointer says which one runs.
+  addEventListener("pageshow", () => videos.forEach((v) => v.pause()));
+} else {
+  const onscreen = new IntersectionObserver((es) => {
+    for (const e of es) {
+      if (e.isIntersecting) e.target.play().catch(() => {});
+      else e.target.pause();
+    }
+  }, { rootMargin: "200px" });
+  for (const v of videos) onscreen.observe(v);
+}
 
 let marked = null;
 
