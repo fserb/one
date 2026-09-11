@@ -5,7 +5,8 @@
  * only reads screen.canvas, and the bar it draws is DOM, never in the footage.
  * dev.html's own style block styles that bar; nothing here is CSS.
  *
- * A take is a fixed ten seconds and there is no editor. The recorder searches
+ * A take is a fixed ten seconds, counted down into so the hands are back on
+ * the game before it starts, and there is no editor. The recorder searches
  * it for the two frames that match most closely, cuts there so the clip loops
  * without a jump, and plays the result back. A bad take is re-recorded.
  *
@@ -18,6 +19,7 @@ import { zipSync } from "../alma/src/3rdp/fflate.js";
 
 const FPS = 30; // capture cadence, an exact half of a 60Hz display
 const TAKE = 10; // seconds in a take
+const LEAD = 2; // seconds it counts down before one starts
 const OUT = 512; // exported frame, downscaled from the 1024 canvas
 const TINY = 64; // every frame is also kept this small, for the search
 const SIG = 16; // ... and reduced to this greyscale grid to score a cut
@@ -31,7 +33,7 @@ const STEP = TINY / SIG;
 
 let screen = null;
 let name = "";
-let state = "idle"; // idle | rec | work | preview
+let state = "idle"; // idle | lead | rec | work | preview
 let big, bigCtx, tiny, tinyCtx;
 let frames = []; // a PNG blob per frame, or its promise while recording
 let sigs = []; // Float32Array(SIG*SIG) per frame
@@ -59,6 +61,17 @@ export function init(scr, game) {
 
 function loop() {
   requestAnimationFrame(loop);
+  if (state === "lead") {
+    const left = LEAD - (performance.now() - t0) / 1000;
+    if (left > 0) {
+      ui.btn.textContent = `● ${Math.ceil(left)}`;
+      return;
+    }
+    state = "rec";
+    // The take runs from the end of the countdown and not from this frame, so
+    // a late frame here does not take a frame off it.
+    t0 += LEAD * 1000;
+  }
   if (state !== "rec") return;
 
   const t = (performance.now() - t0) / 1000;
@@ -161,13 +174,20 @@ export function findLoop(sig, lo, hi) {
 
 function record() {
   if (state !== "idle") return;
-  state = "rec";
+  state = "lead";
   frames = [];
   sigs = [];
   count = 0;
   t0 = performance.now();
   ui.note.textContent = "";
   ui.bar.dataset.on = "1";
+}
+
+// Only from the countdown: once a take is running it runs out.
+function cancel() {
+  state = "idle";
+  ui.btn.textContent = "● rec";
+  ui.bar.dataset.on = "";
 }
 
 async function finish() {
@@ -262,6 +282,7 @@ async function keep() {
 
 function onKey(e) {
   if (e.key === "r" && state === "idle") record();
+  if (e.key === "Escape" && state === "lead") cancel();
   if (e.key === "Escape" && state === "preview") ui.done();
 }
 
