@@ -21,7 +21,7 @@
  */
 
 import * as ent from "./lib/entity.js";
-import { gameOver, msg, score } from "./lib/one.js";
+import { gameOver, score } from "./lib/one.js";
 import { explosion, laser, powerup } from "./lib/fsfx/sfxr.js";
 import * as sound from "./lib/sound.js";
 
@@ -578,7 +578,6 @@ function nextLevel() {
 function beginLevel() {
   if (energy <= 0) energy = 1;
   sound.play("begin");
-  msg(`WAVE ${waves + 1}`);
 
   ent.every(0, () => {
     energy = Math.min(100, energy + ent.game.time * 100 / FILL);
