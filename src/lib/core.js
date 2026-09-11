@@ -11,8 +11,10 @@
  * camera instead of writing its own transform, and game.mouse comes back
  * through it, so nothing has to subtract the view by hand.
  *
- * There is still no screen space: a game draws the furniture that holds still
- * outside ent.render(), in a render() of its own.
+ * A class with `static screen = true` is drawn after everything in the world
+ * and with the camera and the shake off: the furniture that holds still while
+ * the view moves. It is still the game's box, so its constants mean there what
+ * they mean anywhere else, and only the drawing changes: it steps with the rest.
  *
  * Every entity owns an `art` and a `gfx`, the two drawing buffers: pixels and
  * paths. Both are always there, so a game imports neither file itself.
@@ -45,7 +47,7 @@ export const game = {
   key,
 };
 
-// Class -> {layer, list}, every live instance of exactly that class, in
+// Class -> {layer, screen, list}, every live instance of exactly that class, in
 // construction order.
 const groups = new Map();
 
@@ -69,7 +71,7 @@ export function world(size) {
 function groupOf(cls) {
   let g = groups.get(cls);
   if (!g) {
-    g = { layer: cls.layer ?? 10, list: [] };
+    g = { layer: cls.layer ?? 10, screen: cls.screen ?? false, list: [] };
     groups.set(cls, g);
   }
   return g;
@@ -179,6 +181,8 @@ function anyHit(as, bs) {
 
 export class Entity {
   static layer = 10;
+  // Drawn over the world, in the game's box, with camera and shake off.
+  static screen = false;
 
   constructor() {
     this.pos = { x: 0, y: 0 };
@@ -363,7 +367,17 @@ export function update(dt) {
   }
 }
 
+function draw(ctx, layers, screen) {
+  for (const g of layers) {
+    if (g.screen !== screen) continue;
+    for (const e of g.list) {
+      if (!e.dead) e._draw(ctx);
+    }
+  }
+}
+
 export function render(ctx) {
+  const layers = ordered();
   ctx.save();
   if (op.camera) op.camera.apply(ctx);
   else ctx.scale(SIZE / game.size, SIZE / game.size);
@@ -371,10 +385,14 @@ export function render(ctx) {
   // background goes with it and meta.bg shows along the edge it leaves. With a
   // camera there is nothing to add: apply() above carried its own.
   if (shaking > 0) ctx.translate(shakeX, shakeY);
-  for (const g of ordered()) {
-    for (const e of g.list) {
-      if (!e.dead) e._draw(ctx);
-    }
-  }
+  draw(ctx, layers, false);
+  ctx.restore();
+
+  // The screen classes after, in the same box with neither of those on. Two
+  // passes and not one layer number past the rest, since what separates them is
+  // the transform; `layer` still orders them among themselves.
+  ctx.save();
+  ctx.scale(SIZE / game.size, SIZE / game.size);
+  draw(ctx, layers, true);
   ctx.restore();
 }

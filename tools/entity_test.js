@@ -1,5 +1,6 @@
 /*
- * entity_test.js - checks the step order in src/lib/entity.js.
+ * entity_test.js - checks the step order and the draw passes in
+ * src/lib/entity.js.
  *
  * begin() runs at the top of an entity's first frame, before its first
  * update(). What broke it: an entity made inside another's update() lands in a
@@ -171,6 +172,58 @@ function run(Late, frames = 3) {
     ent.render(ctx);
   }
   check("holds with the groups reversed", log, ["begin", "update", "update"]);
+}
+
+// A ctx that keeps the translation it is given, so a test can tell what
+// transform a render() was called under, and what drew in what order.
+function tracer() {
+  const log = [];
+  const stack = [];
+  let tx = 0;
+  return new Proxy({}, {
+    get(_, k) {
+      if (k === "canvas") return { width: 512, height: 512 };
+      if (k === "log") return log;
+      if (k === "tx") return tx;
+      if (k === "save") return () => stack.push(tx);
+      if (k === "restore") return () => (tx = stack.pop() ?? 0);
+      if (k === "translate") return (x) => (tx += x);
+      return noop;
+    },
+    set: () => true,
+  });
+}
+
+// A screen class draws after the world whatever its layer says, and outside the
+// shake. Top is first in the order list, so by layer alone it would be under
+// World. No camera here, so the shake offset is what tells the two passes
+// apart, and Math.random is pinned so it is the whole amplitude.
+{
+  const c = tracer();
+  const rand = Math.random;
+  Math.random = () => 1;
+  class World extends ent.Entity {
+    render() {
+      c.log.push(`world ${c.tx !== 0}`);
+    }
+  }
+  class Top extends ent.Entity {
+    static screen = true;
+    render() {
+      c.log.push(`top ${c.tx !== 0}`);
+    }
+  }
+  ent.reset([Top, World]);
+  new Top();
+  new World();
+  ent.shake(0.4);
+  ent.update(1 / 60);
+  ent.render(c);
+  Math.random = rand;
+  check("a screen class draws last and outside the shake", c.log, [
+    "world true",
+    "top false",
+  ]);
 }
 
 console.log(fail === 0 ? "\nall passed" : `\n${fail} failed`);
