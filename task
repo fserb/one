@@ -14,6 +14,12 @@ function rebuild {
   build "$@"
 }
 
+# Where a bundle's bytes went. With no game named, every game and then every
+# module multiplied by the games carrying it.
+function size {
+  deno run -A tools/size.js "$@"
+}
+
 # Turn the newest recorder zip into media/<game>/card.{mp4,gif,png}, for the
 # games named or, with no name, for every game.
 # src/dev/rec.js downloads the zip; this is the other half of that.
