@@ -22,28 +22,37 @@
  * Every entity owns one, next to its `art`. core.js imports this file, so a
  * game gets both from entity.js and imports nothing else.
  *
- * Each shape is one of alma's `Path`s, built when the call is recorded and
+ * Each shape is a list of drawing commands, recorded when the call is made and
  * replayed into a Path2D the first time it is drawn. That is where bounds()
- * and the drawing both come from: flattenSubpath() measures the path and
- * replay() paints it. A Path holds no DOM, and the Path2D is built at draw
+ * and the drawing both come from: pathBox() measures the commands and replay()
+ * paints them. A command list holds no DOM, and the Path2D is built at draw
  * time, so the build can still import a game under Deno.
  *
- * Path and not its subclass Shape: Shape adds the boolean ops and triangulate,
- * which pull clipper2 and earcut, 320 KB nothing here asks for.
+ *   ["M", x, y]  ["L", x, y]  ["A", cx, cy, r, a0, a1, ccw]  ["Z"]
+ *
+ * Four commands and nothing else. An arc stays an arc: Path2D takes one as it
+ * comes and pathBox() measures one in closed form, so both are exact. alma's
+ * Path is the other way to hold this, and it cost 9.7 KB minified, 3.6
+ * gzipped, in 19 bundles: arc() converts to beziers on the way in, through
+ * curves.js and squircle.js; the box came off segments.js and bezier.js, which
+ * flatten those beziers back to a polyline to measure them; and path.js takes
+ * svg.js with it for a parser nothing here calls. The conversion costs the
+ * edge as well: Chrome antialiases a bezier with three partial coverage values
+ * and an arc with 23, so a disc of four cubics covers 0.6% less than its own
+ * area where the arc is the disc ctx.arc draws, byte for byte.
+ *
+ * A curve would be ["C", ...]: three lines in replay(), and a cubic's box is a
+ * closed form too. Nothing has drawn one yet.
  */
 
-import { Path } from "../alma/src/geom/shape/path.js";
-import { flattenSubpath, replay } from "../alma/src/geom/shape/segments.js";
 import { css, glyphs } from "./art.js";
 
-/*
- * How finely pathBox() flattens a curve before measuring it. At 1, alma's own
- * default, the widest arc in the games measures a whole unit short and the
- * drawing moves half of that; at 0.01 it is within 0.003 of its true extent.
- * bounds() is held behind `dirty`, so this runs when the drawing changes and
- * not once a frame.
- */
-const FLAT = 0.01;
+const TAU = 2 * Math.PI;
+
+// The four points where an arc's x or y turns around, as unit vectors, so a
+// quarter arc's box is right to the last bit rather than to Math.cos's idea
+// of cos(PI / 2).
+const CARDINAL = [[1, 0], [0, 1], [-1, 0], [0, -1]];
 
 export class Gfx {
   constructor() {
@@ -101,22 +110,22 @@ export class Gfx {
 
   // `round` is the corner diameter, as Flash's drawRoundRect took it. One
   // radius for both axes, clamped to the shorter side, the way ctx.roundRect
-  // takes a scalar. Four quarter-arcs rather than Path.squircle or four
-  // arcTo: those two draw the corner as a curve into the box, not around it,
-  // and Path.arc is the call that matches ctx.arc. Each arc after the first
-  // opens with the line to its own start, which is the edge between corners.
+  // takes a scalar. Four quarter-arcs rather than a curve into the box, which
+  // is what arcTo and a squircle corner both draw. Each arc after the first
+  // opens with the line to its own start, which is the edge between corners,
+  // and Path2D draws that line on its own.
   rect(x, y, w, h, round = 0) {
     if (this.disabled) return this;
-    if (round === 0) return this.push(Path.rect(x, y, w, h));
+    if (round === 0) return this.push(rectPath(x, y, w, h));
     const r = Math.min(round / 2, w / 2, h / 2);
     const q = Math.PI / 2;
-    const path = new Path()
-      .arc(x + w - r, y + r, r, -q, 0)
-      .arc(x + w - r, y + h - r, r, 0, q)
-      .arc(x + r, y + h - r, r, q, 2 * q)
-      .arc(x + r, y + r, r, 2 * q, 3 * q)
-      .closePath();
-    return this.push(path);
+    return this.push([
+      ["A", x + w - r, y + r, r, -q, 0, false],
+      ["A", x + w - r, y + h - r, r, 0, q, false],
+      ["A", x + r, y + h - r, r, q, 2 * q, false],
+      ["A", x + r, y + r, r, 2 * q, 3 * q, false],
+      ["Z"],
+    ]);
   }
 
   // An empty box that fixes what the drawing centres in, so a shape lopsided
@@ -124,7 +133,7 @@ export class Gfx {
   // entity.
   size(w, h = w, x = 0, y = 0) {
     if (this.disabled) return this;
-    const path = Path.rect(x - w / 2, y - h / 2, w, h);
+    const path = rectPath(x - w / 2, y - h / 2, w, h);
     this.cmds.push({ path, fill: null, line: null });
     this.poly = null;
     this.dirty = true;
@@ -133,32 +142,29 @@ export class Gfx {
 
   circle(x, y, r) {
     if (this.disabled) return this;
-    return this.push(Path.circle(x, y, r));
+    return this.push([["A", x, y, r, 0, TAU, false], ["Z"]]);
   }
 
   // Out along r1 from b to e, back along r2, so r1 == r2 is a plain arc and
   // r1 != r2 a ring segment. Angles turn anticlockwise on screen.
   //
-  // Path.arc joins two sweeps with a line the way ctx.arc does, so the band
-  // closes itself.
+  // Path2D joins the two sweeps with a line, so the band closes itself. A
+  // sweep past a full turn is one turn: Path2D cuts it back and so does
+  // arcBox(), so the angles go through as they came in.
   arc(x, y, r1, r2, b, e) {
     if (this.disabled) return this;
-    const path = new Path()
-      .arc(x, y, r1, -b, turn(-b, -e, e > b), e > b)
-      .arc(x, y, r2, -e, turn(-e, -b, e < b), e < b)
-      .closePath();
-    return this.push(path);
+    return this.push([
+      ["A", x, y, r1, -b, -e, e > b],
+      ["A", x, y, r2, -e, -b, e < b],
+      ["Z"],
+    ]);
   }
 
   // Flash's moveTo and lineTo. A filled path closes itself, a stroked one does
   // not, which is what Path2D does on its own.
   mt(x, y) {
     if (this.disabled) return this;
-    this.poly = {
-      path: new Path().moveTo(x, y),
-      fill: this._fill,
-      line: this._line,
-    };
+    this.poly = { path: [["M", x, y]], fill: this._fill, line: this._line };
     this.cmds.push(this.poly);
     this.dirty = true;
     return this;
@@ -167,7 +173,7 @@ export class Gfx {
   lt(x, y) {
     if (this.disabled) return this;
     if (this.poly === null) return this.mt(x, y);
-    this.poly.path.lineTo(x, y);
+    this.poly.path.push(["L", x, y]);
     // The Path2D held from the last frame is a shape short now.
     this.poly.p2d = undefined;
     this.dirty = true;
@@ -231,7 +237,7 @@ export class Gfx {
       }
       // Kept on the command: a game that leaves its drawing alone, or holds it
       // with cache(), replays the same Path2D every frame.
-      c.p2d ??= replay(c.path.subpaths, new Path2D());
+      c.p2d ??= replay(c.path);
       if (c.fill !== null) {
         ctx.globalAlpha = c.fill.alpha;
         ctx.fillStyle = css(c.fill.c);
@@ -250,6 +256,38 @@ export class Gfx {
   }
 }
 
+function rectPath(x, y, w, h) {
+  return [
+    ["M", x, y],
+    ["L", x + w, y],
+    ["L", x + w, y + h],
+    ["L", x, y + h],
+    ["Z"],
+  ];
+}
+
+// The commands on a Path2D, one for one.
+function replay(path) {
+  const p2d = new Path2D();
+  for (const c of path) {
+    switch (c[0]) {
+      case "M":
+        p2d.moveTo(c[1], c[2]);
+        break;
+      case "L":
+        p2d.lineTo(c[1], c[2]);
+        break;
+      case "A":
+        p2d.arc(c[1], c[2], c[3], c[4], c[5], c[6]);
+        break;
+      case "Z":
+        p2d.closePath();
+        break;
+    }
+  }
+  return p2d;
+}
+
 function write(ctx, c) {
   const [x, y] = c.args;
   const g = glyphs(c.text);
@@ -264,35 +302,42 @@ function write(ctx, c) {
   }
 }
 
-/*
- * Where a sweep from `from` to `to` ends, once. ctx.arc reads anything past a
- * full turn as exactly one and Path.arc keeps winding, which fills as a
- * different shape, so the angle is cut back here instead.
- */
-function turn(from, to, ccw) {
-  const TAU = 2 * Math.PI;
-  let d = to - from;
-  if (ccw) {
-    if (d > 0) d -= TAU;
-    return from + Math.max(d, -TAU);
-  }
-  if (d < 0) d += TAU;
-  return from + Math.min(d, TAU);
-}
-
-// A path's own box, from the polyline it flattens to.
+// A path's own box. A line reaches its endpoint and nothing past it, and an
+// arc reaches its two endpoints and whichever of the four cardinal points its
+// sweep passes, so this is the box itself and not an estimate off a polyline.
 function pathBox(path) {
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-  for (const sub of path.subpaths) {
-    for (const p of flattenSubpath(sub, FLAT)) {
-      if (p.x < x0) x0 = p.x;
-      if (p.y < y0) y0 = p.y;
-      if (p.x > x1) x1 = p.x;
-      if (p.y > y1) y1 = p.y;
-    }
+  const at = (x, y) => {
+    if (x < x0) x0 = x;
+    if (y < y0) y0 = y;
+    if (x > x1) x1 = x;
+    if (y > y1) y1 = y;
+  };
+
+  for (const c of path) {
+    if (c[0] === "M" || c[0] === "L") at(c[1], c[2]);
+    else if (c[0] === "A") arcBox(c, at);
   }
+
   if (x0 === Infinity) return { x: 0, y: 0, width: 0, height: 0 };
   return { x: x0, y: y0, width: x1 - x0, height: y1 - y0 };
+}
+
+function arcBox([, cx, cy, r, a0, a1, ccw], at) {
+  at(cx + r * Math.cos(a0), cy + r * Math.sin(a0));
+  at(cx + r * Math.cos(a1), cy + r * Math.sin(a1));
+
+  // How far the arc winds, the way canvas reads it: from a0 in the direction
+  // asked until it meets a1, and a full turn at most.
+  const d = ccw ? a0 - a1 : a1 - a0;
+  const sweep = d >= TAU ? TAU : ((d % TAU) + TAU) % TAU;
+
+  for (let k = 0; k < 4; ++k) {
+    const a = k * Math.PI / 2;
+    const along = ccw ? a0 - a : a - a0;
+    if (((along % TAU) + TAU) % TAU > sweep) continue;
+    at(cx + r * CARDINAL[k][0], cy + r * CARDINAL[k][1]);
+  }
 }
 
 // The one command with no path behind it: the bitmap font is dots, not a path.
