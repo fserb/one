@@ -81,15 +81,15 @@ a .arrow { visibility: visible; }
 }
 
 /* The board, centred in what the header leaves: 100dvh less this page's
-   padding, the header and its margin. one.js paints it meta.bg too, for
-   dev.html and anywhere else the canvas is hung; this rule is what colours it
-   in the first frame drawn. */
+   padding, the header and its margin. meta.bg is on the element rather than
+   here, because this stylesheet is minified and a hole in a declaration does
+   not survive a CSS parser. one.js sets that same inline property at
+   startup; the attribute is what colours the first frame drawn. */
 .board {
   position: relative;
   margin: auto;
   width: min(calc(100dvh - 104px), 100%);
   aspect-ratio: 1;
-  background: {{bg}};
   view-transition-name: board;
 }
 /* No ring: alma's Input focuses the canvas at startup so the keys arrive
@@ -114,7 +114,7 @@ canvas { display: block; cursor: pointer; touch-action: none; }
   <p class="by">by <a href="https://fserb.com">fserb</a></p>
   <h1 class="game">{{title}}</h1>
 </header>
-<main class="board"><canvas id="canvas"></canvas></main>
+<main class="board" style="background:{{bg}}"><canvas id="canvas"></canvas></main>
 <script type="module">
 /*
  * Back to the wall. Going back restores it from the back/forward cache, scroll

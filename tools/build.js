@@ -5,8 +5,10 @@
  * game is one file. `deno bundle` (esbuild) tree-shakes, so a game only pays
  * for the parts of alma it imports.
  *
- * The HTML is tools/tpl/, plain files with {{name}} holes. They are out of
- * `deno fmt`, which rewrites {{bg}} inside a stylesheet into a nested block.
+ * The HTML is tools/tpl/, plain files with {{name}} holes, out of `deno fmt`
+ * because a hole is not valid in most of the places one sits. They are written
+ * to be read, and their <style> and <script> are minified on the way in, so
+ * none of that commentary reaches the page.
  *
  * The gallery reads each game's `meta` by importing the module under Deno.
  * That works only while game modules have no side effects. Keep it that way.
@@ -37,9 +39,62 @@ const src = (name) => new URL(name, SRC).href;
 const tpl = (name) =>
   Deno.readTextFile(new URL(`tpl/${name}.html`, import.meta.url));
 
+// esbuild, through `deno bundle`. It reads a file and writes one, so both
+// callers hand it a temp directory. Throws with esbuild's own message.
+async function esbuild(entry, out) {
+  const cmd = new Deno.Command("deno", {
+    args: [
+      "bundle",
+      "--platform=browser",
+      "--format=esm",
+      "--minify",
+      "-o",
+      out,
+      entry,
+    ],
+    stdout: "piped",
+    stderr: "piped",
+  });
+  const { code, stderr } = await cmd.output();
+  if (code !== 0) throw new Error(new TextDecoder().decode(stderr));
+}
+
+// One block of a template, minified. The extension is what tells esbuild
+// whether it is reading CSS or JavaScript.
+async function press(code, ext) {
+  const dir = await Deno.makeTempDir();
+  try {
+    await Deno.writeTextFile(`${dir}/in.${ext}`, code);
+    await esbuild(`${dir}/in.${ext}`, `${dir}/out.${ext}`);
+    return (await Deno.readTextFile(`${dir}/out.${ext}`)).trim();
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+}
+
+const BLOCK = /(<(style|script)\b[^>]*>)([\s\S]*?)(<\/\2>)/g;
+
+// Every <style> and every hand-written <script> in a template, minified once
+// when the template is read. A block that is nothing but a hole is left alone:
+// {{script}} is not JavaScript until the bundle fills it, and the bundle comes
+// out of esbuild already.
+async function squeeze(html) {
+  const out = [];
+  let at = 0;
+  for (const m of html.matchAll(BLOCK)) {
+    const [whole, open, tag, body, close] = m;
+    if (/^\{\{\w+\}\}$/.test(body.trim())) continue;
+    const ext = tag === "style" ? "css" : "js";
+    out.push(html.slice(at, m.index), open, await press(body, ext), close);
+    at = m.index + whole.length;
+  }
+  out.push(html.slice(at));
+  return out.join("");
+}
+
 const TEMPLATE = {
-  game: await tpl("game"),
-  gallery: await tpl("gallery"),
+  game: await squeeze(await tpl("game")),
+  gallery: await squeeze(await tpl("gallery")),
   // Joined with newlines into the gallery's list, so no trailing one.
   card: (await tpl("card")).trimEnd(),
 };
@@ -83,31 +138,16 @@ async function bundle(game) {
       `run(game);\n`,
   );
 
-  const cmd = new Deno.Command("deno", {
-    args: [
-      "bundle",
-      "--platform=browser",
-      "--format=esm",
-      "--minify",
-      "-o",
-      `${dir}/out.js`,
-      entry,
-    ],
-    stdout: "piped",
-    stderr: "piped",
-  });
-  const { code, stderr } = await cmd.output();
-  if (code !== 0) {
+  try {
+    await esbuild(entry, `${dir}/out.js`);
+    const js = await Deno.readTextFile(`${dir}/out.js`);
+    // A "</script" anywhere in a string literal would end the tag early.
+    return js.replaceAll("</script", "<\\/script");
+  } catch (e) {
+    throw new Error(`bundling ${game} failed:\n${e.message}`);
+  } finally {
     await Deno.remove(dir, { recursive: true });
-    throw new Error(
-      `bundling ${game} failed:\n${new TextDecoder().decode(stderr)}`,
-    );
   }
-
-  const js = await Deno.readTextFile(`${dir}/out.js`);
-  await Deno.remove(dir, { recursive: true });
-  // A "</script" anywhere in a string literal would end the tag early.
-  return js.replaceAll("</script", "<\\/script");
 }
 
 async function exists(url) {
