@@ -198,6 +198,9 @@ function addScore(v) {
 }
 
 class Bar extends ent.Entity {
+  // Flush with the bottom edge: shaken, it shows meta.bg underneath.
+  static screen = true;
+
   constructor() {
     super();
     this.pos.x = W / 2;

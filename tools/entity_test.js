@@ -174,8 +174,7 @@ function run(Late, frames = 3) {
   check("holds with the groups reversed", log, ["begin", "update", "update"]);
 }
 
-// A ctx that keeps the translation it is given, so a test can tell what
-// transform a render() was called under, and what drew in what order.
+// A ctx that keeps the translation it is given and what drew in what order.
 function tracer() {
   const log = [];
   const stack = [];
@@ -196,8 +195,8 @@ function tracer() {
 
 // A screen class draws after the world whatever its layer says, and outside the
 // shake. Top is first in the order list, so by layer alone it would be under
-// World. No camera here, so the shake offset is what tells the two passes
-// apart, and Math.random is pinned so it is the whole amplitude.
+// World. With no camera the shake offset is what tells the passes apart, and
+// Math.random is pinned so it is the whole amplitude.
 {
   const c = tracer();
   const rand = Math.random;

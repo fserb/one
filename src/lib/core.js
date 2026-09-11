@@ -11,10 +11,8 @@
  * camera instead of writing its own transform, and game.mouse comes back
  * through it, so nothing has to subtract the view by hand.
  *
- * A class with `static screen = true` is drawn after everything in the world
- * and with the camera and the shake off: the furniture that holds still while
- * the view moves. It is still the game's box, so its constants mean there what
- * they mean anywhere else, and only the drawing changes: it steps with the rest.
+ * A class with `static screen = true` draws after the world with the camera and
+ * the shake off, in the game's box either way. Only the drawing changes.
  *
  * Every entity owns an `art` and a `gfx`, the two drawing buffers: pixels and
  * paths. Both are always there, so a game imports neither file itself.
@@ -181,7 +179,7 @@ function anyHit(as, bs) {
 
 export class Entity {
   static layer = 10;
-  // Drawn over the world, in the game's box, with camera and shake off.
+  // Over the world, in the game's box, with camera and shake off.
   static screen = false;
 
   constructor() {
@@ -388,9 +386,8 @@ export function render(ctx) {
   draw(ctx, layers, false);
   ctx.restore();
 
-  // The screen classes after, in the same box with neither of those on. Two
-  // passes and not one layer number past the rest, since what separates them is
-  // the transform; `layer` still orders them among themselves.
+  // Two passes and not one layer past the rest, since what separates them is
+  // the transform. `layer` still orders the screen classes among themselves.
   ctx.save();
   ctx.scale(SIZE / game.size, SIZE / game.size);
   draw(ctx, layers, true);

@@ -1374,9 +1374,8 @@ function paintVignette(ctx) {
   ctx.fillRect(0, 0, SIZE, SIZE);
 }
 
-// It belongs to the screen and not to the board, so it is a screen class: the
-// camera's lean and the shocks' recoil would otherwise carry the dark corners
-// off the corners they are darkening.
+// Under the camera, the lean and the shock recoil would carry the dark corners
+// off the corners they darken.
 class Vignette extends ent.Entity {
   static screen = true;
 
