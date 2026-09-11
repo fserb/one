@@ -29,68 +29,126 @@
       -webkit-user-select: none;
       -webkit-tap-highlight-color: transparent;
     }
-    /* The list of games, when there is no ?game=. */
+    /* The wall of games, when there is no ?game=. It is the front page's wall:
+       the same flex sizing, the same clips out of media/, the same title in the
+       same colour. What it adds is what only dev shows: the games the build
+       skips, and a module that failed to import. */
     body.index {
       display: block;
       overflow: auto;
-      padding: 32px 20px;
-      font-size: 14px;
-      line-height: 1.5;
+      padding: 26px;
+      font: 14px/1.45 Verdana, sans-serif;
+      touch-action: auto;
     }
-    .index main {
-      max-width: 54em;
-      margin: 0 auto;
+    .index header {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      height: 28px;
+      margin: 0 0 24px;
     }
     .index h1 {
-      font-size: 14px;
-      margin: 0 0 16px;
+      margin: 0;
+      font: bold 19px/1.45 Verdana, sans-serif;
+      letter-spacing: -.02em;
     }
-    .index ul {
+    .index .by {
+      margin: 0;
+      font-size: 11px;
+      color: #21212399;
+    }
+    /* Flex and not grid, and the count sizes the card, so a row of n fills the
+       width exactly. The five queries are the gallery's. */
+    #cards {
+      --gap: 14px;
+      --n: 2;
+      --card: calc((100% - (var(--n) - 1) * var(--gap)) / var(--n));
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--gap);
       list-style: none;
       margin: 0;
       padding: 0;
     }
-    .index li {
-      display: flex;
-      gap: 12px;
-      align-items: center;
-      padding: 8px 4px;
-      border-top: 1px solid #0002;
+    @media (min-width: 560px) {
+      #cards {
+        --n: 3;
+      }
     }
-    .index a {
+    @media (min-width: 820px) {
+      #cards {
+        --n: 4;
+      }
+    }
+    @media (min-width: 1080px) {
+      #cards {
+        --n: 5;
+      }
+    }
+    @media (min-width: 1340px) {
+      #cards {
+        --n: 6;
+      }
+    }
+    /* A container, so the title and the badge are the same fraction of the
+       square at every card count. */
+    #cards li {
+      flex: 0 0 var(--card);
+      position: relative;
+      aspect-ratio: 1;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--ink);
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      container-type: inline-size;
+    }
+    #cards a {
+      position: absolute;
+      inset: 0;
       color: inherit;
-      font-weight: bold;
-      min-width: 8em;
+      text-decoration: none;
     }
-    .swatch {
-      width: 16px;
-      height: 16px;
-      flex: none;
+    /* The recorded clip. A game with none is flat --bg, which is the clip's own
+       background too, so the title reads either way. */
+    #cards video {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
     }
-    .desc {
-      flex: 1;
-      color: #0009;
+    .tag {
+      position: absolute;
+      left: 0;
+      bottom: 0;
+      margin: 0;
+      padding: 0 4.5cqw 4cqw;
+      font: bold 10cqw/1.1 Verdana;
+      letter-spacing: -.02em;
     }
-    .date {
-      color: #0006;
+    .tag time {
+      margin-left: 2.8cqw;
+      letter-spacing: 0;
+      font: 4.5cqw Verdana, sans-serif;
+      opacity: .55;
       font-variant-numeric: tabular-nums;
     }
-    /* Always in the row, empty for a game that ships, so the dates line up. */
+    /* draft, or a module that threw on import. Top right, in the card's own
+       ink, which is the half picked to read over that board. */
     .flag {
-      flex: none;
-      min-width: 4em;
-      text-align: right;
+      position: absolute;
+      right: 0;
+      top: 0;
+      margin: 0;
+      padding: 3.5cqw 4.5cqw;
+      font: bold 4.5cqw Verdana, sans-serif;
+      text-transform: uppercase;
+      letter-spacing: .12em;
     }
-    .flag b {
-      font: 11px Verdana, sans-serif;
-      color: #a33;
-      border: 1px solid #a33;
-      border-radius: 3px;
-      padding: 1px 4px;
-    }
-    .flag b.broken {
-      color: #f2f0e5;
-      background: #a33;
+    .flag.broken {
+      color: #c22;
     }
     p.help {
       font-size: 14px;
@@ -175,7 +233,7 @@
       same ES modules the bundler does. ~/web is served at
       https://marx.giraffe-yo.ts.net/, so this is one.fserb.com's source, live.
 
-        dev.html               every game in src/, listed
+        dev.html               every game in src/, as the front page's wall
         dev.html?game=wow      that game, running, like the built page
         &rec=0                 without the recorder, for an embedded iframe
 
@@ -212,69 +270,134 @@
       await index();
     }
 
-    // The list, with no build step behind it: Caddy's `file_server browse`
-    // answers a directory with JSON when the request asks for JSON, and meta
-    // comes from importing each module, the same way tools/build.js reads it.
+    /*
+     * The wall, with no build step behind it. Everything tools/build.js reads
+     * off the disk this reads off the server: Caddy's `file_server browse`
+     * answers a directory with JSON when the request asks for JSON, so src/
+     * names the games and media/ says which ones have a recorded card, and meta
+     * comes from importing each module the way build.js imports it.
+     *
+     * So it shows what the front page will show, one commit early: a game with
+     * no card is a flat board here and there, and a card recorded but not yet
+     * built is already on this wall.
+     */
     async function index() {
       document.body.className = "index";
 
       let names;
       try {
-        names = await list();
+        names = await list("./src/", (e) => !e.is_dir && e.name.endsWith(".js"));
       } catch (err) {
         document.body.innerHTML = `<p class=help>no directory listing here: ` +
           `${esc(err.message)}<br>pick a game: ` +
           `<code>dev.html?game=&lt;name&gt;</code></p>`;
         return;
       }
+      names = names.map((n) => n.slice(0, -3)).filter((n) => !n.startsWith("_"));
+
+      // A game whose clip is missing is a flat card, so this is not fatal.
+      const shots = new Set(
+        await list("./media/", (e) => e.is_dir).catch(() => []),
+      );
+
+      // The same colours the panels and the built card are drawn in.
+      const { theme } = await import("./src/lib/overlay.js");
 
       const games = await Promise.all(names.map(async (name) => {
         try {
           const { meta } = await import(`./src/${name}.js`);
-          return { name, ...meta };
+          return { name, ...meta, shot: shots.has(name) };
         } catch (err) {
-          return { name, desc: String(err), broken: true };
+          return { name, error: String(err) };
         }
       }));
-      games.sort((a, b) => (b.date ?? "").localeCompare(a.date ?? ""));
+      // Newest first, undated to the end, like the gallery.
+      games.sort((a, b) =>
+        (b.date ?? "").localeCompare(a.date ?? "") || a.name.localeCompare(b.name)
+      );
 
-      document.body.innerHTML = `<main>
-        <h1>one · dev <span class=date>${games.length} games</span></h1>
-        <ul>${games.map(card).join("")}</ul>
-      </main>`;
+      document.body.innerHTML = `<header>
+        <h1>one · dev</h1>
+        <p class=by>${games.length} games from src/</p>
+      </header>
+      <ul id=cards>${games.map((g) => card(g, theme)).join("")}</ul>`;
+
+      play([...document.querySelectorAll("#cards video")]);
     }
 
-    // Names of the game modules, from the server's directory listing. Same two
-    // rules as the build: no directories, nothing starting with _.
-    async function list() {
-      const res = await fetch("./src/", { headers: { accept: "application/json" } });
-      if (!res.ok) throw new Error(`src/ gave ${res.status}`);
+    // One directory off the server's listing, filtered, as names. A directory
+    // comes back as "media/" and the trailing slash is not part of the name.
+    async function list(path, keep) {
+      const res = await fetch(path, {
+        headers: { accept: "application/json" },
+      });
+      if (!res.ok) throw new Error(`${path} gave ${res.status}`);
       const entries = await res.json();
-      return entries
-        .filter((e) => !e.is_dir && e.name.endsWith(".js"))
-        .map((e) => e.name.slice(0, -3))
-        .filter((n) => !n.startsWith("_"));
+      return entries.filter(keep).map((e) => e.name.replace(/\/$/, ""));
     }
 
-    function card(g) {
-      const bg = g.bg ?? "#f2f0e5";
-      const fg = g.fg ?? "#212123";
-      return `<li>
-        <span class=swatch style="background:${esc(bg)};border:3px solid ${
-        esc(fg)
-      }"></span>
-        <a href="?game=${encodeURIComponent(g.name)}">${esc(g.name)}</a>
-        <span class=desc>${esc((g.desc ?? "").trim().replace(/\n/g, " · "))}</span>
-        <span class=flag>${flag(g)}</span>
-        <span class=date>${esc(g.date ?? "")}</span>
+    function card(g, theme) {
+      const m = { bg: "#f2f0e5", fg: "#212123", ...g };
+      // The title in the panel fill and not the panel text: it sits straight on
+      // the clip with no panel behind it. What the built card does.
+      const ink = theme(m).bg;
+      const clip = g.shot
+        ? `<video src="./media/${g.name}/card.mp4" ` +
+          `poster="./media/${g.name}/card.png" loop muted playsinline ` +
+          `preload=none></video>`
+        : "";
+      // Hover text, which the front page's cards deliberately have not got: a
+      // card there is a picture of a game, and this is the tool.
+      const tip = g.error ?? (g.desc ?? "").trim();
+      return `<li style="--bg:${esc(m.bg)};--ink:${esc(ink)}">
+        <a href="?game=${encodeURIComponent(g.name)}"${
+        tip ? ` title="${esc(tip)}"` : ""
+      }>
+          ${clip}
+          <p class="tag"><b>${esc(g.name)}</b><time>${
+        esc((g.date ?? "").slice(0, 4))
+      }</time></p>
+          ${flag(g)}
+        </a>
       </li>`;
     }
 
-    // draft says the build skips this game: no page under www/, no gallery card.
+    // What the build would do with this game: nothing, or skip it. draft keeps
+    // a game out of www/ and off the front page; an import that threw has no
+    // meta, so the build would stop on it.
     function flag(g) {
-      if (g.broken) return `<b class=broken>error</b>`;
-      if (g.draft) return `<b>draft</b>`;
+      if (g.error) return `<p class="flag broken">error</p>`;
+      if (g.draft) return `<p class="flag">draft</p>`;
       return "";
+    }
+
+    // The card under the pointer is the one running, and the rest hold the
+    // frame they stopped on. The gallery's rule, so the wall moves here the way
+    // it moves there: one square at a time, and a screen with no pointer plays
+    // whatever is on it.
+    function play(videos) {
+      if (!matchMedia("(hover: hover)").matches) {
+        const onscreen = new IntersectionObserver((es) => {
+          for (const e of es) {
+            if (e.isIntersecting) e.target.play().catch(() => {});
+            else e.target.pause();
+          }
+        }, { rootMargin: "200px" });
+        for (const v of videos) onscreen.observe(v);
+        return;
+      }
+      for (const v of videos) {
+        const li = v.closest("li");
+        // pointermove and not pointerenter: coming back from a game restores
+        // this page under a pointer that crossed no card's edge.
+        li.addEventListener("pointermove", () => {
+          if (v.paused) v.play().catch(() => {});
+        });
+        li.addEventListener("pointerleave", () => v.pause());
+      }
+      // A clip out of the back/forward cache is playing if that card was the
+      // one pressed through, wherever the pointer is now.
+      addEventListener("pageshow", () => videos.forEach((v) => v.pause()));
     }
 
     function esc(s) {
