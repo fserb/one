@@ -7,14 +7,15 @@
  * ```
  *
  * fill() and line() set what every shape after them uses, and null turns
- * either off. mt()/lt() draw a path where the four shape calls will not.
+ * either off. mt()/lt()/ct() draw a path where the four shape calls will not.
  * text() has its own colour and draws art.js's bitmap font.
  *
  * Each shape is a list of commands, recorded when the call is made and replayed
  * into a Path2D the first time it is drawn. A command list has no DOM object in
  * it, so the build can still import a game under Deno.
  *
- *   ["M", x, y]  ["L", x, y]  ["A", cx, cy, r, a0, a1, ccw]  ["Z"]
+ *   ["M", x, y]  ["L", x, y]  ["C", x1, y1, x2, y2, x, y]
+ *   ["A", cx, cy, r, a0, a1, ccw]  ["Z"]
  *
  * An arc stays an arc: Path2D takes one directly and pathBox() measures one in
  * closed form, so both are exact. alma's Path converts to beziers on the way in
@@ -23,8 +24,10 @@
  * bezier with three partial coverage values and an arc with 23, so a disc of
  * four cubics covers 0.6% less than the disc ctx.arc draws.
  *
- * A curve would be ["C", ...]: three lines in replay(), and a closed form in
- * pathBox(). Nothing has drawn one yet.
+ * A cubic is exact the same way: pathBox() solves B'(t) = 0, a quadratic in t,
+ * rather than flattening the curve and measuring the polyline. ct() adds one to
+ * an open poly the way lt() adds a line; rect(), circle() and arc() stay arcs
+ * and never emit a "C".
  */
 
 import { css, glyphs } from "./art.js";
@@ -154,6 +157,17 @@ export class Gfx {
     return this;
   }
 
+  // Two control points and an endpoint, as Path2D's bezierCurveTo. With no open
+  // poly it is a mt() to the endpoint, since a curve has nowhere to start.
+  ct(x1, y1, x2, y2, x, y) {
+    if (this.disabled) return this;
+    if (this.poly === null) return this.mt(x, y);
+    this.poly.path.push(["C", x1, y1, x2, y2, x, y]);
+    this.poly.p2d = undefined;
+    this.dirty = true;
+    return this;
+  }
+
   // One line of the bitmap font, centred on (x, y) in screen units, in its own
   // colour rather than the current fill().
   text(x, y, s, color, size = 1) {
@@ -249,6 +263,9 @@ function replay(path) {
       case "L":
         p2d.lineTo(c[1], c[2]);
         break;
+      case "C":
+        p2d.bezierCurveTo(c[1], c[2], c[3], c[4], c[5], c[6]);
+        break;
       case "A":
         p2d.arc(c[1], c[2], c[3], c[4], c[5], c[6]);
         break;
@@ -274,8 +291,10 @@ function write(ctx, c) {
   }
 }
 
-// A line reaches its endpoint and an arc its two endpoints plus whichever
-// cardinal points its sweep passes, so this is the box and not an estimate.
+// A line reaches its endpoint, an arc its two endpoints plus whichever cardinal
+// points its sweep passes, and a cubic its endpoints plus where either axis
+// turns around, so this is the box and not an estimate. A curve is the one
+// command that needs where the path already is, so the point is carried along.
 function pathBox(path) {
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
   const at = (x, y) => {
@@ -285,9 +304,22 @@ function pathBox(path) {
     if (y > y1) y1 = y;
   };
 
+  let px = 0, py = 0;
   for (const c of path) {
-    if (c[0] === "M" || c[0] === "L") at(c[1], c[2]);
-    else if (c[0] === "A") arcBox(c, at);
+    if (c[0] === "M" || c[0] === "L") {
+      at(c[1], c[2]);
+      px = c[1];
+      py = c[2];
+    } else if (c[0] === "C") {
+      curveBox(px, py, c, at);
+      px = c[5];
+      py = c[6];
+    } else if (c[0] === "A") {
+      arcBox(c, at);
+      // Path2D leaves the point at the end angle, after the line it draws in.
+      px = c[1] + c[3] * Math.cos(c[5]);
+      py = c[2] + c[3] * Math.sin(c[5]);
+    }
   }
 
   if (x0 === Infinity) return { x: 0, y: 0, width: 0, height: 0 };
@@ -309,6 +341,42 @@ function arcBox([, cx, cy, r, a0, a1, ccw], at) {
     if (((along % TAU) + TAU) % TAU > sweep) continue;
     at(cx + r * CARDINAL[k][0], cy + r * CARDINAL[k][1]);
   }
+}
+
+// The endpoints, plus the point at each t where one axis turns around. The x
+// turns and the y turns are different t values, so each is evaluated on both
+// axes rather than mixing an x extreme with the y beside it.
+function curveBox(x0, y0, [, x1, y1, x2, y2, x3, y3], at) {
+  at(x0, y0);
+  at(x3, y3);
+  for (const t of [...turns(x0, x1, x2, x3), ...turns(y0, y1, y2, y3)]) {
+    at(bez(x0, x1, x2, x3, t), bez(y0, y1, y2, y3, t));
+  }
+}
+
+// B'(t) / 3 = a t^2 + b t + c on one axis, solved for the roots inside (0, 1);
+// t = 0 and t = 1 are the endpoints, which curveBox() has already taken.
+// a is 0 whenever p3 - p0 is 3 (p2 - p1), which round control points land on
+// often enough to need the line b t + c solved instead.
+function turns(p0, p1, p2, p3) {
+  const a = p3 - 3 * p2 + 3 * p1 - p0;
+  const b = 2 * (p0 - 2 * p1 + p2);
+  const c = p1 - p0;
+  const inside = (t) => t > 0 && t < 1;
+
+  if (Math.abs(a) < 1e-12) {
+    return b === 0 ? [] : [-c / b].filter(inside);
+  }
+  const d = b * b - 4 * a * c;
+  if (d < 0) return [];
+  const r = Math.sqrt(d);
+  return [(-b + r) / (2 * a), (-b - r) / (2 * a)].filter(inside);
+}
+
+function bez(p0, p1, p2, p3, t) {
+  const u = 1 - t;
+  return u * u * u * p0 + 3 * u * u * t * p1 + 3 * u * t * t * p2 +
+    t * t * t * p3;
 }
 
 // The one command with no path: the font is drawn as dots.
