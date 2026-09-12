@@ -402,10 +402,10 @@ function turnOver() {
   for (const t of flipped) t.remove();
   flip = !flip;
   const mid = 512;
-  flipped = flip ? [label(mid, 26, Math.floor(score.value))] : [
-    label(mid - FLIP_GAP, 19, "SUPER"),
-    label(mid, 19, "HOT"),
-    label(mid + FLIP_GAP, 19, "ASTEROID"),
+  flipped = flip ? [label(mid, 220, Math.floor(score.value))] : [
+    label(mid - FLIP_GAP, 160, "SUPER"),
+    label(mid, 160, "HOT"),
+    label(mid + FLIP_GAP, 160, "ASTEROID"),
   ];
 }
 
@@ -430,7 +430,7 @@ function pop(pos, text) {
     text,
     x: pos.x,
     y: pos.y,
-    size: 2,
+    size: 20,
     color: WHITE,
     vel: [0, -43],
     duration: 1,

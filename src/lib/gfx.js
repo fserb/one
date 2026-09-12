@@ -8,7 +8,6 @@
  *
  * fill() and line() set what every shape after them uses, and null turns
  * either off. mt()/lt()/ct() draw a path where the four shape calls will not.
- * text() has its own colour and draws art.js's bitmap font.
  *
  * css(c) is here too: it turns one of those 0xrrggbb numbers into the string a
  * canvas takes, and every game reaches it through entity.js.
@@ -32,8 +31,6 @@
  * an open poly the way lt() adds a line; rect(), circle() and arc() stay arcs
  * and never emit a "C".
  */
-
-import { glyphs } from "./art.js";
 
 const TAU = 2 * Math.PI;
 
@@ -184,29 +181,12 @@ export class Gfx {
     return this;
   }
 
-  // One line of the bitmap font, centred on (x, y) in screen units, in its own
-  // colour rather than the current fill().
-  text(x, y, s, color, size = 1) {
-    if (this.disabled) return this;
-    this.cmds.push({
-      args: [x, y],
-      text: String(s),
-      size,
-      color,
-      fill: null,
-      line: null,
-    });
-    this.poly = null;
-    this.dirty = true;
-    return this;
-  }
-
   bounds() {
     if (!this.dirty) return this.box;
 
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
     for (const c of this.cmds) {
-      const b = c.text === undefined ? pathBox(c.path) : textBox(c);
+      const b = pathBox(c.path);
       // A stroke extends half its width outside the path it follows.
       const p = c.line === null ? 0 : c.line.width / 2;
       x0 = Math.min(x0, b.x - p);
@@ -235,10 +215,6 @@ export class Gfx {
     ctx.translate(-bx - bw / 2, -by - bh / 2);
 
     for (const c of this.cmds) {
-      if (c.text !== undefined) {
-        write(ctx, c);
-        continue;
-      }
       // Kept on the command, so an unchanged drawing replays the same Path2D.
       c.p2d ??= replay(c.path);
       if (c.fill !== null) {
@@ -291,20 +267,6 @@ function replay(path) {
     }
   }
   return p2d;
-}
-
-function write(ctx, c) {
-  const [x, y] = c.args;
-  const g = glyphs(c.text);
-  const s = c.size;
-  const tx = x - g.width * s / 2;
-  const ty = y - g.height * s / 2;
-
-  ctx.globalAlpha = 1;
-  ctx.fillStyle = css(c.color);
-  for (let i = 0; i < g.dots.length; i += 2) {
-    ctx.fillRect(tx + g.dots[i] * s, ty + g.dots[i + 1] * s, s, s);
-  }
 }
 
 // A line reaches its endpoint, an arc its two endpoints plus whichever cardinal
@@ -393,13 +355,4 @@ function bez(p0, p1, p2, p3, t) {
   const u = 1 - t;
   return u * u * u * p0 + 3 * u * u * t * p1 + 3 * u * t * t * p2 +
     t * t * t * p3;
-}
-
-// The one command with no path: the font is drawn as dots.
-function textBox(c) {
-  const [x, y] = c.args;
-  const g = glyphs(c.text);
-  const w = g.width * c.size;
-  const h = g.height * c.size;
-  return { x: x - w / 2, y: y - h / 2, width: w, height: h };
 }

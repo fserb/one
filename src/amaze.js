@@ -15,7 +15,6 @@
  */
 
 import * as ent from "./lib/entity.js";
-import { glyphs } from "./lib/art.js";
 import { gameOver, hint, input, score } from "./lib/one.js";
 import { coin, explosion, jump, powerup } from "./lib/fsfx/sfxr.js";
 import * as sound from "./lib/sound.js";
@@ -672,15 +671,6 @@ function drawWipe(ctx) {
     ctx.fillRect(512 - s / 2, 512 - s / 2, s, s);
     return;
   }
-  label(ctx, `LEVEL ${level}`, 512, 512, 9, YOU);
-}
-
-function label(ctx, s, x, y, size, color) {
-  const g = glyphs(s);
-  ctx.fillStyle = ent.css(color);
-  const x0 = x - g.width * size / 2;
-  const y0 = y - g.height * size / 2;
-  for (let i = 0; i < g.dots.length; i += 2) {
-    ctx.fillRect(x0 + g.dots[i] * size, y0 + g.dots[i + 1] * size, size, size);
-  }
+  ctx.fillStyle = ent.css(YOU);
+  ctx.text(`LEVEL ${level}`, 512, 512, 86);
 }

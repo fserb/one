@@ -250,7 +250,6 @@ class ScoreBox extends ent.Entity {
     this.pos.y = y;
     this.n = next;
     this.hitBox(BOX);
-    this.art.size(6, 7, 7).color(BLACK).text(3, 3, String(this.n), 4);
   }
 
   update() {
@@ -263,11 +262,16 @@ class ScoreBox extends ent.Entity {
       text: `+${this.n}`,
       x: this.pos.x,
       y: this.pos.y,
-      size: 4,
+      size: 40,
       color: BLACK,
       vel: [0, -64],
       duration: 0.8,
     });
+  }
+
+  render(ctx) {
+    ctx.fillStyle = ent.css(BLACK);
+    ctx.text(String(this.n), 0, 0, 38);
   }
 }
 

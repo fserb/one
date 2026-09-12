@@ -287,7 +287,7 @@ function pop(text) {
     text,
     x: MID,
     y: CLOCK_Y - 17,
-    size: 6,
+    size: 60,
     color: INK,
     vel: [0, -47],
     duration: 0.7,

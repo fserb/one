@@ -3,24 +3,24 @@
  * built in one expression from an options object over the defaults.
  *
  * ```js
- * new ent.Text({ text: `+${n}`, x, y, size: 4, vel: [0, -40], duration: 1 });
+ * new ent.Text({ text: `+${n}`, x, y, size: 40, vel: [0, -40], duration: 1 });
  * new ent.Particle({ x, y, count: 20, speed: [107, 43], circle: true });
  * ent.every(1.5, () => { new Enemy(); });
  * ent.after(0.75, () => gameOver({ score: true }));
  * ```
  */
 
-import { glyphs } from "./art.js";
 import { css } from "./gfx.js";
 import { Entity, game } from "./core.js";
 import { SIZE } from "./one.js";
 
-// The fraction of the box that is before the anchor point.
-const ALIGN = { left: 0, center: 0.5, right: 1 };
-const VALIGN = { top: 0, middle: 0.5, bottom: 1 };
+// The words ctx.text() takes for textAlign and textBaseline.
+const ALIGN = ["left", "center", "right"];
+const VALIGN = ["top", "middle", "bottom"];
 
-// `align` is "left"|"center"|"right" and "top"|"middle"|"bottom", in either
-// order, space separated; a word that is neither is ignored.
+// `size` is the font's height in board units. `align` is one word from each of
+// those two lists, in either order and space separated; anything else in it is
+// ignored.
 export class Text extends Entity {
   static layer = 1000;
 
@@ -30,7 +30,7 @@ export class Text extends Entity {
       text: "",
       x: 0,
       y: 0,
-      size: 2,
+      size: 20,
       color: 0xffffff,
       align: "center middle",
       vel: [0, 0],
@@ -47,11 +47,11 @@ export class Text extends Entity {
     this.color = o.color;
     this.duration = o.duration;
 
-    this.ax = 0.5;
-    this.ay = 0.5;
+    this.align = "center";
+    this.valign = "middle";
     for (const w of o.align.toLowerCase().split(/[\s_]+/)) {
-      this.ax = ALIGN[w] ?? this.ax;
-      this.ay = VALIGN[w] ?? this.ay;
+      if (ALIGN.includes(w)) this.align = w;
+      if (VALIGN.includes(w)) this.valign = w;
     }
   }
 
@@ -63,15 +63,11 @@ export class Text extends Entity {
 
   render(ctx) {
     if (this.text.length === 0) return;
-    const g = glyphs(this.text);
-    const s = this.size;
-    const x = -g.width * s * this.ax;
-    const y = -g.height * s * this.ay;
-
     ctx.fillStyle = css(this.color);
-    for (let i = 0; i < g.dots.length; i += 2) {
-      ctx.fillRect(x + g.dots[i] * s, y + g.dots[i + 1] * s, s, s);
-    }
+    ctx.text(this.text, 0, 0, this.size, {
+      align: this.align,
+      valign: this.valign,
+    });
   }
 }
 

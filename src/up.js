@@ -56,6 +56,8 @@ const GOLD = 0xe3c61e;
 const GOLD_DARK = 0xdacc3d;
 const GOLD_EDGE = 0xca8727;
 const GOLD_TEXT = 0x604013;
+// The WASD letter on each engine.
+const KEY = 0xffffff;
 const FLAME = 0xaa9936;
 const FLAME_DARK = 0x988946;
 
@@ -70,8 +72,8 @@ class Engine extends ent.Entity {
     super();
     this.ship = ship;
     this.offset = offset;
-    this.art.size(11, 4, 4).color(FLAME, FLAME_DARK, 23).rect(0, 0, 4, 4)
-      .color(0xffffff).text(1.8, 1.8, label, 4);
+    this.label = label;
+    this.art.size(11, 4, 4).color(FLAME, FLAME_DARK, 23).rect(0, 0, 4, 4);
   }
 
   update() {
@@ -94,6 +96,12 @@ class Engine extends ent.Entity {
       delay: [0, 0.05],
       duration: [0.25, 0.1],
     });
+  }
+
+  render(ctx) {
+    this.art.render(ctx);
+    ctx.fillStyle = ent.css(KEY);
+    ctx.text(this.label, 0, 0, 34);
   }
 }
 
@@ -179,7 +187,7 @@ class Obstacle extends ent.Entity {
       text: "+5",
       x: Math.min(Math.max(this.pos.x, 20), 1004),
       y: 1024,
-      size: 2,
+      size: 20,
       vel: [0, -40],
       duration: 1,
     });
@@ -191,8 +199,7 @@ class Gold extends ent.Entity {
   begin() {
     this.points = Math.round(1 + Math.random() * 8) * 10;
     this.art.color(GOLD, GOLD_DARK, 23).size(6, 8, 7).rect(0, 0, 8, 7)
-      .color(GOLD_EDGE).lrect(0, 0, 8, 7)
-      .color(GOLD_TEXT).text(4, 3.5, String(this.points), 2);
+      .color(GOLD_EDGE).lrect(0, 0, 8, 7);
     place(this);
     this.hitBox(48, 42);
   }
@@ -204,7 +211,7 @@ class Gold extends ent.Entity {
         text: `+${this.points}`,
         x: this.pos.x,
         y: this.pos.y,
-        size: 2,
+        size: 20,
         vel: [0, -40],
         duration: 1,
       });
@@ -213,6 +220,12 @@ class Gold extends ent.Entity {
     }
 
     if (this.pos.y >= OUT) this.remove();
+  }
+
+  render(ctx) {
+    this.art.render(ctx);
+    ctx.fillStyle = ent.css(GOLD_TEXT);
+    ctx.text(String(this.points), 0, 0, 19);
   }
 }
 

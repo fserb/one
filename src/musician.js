@@ -278,7 +278,7 @@ class Coin extends ent.Entity {
         text: `$${this.value}`,
         x: this.pos.x,
         y: this.pos.y,
-        size: 4,
+        size: 40,
         color: YELLOW,
         vel: [0, -43],
         duration: 1,

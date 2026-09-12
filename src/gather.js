@@ -347,7 +347,7 @@ function addScore(v) {
     x: TRAY_R,
     y: TRAY_Y,
     align: "right middle",
-    size: 4,
+    size: 40,
     color: BLACK,
     vel: [0, -64],
     duration: 0.5,
@@ -360,7 +360,7 @@ function say(m) {
     text: m,
     x: 512,
     y: 960,
-    size: 4,
+    size: 40,
     color: BLACK,
     duration: 5,
   });

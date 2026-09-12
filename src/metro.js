@@ -531,8 +531,7 @@ class Mission extends ent.Entity {
 
   update() {
     const dt = ent.game.time;
-    this.gfx.clear().fill(RED).rect(0, 0, BAR, 64)
-      .text(256, 32, this.msg, WHITE, 4);
+    this.gfx.clear().fill(RED).rect(0, 0, BAR, 64);
 
     if (this.end >= 0) {
       this.end -= dt / 0.5;
@@ -551,6 +550,14 @@ class Mission extends ent.Entity {
     const swept = TAU * this.age / this.time;
     if (swept >= TAU) return this.finish();
     this.gfx.fill(WHITE).arc(BAR - 32, 32, 21, 0, swept, TAU);
+  }
+
+  // The bar centres on its own box, so the text's place in that box is its
+  // position less half the bar: left of centre, clear of the pie chart.
+  render(ctx) {
+    this.gfx.render(ctx);
+    ctx.fillStyle = ent.css(WHITE);
+    ctx.text(this.msg, 256 - BAR / 2, 0, 40);
   }
 }
 

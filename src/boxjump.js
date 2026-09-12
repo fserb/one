@@ -102,11 +102,6 @@ class Piece extends ent.Entity {
     this.gfx.mt(this.pts[0][0], this.pts[0][1]);
     for (const [x, y] of this.pts.slice(1)) this.gfx.lt(x, y);
     this.gfx.lt(this.pts[0][0], this.pts[0][1]);
-    this.paint();
-  }
-
-  paint() {
-    this.art.clear().color(BOARD).text(0, 0, `${this.count}`, this.r / 13);
   }
 
   update() {
@@ -116,21 +111,20 @@ class Piece extends ent.Entity {
   }
 
   // The outline turns and the number does not: a digit coming round upside down
-  // is a digit nobody reads at a glance.
+  // is a digit nobody reads at a glance. 0.74r is the size that puts a digit's
+  // cap at 0.54r, so the number grows with the piece.
   render(ctx) {
     this.gfx.render(ctx);
     ctx.rotate(-this.angle);
-    this.art.render(ctx);
+    ctx.fillStyle = ent.css(BOARD);
+    ctx.text(`${this.count}`, 0, 0, this.r * 0.74);
   }
 
   // The last piece to go ends the level, with the blob still in the air.
   leave() {
     this.count -= 1;
     this.pop = 1;
-    if (this.count > 0) {
-      this.paint();
-      return;
-    }
+    if (this.count > 0) return;
 
     new ent.Particle({
       x: this.pos.x,

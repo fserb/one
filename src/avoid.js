@@ -115,7 +115,7 @@ class Enemy extends ent.Entity {
       text: `+${this.tads}`,
       x: this.pos.x,
       y: this.pos.y,
-      size: 2,
+      size: 20,
       vel: [0, -40],
       duration: 1,
     });
