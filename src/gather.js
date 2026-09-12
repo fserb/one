@@ -7,14 +7,15 @@
  *
  * The scroll speed is set by where you are: it is slow while your lowest cursor
  * is in the bottom half and multiplies by up to 23 as it rises, and again by up
- * to 6 once the top of the chain passes the second line.
+ * to 6 once the top of the chain passes the second line. one.js's ramp over the
+ * round multiplies it too, and holes and points ride the same ramp.
  *
- * The first round opens on a scripted board that resets the score. Dying inside
- * it replays it; finishing means it is not shown again.
+ * The first round opens on a scripted board that resets the score and the ramp.
+ * Dying inside it replays it; finishing means it is not shown again.
  */
 
 import * as ent from "./lib/entity.js";
-import { gameOver, score } from "./lib/one.js";
+import { gameOver, ramp, score, time } from "./lib/one.js";
 import { coin, explosion, jump } from "./lib/fsfx/sfxr.js";
 import * as sound from "./lib/sound.js";
 
@@ -67,8 +68,9 @@ const NEARRATE = 9 / 70;
 // from 240, so the multiplier is already 4.4 the frame it applies.
 const HIGH = 122;
 const HIGHRATE = 5 / 172;
-const RAMP = 0.4; // per minute, for ever
-const HOLE = 0.04; // per cell, capping a minute in at one cell in twenty-five
+// Per cell. (hard() - 1) / 15 reaches it a minute in, where the ramp is at 1.6:
+// one cell in twenty-five.
+const HOLE = 0.04;
 
 // The eye whites sit two pixels in, with the pupils drawn over them.
 const BODY = `
@@ -131,7 +133,10 @@ sound.voice("over", { ...explosion(30), vol: 0.2 });
 // pushes in, ROWS-1 what it drops.
 const grid = [];
 let scroll = 0;
-let difficulty = 0;
+// The second the script ended on, and 0 while it is still playing. The ramp is
+// measured from there, so a first-time player does not begin a real round on a
+// board that has already ramped through the tutorial.
+let from = 0;
 // Oldest first. The last is the head, the only one a key moves; the first
 // stands on an empty cell and is what an undo leaves behind.
 let chain = [];
@@ -301,7 +306,7 @@ class Tray extends ent.Entity {
     this.age = 0;
     const kinds = this.counts.filter((c) => c > 0).length;
     const each = Math.max(...this.counts);
-    this.points = kinds * each * (each - 1) * (kinds - 1) * (1 + difficulty);
+    this.points = kinds * each * (each - 1) * (kinds - 1) * hard();
   }
 
   update() {
@@ -361,11 +366,17 @@ function say(m) {
   });
 }
 
+// one.js's ramp over the seconds since the script ended. It climbs through the
+// script as well, and `from` drops it back to 1 for the first real row.
+function hard() {
+  return ramp(time - from);
+}
+
 // Colour indices and holes, or null once the board has nothing left to say.
 function nextRow() {
   if (introAt < 0) {
     const row = [];
-    const hole = Math.min(HOLE, difficulty / 10);
+    const hole = Math.min(HOLE, (hard() - 1) / 15);
     for (let x = 0; x < COLS; ++x) {
       const c = Math.floor(Math.random() * COLORS.length);
       row.push(Math.random() < hole ? _ : c);
@@ -381,7 +392,7 @@ function nextRow() {
   if (row !== undefined) return row;
 
   // None of the script counted: it gives points a real round would not.
-  difficulty = 0;
+  from = time;
   score.value = 0;
   return null;
 }
@@ -416,10 +427,9 @@ function advance(dt) {
     high = Math.min(high, y);
   }
 
-  let speed = CRAWL * (1 + difficulty);
+  let speed = CRAWL * hard();
   if (low < NEAR) speed *= 1 + NEARRATE * (NEAR - low);
   if (high < HIGH) speed *= 1 + HIGHRATE * (NEAR - high);
-  difficulty += RAMP * dt / 60;
 
   scroll += speed * dt;
   if (scroll <= 0) return;
@@ -516,7 +526,7 @@ export function init() {
   ent.reset([Piece, Cursor, Frame, Tray]);
 
   scroll = 0;
-  difficulty = 0;
+  from = 0;
   dying = 0;
   note = null;
   introAt = introAt >= 0 ? INTRO.length : -1;

@@ -6,6 +6,11 @@
  * Turning always runs at real time, so a frozen board is a place to aim from,
  * and the score is seconds of running clock plus 2 a rock and 10 a ship.
  *
+ * Both spawn clocks are divided by one.js's ramp read on that running clock and
+ * not on the wall clock, so aiming from a frozen board costs nothing: three
+ * minutes of running clock in, rocks and waves arrive twice as often. How many
+ * ships a wave brings is WAVE_GROW and nothing else.
+ *
  * The enemy AI is one rule: pick a wandering target weighted towards the player
  * by age, and steer by mirroring the heading about the line to it, which
  * overshoots and is why they weave.
@@ -16,7 +21,7 @@
  */
 
 import * as ent from "./lib/entity.js";
-import { gameOver, score } from "./lib/one.js";
+import { gameOver, ramp, score } from "./lib/one.js";
 import { explosion, laser } from "./lib/fsfx/sfxr.js";
 import * as sound from "./lib/sound.js";
 
@@ -97,6 +102,9 @@ sound.voice("enemy", explosion(1005));
 sound.voice("player", explosion(1032));
 
 let realtime = 0;
+// Seconds of running clock the round has had: the ramp is read off this, not off
+// one.js's `time`, which counts the seconds a frozen board sits there.
+let clock = 0;
 let rockTime = 0;
 let waveTime = 0;
 let wave = 1;
@@ -477,6 +485,7 @@ export function init() {
   ent.reset([Rock, Enemy, ent.Particle, Player, Bullet]);
 
   realtime = 0;
+  clock = 0;
   rockTime = ROCK_FIRST;
   waveTime = 0;
   wave = 1;
@@ -506,10 +515,12 @@ export function update(dt) {
 
   const { input } = ent.game;
   const time = input.press.up || input.press.act ? dt : dt / SLOW;
+  clock += time;
+  const hard = ramp(clock);
 
   rockTime -= time;
   if (rockTime <= 0) {
-    rockTime = ROCK_EVERY;
+    rockTime = ROCK_EVERY / hard;
     newRock();
   }
 
@@ -517,7 +528,7 @@ export function update(dt) {
   if (waveTime <= 0) {
     const n = Math.floor(wave);
     for (let i = 0; i < n; ++i) new Enemy();
-    waveTime += WAVE_EVERY * n;
+    waveTime += WAVE_EVERY * n / hard;
     wave *= WAVE_GROW;
   }
 

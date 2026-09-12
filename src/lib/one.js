@@ -6,9 +6,10 @@
  * doing nothing at module scope: the build reads `meta` by importing it under
  * Deno, so nothing may use the DOM there.
  *
- * It also has the shared state: meta, score, act and op. overlay.js reads
- * them back out of here, and camera.js and sound.js write op.camera and
- * op.sound. input.js declares `input`, since it is what writes it.
+ * It also has the shared state: meta, score, act, op and the round clock the
+ * difficulty is read off. overlay.js reads them back out of here, and
+ * camera.js and sound.js write op.camera and op.sound. input.js declares
+ * `input`, since it is what writes it.
  */
 
 import Act from "../alma/src/Act.js";
@@ -49,6 +50,33 @@ export const score = {
   value: 0,
   best: null,
 };
+
+// Seconds the round has run: frame() moves it while the round runs and start()
+// puts it back.
+export let time = 0;
+
+// The difficulty at t, and at the second the round is on when asked for nothing:
+// ABA Games' curve (Joys of Small Game Development, difficulty), in seconds
+// rather than frames. 1 at the start, 1.6 a minute in, 2.04 at three minutes,
+// which is the run length it is shaped for, and climbing more slowly after. A
+// game multiplies a speed, a count or a rate by it.
+//
+// Passing a t is how a game with a clock of its own ramps on that clock rather
+// than on the wall: asteroid's runs at a fiftieth unless the player thrusts, and
+// gather's starts at the end of its opening script. Scale each parameter on its
+// own shape; the book's example is rock size on this and fall speed linear.
+export function ramp(t = time) {
+  return Math.sqrt(t * 0.006) + 1;
+}
+
+// One parameter of level `level`, 0 to 1. The exponent is 100 at level 0 and 1
+// at level 99, so an early roll sits near 0 and a late one is a flat draw: a
+// level comes out easier than its number often enough to break the climb. Roll
+// it once per parameter, so "many weak enemies" and "one dangerous one" are two
+// draws on the same level.
+export function roll(level) {
+  return Math.random() ** (100 / (level + 1));
+}
 
 // One mutable object rather than exported `let`s, because overlay.js imports it
 // back out of one.js: the two are a cycle, and a binding read at module scope
@@ -147,6 +175,7 @@ export function start() {
   // Reset to the whole board, so init() changes only what it needs to.
   op.camera?.moveTo({ x: SIZE / 2, y: SIZE / 2, scale: 1, angle: 0 }).settle();
   flashColor = null;
+  time = 0;
   overlay.startGame();
   op.playing = true;
   op.game.init?.();
@@ -202,6 +231,7 @@ function frame(dt) {
   overlay.poll(dt);
 
   if (op.playing) {
+    time += dt;
     op.game.update?.(dt);
   } else {
     overlay.update(dt, start);
