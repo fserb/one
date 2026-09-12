@@ -27,17 +27,17 @@ const RED_DARK = 0x861034;
 
 class Enemy extends ent.Entity {
   begin() {
-    this.size = 7 + Math.random() * 15;
+    this.size = 15 + Math.random() * 32;
     this.tv = 0;
     this.tads = 0;
-    this.art.size(5).color(RED, RED_DARK, 23);
+    this.art.size(10).color(RED, RED_DARK, 23);
     this.draw();
-    this.pos.x = 480 * Math.random();
-    this.pos.y = 480 * Math.random();
+    this.pos.x = 1024 * Math.random();
+    this.pos.y = 1024 * Math.random();
   }
 
   draw() {
-    const r = this.size / 5;
+    const r = this.size / 10;
     this.art.clear().circle(r, r, r);
   }
 
@@ -54,7 +54,7 @@ class Enemy extends ent.Entity {
     const d = Math.hypot(dx, dy);
     if (d > 0) {
       const k = Math.sqrt(ent.game.totalTime * 0.00002) * this.size *
-        Math.min(1, this.tv) * player.size * 7 / d;
+        Math.min(1, this.tv) * player.size * 3.3 / d;
       this.vel.x += dx * k;
       this.vel.y += dy * k;
     }
@@ -63,14 +63,14 @@ class Enemy extends ent.Entity {
 
     // Points accrue while close without touching, so a near miss scores.
     const gap = d - this.size - player.size;
-    const ads = Math.trunc((this.size + player.size) * 2 / (gap + 0.1));
+    const ads = Math.trunc((this.size + player.size) * 2 / (gap + 0.2));
     if (ads > 0) this.tads += ads;
     else this.cash();
 
-    const s = 100;
+    const s = 200;
     if (
       this.pos.x < -s || this.pos.y < -s ||
-      this.pos.x > 480 + s || this.pos.y > 480 + s
+      this.pos.x > 1024 + s || this.pos.y > 1024 + s
     ) {
       this.cash();
       this.remove();
@@ -115,7 +115,8 @@ class Enemy extends ent.Entity {
       text: `+${this.tads}`,
       x: this.pos.x,
       y: this.pos.y,
-      vel: [0, -20],
+      size: 2,
+      vel: [0, -40],
       duration: 1,
     });
     score.value += this.tads;
@@ -125,21 +126,21 @@ class Enemy extends ent.Entity {
 
 class Player extends ent.Entity {
   begin() {
-    this.size = 25;
-    this.pos.x = this.pos.y = 240;
-    this.art.size(3).color(GOLD, GOLD_DARK, 32);
+    this.size = 53;
+    this.pos.x = this.pos.y = 512;
+    this.art.size(6).color(GOLD, GOLD_DARK, 32);
     this.draw();
   }
 
   draw() {
-    const r = this.size / 3;
+    const r = this.size / 6;
     this.art.clear().circle(r, r, r);
   }
 
   update() {
     this.pos.x = ent.game.input.x;
     this.pos.y = ent.game.input.y;
-    this.size += ent.game.time;
+    this.size += 2 * ent.game.time;
     this.draw();
   }
 
@@ -151,8 +152,8 @@ class Player extends ent.Entity {
       y: this.pos.y,
       color: GOLD,
       count: 150,
-      size: [5, 9],
-      speed: [Math.hypot(this.vel.x, this.vel.y) / 10, 50],
+      size: [11, 19],
+      speed: [Math.hypot(this.vel.x, this.vel.y) / 10, 105],
       duration: 5,
     });
     gameOver({ score: true });
@@ -165,14 +166,15 @@ function burst(color, pos, speed) {
     y: pos.y,
     color,
     count: [100, 20],
-    size: [7, 5],
-    speed: [speed, 100],
+    size: [15, 11],
+    speed: [speed, 210],
     duration: 0.5,
   });
 }
 
 export function init() {
   ent.reset([Enemy, Player, ent.Particle]);
+  ent.world(1024); // in place of the 480 box reset() sets
 
   new Player();
   ent.every(1.5, () => {

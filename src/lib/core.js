@@ -47,7 +47,7 @@ export function world(size) {
   op.camera.bounds = null;
   const half = size / 2;
   op.camera.moveTo({ x: half, y: half, scale: SIZE / size, angle: 0 }).settle();
-  op.camera.shakeBase = SHAKE_BASE * SIZE / size;
+  op.camera.shakeBase = SHAKE_BASE;
   op.camera.shakeHz = SHAKE_HZ;
 }
 
@@ -104,9 +104,14 @@ export function reset(classes = []) {
  * a second and reused in between. Reused, or it moves twice as fast at 120Hz as
  * at 60. Camera2D shakes on those same three numbers, so with a camera shake()
  * passes them over rather than offsetting a frame that is already offset.
+ *
+ * Both are on one's 1024 and not on the game's box, so a shake is the same size
+ * on screen whatever the box is. Camera2D's shake is in screen units already;
+ * stepShake() divides back into box units, since render() offsets under the
+ * scale.
  */
-const SHAKE_BASE = 5;
-const SHAKE_FALL = 10;
+const SHAKE_BASE = 10;
+const SHAKE_FALL = 20;
 const SHAKE_HZ = 30;
 
 let shaking = 0;
@@ -117,7 +122,7 @@ let held = 0;
 
 export function shake(t = 0.4) {
   if (op.camera) {
-    op.camera.shake(t, SHAKE_FALL * SIZE / game.size);
+    op.camera.shake(t, SHAKE_FALL);
     return;
   }
   shaking = Math.max(shaking, t);
@@ -140,7 +145,7 @@ function stepShake(dt) {
   shakeHold = 1 / SHAKE_HZ;
   // Square, not circle: a constant radius puts every offset on one circle, and
   // that looks like rotation rather than shaking.
-  const amp = SHAKE_BASE + SHAKE_FALL * shaking;
+  const amp = (SHAKE_BASE + SHAKE_FALL * shaking) * game.size / SIZE;
   shakeX = amp * (2 * Math.random() - 1);
   shakeY = amp * (2 * Math.random() - 1);
 }
@@ -340,8 +345,8 @@ export function render(ctx) {
   ctx.save();
   if (op.camera) op.camera.apply(ctx);
   else ctx.scale(SIZE / game.size, SIZE / game.size);
-  // World units, so a shake is the same size whatever the box is. With a camera
-  // there is nothing to add: apply() above already included its own.
+  // Box units, which stepShake() has already converted from screen. With a
+  // camera there is nothing to add: apply() above already included its own.
   if (shaking > 0) ctx.translate(shakeX, shakeY);
   draw(ctx, layers, false);
   ctx.restore();
