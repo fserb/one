@@ -1,0 +1,251 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Vera</title>
+<link rel="stylesheet" href="vera.css">
+<style>
+  /* Preview-only faces, none of which vera.css embeds.
+     "Vera One" is the shipped regular under a family that declares no bold, so
+     asking it for 700 leaves the browser nothing to match and it synthesizes.
+     "Hinted"/"Unhinted" are the same subset at the same 2048 upem, differing
+     only in whether the TrueType instructions survived. */
+  @font-face { font-family: "Vera One"; font-weight: 400; src: url(Vera.woff2) format("woff2"); }
+  @font-face { font-family: "Hinted";   src: url(vera-hinted.woff2)   format("woff2"); }
+  @font-face { font-family: "Unhinted"; src: url(vera-unhinted.woff2) format("woff2"); }
+
+  body { background: #17171b; color: #f5f4f0; margin: 0; padding: 2rem 3rem 6rem; }
+  h2 { font: 600 11px/1 system-ui; letter-spacing: .12em; text-transform: uppercase;
+       color: #888; margin: 2.5rem 0 .9rem; border-top: 1px solid #333;
+       padding-top: .75rem; }
+  p { margin: 0 0 .4rem; }
+  .note { font-family: system-ui; font-size: 12px; line-height: 1.55; color: #999;
+          margin-top: .7rem; max-width: 50rem; }
+  .note b { color: #f5f4f0; font-weight: 600; }
+
+  .r { display: grid; grid-template-columns: 7rem 1fr; align-items: baseline;
+       gap: .9rem; margin-bottom: .25rem; }
+  .r > span:first-child { font: 600 10px/1 system-ui; letter-spacing: .1em;
+                          text-transform: uppercase; color: #777; }
+
+  .real  { font-family: "Vera"; font-weight: 700; }
+  .synth { font-family: "Vera One"; font-weight: 700; font-synthesis: weight; }
+
+  figure { margin: .5rem 0 0; }
+  canvas { display: block; background: #000; max-width: 100%; }
+  figcaption { font-family: system-ui; font-size: 12px; line-height: 1.55;
+               color: #999; margin-top: .5rem; max-width: 50rem; }
+  figcaption b { color: #f5f4f0; font-weight: 600; }
+
+  table { border-collapse: collapse; font: 13px/1.6 system-ui; margin-top: .6rem; }
+  th, td { text-align: right; padding: .2rem 1.1rem .2rem 0; white-space: nowrap; }
+  th { color: #777; font-weight: 600; font-size: 10px; text-transform: uppercase;
+       letter-spacing: .09em; }
+  td:first-child, th:first-child { text-align: left; }
+  td { font-variant-numeric: tabular-nums; }
+</style>
+
+<h2>real bold vs synthesized bold</h2>
+<div class="r"><span>regular</span><span style="font-size:44px">Hamburgefonstiv 280</span></div>
+<div class="r"><span>real 700</span><span class="real" style="font-size:44px">Hamburgefonstiv 280</span></div>
+<div class="r"><span>synth</span><span class="synth" style="font-size:44px">Hamburgefonstiv 280</span></div>
+<p class="note">The synthesized row sits much closer to regular than to real bold.
+  That is the honest result on this machine: Chromium on macOS emboldens by a
+  hairline and leaves advance widths untouched.</p>
+
+<h2>difference images</h2>
+<figure>
+  <canvas id="d-synth"></canvas>
+  <figcaption><b>regular 400 against synthesized 700.</b> Everything synthesis
+    adds, and nothing else. Brightness is the per-pixel difference, amplified
+    <span data-amp></span>&times; so it is visible at all.</figcaption>
+</figure>
+<figure>
+  <canvas id="d-bold"></canvas>
+  <figcaption><b>real 700 against synthesized 700.</b> Same amplification. Whole
+    letterforms survive and the mismatch grows left to right as the width
+    difference accumulates: real bold is a separate drawing, not a thickened
+    regular.</figcaption>
+</figure>
+<p class="note">These are drawn by subtracting one canvas rasterization from the
+  other, not by blending two DOM layers. A CSS <code>mix-blend-mode: difference</code>
+  stack leaves a visible outline even when both layers use the identical font,
+  so it cannot distinguish a real difference from a compositing artifact.</p>
+
+<h2>measured</h2>
+<table id="m"><tr><th>face</th><th>ink</th><th>vs regular</th><th>advance</th><th>vs regular</th></tr></table>
+<p class="note">Ink is the summed alpha of the rasterized string at 110px, so it
+  counts coverage rather than pixels touched. Canvas applies synthesis on its own
+  terms and ignores the CSS property, so the synth row is measurable here
+  regardless of what body is set to.</p>
+
+<h2>small sizes</h2>
+<div class="r"><span>real 19</span><span class="real" style="font-size:19px">one tiny game &mdash; GAME OVER 2026</span></div>
+<div class="r"><span>synth 19</span><span class="synth" style="font-size:19px">one tiny game &mdash; GAME OVER 2026</span></div>
+<div class="r"><span>real 14</span><span class="real" style="font-size:14px">one tiny game &mdash; GAME OVER 2026</span></div>
+<div class="r"><span>synth 14</span><span class="synth" style="font-size:14px">one tiny game &mdash; GAME OVER 2026</span></div>
+<div class="r"><span>real 11</span><span class="real" style="font-size:11px">one tiny game &mdash; GAME OVER 2026</span></div>
+<div class="r"><span>synth 11</span><span class="synth" style="font-size:11px">one tiny game &mdash; GAME OVER 2026</span></div>
+
+<h2>hinting: what dropping it cost</h2>
+<p class="note">The shipped faces are built with <b>--no-hinting</b>, which took
+  the pair from 26,052 bytes of WOFF2 to 9,872. Vera is from 2003 and carries a
+  hand-written instruction set that outweighs its own outlines. Both rows below
+  are the same subset at the same 2048 units per em; the only difference is
+  whether those instructions survived.</p>
+<table id="h"><tr><th>build</th><th>bytes</th><th>vs hinted</th></tr></table>
+
+<div class="r"><span>hinted 9</span><span style="font:9px Hinted">one tiny game &mdash; GAME OVER 2026 illustrating</span></div>
+<div class="r"><span>unhinted 9</span><span style="font:9px Unhinted">one tiny game &mdash; GAME OVER 2026 illustrating</span></div>
+<div class="r"><span>hinted 11</span><span style="font:11px Hinted">one tiny game &mdash; GAME OVER 2026 illustrating</span></div>
+<div class="r"><span>unhinted 11</span><span style="font:11px Unhinted">one tiny game &mdash; GAME OVER 2026 illustrating</span></div>
+<div class="r"><span>hinted 14</span><span style="font:14px Hinted">one tiny game &mdash; GAME OVER 2026 illustrating</span></div>
+<div class="r"><span>unhinted 14</span><span style="font:14px Unhinted">one tiny game &mdash; GAME OVER 2026 illustrating</span></div>
+<div class="r"><span>hinted 40</span><span style="font:40px Hinted">Hamburgefonstiv</span></div>
+<div class="r"><span>unhinted 40</span><span style="font:40px Unhinted">Hamburgefonstiv</span></div>
+
+<figure>
+  <canvas id="d-hint"></canvas>
+  <figcaption><b>hinted against unhinted</b>, same amplification as above.
+    <span id="hint-verdict"></span></figcaption>
+</figure>
+
+<table id="hd"><tr><th>size</th><th>differing ink</th><th>worst pixel</th><th>advance, hinted</th><th>unhinted</th></tr></table>
+<p class="note" id="hv"></p>
+
+<h2>what font-synthesis is set to, and why</h2>
+<p class="note">vera.css sets <b>font-synthesis: style</b>. The shear is allowed
+  because it is a convincing fake; the weight smear is refused because, as
+  measured above, it is not. Refusing weight also stops a request for 900 from
+  matching the real 700 face and then being emboldened again on top of it.</p>
+
+<h2>the family as shipped</h2>
+<div class="r"><span>400</span><span style="font-size:30px">Wow Trap Orbit Blob 0123456789</span></div>
+<div class="r"><span>700</span><span class="real" style="font-size:30px">Wow Trap Orbit Blob 0123456789</span></div>
+<div class="r"><span>ascii</span><span style="font-size:13px">!"#$%&amp;'()*+,-./:;&lt;=&gt;?@[\]^_`{|}~</span></div>
+<div class="r"><span>italic</span><span style="font-size:20px"><i>no italic face, so this slant is synthesized</i> &mdash; <span style="font-synthesis:none"><i>and this one is refused</i></span></span></div>
+<div class="r"><span>fallback</span><span style="font-size:18px">caf&eacute; &ldquo;curly&rdquo; &plusmn; &frac12; &rarr; &alpha;&beta;&gamma;</span></div>
+
+<script type="module">
+await document.fonts.ready;
+
+const AMP = 4;
+for (const el of document.querySelectorAll("[data-amp]")) el.textContent = AMP;
+
+// Rasterize a string into an alpha map using the page's own rasterizer.
+function raster(font, text, w, h, baseline) {
+  const c = document.createElement("canvas");
+  c.width = w; c.height = h;
+  const ctx = c.getContext("2d", {willReadFrequently: true});
+  ctx.font = font;
+  ctx.fillStyle = "#fff";
+  ctx.fillText(text, 6, baseline);
+  const d = ctx.getImageData(0, 0, w, h).data;
+  const a = new Uint8Array(w * h);
+  for (let i = 0, j = 3; i < a.length; i++, j += 4) a[i] = d[j];
+  return {a, width: ctx.measureText(text).width};
+}
+
+function stats(A, B) {
+  let diff = 0, total = 0, worst = 0;
+  for (let i = 0; i < A.length; i++) {
+    total += A[i];
+    const d = Math.abs(A[i] - B[i]);
+    diff += d;
+    if (d > worst) worst = d;
+  }
+  return {pct: total ? 100 * diff / total : 0, worst};
+}
+
+// Paint |A - B| into a visible canvas, amplified so small residuals register.
+function paintDiff(canvas, A, B, w, h) {
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  const img = ctx.createImageData(w, h);
+  for (let i = 0; i < A.length; i++) {
+    const v = Math.min(255, Math.abs(A[i] - B[i]) * AMP);
+    img.data[i * 4] = img.data[i * 4 + 1] = img.data[i * 4 + 2] = v;
+    img.data[i * 4 + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
+// --- synthesis -------------------------------------------------------------
+{
+  const W = 1180, H = 130, TEXT = "Hamburgefonstiv";
+  const reg   = raster('400 92px Vera', TEXT, W, H, 100);
+  const synth = raster('700 92px "Vera One"', TEXT, W, H, 100);
+  const real  = raster('700 92px Vera', TEXT, W, H, 100);
+  paintDiff(document.querySelector("#d-synth"), reg.a, synth.a, W, H);
+  paintDiff(document.querySelector("#d-bold"), real.a, synth.a, W, H);
+}
+
+const SIZE = 110, TEXT = "Hamburgefonstiv";
+const rows = [
+  ["regular 400", `400 ${SIZE}px Vera`],
+  ["real bold 700", `700 ${SIZE}px Vera`],
+  ["synth bold 700", `700 ${SIZE}px "Vera One"`],
+].map(([name, font]) => {
+  const r = raster(font, TEXT, 1400, 220, 165);
+  let ink = 0;
+  for (const v of r.a) ink += v;
+  return [name, {ink: Math.round(ink / 255), w: r.width}];
+});
+const base = rows[0][1];
+const pct = (v, b) => v === b ? "&mdash;"
+  : `${v > b ? "+" : ""}${(100 * (v / b - 1)).toFixed(1)}%`;
+const mTable = document.querySelector("#m");
+for (const [name, r] of rows) {
+  mTable.insertRow().innerHTML =
+    `<td>${name}</td><td>${r.ink}</td><td>${pct(r.ink, base.ink)}</td>` +
+    `<td>${r.w.toFixed(1)}</td><td>${pct(r.w, base.w)}</td>`;
+}
+
+// --- hinting ---------------------------------------------------------------
+const bytes = Object.fromEntries(await Promise.all(
+  [["hinted", "vera-hinted.woff2"], ["unhinted", "vera-unhinted.woff2"],
+   ["shipped", "Vera.woff2"]].map(async ([k, url]) =>
+    [k, (await (await fetch(url)).arrayBuffer()).byteLength])));
+
+const hTable = document.querySelector("#h");
+for (const [k, label] of [["hinted", "hinted, 2048 upem"],
+                          ["unhinted", "unhinted, 2048 upem"],
+                          ["shipped", "what ships: unhinted, 1000 upem"]]) {
+  hTable.insertRow().innerHTML =
+    `<td>${label}</td><td>${bytes[k].toLocaleString()}</td>` +
+    `<td>${k === "hinted" ? "&mdash;" : pct(bytes[k], bytes.hinted)}</td>`;
+}
+
+{
+  const W = 1180, H = 130, T = "Hamburgefonstiv";
+  const A = raster("92px Hinted", T, W, H, 100);
+  const B = raster("92px Unhinted", T, W, H, 100);
+  paintDiff(document.querySelector("#d-hint"), A.a, B.a, W, H);
+  const s = stats(A.a, B.a);
+  document.querySelector("#hint-verdict").innerHTML = s.worst === 0
+    ? "It is entirely black, and that is not a rendering of nothing: the two " +
+      "rasterizations are identical to the last subpixel."
+    : `Worst pixel differs by ${s.worst} of 255.`;
+}
+
+const hd = document.querySelector("#hd");
+let anyDiff = false;
+for (const px of [9, 11, 13, 16, 24, 40]) {
+  const t = "one tiny game GAME OVER 2026 illustrating";
+  const A = raster(`${px}px Hinted`, t, 1600, 90, 70);
+  const B = raster(`${px}px Unhinted`, t, 1600, 90, 70);
+  const s = stats(A.a, B.a);
+  if (s.worst) anyDiff = true;
+  hd.insertRow().innerHTML =
+    `<td>${px}px</td><td>${s.pct.toFixed(2)}%</td><td>${s.worst}</td>` +
+    `<td>${A.width.toFixed(1)}</td><td>${B.width.toFixed(1)}</td>`;
+}
+
+document.querySelector("#hv").innerHTML = anyDiff
+  ? "The two differ, so this browser is executing the TrueType instructions."
+  : `<b>Every measurement is zero, advances included: the two rasterize ` +
+    `identically here.</b> Chromium on macOS renders glyphs through CoreText, ` +
+    `which does not run TrueType instructions, so the ` +
+    `${(bytes.hinted - bytes.unhinted).toLocaleString()} bytes of hinting ` +
+    `bought this platform nothing at any size. DirectWrite on Windows does ` +
+    `consult them below about 14px, and that is the one place dropping them ` +
+    `can show.`;
+</script>
