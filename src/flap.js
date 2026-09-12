@@ -37,29 +37,29 @@ const COIN_LIT = 0xffffff;
 const COIN_DIM = 0xc8c0c0;
 const COIN_EDGE = 0x847f7f;
 
-const LEFT = 20;
-const RIGHT = 460;
-const TOP = 20;
-const BOTTOM = 460;
+const LEFT = 40;
+const RIGHT = 984;
+const TOP = 40;
+const BOTTOM = 984;
 
 // Sideways speed never changes, only a wall turns it.
-const SPEED = 100;
-const FLAP = 200;
-const GRAVITY = 300;
+const SPEED = 210;
+const FLAP = 420;
+const GRAVITY = 630;
 
 class Bird extends ent.Entity {
   begin() {
-    this.pos.x = this.pos.y = 240;
+    this.pos.x = this.pos.y = 512;
     this.left = false;
-    this.art.size(2, 17, 12).obj(
+    this.art.size(4, 17, 12).obj(
       [DARK, WHITE, GREY, BIRD, BIRD_LIGHT, BIRD_DARK, BIRD_LIPS],
       `
 ......000000.........004440110.......04433011110.....0433330211010..
 .03333330211010...00000333021110..0111110333000000.04111403306666660
 .000005506000000...05555550666660....005555500000.......00000.......`,
     );
-    // 17x12 pixels at two units each, near enough to the drawing.
-    this.hitBox(30, 20);
+    // 17x12 pixels at four units each, near enough to the drawing.
+    this.hitBox(64, 44);
   }
 
   update() {
@@ -89,27 +89,27 @@ class Coin extends ent.Entity {
   begin() {
     const bird = ent.one(Bird);
     // Along the path the bird is already on, so never a round trip away.
-    const d = 100 + Math.random() * 280;
+    const d = 210 + Math.random() * 600;
     this.pos.x = along(bird.pos.x, bird.left ? -1 : 1, d);
 
     // No further off its height than it can climb on the way.
     const span = (d / SPEED) * FLAP * 0.7;
-    const lo = Math.max(TOP + 20, bird.pos.y - span);
-    const hi = Math.min(BOTTOM - 20, bird.pos.y + span);
+    const lo = Math.max(TOP + 40, bird.pos.y - span);
+    const hi = Math.min(BOTTOM - 40, bird.pos.y + span);
     this.pos.y = lo + Math.random() * (hi - lo);
 
     this.life = this.max = d / SPEED +
       Math.abs(this.pos.y - bird.pos.y) / FLAP +
       Math.max(0.8, 2.2 - score.value * 0.05);
-    this.hitCircle(10);
+    this.hitCircle(21);
     this.draw();
   }
 
   draw() {
-    // The original at radius 10, 2 wide line, highlights 2 above and below
-    // centre, times what is left.
-    const r = 10 * this.life / this.max;
-    const w = Math.max(1, r / 5);
+    // Radius 21, a line a fifth of it wide, highlights that far above and
+    // below centre, times what is left.
+    const r = 21 * this.life / this.max;
+    const w = Math.max(2, r / 5);
     this.gfx.clear()
       .fill(COIN).circle(0, 0, r).fill(null)
       .line(w, COIN_LIT).arc(0, w, r, r, 0, Math.PI)
@@ -134,8 +134,8 @@ class Coin extends ent.Entity {
       y: this.pos.y,
       color: COIN_LIT,
       count: [60, 20],
-      size: [4, 3],
-      speed: [60, 120],
+      size: [9, 6],
+      speed: [128, 256],
       duration: [0.6, 0.2],
     });
     this.remove();

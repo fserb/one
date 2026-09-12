@@ -43,37 +43,34 @@ const BLACK = 0x000000;
 
 const TAU = 2 * Math.PI;
 
-// The 480 box the game is written in.
-const W = 480;
-
 const SLOW = 50;
 // How long input is ignored, and the whole length of the end screen.
 const DYING = 2.5;
 const FLIP = 1;
-const FLIP_GAP = 120;
+const FLIP_GAP = 256;
 
-// dart()'s shape, moved from the corner of the sprite's 24x24 box onto the
+// dart()'s shape, moved from the corner of the sprite's 52x52 box onto the
 // centre it is drawn about.
-const SHIP = [-12, -12, 12, 0, -12, 12];
-const MUZZLE = 10;
+const SHIP = [-26, -26, 26, 0, -26, 26];
+const MUZZLE = 21;
 
 const TURN = 1.5 * Math.PI;
-const THRUST = 200;
-const TOP_SPEED = 200;
+const THRUST = 425;
+const TOP_SPEED = 425;
 // Nothing clamps it, so firing over your shoulder is the one way past
 // TOP_SPEED.
-const RECOIL = 35;
+const RECOIL = 75;
 const RELOAD = 0.35;
 
-const SHOT = [-7, -3, 7, -3, 7, 3, -7, 3];
-const SHOT_SPEED = 300;
+const SHOT = [-15, -6, 15, -6, 15, 6, -15, 6];
+const SHOT_SPEED = 640;
 const SHOT_LIFE = 2;
 
 // Only a rock this big splits, so the halves it leaves are the end of it.
-const ROCK_MIN = 30;
-const ROCK_VAR = 20;
-const ROCK_SPEED = 100;
-const SPLIT_SPEED = 50;
+const ROCK_MIN = 64;
+const ROCK_VAR = 43;
+const ROCK_SPEED = 215;
+const SPLIT_SPEED = 107;
 const ROCK_FIRST = 2;
 const ROCK_EVERY = 23;
 
@@ -86,11 +83,11 @@ const ENEMY_FIRST = 1.5;
 const ENEMY_RELOAD = 0.75;
 const AIM_TURN = Math.PI;
 const STEER_TURN = 1.5 * Math.PI;
-const ARRIVE = 32;
+const ARRIVE = 68;
 // Over CRUISE an enemy stops steering and aims; under SLOW_SPEED it thrusts
 // whichever way it points.
-const CRUISE = 100;
-const STALLED = 20;
+const CRUISE = 215;
+const STALLED = 43;
 const CONE = Math.PI / 6;
 const SIGHT = Math.PI / 12;
 
@@ -118,8 +115,8 @@ let flipped = [];
 
 class Player extends ent.Entity {
   begin() {
-    this.pos.x = W / 2;
-    this.pos.y = W / 2;
+    this.pos.x = 512;
+    this.pos.y = 512;
     this.reload = 0;
     dart(this, WHITE);
     this.hitPoly(SHIP);
@@ -139,7 +136,7 @@ class Player extends ent.Entity {
       this.reload += RELOAD;
     }
 
-    wrap(this, 12);
+    wrap(this, 26);
 
     const b = incoming(this, false);
     if (b === null) return;
@@ -162,7 +159,7 @@ class Bullet extends ent.Entity {
     this.vel.y = SHOT_SPEED * Math.sin(this.angle);
     this.hitPoly(SHOT);
     this.gfx.fill(fromPlayer ? WHITE : BLACK)
-      .mt(0, 3).lt(10, 0).lt(14, 0).lt(14, 6).lt(10, 6).lt(0, 3);
+      .mt(0, 6).lt(21, 0).lt(30, 0).lt(30, 12).lt(21, 12).lt(0, 6);
   }
 
   update() {
@@ -222,8 +219,8 @@ class Rock extends Target {
         y: this.pos.y,
         color: BLACK,
         count: [2 * this.size, this.size],
-        size: [4, this.size / 2],
-        speed: [0, 100],
+        size: [9, this.size / 2],
+        speed: [0, 215],
         duration: [1.5, 0.5],
       });
 
@@ -250,11 +247,11 @@ class Enemy extends Target {
     this.reload = ENEMY_FIRST;
 
     if (Math.random() < 0.5) {
-      this.pos.x = W * Math.random();
-      this.pos.y = Math.random() < 0.5 ? 0 : W;
+      this.pos.x = 1024 * Math.random();
+      this.pos.y = Math.random() < 0.5 ? 0 : 1024;
     } else {
-      this.pos.x = Math.random() < 0.5 ? 0 : W;
-      this.pos.y = W * Math.random();
+      this.pos.x = Math.random() < 0.5 ? 0 : 1024;
+      this.pos.y = 1024 * Math.random();
     }
 
     this.findTarget();
@@ -265,8 +262,8 @@ class Enemy extends Target {
   // Pulled towards the player by age: a fresh ship wanders, one ten seconds old
   // flies three quarters of the way at you.
   findTarget() {
-    const x = W * Math.random();
-    const y = W * Math.random();
+    const x = 1024 * Math.random();
+    const y = 1024 * Math.random();
     const p = ent.one(Player);
     if (p === null) {
       this.target = { x, y };
@@ -326,7 +323,7 @@ class Enemy extends Target {
       }
     }
 
-    wrap(this, 12);
+    wrap(this, 26);
 
     const b = incoming(this, true);
     if (b !== null) {
@@ -348,9 +345,9 @@ class Enemy extends Target {
   }
 }
 
-// Gfx centres it on its own 24x24 box, which is where SHIP's numbers come from.
+// Gfx centres it on its own 52x52 box, which is where SHIP's numbers come from.
 function dart(e, color) {
-  e.gfx.fill(color).mt(24, 12).lt(0, 24).lt(6, 12).lt(0, 0).lt(24, 12);
+  e.gfx.fill(color).mt(52, 26).lt(0, 52).lt(13, 26).lt(0, 0).lt(52, 26);
 }
 
 function thrust(e, dv) {
@@ -404,16 +401,16 @@ function explode(p) {
 function turnOver() {
   for (const t of flipped) t.remove();
   flip = !flip;
-  const mid = W / 2;
-  flipped = flip ? [label(mid, 12, Math.floor(score.value))] : [
-    label(mid - FLIP_GAP, 9, "SUPER"),
-    label(mid, 9, "HOT"),
-    label(mid + FLIP_GAP, 9, "ASTEROID"),
+  const mid = 512;
+  flipped = flip ? [label(mid, 26, Math.floor(score.value))] : [
+    label(mid - FLIP_GAP, 19, "SUPER"),
+    label(mid, 19, "HOT"),
+    label(mid + FLIP_GAP, 19, "ASTEROID"),
   ];
 }
 
 function label(y, size, text) {
-  return new ent.Text({ text, x: W / 2, y, size, color: WHITE });
+  return new ent.Text({ text, x: 512, y, size, color: WHITE });
 }
 
 function debris(pos, color, count, life) {
@@ -422,8 +419,8 @@ function debris(pos, color, count, life) {
     y: pos.y,
     color,
     count: [count, 20],
-    size: [3, 10],
-    speed: [5, 25],
+    size: [6, 21],
+    speed: [11, 53],
     duration: [life, 0.5],
   });
 }
@@ -433,8 +430,9 @@ function pop(pos, text) {
     text,
     x: pos.x,
     y: pos.y,
+    size: 2,
     color: WHITE,
-    vel: [0, -20],
+    vel: [0, -43],
     duration: 1,
   });
 }
@@ -447,23 +445,23 @@ function newRock() {
   const size = ROCK_MIN + ROCK_VAR * Math.random();
   const angle = TAU * Math.random();
   if (Math.random() < 0.5) {
-    const y = Math.random() < 0.5 ? -size : W + size;
-    new Rock(size, W * Math.random(), y, angle, ROCK_SPEED);
+    const y = Math.random() < 0.5 ? -size : 1024 + size;
+    new Rock(size, 1024 * Math.random(), y, angle, ROCK_SPEED);
     return;
   }
-  const x = Math.random() < 0.5 ? -size : W + size;
-  new Rock(size, x, W * Math.random(), angle, ROCK_SPEED);
+  const x = Math.random() < 0.5 ? -size : 1024 + size;
+  new Rock(size, x, 1024 * Math.random(), angle, ROCK_SPEED);
 }
 
 // Back on a unit short of the threshold it would leave by. `s` is how far past
 // the edge an entity runs first, which is its width.
 function wrap(e, s) {
   const { pos } = e;
-  if (pos.x < -s / 2) pos.x = W + s / 2 - 1;
-  else if (pos.x > W + s / 2) pos.x = -s / 2 + 1;
+  if (pos.x < -s / 2) pos.x = 1024 + s / 2 - 1;
+  else if (pos.x > 1024 + s / 2) pos.x = -s / 2 + 1;
 
-  if (pos.y < -s / 2) pos.y = W + s / 2 - 1;
-  else if (pos.y > W + s / 2) pos.y = -s / 2 + 1;
+  if (pos.y < -s / 2) pos.y = 1024 + s / 2 - 1;
+  else if (pos.y > 1024 + s / 2) pos.y = -s / 2 + 1;
 }
 
 function fold(a) {

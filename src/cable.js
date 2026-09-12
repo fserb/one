@@ -17,7 +17,7 @@
  */
 
 import * as ent from "./lib/entity.js";
-import { flash, gameOver, msg, score, SIZE } from "./lib/one.js";
+import { flash, gameOver, msg, score } from "./lib/one.js";
 import { explosion, hit, powerup } from "./lib/fsfx/sfxr.js";
 import * as sound from "./lib/sound.js";
 
@@ -42,11 +42,8 @@ const YELLOW = 0xffe0a5;
 const DARKYELLOW = 0xe4b455;
 const DARKRED = 0xe25458;
 
-// The 480 box the game is written in.
-const W = 480;
-
-// A sigma of 5, and a canvas shadow's sigma is half its blur.
-const GLOW = 10;
+// A sigma of 10, and a canvas shadow's sigma is half its blur.
+const GLOW = 20;
 
 const LEVELS = [2, 3, 5, 8, 10, 15, 20, 30, 50];
 const EXTRA = 17;
@@ -59,36 +56,36 @@ const FIRST = 40;
 // How often the bar flips colour over the last fifth of the clock.
 const FLIP = 0.1;
 
-const PSIZE = 30;
-const PVARY = 20;
-const PGAP = 60;
+const PSIZE = 64;
+const PVARY = 43;
+const PGAP = 128;
 
-const PUSH = 1000;
-const BUMP = 7000;
+const PUSH = 2100;
+const BUMP = 15000;
 // The earth sits far enough below the start that only a badly aimed opening
 // reaches it.
-const PW = 16;
-const PH = 24;
-const EARTH = 300;
-const EARTHY = 710;
+const PW = 34;
+const PH = 51;
+const EARTH = 640;
+const EARTHY = 1515;
 
 // Inside the earth, so the cable emerges from under the surface.
-const ROOTX = 240;
-const ROOTY = 480;
-const HALF = 1.5; // the cable is 3 across, so it catches 1.5 out from a rim
+const ROOTX = 512;
+const ROOTY = 1024;
+const HALF = 3; // the cable is 6 across, so it catches 3 out from a rim
 const SLACK = Math.PI / 4;
-const REACH = W + W / 2; // drag is quadratic in the free stretch over this
+const REACH = 1024 + 512; // drag is quadratic in the free stretch over this
 
 const WIPE = 1;
 const FADE = 1.5;
 const FLASH = 0.05;
 
 // The planets gauge sits just under the overlay's msg() label, which takes the
-// top of the board down to 36.
-const PIECES_X = 60;
-const PIECES_Y = 55;
-const CLOCK_X = 60;
-const CLOCK_Y = 455;
+// top of the board down to 77.
+const PIECES_X = 128;
+const PIECES_Y = 117;
+const CLOCK_X = 128;
+const CLOCK_Y = 970;
 const ZONE_ALPHA = 0.25;
 
 sound.voice("hit", { ...explosion(1238), vol: 0.1 });
@@ -112,13 +109,13 @@ let scale = 1; // world units to device pixels, which is what shadowBlur wants
 class Player extends ent.Entity {
   constructor() {
     super();
-    this.pos.x = this.pos.y = W / 2;
+    this.pos.x = this.pos.y = 512;
     this.gfx.fill(BLACK)
-      .circle(0, -4, 8)
-      .circle(0, 4, 8)
-      .circle(-8, 8, 4)
-      .circle(8, 8, 4)
-      .circle(0, 0, 8);
+      .circle(0, -9, 17)
+      .circle(0, 9, 17)
+      .circle(-17, 17, 9)
+      .circle(17, 17, 9)
+      .circle(0, 0, 17);
     this.hitBox(PW, PH);
   }
 
@@ -138,7 +135,7 @@ class Player extends ent.Entity {
 
     // Quadratic in speed and in how much cable is out.
     const f = Math.hypot(tip.tp.x, tip.tp.y) / REACH;
-    const k = (-0.001 - 0.01 * f * f) * Math.hypot(this.vel.x, this.vel.y);
+    const k = (-0.00047 - 0.0047 * f * f) * Math.hypot(this.vel.x, this.vel.y);
     this.accelerate(this.vel.x * k, this.vel.y * k);
 
     this.angle = angleOf(this.vel) + Math.PI / 2;
@@ -156,7 +153,7 @@ class Player extends ent.Entity {
 
     this.accelerate(ux * BUMP, uy * BUMP);
     ent.shake(0.2);
-    flash(css(WHITE), FLASH);
+    flash(ent.css(WHITE), FLASH);
     sound.play("hit");
   }
 
@@ -164,7 +161,7 @@ class Player extends ent.Entity {
     // Glow in one pass and the drawing in another, or the last circle's halo
     // lands on top of the ones before it.
     ctx.save();
-    ctx.shadowColor = css(WHITE);
+    ctx.shadowColor = ent.css(WHITE);
     ctx.shadowBlur = GLOW * scale;
     this.gfx.render(ctx);
     ctx.restore();
@@ -278,10 +275,10 @@ class Rope extends ent.Entity {
 
   render(ctx) {
     ctx.globalAlpha = 0.5;
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = css(this.live ? BLACK : WHITE);
+    ctx.lineWidth = 6;
+    ctx.strokeStyle = ent.css(this.live ? BLACK : WHITE);
     if (this.live) {
-      ctx.shadowColor = css(WHITE);
+      ctx.shadowColor = ent.css(WHITE);
       ctx.shadowBlur = GLOW * scale;
     }
     ctx.beginPath();
@@ -312,7 +309,7 @@ class Planet extends ent.Entity {
   }
 
   render(ctx) {
-    ctx.shadowColor = css(this.link > 0 ? WHITE : BLACK);
+    ctx.shadowColor = ent.css(this.link > 0 ? WHITE : BLACK);
     ctx.shadowBlur = GLOW * scale;
     this.gfx.render(ctx);
   }
@@ -321,7 +318,7 @@ class Planet extends ent.Entity {
 class Earth extends ent.Entity {
   constructor() {
     super();
-    this.pos.x = W / 2;
+    this.pos.x = 512;
     this.pos.y = EARTHY;
     this.gfx.fill(WHITE).circle(0, 0, EARTH);
     this.hitCircle(EARTH);
@@ -337,10 +334,10 @@ class Earth extends ent.Entity {
 class Zone extends ent.Entity {
   constructor(dimx, dimy) {
     super();
-    this.w = dimx * W + W / 2;
-    this.h = dimy * W + W / 2;
-    this.pos.x = W / 2;
-    this.pos.y = W / 4 - this.h / 2;
+    this.w = dimx * 1024 + 512;
+    this.h = dimy * 1024 + 512;
+    this.pos.x = 512;
+    this.pos.y = 256 - this.h / 2;
     this.hitBox(this.w, this.h);
   }
 
@@ -354,14 +351,13 @@ class Zone extends ent.Entity {
 
   render(ctx) {
     ctx.globalAlpha = ZONE_ALPHA;
-    ctx.strokeStyle = css(BLACK);
-    ctx.lineWidth = 4;
-    ctx.setLineDash([10, 10]);
+    ctx.strokeStyle = ent.css(BLACK);
+    ctx.lineWidth = 8;
+    ctx.setLineDash([21, 21]);
     ctx.strokeRect(-this.w / 2, -this.h / 2, this.w, this.h);
   }
 }
 
-const css = (c) => `#${c.toString(16).padStart(6, "0")}`;
 const sub = (a, b) => ({ x: a.x - b.x, y: a.y - b.y });
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
@@ -375,13 +371,13 @@ function angleOf(v) {
   return (2 * Math.PI + Math.atan2(v.y, v.x)) % (2 * Math.PI);
 }
 
-// Not true tangents: one unit inside the edge, on the diameter square to the
+// Not true tangents: two units inside the edge, on the diameter square to the
 // line of sight, which is where a wrapped cable leaves the circle.
 function tangents(p, from) {
   const d = sub(p.pos, from);
   const a = angleOf(d);
   const l = Math.hypot(d.x, d.y);
-  const s = p.size - 1;
+  const s = p.size - 2;
   const cx = from.x + l * Math.cos(a);
   const cy = from.y + l * Math.sin(a);
   const nx = s * Math.sin(a);
@@ -427,8 +423,8 @@ function buildPlanets(total) {
   let n = 0;
   let skipped = 0;
   while (n < total && skipped < 10 * total) {
-    const x = W / 2 - dimx * W / 2 + dimx * W * Math.random();
-    const y = -W * dimy + W * dimy * Math.random();
+    const x = 512 - dimx * 512 + dimx * 1024 * Math.random();
+    const y = -1024 * dimy + 1024 * dimy * Math.random();
     const s = PSIZE + PVARY * Math.random();
 
     const near = planets.some((p) =>
@@ -492,8 +488,8 @@ export function update(dt) {
   }
 
   // The camera moves before the entities do, or it lags them by a frame.
-  cam.x = W / 2 - player.pos.x;
-  cam.y = W / 2 - player.pos.y;
+  cam.x = 512 - player.pos.x;
+  cam.y = 512 - player.pos.y;
 
   ent.update(dt);
 
@@ -524,53 +520,50 @@ export function update(dt) {
 
 export function render(ctx) {
   const m = ctx.getTransform();
-  scale = Math.hypot(m.a, m.b) * SIZE / W;
+  scale = Math.hypot(m.a, m.b);
 
   ctx.save();
-  ctx.translate(cam.x * SIZE / W, cam.y * SIZE / W);
+  ctx.translate(cam.x, cam.y);
   ent.render(ctx);
   ctx.restore();
 
-  ctx.save();
-  ctx.scale(SIZE / W, SIZE / W);
   drawArrows(ctx);
   drawPieces(ctx);
   drawClock(ctx);
   if (fade !== null) {
     const t = Math.min(1, fade.t);
     ctx.globalAlpha = fade.cover ? cubicOut(t) : 1 - cubicIn(t);
-    ctx.fillStyle = css(CYAN);
-    ctx.fillRect(0, 0, W, W);
+    ctx.fillStyle = ent.css(CYAN);
+    ctx.fillRect(0, 0, 1024, 1024);
     ctx.globalAlpha = 1;
   }
   if (nudge) {
-    ctx.fillStyle = css(BLACK);
-    ctx.text("now leave the quadrant", W / 2, 430, 16);
+    ctx.fillStyle = ent.css(BLACK);
+    ctx.text("now leave the quadrant", 512, 917, 34);
   }
-  ctx.restore();
 }
 
 // One per planet still to link and off screen, fading with distance.
 function drawArrows(ctx) {
-  ctx.fillStyle = css(BLACK);
+  ctx.fillStyle = ent.css(BLACK);
   for (const p of planets) {
     if (p.link > 0) continue;
     const sx = p.pos.x + cam.x;
     const sy = p.pos.y + cam.y;
-    if (sx >= 0 && sy >= 0 && sx < W && sy < W) continue;
+    if (sx >= 0 && sy >= 0 && sx < 1024 && sy < 1024) continue;
 
-    const d = Math.hypot(sx - W / 2, sy - W / 2) - W / 2;
-    const x = clamp(sx, 10, W - 10);
-    const y = clamp(sy, 10, W - 10);
+    const d = Math.hypot(sx - 512, sy - 512) - 512;
+    const x = clamp(sx, 21, 1003);
+    const y = clamp(sy, 21, 1003);
 
-    ctx.globalAlpha = 1 - clamp(d / (2 * W), 0, 0.9);
+    ctx.globalAlpha = 1 - clamp(d / 2048, 0, 0.9);
     ctx.save();
     ctx.translate(x, y);
-    ctx.rotate(Math.atan2(y - W / 2, x - W / 2));
+    ctx.rotate(Math.atan2(y - 512, x - 512));
     ctx.beginPath();
-    ctx.moveTo(-3.75, -5);
-    ctx.lineTo(3.75, 0);
-    ctx.lineTo(-3.75, 5);
+    ctx.moveTo(-8, -11);
+    ctx.lineTo(8, 0);
+    ctx.lineTo(-8, 11);
     ctx.fill();
     ctx.restore();
   }
@@ -579,25 +572,25 @@ function drawArrows(ctx) {
 
 // One cell per planet, in scatter order, popping as each is wrapped.
 function drawPieces(ctx) {
-  const w = 358 / planets.length;
+  const w = 764 / planets.length;
   ctx.globalAlpha = 0.75;
-  ctx.fillStyle = css(YELLOW);
+  ctx.fillStyle = ent.css(YELLOW);
   planets.forEach((p, i) => {
     if (p.link <= 0) return;
-    const s = Math.trunc(10 * elasticOut(p.linktimer));
-    ctx.fillRect(PIECES_X + 2 + i * w, PIECES_Y + 5 - s / 2, w, s);
+    const s = Math.trunc(21 * elasticOut(p.linktimer));
+    ctx.fillRect(PIECES_X + 4 + i * w, PIECES_Y + 11 - s / 2, w, s);
   });
-  ctx.fillRect(PIECES_X, PIECES_Y, 2, 10);
-  ctx.fillRect(PIECES_X + 358, PIECES_Y, 2, 10);
-  ctx.fillRect(PIECES_X, PIECES_Y + 4, 360, 2);
+  ctx.fillRect(PIECES_X, PIECES_Y, 4, 21);
+  ctx.fillRect(PIECES_X + 764, PIECES_Y, 4, 21);
+  ctx.fillRect(PIECES_X, PIECES_Y + 9, 768, 4);
   ctx.globalAlpha = 1;
 }
 
 function drawClock(ctx) {
   ctx.globalAlpha = 0.2;
-  ctx.fillStyle = css(BLACK);
-  ctx.fillRect(CLOCK_X, CLOCK_Y, 360, 10);
+  ctx.fillStyle = ent.css(BLACK);
+  ctx.fillRect(CLOCK_X, CLOCK_Y, 768, 21);
   ctx.globalAlpha = 1;
-  ctx.fillStyle = css(clock.warn ? DARKYELLOW : DARKRED);
-  ctx.fillRect(CLOCK_X, CLOCK_Y, 360 * Math.min(1, clock.spent / clock.total), 10);
+  ctx.fillStyle = ent.css(clock.warn ? DARKYELLOW : DARKRED);
+  ctx.fillRect(CLOCK_X, CLOCK_Y, 768 * Math.min(1, clock.spent / clock.total), 21);
 }

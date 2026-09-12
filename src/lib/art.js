@@ -14,6 +14,10 @@
  * `c2` when odd. So 32 is "3 across, 2 down" and a bare 0 is a flat fill.
  */
 
+// gfx.js imports glyphs() back, so the two files are a cycle until the bitmap
+// font goes and this one with it.
+import { css } from "./gfx.js";
+
 const FONTWIDTH = 6;
 const FONTHEIGHT = 8;
 
@@ -243,17 +247,6 @@ export function glyphs(text) {
   const out = { width: curx, height: FONTHEIGHT, dots };
   GLYPHS.set(text, out);
   return out;
-}
-
-const CSS = new Map();
-
-export function css(c) {
-  let s = CSS.get(c);
-  if (s === undefined) {
-    s = `#${(c & 0xffffff).toString(16).padStart(6, "0")}`;
-    CSS.set(c, s);
-  }
-  return s;
 }
 
 /*

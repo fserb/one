@@ -41,40 +41,36 @@ const PURPLE = 0x936be8;
 const RED = 0xd7364e;
 const CLEAR = 0xf2e9e1;
 
-const cssOf = (c) => `#${c.toString(16).padStart(6, "0")}`;
-const TUNNEL = cssOf(CLEAR);
-const DOT = cssOf(BLACK);
-const HOLE = cssOf(WHITE);
-const HERE = cssOf(LIGHTGREEN);
-const AHEAD = cssOf(PURPLE);
-const RINGS = [[8, DOT], [6, HOLE], [4, DOT]];
+const TUNNEL = ent.css(CLEAR);
+const DOT = ent.css(BLACK);
+const HOLE = ent.css(WHITE);
+const HERE = ent.css(LIGHTGREEN);
+const AHEAD = ent.css(PURPLE);
+const RINGS = [[17, DOT], [13, HOLE], [9, DOT]];
 
 const TAU = 2 * Math.PI;
 
-// The 480 box the game is written in.
-const W = 480;
-
 // Four screens a side. Stations land no closer than GAP, and TRIES attempts
 // fill it with about 375.
-const DIM = W * 4;
-const GAP = 75;
+const DIM = 1024 * 4;
+const GAP = 160;
 const TRIES = 3000;
 // Also how far off screen a station must be before none of its tunnels reach.
-const LONG = 200;
+const LONG = 425;
 
 // Half-turns a second, then units a second.
 const TURN = 2;
-const ACC = 200;
+const ACC = 425;
 const ETURN = 1.5;
-const EACC = 80;
+const EACC = 170;
 
-const CAR = [-17, -8, 17, -8, 17, 8, -17, 8];
+const CAR = [-36, -17, 36, -17, 36, 17, -36, 17];
 
 const DEATH = 0.5; // on top of the hitstop
 
-const BAR = 270;
-const OFF = 500;
-const ON = 440;
+const BAR = 576;
+const OFF = 1070;
+const ON = 940;
 
 sound.voice("reach", { ...coin(82), vol: 0.25 });
 sound.voice("timeup", { ...explosion(4073), vol: 0.1 });
@@ -82,8 +78,8 @@ sound.voice("crash", { ...explosion(4005), vol: 0.25 });
 sound.voice("station", { ...coin(112), vol: 0.15 });
 sound.voice("switch", { ...hit(764), vol: 0.25 });
 
-// In entity.js's 480 coordinates: follow() slides every station once a frame so
-// the car stays in the middle, which is why nothing here needs a camera.
+// In the board's coordinates: follow() slides every station once a frame so the
+// car stays in the middle, which is why nothing here needs a camera.
 let stations = [];
 let edges = [];
 let train = null;
@@ -253,7 +249,7 @@ function offscreen() {
   let pick = null;
   let n = 1;
   for (const s of stations) {
-    if (s.x >= 0 && s.x < W && s.y >= 0 && s.y < W) continue;
+    if (s.x >= 0 && s.x < 1024 && s.y >= 0 && s.y < 1024) continue;
     if (pick === null || Math.random() < 1 / n) pick = s;
     n += 1;
   }
@@ -263,8 +259,8 @@ function offscreen() {
 // Before the frame and not after, so everything reading a station's position
 // reads the one it is about to be drawn at.
 function follow() {
-  const dx = train.pos.x - W / 2;
-  const dy = train.pos.y - W / 2;
+  const dx = train.pos.x - 512;
+  const dy = train.pos.y - 512;
   if (dx === 0 && dy === 0) return;
   for (const s of stations) {
     s.x -= dx;
@@ -283,23 +279,23 @@ function follow() {
 class Grid extends ent.Entity {
   render(ctx) {
     ctx.lineCap = "round";
-    ctx.lineWidth = 6;
+    ctx.lineWidth = 13;
     ctx.strokeStyle = TUNNEL;
     ctx.beginPath();
     for (const [a, b] of edges) {
-      if (Math.max(a.x, b.x) < 0 || Math.min(a.x, b.x) > W) continue;
-      if (Math.max(a.y, b.y) < 0 || Math.min(a.y, b.y) > W) continue;
+      if (Math.max(a.x, b.x) < 0 || Math.min(a.x, b.x) > 1024) continue;
+      if (Math.max(a.y, b.y) < 0 || Math.min(a.y, b.y) > 1024) continue;
       ctx.moveTo(a.x, a.y);
       ctx.lineTo(b.x, b.y);
     }
     ctx.stroke();
 
-    ctx.lineWidth = 8;
+    ctx.lineWidth = 17;
     stub(ctx, HERE, train.from, train.to);
     stub(ctx, AHEAD, train.to, train.next);
 
     const near = stations.filter((s) =>
-      s.x > -8 && s.x < W + 8 && s.y > -8 && s.y < W + 8
+      s.x > -17 && s.x < 1041 && s.y > -17 && s.y < 1041
     );
     for (const [r, c] of RINGS) {
       ctx.fillStyle = c;
@@ -334,7 +330,7 @@ class Train extends ent.Entity {
     this.selection = 0;
     this.next = null;
     this.dying = 0;
-    this.gfx.fill(GREEN).rect(0, 0, 34, 16);
+    this.gfx.fill(GREEN).rect(0, 0, 72, 34);
     this.hitPoly(CAR);
     this.aim();
   }
@@ -429,9 +425,9 @@ class Train extends ent.Entity {
       y: this.pos.y,
       color: GREEN,
       count: 200,
-      size: 6,
-      speed: [30, 70],
-      spread: 10,
+      size: 13,
+      speed: [64, 150],
+      spread: 21,
       duration: 1,
     });
   }
@@ -449,7 +445,7 @@ class Enemy extends ent.Entity {
     this.pos.x = at.x;
     this.pos.y = at.y;
     this.angle = Math.atan2(this.to.y - at.y, this.to.x - at.x);
-    this.gfx.fill(BLACK).line(2, BLACK).rect(0, 0, 34, 16);
+    this.gfx.fill(BLACK).line(4, BLACK).rect(0, 0, 72, 34);
     this.hitPoly(CAR);
   }
 
@@ -491,7 +487,7 @@ class Enemy extends ent.Entity {
 class Mission extends ent.Entity {
   constructor() {
     super();
-    this.pos.x = W / 2;
+    this.pos.x = 512;
     this.pos.y = OFF;
     this.marker = null;
     this.station = null;
@@ -499,7 +495,7 @@ class Mission extends ent.Entity {
     this.msg = "Get to the station!";
     // Counts the outro down from 3, below zero while the mission is live.
     this.end = -1;
-    this.time = this.point() / 20;
+    this.time = this.point() / 43;
   }
 
   point() {
@@ -521,7 +517,7 @@ class Mission extends ent.Entity {
     this.msg = this.combo === 1
       ? "Go to the next one!"
       : `Combo x${this.combo}! Next!`;
-    this.time += this.point() / (20 + 30 * this.combo);
+    this.time += this.point() / (43 + 64 * this.combo);
   }
 
   finish() {
@@ -535,8 +531,8 @@ class Mission extends ent.Entity {
 
   update() {
     const dt = ent.game.time;
-    this.gfx.clear().fill(RED).rect(0, 0, BAR, 30)
-      .text(120, 15, this.msg, WHITE, 2);
+    this.gfx.clear().fill(RED).rect(0, 0, BAR, 64)
+      .text(256, 32, this.msg, WHITE, 4);
 
     if (this.end >= 0) {
       this.end -= dt / 0.5;
@@ -554,7 +550,7 @@ class Mission extends ent.Entity {
 
     const swept = TAU * this.age / this.time;
     if (swept >= TAU) return this.finish();
-    this.gfx.fill(WHITE).arc(BAR - 15, 15, 10, 0, swept, TAU);
+    this.gfx.fill(WHITE).arc(BAR - 32, 32, 21, 0, swept, TAU);
   }
 }
 
@@ -573,18 +569,18 @@ class Target extends ent.Entity {
     this.pos.x = x;
     this.pos.y = y;
 
-    if (x >= 0 && x < W && y >= 0 && y < W) {
+    if (x >= 0 && x < 1024 && y >= 0 && y < 1024) {
       this.angle = 0;
-      this.gfx.cache(0).fill(RED).circle(0, 0, 8)
-        .fill(WHITE).circle(0, 0, 6)
-        .fill(RED).circle(0, 0, 4);
+      this.gfx.cache(0).fill(RED).circle(0, 0, 17)
+        .fill(WHITE).circle(0, 0, 13)
+        .fill(RED).circle(0, 0, 9);
       return;
     }
 
-    this.gfx.cache(1).fill(RED).mt(0, 0).lt(15, 7.5).lt(0, 15).lt(0, 0);
-    this.angle = Math.atan2(y - W / 2, x - W / 2);
-    this.pos.x = Math.max(10, Math.min(W - 10, x));
-    this.pos.y = Math.max(10, Math.min(W - 10, y));
+    this.gfx.cache(1).fill(RED).mt(0, 0).lt(32, 16).lt(0, 32).lt(0, 0);
+    this.angle = Math.atan2(y - 512, x - 512);
+    this.pos.x = Math.max(21, Math.min(1003, x));
+    this.pos.y = Math.max(21, Math.min(1003, y));
   }
 }
 

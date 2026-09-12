@@ -40,37 +40,35 @@ const PURPLE = 0xaa00ff;
 const BLUE = 0x00aaff;
 const FLOORS = [YELLOW, PURPLE, BLUE, PINK];
 
-// The 480 box the game is written in.
-const W = 480;
 // How far off each wall the ghosts start, and where the player's wall is.
-const EDGE = 10;
+const EDGE = 21;
 
-const PR = 16;
-const PUSH = 1700;
+const PR = 34;
+const PUSH = 3600;
 const DRAG = 5;
 // The hitstop the death holds for, and how fast the black quad's corners move.
 const HITSTOP = 0.2;
-const FLY = 5000;
+const FLY = 10700;
 
 const IDLE = 0;
 const OUT = 1;
 const BACK = 2;
 const REEL = 3;
-const MAXARM = 200;
-const THROW = 500;
-const PULL = 800;
-const CLAW = 10;
+const MAXARM = 425;
+const THROW = 1070;
+const PULL = 1700;
+const CLAW = 21;
 
-const GR = 10;
-const BR = 6;
+const GR = 21;
+const BR = 13;
 // Seconds a fresh ghost cannot hurt you and will not shoot, over the speed.
 const GRACE = 1.5;
-const KEEP = 128; // pink's stand-off, and the radius its bullet swings at
-const FAR = 200; // yellow's distance from the centre, and purple's throw
-const DODGE = 50;
+const KEEP = 275; // pink's stand-off, and the radius its bullet swings at
+const FAR = 425; // yellow's distance from the centre, and purple's throw
+const DODGE = 107;
 // Both over the speed: how fast a ghost walks and how fast a bullet travels.
-const WALK = 50;
-const SHOT = 100;
+const WALK = 107;
+const SHOT = 215;
 
 // sfxr squares the vol, so the hook is a quarter the loudness of the other two.
 sound.voice("hook", { ...laser(1249), vol: 0.1 });
@@ -85,18 +83,18 @@ let hook = null;
 class Floor extends ent.Entity {
   constructor() {
     super();
-    this.pos.x = this.pos.y = W / 2;
+    this.pos.x = this.pos.y = 512;
   }
 
   update() {
-    this.gfx.cache(floor).fill(floor).rect(-W / 2, -W / 2, W, W);
+    this.gfx.cache(floor).fill(floor).rect(-512, -512, 1024, 1024);
   }
 }
 
 class Player extends ent.Entity {
   constructor() {
     super();
-    this.pos.x = this.pos.y = W / 2;
+    this.pos.x = this.pos.y = 512;
     this.dying = false;
     this.gfx.fill(BLACK).circle(0, 0, PR);
     this.hitCircle(PR);
@@ -128,16 +126,16 @@ class Player extends ent.Entity {
       this.pos.x = EDGE;
       this.vel.x = Math.abs(this.vel.x);
     }
-    if (this.pos.x >= W - EDGE) {
-      this.pos.x = W - EDGE;
+    if (this.pos.x >= 1024 - EDGE) {
+      this.pos.x = 1024 - EDGE;
       this.vel.x = -Math.abs(this.vel.x);
     }
     if (this.pos.y <= EDGE) {
       this.pos.y = EDGE;
       this.vel.y = Math.abs(this.vel.y);
     }
-    if (this.pos.y >= W - EDGE) {
-      this.pos.y = W - EDGE;
+    if (this.pos.y >= 1024 - EDGE) {
+      this.pos.y = 1024 - EDGE;
       this.vel.y = -Math.abs(this.vel.y);
     }
 
@@ -178,11 +176,11 @@ class Hook extends ent.Entity {
   // the drawing's centre fixed as the arm changes length.
   draw() {
     this.gfx.clear()
-      .size(2 * CLAW, 2 * Math.max(10, this.arm))
+      .size(2 * CLAW, 2 * Math.max(21, this.arm))
       .fill(BLACK)
-      .circle(0, 0, 3)
-      .rect(-2.5, -10, 5, 10)
-      .rect(-2.5, 0, 5, this.arm);
+      .circle(0, 0, 6)
+      .rect(-5, -21, 11, 21)
+      .rect(-5, 0, 11, this.arm);
     prong(this.gfx, -Math.PI / 6);
     prong(this.gfx, Math.PI + Math.PI / 6);
   }
@@ -239,10 +237,10 @@ class Hook extends ent.Entity {
       }
     }
 
-    // The claw is 11 out plus the arm's length, so the arm's far end stays
-    // 11 out whatever the arm does.
-    this.pos.x = p.x + (11 + this.arm) * Math.cos(this.angle - Math.PI / 2);
-    this.pos.y = p.y + (11 + this.arm) * Math.sin(this.angle - Math.PI / 2);
+    // The claw is 23 out plus the arm's length, so the arm's far end stays
+    // 23 out whatever the arm does.
+    this.pos.x = p.x + (23 + this.arm) * Math.cos(this.angle - Math.PI / 2);
+    this.pos.y = p.y + (23 + this.arm) * Math.sin(this.angle - Math.PI / 2);
   }
 }
 
@@ -254,7 +252,7 @@ class Bullet extends ent.Entity {
     this.pos.y = y;
     this.gfx.fill(color)
       .circle(0, 0, BR).rect(-BR, 0, 2 * BR, BR)
-      .fill(WHITE, 0.9).circle(-2, -1, 1).circle(2, -1, 1);
+      .fill(WHITE, 0.9).circle(-4, -2, 2).circle(4, -2, 2);
     this.hitCircle(BR);
   }
 
@@ -263,7 +261,7 @@ class Bullet extends ent.Entity {
     // alone leave the board.
     if (this.color === PINK || this.color === PURPLE) return;
     const { x, y } = this.pos;
-    if (x < 0 || x > W || y < 0 || y > W) this.remove();
+    if (x < 0 || x > 1024 || y < 0 || y > 1024) this.remove();
   }
 }
 
@@ -274,8 +272,8 @@ class Ghost extends ent.Entity {
     super();
     this.color = color;
     // The corner furthest from the player, unless the round opened with four.
-    this.pos.x = x ?? (player.pos.x <= W / 2 ? W - 20 : 20);
-    this.pos.y = y ?? (player.pos.y <= W / 2 ? W - 20 : 20);
+    this.pos.x = x ?? (player.pos.x <= 512 ? 1024 - 43 : 43);
+    this.pos.y = y ?? (player.pos.y <= 512 ? 1024 - 43 : 43);
     this.grabbed = false;
     this.wait = GRACE / speed;
     this.bullet = null;
@@ -283,12 +281,12 @@ class Ghost extends ent.Entity {
     this.spin = 1;
     this.seen = IDLE;
     this.target = color === BLUE
-      ? { x: W / 2, y: W / 2 }
+      ? { x: 512, y: 512 }
       : { x: this.pos.x, y: this.pos.y };
 
     this.gfx.fill(color)
       .circle(0, 0, GR).rect(-GR, 0, 2 * GR, GR)
-      .fill(WHITE, 0.9).circle(-3, -2, 2).circle(3, -2, 2);
+      .fill(WHITE, 0.9).circle(-6, -4, 4).circle(6, -4, 4);
     this.hitBox(2 * GR);
   }
 
@@ -345,7 +343,7 @@ class Ghost extends ent.Entity {
   fetch() {
     const { time } = ent.game;
 
-    if (dist(this.pos, this.target) < 10) {
+    if (dist(this.pos, this.target) < 21) {
       this.bullet?.remove();
       this.bullet = this.wait > 0
         ? null
@@ -359,7 +357,7 @@ class Ghost extends ent.Entity {
       return;
     }
 
-    if (!gone(this.bullet) && dist(this.bullet.pos, this.target) > 5) {
+    if (!gone(this.bullet) && dist(this.bullet.pos, this.target) > 11) {
       const s = SHOT * speed * time;
       towards(this.bullet.pos, this.target.x, this.target.y, s);
       return;
@@ -371,11 +369,11 @@ class Ghost extends ent.Entity {
   // whenever it has nothing in the air.
   snipe() {
     const { time } = ent.game;
-    const a = angle(player.pos, { x: W / 2, y: W / 2 });
+    const a = angle(player.pos, { x: 512, y: 512 });
     towards(
       this.pos,
-      W / 2 + Math.cos(a) * FAR,
-      W / 2 + Math.sin(a) * FAR,
+      512 + Math.cos(a) * FAR,
+      512 + Math.sin(a) * FAR,
       WALK * speed * time,
     );
 
@@ -405,24 +403,24 @@ class Ghost extends ent.Entity {
 }
 
 /*
- * A black 20x20 square on the spot where you died, whose four corners then move
+ * A black 42x42 square on the spot where you died, whose four corners then move
  * to the four corners of the board. One at a time and each waiting for the one
  * before it: all four at once would expand the square, where one at a time
  * stretches the black out of the shape.
  */
 // [corner, x, y]: top-left, bottom-left, top-right, bottom-right.
-const SWEEP = [[0, 0, 0], [3, 0, W], [1, W, 0], [2, W, W]];
+const SWEEP = [[0, 0, 0], [3, 0, 1024], [1, 1024, 0], [2, 1024, 1024]];
 
 class EndGame extends ent.Entity {
   constructor(x, y) {
     super();
-    this.pos.x = this.pos.y = W / 2;
+    this.pos.x = this.pos.y = 512;
     this.stage = 0;
     this.p = [
-      { x: x - 10, y: y - 10 },
-      { x: x + 10, y: y - 10 },
-      { x: x + 10, y: y + 10 },
-      { x: x - 10, y: y + 10 },
+      { x: x - 21, y: y - 21 },
+      { x: x + 21, y: y - 21 },
+      { x: x + 21, y: y + 21 },
+      { x: x - 21, y: y + 21 },
     ];
     this.draw();
   }
@@ -443,20 +441,20 @@ class EndGame extends ent.Entity {
   // not move the drawing's own centre with them.
   draw() {
     const [a, b, c, d] = this.p;
-    this.gfx.clear().size(W, W, W / 2, W / 2).fill(BLACK)
+    this.gfx.clear().size(1024, 1024, 512, 512).fill(BLACK)
       .mt(a.x, a.y).lt(b.x, b.y).lt(c.x, c.y).lt(d.x, d.y);
   }
 }
 
-// A bar 5 across and 10 long out of the hook's centre at `a`.
+// A bar 11 across and 21 long out of the hook's centre at `a`.
 function prong(gfx, a) {
   const vx = Math.cos(a);
   const vy = Math.sin(a);
-  const nx = -vy * 2.5;
-  const ny = vx * 2.5;
+  const nx = -vy * 5.5;
+  const ny = vx * 5.5;
   gfx.mt(nx, ny)
-    .lt(nx + 10 * vx, ny + 10 * vy)
-    .lt(-nx + 10 * vx, -ny + 10 * vy)
+    .lt(nx + 21 * vx, ny + 21 * vy)
+    .lt(-nx + 21 * vx, -ny + 21 * vy)
     .lt(-nx, -ny);
 }
 
@@ -474,10 +472,10 @@ function towards(p, x, y, max) {
 
 // The board is a torus: a ghost leaving one edge comes back at the other.
 function wrap(p) {
-  if (p.x < 0) p.x += W;
-  if (p.x >= W) p.x -= W;
-  if (p.y < 0) p.y += W;
-  if (p.y >= W) p.y -= W;
+  if (p.x < 0) p.x += 1024;
+  if (p.x >= 1024) p.x -= 1024;
+  if (p.y < 0) p.y += 1024;
+  if (p.y >= 1024) p.y -= 1024;
 }
 
 // Fired at the player and then left to itself. Yellow's and blue's.
@@ -513,9 +511,9 @@ export function init() {
   // One per corner; the one with the floor's colour leaves on frame one.
   const corners = [
     [YELLOW, EDGE, EDGE],
-    [PURPLE, W - EDGE, EDGE],
-    [BLUE, W - EDGE, W - EDGE],
-    [PINK, EDGE, W - EDGE],
+    [PURPLE, 1024 - EDGE, EDGE],
+    [BLUE, 1024 - EDGE, 1024 - EDGE],
+    [PINK, EDGE, 1024 - EDGE],
   ];
   for (const [color, x, y] of corners) new Ghost(color, x, y);
 }

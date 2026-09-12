@@ -40,34 +40,34 @@ const COLORS = [0xff6819, 0xc0dc61, 0x1ebed8, 0xfec804, 0xe284cc];
 const COLS = 9;
 const ROWS = 11;
 // ORIGIN is the centre of cell (0, 0) with the board unscrolled.
-const CELL = 38;
-const X0 = 88;
-const Y0 = 73;
+const CELL = 82;
+const X0 = 184;
+const Y0 = 151;
 
 // The lines the board starts from and ends on, and the depth a cursor dies at.
-const HEAD = 54;
-const FOOT = 472;
-const DIE = 454;
+const HEAD = 110;
+const FOOT = 1012;
+const DIE = 973;
 
 // TRAY_Y is a centre and not a top edge, so a tray of one row and a tray of
 // five are centred on the same line rather than aligned to the same top edge.
-const TRAY_R = 420;
+const TRAY_R = 896;
 const TRAY_Y = HEAD / 2;
 const FLY = 0.3;
-const FLYUP = 20;
+const FLYUP = 43;
 
 const DEATH = 0.35;
 const GROW = 0.3;
 const HELD = 0.5;
 
-// 5/CELL is an eighth of a row a second; the multipliers move the board.
-const CRAWL = 5;
-const NEAR = 240;
-const NEARRATE = 9 / 70;
-// Snaps on rather than ramping in: the test is against 122 and the measure runs
-// from 240, so the multiplier is already 4.4 the frame it applies.
-const HIGH = 122;
-const HIGHRATE = 5 / 172;
+// 11/CELL is an eighth of a row a second; the multipliers move the board.
+const CRAWL = 11;
+const NEAR = 512;
+const NEARRATE = 9 / 150;
+// Snaps on rather than ramping in: the test is against 260 and the measure runs
+// from 512, so the multiplier is already 4.4 the frame it applies.
+const HIGH = 260;
+const HIGHRATE = 5 / 367;
 // Per cell. (hard() - 1) / 15 reaches it a minute in, where the ramp is at 1.6:
 // one cell in twenty-five.
 const HOLE = 0.04;
@@ -172,7 +172,7 @@ class Piece extends ent.Entity {
     this.color = color;
     this.targeted = false;
     this.popping = false;
-    this.eye = { x: Math.random() * 480, y: Math.random() * 480 };
+    this.eye = { x: Math.random() * 1024, y: Math.random() * 1024 };
     this.pos.x = cellX(x);
     this.pos.y = cellY(y);
     this.draw();
@@ -201,29 +201,29 @@ class Piece extends ent.Entity {
   }
 
   draw() {
-    this.art.size(4, 9, 9).obj([COLORS[this.color], BLACK, SHADE, WHITE], BODY);
+    this.art.size(9, 9, 9).obj([COLORS[this.color], BLACK, SHADE, WHITE], BODY);
 
-    // size() keeps the pupils on the art's own 36x36 box.
+    // size() keeps the pupils on the art's own 81x81 box.
     const dx = this.eye.x - this.pos.x;
     const dy = this.eye.y - this.pos.y;
     const d = Math.hypot(dx, dy);
     const tx = d === 0 ? 0 : dx / (2 * d);
     const ty = d === 0 ? 0 : dy / (2 * d);
-    const eyey = Math.round(4 * (2.5 + ty)) - 18;
-    this.gfx.clear().size(36, 36).fill(BLACK)
-      .rect(Math.round(4 * (2.5 + tx)) - 18, eyey, 4, 4)
-      .rect(Math.round(4 * (5.5 + tx)) - 18, eyey, 4, 4);
+    const eyey = Math.round(9 * (2.5 + ty)) - 40.5;
+    this.gfx.clear().size(81, 81).fill(BLACK)
+      .rect(Math.round(9 * (2.5 + tx)) - 40.5, eyey, 9, 9)
+      .rect(Math.round(9 * (5.5 + tx)) - 40.5, eyey, 9, 9);
   }
 
   update() {
     // Across a full board, a glance every second or so.
     if (Math.random() < 1 / (10 * ROWS * COLS)) {
-      this.see(Math.random() * 480, Math.random() * 480);
+      this.see(Math.random() * 1024, Math.random() * 1024);
     }
 
     this.pos.x = cellX(this.px);
     this.pos.y = cellY(this.py);
-    if (this.pos.y > 484) return this.remove();
+    if (this.pos.y > 1033) return this.remove();
 
     const step = ent.game.time / GROW;
     if (this.popping) {
@@ -262,7 +262,7 @@ class Cursor extends ent.Entity {
 
   draw() {
     const cols = this.head ? [0xff6666, 0xff9999] : [0x666666, 0x999999];
-    this.art.size(4, 9, 9).obj(cols, BRACKET);
+    this.art.size(9, 9, 9).obj(cols, BRACKET);
   }
 
   update() {
@@ -292,12 +292,12 @@ class Tray extends ent.Entity {
     for (const i of order) {
       if (counts[i] === 0) continue;
       this.gfx.fill(COLORS[i]);
-      for (let j = 0; j < counts[i]; ++j) this.gfx.rect(8 * j, 8 * row, 7, 7);
+      for (let j = 0; j < counts[i]; ++j) this.gfx.rect(17 * j, 17 * row, 15, 15);
       row += 1;
     }
 
     // gfx centres on its own box, so the right edge costs half the width.
-    this.pos.x = TRAY_R - (8 * Math.max(...counts) - 1) / 2;
+    this.pos.x = TRAY_R - (17 * Math.max(...counts) - 2) / 2;
     this.pos.y = TRAY_Y;
   }
 
@@ -325,15 +325,15 @@ class Tray extends ent.Entity {
 class Frame extends ent.Entity {
   constructor() {
     super();
-    this.pos.x = this.pos.y = 240;
+    this.pos.x = this.pos.y = 512;
     this.gfx.fill(WHITE)
-      .rect(0, 0, 480, HEAD)
-      .rect(0, FOOT, 480, 480 - FOOT)
+      .rect(0, 0, 1024, HEAD)
+      .rect(0, FOOT, 1024, 1024 - FOOT)
       .fill(null);
-    for (const [d, alpha] of [[0, 1], [1, 0.25], [2, 0.12]]) {
-      this.gfx.line(1, BLACK, alpha)
-        .mt(50, HEAD + d).lt(420, HEAD + d)
-        .mt(50, FOOT - d).lt(420, FOOT - d);
+    for (const [d, alpha] of [[0, 1], [2, 0.25], [4, 0.12]]) {
+      this.gfx.line(2, BLACK, alpha)
+        .mt(107, HEAD + d).lt(896, HEAD + d)
+        .mt(107, FOOT - d).lt(896, FOOT - d);
     }
   }
 }
@@ -347,9 +347,9 @@ function addScore(v) {
     x: TRAY_R,
     y: TRAY_Y,
     align: "right middle",
-    size: 2,
+    size: 4,
     color: BLACK,
-    vel: [0, -30],
+    vel: [0, -64],
     duration: 0.5,
   });
 }
@@ -358,9 +358,9 @@ function say(m) {
   note?.remove();
   note = new ent.Text({
     text: m,
-    x: 240,
-    y: 450,
-    size: 2,
+    x: 512,
+    y: 960,
+    size: 4,
     color: BLACK,
     duration: 5,
   });
@@ -420,7 +420,7 @@ function shift() {
 
 function advance(dt) {
   let low = 0;
-  let high = 480;
+  let high = 1024;
   for (const c of chain) {
     const y = cellY(c.py);
     low = Math.max(low, y);

@@ -32,48 +32,48 @@ const BLACK = 0x000000;
 const TAU = Math.PI * 2;
 
 // Enemies land no nearer than this to a wall, or SAFE to the player.
-const EDGE = 40;
-const SAFE = 200;
+const EDGE = 85;
+const SAFE = 425;
 
 // The middle, not a corner: a corner has two ways out and a chaser crosses SAFE
 // in two seconds, where the middle has eight.
-const START = 240;
-const SPEED = 120;
+const START = 512;
+const SPEED = 256;
 const RELOAD = 0.3;
-const PR = 11;
+const PR = 23;
 
-const BW = 20;
-const BH = 6;
+const BW = 42;
+const BH = 13;
 // A hit box does not turn and a bullet does, so it collides as a circle.
-const BR = 6;
-const BULLET_MIN = 100;
-const BULLET_MAX = 400;
-// Slower than the player's 400. This board has no cover, so a shot has to be
+const BR = 13;
+const BULLET_MIN = 210;
+const BULLET_MAX = 850;
+// Slower than the player's 850. This board has no cover, so a shot has to be
 // one you can step out of, and it makes the turret under-lead.
-const ENEMY_MAX = 220;
-const BULLET_ACC = 400;
+const ENEMY_MAX = 470;
+const BULLET_ACC = 850;
 // Distance over this is how far ahead an enemy aims.
-const LEAD = 250;
+const LEAD = 530;
 
-const TR = 12;
-const BARREL = 17;
+const TR = 26;
+const BARREL = 36;
 const TURRET_TURN = Math.PI / 2;
 // At 2 seconds flat the first shot kills a player still reading the hint, and
 // all three opening shots go off together.
 const TURRET_FIRST = 3;
 const TURRET_EVERY = 3;
 
-const CHASE = 80;
-const CHASER = 21;
+const CHASE = 170;
+const CHASER = 42;
 const CHASER_TURN = Math.PI;
-// A shot costs a third of a second still and a chaser closes 24 units in that
+// A shot costs a third of a second still and a chaser closes 51 units in that
 // time, so three converging leave no gap wide enough to shoot from. Two do.
 const CHASERS_MAX = 2;
 // A replacement arrives a moment later and not on the same frame: that moment
 // is the window to collect the box it left.
 const RESPAWN = 2;
 
-const BOX = 21;
+const BOX = 42;
 
 // What the next box collected is worth. Boxes take it when they drop, so three
 // lying around are all worth the same.
@@ -96,7 +96,7 @@ class Player extends ent.Entity {
 
     // Solid when the gun is ready, hollow while it is not: a frozen player is a
     // target.
-    if (this.reload > 0) this.gfx.cache(1).line(3, WHITE).circle(0, 0, PR - 1.5);
+    if (this.reload > 0) this.gfx.cache(1).line(6, WHITE).circle(0, 0, PR - 3);
     else this.gfx.cache(0).fill(WHITE).circle(0, 0, PR);
 
     this.vel.x = this.vel.y = 0;
@@ -123,8 +123,8 @@ class Player extends ent.Entity {
   postUpdate() {
     // Nothing draws the walls, but the box is the board: without it you walk
     // off the side where nothing can reach you.
-    this.pos.x = extra.clamp(this.pos.x, PR, ent.game.size - PR);
-    this.pos.y = extra.clamp(this.pos.y, PR, ent.game.size - PR);
+    this.pos.x = extra.clamp(this.pos.x, PR, 1024 - PR);
+    this.pos.y = extra.clamp(this.pos.y, PR, 1024 - PR);
 
     if (hitBullet(this) !== null) return this.die();
     if (this.hitGroup(EnemyChaser) !== null) return this.die();
@@ -157,9 +157,8 @@ class Bullet extends ent.Entity {
     this.vel.x = Math.cos(this.angle) * this.speed;
     this.vel.y = Math.sin(this.angle) * this.speed;
 
-    const { width, height } = ent.game;
     const { x, y } = this.pos;
-    if (x < -BW || x > width + BW || y < -BW || y > height + BW) this.remove();
+    if (x < -BW || x > 1024 + BW || y < -BW || y > 1024 + BW) this.remove();
   }
 }
 
@@ -170,7 +169,7 @@ class EnemyTurret extends ent.Entity {
     // size() keeps the centre on the body while the barrel is to one side.
     this.gfx.size(2 * BARREL, 2 * TR).fill(BLACK)
       .circle(0, 0, TR)
-      .rect(0, -BH / 2 - 1, BARREL, BH + 2);
+      .rect(0, -BH / 2 - 2, BARREL, BH + 4);
   }
 
   update() {
@@ -203,7 +202,7 @@ class EnemyChaser extends ent.Entity {
   begin() {
     this.dir = 0;
     this.hitBox(CHASER);
-    this.art.size(3, 7, 7).obj(
+    this.art.size(6, 7, 7).obj(
       [BLACK],
       `
 .00000.
@@ -239,8 +238,8 @@ class EnemyChaser extends ent.Entity {
 
   postUpdate() {
     const h = CHASER / 2;
-    this.pos.x = extra.clamp(this.pos.x, h, ent.game.size - h);
-    this.pos.y = extra.clamp(this.pos.y, h, ent.game.size - h);
+    this.pos.x = extra.clamp(this.pos.x, h, 1024 - h);
+    this.pos.y = extra.clamp(this.pos.y, h, 1024 - h);
   }
 }
 
@@ -251,7 +250,7 @@ class ScoreBox extends ent.Entity {
     this.pos.y = y;
     this.n = next;
     this.hitBox(BOX);
-    this.art.size(3, 7, 7).color(BLACK).text(3, 3, String(this.n), 2);
+    this.art.size(6, 7, 7).color(BLACK).text(3, 3, String(this.n), 4);
   }
 
   update() {
@@ -264,9 +263,9 @@ class ScoreBox extends ent.Entity {
       text: `+${this.n}`,
       x: this.pos.x,
       y: this.pos.y,
-      size: 2,
+      size: 4,
       color: BLACK,
-      vel: [0, -30],
+      vel: [0, -64],
       duration: 0.8,
     });
   }
@@ -313,8 +312,8 @@ function burst(pos) {
     y: pos.y,
     color: BLACK,
     count: [60, 20],
-    size: [4, 3],
-    speed: [40, 120],
+    size: [9, 6],
+    speed: [85, 256],
     duration: 0.4,
   });
 }
@@ -326,8 +325,8 @@ function place(e) {
   const py = p === null ? START : p.pos.y;
 
   for (let i = 0; i < 30; ++i) {
-    e.pos.x = EDGE + Math.random() * (ent.game.size - 2 * EDGE);
-    e.pos.y = EDGE + Math.random() * (ent.game.size - 2 * EDGE);
+    e.pos.x = EDGE + Math.random() * (1024 - 2 * EDGE);
+    e.pos.y = EDGE + Math.random() * (1024 - 2 * EDGE);
     if (Math.hypot(e.pos.x - px, e.pos.y - py) >= SAFE) break;
   }
   return e;

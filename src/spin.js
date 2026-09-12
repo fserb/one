@@ -16,7 +16,7 @@
  */
 
 import * as ent from "./lib/entity.js";
-import { gameOver, score, SIZE } from "./lib/one.js";
+import { gameOver, score } from "./lib/one.js";
 import { blip, coin, jump } from "./lib/fsfx/sfxr.js";
 import * as sound from "./lib/sound.js";
 
@@ -33,14 +33,11 @@ the needle says which way the room turns
   dpad: true,
 };
 
-// The box the game is written in.
-const W = 480;
-
-// Square, so it turns onto itself: 24 tiles of 20, the whole box.
+// Square, so it turns onto itself: 24 tiles of 42, with 8 spare each side.
 const GRID = 24;
-const TILE = 20;
+const TILE = 42;
 const ROOM = GRID * TILE;
-const ROOMX = (W - ROOM) / 2;
+const ROOMX = (1024 - ROOM) / 2;
 const ROOMY = ROOMX;
 const CX = ROOMX + ROOM / 2;
 const CY = ROOMY + ROOM / 2;
@@ -60,23 +57,23 @@ const T_RIGHT = 2;
 const T_DOWN = 4;
 const T_LEFT = 8;
 
-// Under the 20-unit tile on both axes, so a one-tile gap is a gap. EDGE is how
+// Under the 42-unit tile on both axes, so a one-tile gap is a gap. EDGE is how
 // far into a tile a stop lands.
-const HW = 7;
-const HH = 8;
+const HW = 15;
+const HH = 17;
 const EDGE = 0.01;
 
 // Per second, but KICKED is seconds: how long the kick overrides the controls.
-const GRAV = 1000;
-const WALK = 166;
-const JUMP = 430;
-const CLIP = 150;
-const KICK = 260;
+const GRAV = 2100;
+const WALK = 350;
+const JUMP = 900;
+const CLIP = 315;
+const KICK = 545;
 const KICKED = 0.16;
-const SLIDE = 190;
+const SLIDE = 400;
 // Coyote time, and the rise speed the sprite stretches at.
 const COYOTE = 0.1;
-const BIG = 150;
+const BIG = 315;
 
 // TURNS doubles for a half turn.
 const WIND = 0.4;
@@ -96,14 +93,14 @@ const TIME = 25;
 const TIME_MAX = 30;
 const FEED = 6;
 const DRAIN_UP = 0.05;
-const RING_R = 27;
-const RING_W = 4;
-const ARROW = 13;
+const RING_R = 57;
+const RING_W = 8;
+const ARROW = 27;
 
-const MARK_GAP = 150;
-const MARK_R = 7;
-// Tiles the flood lets a jump climb. JUMP*JUMP/(2*GRAV) is 92 units, so four
-// 20-unit tiles is a shade under.
+const MARK_GAP = 315;
+const MARK_R = 15;
+// Tiles the flood lets a jump climb. JUMP*JUMP/(2*GRAV) is 193 units, so four
+// 42-unit tiles is a shade under.
 const CLIMB = 4;
 // How often the mark's reachability is checked, and how long it may fail.
 const LOOK = 0.4;
@@ -191,7 +188,6 @@ const HOLDING = 2;
 const TURNING = 3;
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
-const css = (c) => `#${c.toString(16).padStart(6, "0")}`;
 const tx = (x) => Math.floor((x - ROOMX) / TILE);
 const ty = (y) => Math.floor((y - ROOMY) / TILE);
 const ex = (i) => ROOMX + i * TILE;
@@ -318,7 +314,7 @@ class Player extends ent.Entity {
   }
 
   paint() {
-    this.art.size(3, 7, this.big ? 10 : 7).obj(
+    this.art.size(6, 7, this.big ? 10 : 7).obj(
       [CYAN],
       (this.face < 0 ? HEAD_L : HEAD_R) + BODY +
         (this.big ? STRETCH : "") + FEET,
@@ -403,7 +399,7 @@ class Mark extends ent.Entity {
     this.pos.x = ex(i) + TILE / 2;
     this.pos.y = ey(j) + TILE / 2;
     this.phase = 2 * Math.PI * Math.random();
-    this.art.size(3, 5, 5).color(ORANGE).circle(2, 2, 2);
+    this.art.size(6, 5, 5).color(ORANGE).circle(2, 2, 2);
     this.hitCircle(MARK_R);
   }
 
@@ -421,8 +417,8 @@ class Mark extends ent.Entity {
       y: this.pos.y,
       color: ORANGE,
       count: 20,
-      size: 2,
-      speed: [90, 50],
+      size: 4,
+      speed: [190, 105],
       duration: [0.35, 0.2],
     });
     this.remove();
@@ -626,39 +622,30 @@ export function update(dt) {
 }
 
 export function render(ctx) {
-  const k = SIZE / W;
-
   ctx.save();
   if (turned !== 0) {
-    ctx.translate(CX * k, CY * k);
+    ctx.translate(CX, CY);
     ctx.rotate(turned);
-    ctx.translate(-CX * k, -CY * k);
+    ctx.translate(-CX, -CY);
   }
-
-  ctx.save();
-  ctx.scale(k, k);
   drawRoom(ctx);
-  ctx.restore();
   ctx.restore();
 
   // They stand still while the room goes over, so they draw outside the turn.
-  ctx.save();
-  ctx.scale(k, k);
   drawNeedle(ctx);
-  ctx.restore();
 
   ctx.save();
   if (turned !== 0) {
-    ctx.translate(CX * k, CY * k);
+    ctx.translate(CX, CY);
     ctx.rotate(turned);
-    ctx.translate(-CX * k, -CY * k);
+    ctx.translate(-CX, -CY);
   }
   ent.render(ctx);
   ctx.restore();
 }
 
 function drawRoom(ctx) {
-  ctx.fillStyle = css(FLOOR);
+  ctx.fillStyle = ent.css(FLOOR);
   ctx.fillRect(ROOMX, ROOMY, ROOM, ROOM);
 
   for (let j = 0; j < GRID; ++j) {
@@ -667,7 +654,7 @@ function drawRoom(ctx) {
       if (t === 0) continue;
       let n = 1;
       while (i + n < GRID && map[j * GRID + i + n] === t) n += 1;
-      ctx.fillStyle = css(t === 1 ? WALL : LEDGE);
+      ctx.fillStyle = ent.css(t === 1 ? WALL : LEDGE);
       ctx.fillRect(ex(i), ey(j), n * TILE, TILE);
       i += n - 1;
     }
@@ -677,12 +664,12 @@ function drawRoom(ctx) {
 function drawNeedle(ctx) {
   // A full circle is TIME_MAX, running out anticlockwise from straight up.
   ctx.lineWidth = RING_W;
-  ctx.strokeStyle = css(RING_BG);
+  ctx.strokeStyle = ent.css(RING_BG);
   ctx.beginPath();
   ctx.arc(CX, CY, RING_R, 0, 2 * Math.PI);
   ctx.stroke();
 
-  ctx.strokeStyle = css(RING);
+  ctx.strokeStyle = ent.css(RING);
   ctx.beginPath();
   ctx.arc(
     CX,
@@ -696,8 +683,8 @@ function drawNeedle(ctx) {
   ctx.save();
   ctx.translate(CX, CY);
   ctx.rotate(needle);
-  ctx.lineWidth = 2;
-  ctx.strokeStyle = css(NEEDLE);
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = ent.css(NEEDLE);
   ctx.beginPath();
   ctx.moveTo(0, ARROW / 2);
   ctx.lineTo(0, -ARROW / 2);

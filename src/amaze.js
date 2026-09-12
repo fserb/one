@@ -16,7 +16,7 @@
 
 import * as ent from "./lib/entity.js";
 import { glyphs } from "./lib/art.js";
-import { gameOver, hint, input, score, SIZE } from "./lib/one.js";
+import { gameOver, hint, input, score } from "./lib/one.js";
 import { coin, explosion, jump, powerup } from "./lib/fsfx/sfxr.js";
 import * as sound from "./lib/sound.js";
 
@@ -32,14 +32,11 @@ tap to jump one wall, hold to walk
   date: "2014-04-02",
 };
 
-// The 480 box the game is written in.
-const W = 480;
-
-// 15 cells of 30 is 450, leaving a margin either side.
+// 15 cells of 64 is 960, leaving a margin either side.
 const N = 15;
-const CELL = 30;
+const CELL = 64;
 const MAZE = N * CELL;
-const MX = (W - MAZE) / 2;
+const MX = (1024 - MAZE) / 2;
 const MY = MX;
 // Where the maze grows from, and where you start.
 const MID = (N - 1) / 2;
@@ -55,7 +52,7 @@ const SIDES = [
   { bit: W_W, off: -1, back: E_W },
 ];
 
-const LINE = 3;
+const LINE = 6;
 
 // Cells a second.
 const WALK = 4;
@@ -69,12 +66,12 @@ const BAIL = 0.94;
 // A press let go inside this is a jump; held past it, it walks.
 const TAP = 0.15;
 
-const YOU_R = 7.5;
-const YOU_BOX = 15;
-const BOT_R = 5.5;
-const BOT_BOX = 13;
-const KEY_BOX = 9.5;
-const GATE_BOX = 19;
+const YOU_R = 16;
+const YOU_BOX = 32;
+const BOT_R = 12;
+const BOT_BOX = 28;
+const KEY_BOX = 20;
+const GATE_BOX = 40;
 
 // Still, then aiming, then charging. STILL is there because a bot walking
 // inward otherwise catches a player who has had no time to be anywhere else.
@@ -117,7 +114,6 @@ const WIPE_OUT = 1;
 const SHOWING = 2;
 const WIPE_IN = 3;
 
-const css = (c) => `#${c.toString(16).padStart(6, "0")}`;
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const cx = (i) => MX + (i + 0.5) * CELL;
 const cy = (j) => MY + (j + 0.5) * CELL;
@@ -338,14 +334,14 @@ class Player extends ent.Entity {
   render(ctx) {
     const r = this.leaving >= 0 ? YOU_R * this.leaving : YOU_R;
     if (r <= 0) return;
-    ctx.fillStyle = css(YOU);
+    ctx.fillStyle = ent.css(YOU);
     ctx.beginPath();
     ctx.arc(0, 0, r, 0, 2 * Math.PI);
     ctx.fill();
     // 5 of 17 ready, 8 of 17 not.
     const cut = this.leaving >= 0 ? 0.29 : 0.29 + 0.18 * this.cool;
     if (cut <= 0) return;
-    ctx.fillStyle = css(BG);
+    ctx.fillStyle = ent.css(BG);
     ctx.fillRect(-r, r - 2 * r * cut, 2 * r, 2 * r * cut);
   }
 }
@@ -492,12 +488,12 @@ class Bot extends ent.Entity {
     ctx.beginPath();
     ctx.arc(0, 0, BOT_R, 0, 2 * Math.PI);
     if (this.evil) {
-      ctx.fillStyle = css(BOT);
+      ctx.fillStyle = ent.css(BOT);
       ctx.fill();
       return;
     }
-    ctx.strokeStyle = css(BOT);
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = ent.css(BOT);
+    ctx.lineWidth = 4;
     ctx.stroke();
   }
 }
@@ -519,7 +515,7 @@ class Key extends ent.Entity {
   }
 
   render(ctx) {
-    ctx.fillStyle = css(DARK);
+    ctx.fillStyle = ent.css(DARK);
     ctx.fillRect(-KEY_BOX / 2, -KEY_BOX / 2, KEY_BOX, KEY_BOX);
   }
 }
@@ -551,11 +547,11 @@ class Gate extends ent.Entity {
 
   render(ctx) {
     const h = GATE_BOX / 2;
-    ctx.fillStyle = css(DARK);
+    ctx.fillStyle = ent.css(DARK);
     ctx.fillRect(-h, -h, GATE_BOX, GATE_BOX);
     if (this.shut <= 0) return;
     const s = GATE_BOX / 2 * this.shut;
-    ctx.fillStyle = css(BG);
+    ctx.fillStyle = ent.css(BG);
     ctx.fillRect(-s, -s, 2 * s, 2 * s);
   }
 }
@@ -570,8 +566,8 @@ function die() {
     y: player.pos.y,
     color: YOU,
     count: 60,
-    size: 3,
-    speed: [120, 80],
+    size: 6,
+    speed: [256, 170],
     duration: [0.5, 0.3],
   });
 }
@@ -645,10 +641,7 @@ export function update(dt) {
 }
 
 export function render(ctx) {
-  ctx.save();
-  ctx.scale(SIZE / W, SIZE / W);
-
-  ctx.strokeStyle = css(WALL);
+  ctx.strokeStyle = ent.css(WALL);
   ctx.lineWidth = LINE;
   ctx.lineCap = "square";
   ctx.beginPath();
@@ -657,39 +650,34 @@ export function render(ctx) {
     ctx.lineTo(walls[i + 2], walls[i + 3]);
   }
   ctx.stroke();
-  ctx.restore();
 
   ent.render(ctx);
-
-  ctx.save();
-  ctx.scale(SIZE / W, SIZE / W);
   drawWipe(ctx);
-  ctx.restore();
 }
 
 function drawWipe(ctx) {
   if (phase === PLAY) return;
-  ctx.fillStyle = css(DARK);
+  ctx.fillStyle = ent.css(DARK);
 
   if (phase === WIPE_OUT) {
-    const s = 2 * W * (phaseT / WIPE);
+    const s = 2048 * (phaseT / WIPE);
     ctx.fillRect(wipeX - s / 2, wipeY - s / 2, s, s);
     return;
   }
 
-  ctx.fillRect(0, 0, W, W);
+  ctx.fillRect(0, 0, 1024, 1024);
   if (phase === WIPE_IN) {
-    const s = W * (phaseT / WIPE);
-    ctx.fillStyle = css(BG);
-    ctx.fillRect(W / 2 - s / 2, W / 2 - s / 2, s, s);
+    const s = 1024 * (phaseT / WIPE);
+    ctx.fillStyle = ent.css(BG);
+    ctx.fillRect(512 - s / 2, 512 - s / 2, s, s);
     return;
   }
-  label(ctx, `LEVEL ${level}`, W / 2, W / 2, 4, YOU);
+  label(ctx, `LEVEL ${level}`, 512, 512, 9, YOU);
 }
 
 function label(ctx, s, x, y, size, color) {
   const g = glyphs(s);
-  ctx.fillStyle = css(color);
+  ctx.fillStyle = ent.css(color);
   const x0 = x - g.width * size / 2;
   const y0 = y - g.height * size / 2;
   for (let i = 0; i < g.dots.length; i += 2) {

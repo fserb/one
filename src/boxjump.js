@@ -10,11 +10,10 @@
  * A contact is a segment test and not an overlap: the step from last frame's
  * position to this one, against the outline in the piece's own unturned
  * coordinates. That gives the point and the face in one pass and nothing
- * tunnels at 520 a second. Both ends of the step use this frame's angle, which
+ * tunnels at 1110 a second. Both ends of the step use this frame's angle, which
  * is a frame of error in the shape's turn and none in the blob's line.
  */
 
-import { css } from "./lib/art.js";
 import * as ent from "./lib/entity.js";
 import { flash, gameOver, msg, score } from "./lib/one.js";
 import { explosion, hit, jump, powerup } from "./lib/fsfx/sfxr.js";
@@ -33,33 +32,32 @@ off the face you are standing on
   draft: true,
 };
 
-const W = 480;
 const TAU = 2 * Math.PI;
 
 const BOARD = 0x2b2d42;
 const CHALK = 0xedf2f4;
 const BLOB = 0xef476f;
 
-const SPEED = 520;
-const RIDE = 11; // how far the blob's middle floats off the face it stands on
+const SPEED = 1110;
+const RIDE = 23; // how far the blob's middle floats off the face it stands on
 
 // The blob, and how far past the board's edge it gets before the run ends.
-const BW = 15;
-const BH = 21;
-const OUT = 40;
+const BW = 32;
+const BH = 45;
+const OUT = 85;
 
 // No two circumcircles come within GAP. EDGE is RIDE plus half the blob, so the
 // blob standing on the face nearest the edge is still on the board.
-const GAP = 22;
-const EDGE = 22;
+const GAP = 47;
+const EDGE = 47;
 
 // The size a piece is drawn at, before FAT. The range is cut into `n` bands and
 // each piece chosen inside its own: independent choices come out all-medium
 // often enough to notice. The top of the range falls with the count, which is
 // what keeps six of them fitting.
-const SMIN = 22;
-const SMAX = 86;
-const PER = 6;
+const SMIN = 47;
+const SMAX = 183;
+const PER = 13;
 
 // A triangle of the same circumradius looks much smaller, hence FAT.
 const SHAPES = [3, 4, 6];
@@ -139,8 +137,8 @@ class Piece extends ent.Entity {
       y: this.pos.y,
       color: CHALK,
       count: 28,
-      size: [2, 4],
-      speed: [90, 110],
+      size: [4, 9],
+      speed: [190, 235],
       spread: this.r * 0.7,
       duration: [0.5, 0.3],
     });
@@ -199,8 +197,8 @@ class Player extends ent.Entity {
     // It starts off the board, so leaving is only a loss once it has been on.
     this.entered = false;
     this.angle = Math.atan2(dy, dx) + Math.PI / 2;
-    this.gfx.fill(BLOB).rect(-BW / 2, -BH / 2, BW, BH, 9)
-      .fill(BOARD).rect(-3, 4 - BH / 2, 6, 4, 4);
+    this.gfx.fill(BLOB).rect(-BW / 2, -BH / 2, BW, BH, 19)
+      .fill(BOARD).rect(-6, 9 - BH / 2, 13, 9, 9);
   }
 
   // The press is read here and not in ride(), which land() also calls: a press
@@ -237,8 +235,8 @@ class Player extends ent.Entity {
       y: this.pos.y,
       color: CHALK,
       count: 10,
-      size: [2, 3],
-      speed: [60, 70],
+      size: [4, 6],
+      speed: [128, 150],
       direction: [Math.atan2(-this.dir.y, -this.dir.x) - 0.6, 1.2],
       duration: [0.3, 0.2],
     });
@@ -259,14 +257,14 @@ class Player extends ent.Entity {
     }
     if (this.land(x, y)) return;
 
-    const on = this.pos.x > 0 && this.pos.x < W && this.pos.y > 0 &&
-      this.pos.y < W;
+    const on = this.pos.x > 0 && this.pos.x < 1024 && this.pos.y > 0 &&
+      this.pos.y < 1024;
     this.entered ||= on;
     // The flight that cleared the level is not a flight that can end the run.
     if (on || !this.entered || clearing > 0) return;
     if (
-      this.pos.x > -OUT && this.pos.x < W + OUT && this.pos.y > -OUT &&
-      this.pos.y < W + OUT
+      this.pos.x > -OUT && this.pos.x < 1024 + OUT && this.pos.y > -OUT &&
+      this.pos.y < 1024 + OUT
     ) return;
     this.die();
   }
@@ -300,8 +298,8 @@ class Player extends ent.Entity {
       y: this.pos.y,
       color: CHALK,
       count: 12,
-      size: [2, 3],
-      speed: [50, 70],
+      size: [4, 6],
+      speed: [107, 150],
       direction: [Math.atan2(n.y, n.x) - Math.PI / 2, Math.PI],
       duration: [0.3, 0.2],
     });
@@ -418,8 +416,8 @@ function dist(a, b) {
 function place(pieces, r) {
   const m = r + EDGE;
   for (let i = 0; i < 300; ++i) {
-    const x = m + (W - 2 * m) * Math.random();
-    const y = m + (W - 2 * m) * Math.random();
+    const x = m + (1024 - 2 * m) * Math.random();
+    const y = m + (1024 - 2 * m) * Math.random();
     const free = pieces.every((p) => dist(p.pos, { x, y }) > p.r + r + GAP);
     if (free) return { x, y };
   }
@@ -428,8 +426,8 @@ function place(pieces, r) {
 
 // How far (x, y) is from the board's edge along (dx, dy).
 function reach(x, y, dx, dy) {
-  const sx = dx > 0 ? (W - x) / dx : dx < 0 ? -x / dx : Infinity;
-  const sy = dy > 0 ? (W - y) / dy : dy < 0 ? -y / dy : Infinity;
+  const sx = dx > 0 ? (1024 - x) / dx : dx < 0 ? -x / dx : Infinity;
+  const sy = dy > 0 ? (1024 - y) / dy : dy < 0 ? -y / dy : Infinity;
   return Math.min(sx, sy);
 }
 
@@ -437,7 +435,7 @@ function clear() {
   clearing = CLEAR;
   score.value += 1;
   sound.play("clear");
-  flash(css(CHALK), 0.05);
+  flash(ent.css(CHALK), 0.05);
 }
 
 // Both caps are there because every death replays from level 1: seven pieces of
@@ -477,7 +475,7 @@ function buildLevel() {
   const a = TAU * Math.random();
   const dx = Math.cos(a);
   const dy = Math.sin(a);
-  const back = reach(target.pos.x, target.pos.y, -dx, -dy) + 30;
+  const back = reach(target.pos.x, target.pos.y, -dx, -dy) + 64;
   new Player(target.pos.x - dx * back, target.pos.y - dy * back, dx, dy);
 
   msg(`LEVEL ${level + 1}`);

@@ -174,7 +174,6 @@ function burst(color, pos, speed) {
 
 export function init() {
   ent.reset([Enemy, Player, ent.Particle]);
-  ent.world(1024); // in place of the 480 box reset() sets
 
   new Player();
   ent.every(1.5, () => {

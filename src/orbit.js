@@ -16,7 +16,6 @@
  */
 
 import { extra, random } from "./alma/src/index.js";
-import { css } from "./lib/art.js";
 import * as ent from "./lib/entity.js";
 import { flash, gameOver, msg, score } from "./lib/one.js";
 import { explosion, hit, laser, powerup } from "./lib/fsfx/sfxr.js";
@@ -43,30 +42,29 @@ const HALFBLACK = mix(BLACK, COLOR, 0.75);
 
 const TAU = 2 * Math.PI;
 
-// The 480 box the game is written in, and the point it all turns about.
-const W = 480;
-const CX = W / 2;
-const CY = W / 2;
+// The point the board all turns about.
+const CX = 512;
+const CY = 512;
 
-// 200, reaching 238.5 out with the recoil and the shield ring.
-const ORBIT = 200;
-const RECOIL = 20;
-const FALLBACK = 50;
-const SETTLE = 50;
+// 425, reaching 507 out with the recoil and the shield ring.
+const ORBIT = 425;
+const RECOIL = 43;
+const FALLBACK = 107;
+const SETTLE = 107;
 const ANGSPEED = Math.PI / 4;
 const RELOAD = 0.5;
-const SHIELD = 17;
+const SHIELD = 36;
 // Half thickness of a chunk at full health.
-const THICK = 6;
+const THICK = 13;
 
-const BSPEED = 300;
-const BR = 6;
+const BSPEED = 640;
+const BR = 13;
 
 // One ring gets a new target angle every REPOINT seconds over the ring count.
 const SPIN = 5;
 const REPOINT = 12;
 
-const ENEMY_R = 17;
+const ENEMY_R = 36;
 const ENEMY_TURN = 10;
 // 2.2s to the opening shot, 3.3s to the one past the shield.
 const ENEMY_FIRST = 1.5;
@@ -143,7 +141,7 @@ class Player extends ent.Entity {
     this.clockwise = false;
     this.radius = ORBIT;
     this.reload = 1;
-    this.hitBox(20, 22, 0, -1);
+    this.hitBox(43, 47, 0, -2);
     this.draw();
   }
 
@@ -151,9 +149,9 @@ class Player extends ent.Entity {
   // not move the ship.
   draw() {
     this.gfx.clear().size(2 * SHIELD)
-      .fill(WHITE).mt(0, -12).lt(10, 10).lt(0, 4).lt(-10, 10).fill();
+      .fill(WHITE).mt(0, -26).lt(21, 21).lt(0, 9).lt(-21, 21).fill();
     if (this.shield) {
-      this.gfx.line(3, HALFWHITE).circle(0, 0, SHIELD);
+      this.gfx.line(6, HALFWHITE).circle(0, 0, SHIELD);
     }
   }
 
@@ -185,7 +183,7 @@ class Player extends ent.Entity {
 
     const c = Math.cos(this.angle);
     const s = Math.sin(this.angle);
-    new Bullet(this.pos.x - 2 * c + 12 * s, this.pos.y - 2 * s - 12 * c, this.angle);
+    new Bullet(this.pos.x - 4 * c + 26 * s, this.pos.y - 4 * s - 26 * c, this.angle);
     sound.play("shot");
     this.radius += RECOIL;
   }
@@ -221,11 +219,11 @@ class Bullet extends ent.Entity {
     }
 
     const { x, y } = this.pos;
-    if (x < 0 || y < 0 || x > W || y > W) return this.remove();
+    if (x < 0 || y < 0 || x > 1024 || y > 1024) return this.remove();
 
     if (this.age > 0.06) {
       this.gfx.cache(1).fill(WHITE)
-        .mt(0, -6).lt(-3, 4).lt(-3, 6).lt(3, 6).lt(3, 4);
+        .mt(0, -13).lt(-6, 9).lt(-6, 13).lt(6, 13).lt(6, 9);
     }
 
     const e = ent.one(Enemy);
@@ -250,17 +248,17 @@ class EnemyBullet extends ent.Entity {
 
   update() {
     const { x, y } = this.pos;
-    if (x < 0 || y < 0 || x > W || y > W) return this.remove();
+    if (x < 0 || y < 0 || x > 1024 || y > 1024) return this.remove();
 
     if (this.age > 0.06) {
       this.gfx.cache(1).fill(BLACK)
-        .mt(0, -6).lt(-3, 4).lt(-3, 6).lt(3, 6).lt(3, 4);
+        .mt(0, -13).lt(-6, 9).lt(-6, 13).lt(6, 13).lt(6, 9);
     }
 
     if (player !== null && this.hit(player)) {
       this.remove();
       // The only sign that a round landed on the shield.
-      flash(css(WHITE));
+      flash(ent.css(WHITE));
       if (player.shield) player.removeShield();
       else die();
       return;
@@ -298,7 +296,7 @@ class Chunk extends ent.Entity {
   }
 
   draw() {
-    const r = (3 + 9 * this.health / 5) / 2;
+    const r = (6 + 20 * this.health / 5) / 2;
     // size() keeps the centre of the ring on the entity, which is what `angle`
     // turns about; the arc's own box is off to one side.
     this.gfx.clear().size(2 * (this.radius + THICK))
@@ -320,7 +318,7 @@ class Chunk extends ent.Entity {
     const dx = x - this.pos.x;
     const dy = y - this.pos.y;
     const d = Math.hypot(dx, dy);
-    const half = (3 + 9 * this.health / 5) / 2 + r;
+    const half = (6 + 20 * this.health / 5) / 2 + r;
     if (d < this.radius - half || d > this.radius + half) return false;
 
     const pad = r / d;
@@ -365,8 +363,8 @@ class Chunk extends ent.Entity {
 
       const a = b.angle - Math.PI / 2;
       if (this.health > 0.2) {
-        this.pos.x += Math.cos(a) * 8 / this.health;
-        this.pos.y += Math.sin(a) * 8 / this.health;
+        this.pos.x += Math.cos(a) * 17 / this.health;
+        this.pos.y += Math.sin(a) * 17 / this.health;
         ent.shake(0.05);
         continue;
       }
@@ -379,8 +377,8 @@ class Chunk extends ent.Entity {
         y: CY - this.radius * Math.sin(a),
         color: mix(COLOR, BLACK, 1 / 5),
         count: wide * 100 / TAU,
-        size: 6,
-        speed: 200,
+        size: 13,
+        speed: 425,
         direction: [a - wide, 2 * wide],
         duration: 0.2,
       });
@@ -400,7 +398,7 @@ class Level extends ent.Entity {
     this.layers = [];
     this.want = [];
 
-    let radius = 40;
+    let radius = 85;
     for (const [pattern, weight] of n < DATA.length ? DATA[n] : roll(n)) {
       let slots = 0;
       for (const c of pattern) slots += Number(c);
@@ -417,7 +415,7 @@ class Level extends ent.Entity {
 
       this.layers.push(ring);
       this.want.push(0);
-      radius += 15;
+      radius += 32;
     }
 
     this.repoint = REPOINT / this.want.length;
@@ -463,9 +461,9 @@ class Enemy extends ent.Entity {
     this.hitCircle(ENEMY_R);
     // Background colour, drawing nothing: it keeps the bounding box on the
     // middle of the body, the way size() does.
-    this.gfx.fill(COLOR).rect(-20, -20, 40, 40)
-      .fill(BLACK).circle(0, 0, 10)
-      .fill(BLACK).mt(0, -20).lt(10, 0).lt(-10, 0).fill();
+    this.gfx.fill(COLOR).rect(-43, -43, 86, 86)
+      .fill(BLACK).circle(0, 0, 21)
+      .fill(BLACK).mt(0, -43).lt(21, 0).lt(-21, 0).fill();
   }
 
   explode() {
@@ -476,8 +474,8 @@ class Enemy extends ent.Entity {
       y: CY,
       color: BLACK,
       count: 100,
-      size: [2, 10],
-      speed: [50, 50],
+      size: [4, 21],
+      speed: [107, 107],
       direction: [0, TAU],
       duration: 0.5,
     });
@@ -591,8 +589,8 @@ function die() {
     y,
     color: WHITE,
     count: [70, 20],
-    size: [3, 10],
-    speed: [5, 25],
+    size: [6, 21],
+    speed: [11, 53],
     duration: [2, 0.5],
   });
   ent.delay(0.05);

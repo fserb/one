@@ -7,6 +7,7 @@
  *
  *   core.js   the groups, the frame, and Entity
  *   props.js  Text, Particle and the two timers
+ *   gfx.js    css(), the one colour helper a game calls directly
  *
  * update(dt) and render(ctx) already have one.js's signatures, so a game that
  * adds nothing of its own re-exports them rather than wrapping them.
@@ -14,3 +15,4 @@
 
 export * from "./core.js";
 export * from "./props.js";
+export { css } from "./gfx.js";

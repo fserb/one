@@ -10,6 +10,9 @@
  * either off. mt()/lt()/ct() draw a path where the four shape calls will not.
  * text() has its own colour and draws art.js's bitmap font.
  *
+ * css(c) is here too: it turns one of those 0xrrggbb numbers into the string a
+ * canvas takes, and every game reaches it through entity.js.
+ *
  * Each shape is a list of commands, recorded when the call is made and replayed
  * into a Path2D the first time it is drawn. A command list has no DOM object in
  * it, so the build can still import a game under Deno.
@@ -30,13 +33,26 @@
  * and never emit a "C".
  */
 
-import { css, glyphs } from "./art.js";
+import { glyphs } from "./art.js";
 
 const TAU = 2 * Math.PI;
 
 // Where an arc's x or y reverses, as unit vectors, so a quarter arc's box is
 // exact instead of carrying the error in Math.cos(PI / 2).
 const CARDINAL = [[1, 0], [0, 1], [-1, 0], [0, -1]];
+
+// Every colour in a game is a 0xrrggbb number and every canvas call wants a
+// string, so the two are paired once here and kept.
+const CSS = new Map();
+
+export function css(c) {
+  let s = CSS.get(c);
+  if (s === undefined) {
+    s = `#${(c & 0xffffff).toString(16).padStart(6, "0")}`;
+    CSS.set(c, s);
+  }
+  return s;
+}
 
 export class Gfx {
   constructor() {

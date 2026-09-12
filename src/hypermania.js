@@ -42,28 +42,27 @@ const ORANGE = 0xe65205;
 const FLASH = 0xffffcc;
 const EMBER = 0xb23f04;
 
-const W = 480;
 // The game's own bar, along the bottom.
-const BARH = 49;
-const BOT = W - BARH;
+const BARH = 105;
+const BOT = 1024 - BARH;
 
-const EW = 400;
-const EH = 12;
+const EW = 850;
+const EH = 26;
 const EY = BOT + (BARH - EH) / 2;
 
-// Rests 28 above the bar, drops to 10 on the recoil, climbs back at RISE.
-const PY = BOT - 28;
-const PDIP = BOT - 10;
-const RISE = 100;
-const WALK = 200;
-const PX = 18;
+// Rests 60 above the bar, drops to 21 on the recoil, climbs back at RISE.
+const PY = BOT - 60;
+const PDIP = BOT - 21;
+const RISE = 215;
+const WALK = 425;
+const PX = 38;
 
 // A shot leaves from above the ship whatever the recoil is doing.
-const SHOTY = PY - 18;
-const UP = 500;
-const DOWN = 400;
-const CEIL = 9;
-const SINK = BOT + 10;
+const SHOTY = PY - 38;
+const UP = 1070;
+const DOWN = 850;
+const CEIL = 19;
+const SINK = BOT + 21;
 
 // A full bar is two minutes of holding still.
 const DRAIN = 100 / 120;
@@ -73,15 +72,15 @@ const FILL = 0.75;
 const BEAT = 0.1;
 
 // Wider than the screen on both axes, so an enemy leaving one side is already
-// in place at the other. Wrapping happens 5 past the foot of the field.
-const WRAPX = W + 15;
-const BANDX = W + 30;
-const WRAPY = BOT + 5;
-const BANDY = 430;
+// in place at the other. Wrapping happens 11 past the foot of the field.
+const WRAPX = 1024 + 32;
+const BANDX = 1024 + 64;
+const WRAPY = BOT + 11;
+const BANDY = 917;
 
 const COLS = 5;
 const ROWS = 4;
-const PIXEL = 6;
+const PIXEL = 13;
 
 const DEATH = 0.4;
 const LIGHT = 0.05;
@@ -101,56 +100,56 @@ sound.voice("boom", { ...explosion(1345), vol: 0.2 });
 // not a speed but that row's spawn offset, which is what spawn() reads it for.
 const STRATS = [
   {
-    spawn: { across: true, w: 5, h: 3, dy: 50 },
-    xmove: () => 200,
+    spawn: { across: true, w: 5, h: 3, dy: 107 },
+    xmove: () => 425,
     ymove: () => 0,
     shooting: 0.1,
   },
   {
-    spawn: { across: false, w: 3, h: 6, dx: 102 },
-    xmove: (y, t) => t === 0 ? 180 * y : Math.trunc(t) % 4 <= 1 ? 200 : -200,
-    ymove: (t) => Math.trunc(t) % 2 === 0 ? 50 : 0,
+    spawn: { across: false, w: 3, h: 6, dx: 218 },
+    xmove: (y, t) => t === 0 ? 385 * y : Math.trunc(t) % 4 <= 1 ? 425 : -425,
+    ymove: (t) => Math.trunc(t) % 2 === 0 ? 107 : 0,
     shooting: 0.1,
   },
   {
-    spawn: { across: true, w: 5, h: 3, dy: 50 },
-    xmove: () => 200,
-    ymove: (t) => 15 * Math.sin(2 * Math.PI * t / 30),
+    spawn: { across: true, w: 5, h: 3, dy: 107 },
+    xmove: () => 425,
+    ymove: (t) => 32 * Math.sin(2 * Math.PI * t / 30),
     shooting: 0.3,
   },
   {
-    spawn: { across: false, w: 3, h: 6, dx: 102 },
-    xmove: (y, t) => t === 0 ? 130 * y : (y + Math.trunc(t)) % 4 <= 1 ? 200 : -200,
-    ymove: (t) => Math.trunc(t) % 3 === 0 ? 50 : 0,
+    spawn: { across: false, w: 3, h: 6, dx: 218 },
+    xmove: (y, t) => t === 0 ? 277 * y : (y + Math.trunc(t)) % 4 <= 1 ? 425 : -425,
+    ymove: (t) => Math.trunc(t) % 3 === 0 ? 107 : 0,
     shooting: 0.3,
   },
   {
-    spawn: { across: true, w: 5, h: 3, dy: 50 },
-    xmove: () => 200,
-    ymove: (t) => 80 * Math.sin(2 * Math.PI * t / 5),
+    spawn: { across: true, w: 5, h: 3, dy: 107 },
+    xmove: () => 425,
+    ymove: (t) => 170 * Math.sin(2 * Math.PI * t / 5),
     shooting: 0.5,
   },
   {
-    spawn: { across: false, w: 3, h: 6, dx: 102 },
+    spawn: { across: false, w: 3, h: 6, dx: 218 },
     xmove: (_y, t) => {
-      if (t === 0) return 240;
+      if (t === 0) return 512;
       const s = Math.trunc(1.5 * t) % 6;
       if (s === 0 || s === 4) return 0;
-      return s === 1 || s === 3 ? -300 : 300;
+      return s === 1 || s === 3 ? -640 : 640;
     },
-    ymove: (t) => Math.trunc(t) % 3 !== 0 ? 40 : 0,
+    ymove: (t) => Math.trunc(t) % 3 !== 0 ? 85 : 0,
     shooting: 0.4,
   },
   {
-    spawn: { across: true, w: 5, h: 3, dy: 50 },
-    xmove: () => 200,
-    ymove: (t) => 280 * Math.sin(2 * Math.PI * t / 1.5),
+    spawn: { across: true, w: 5, h: 3, dy: 107 },
+    xmove: () => 425,
+    ymove: (t) => 600 * Math.sin(2 * Math.PI * t / 1.5),
     shooting: 0.6,
   },
   {
-    spawn: { across: false, w: 3, h: 6, dx: 102 },
-    xmove: (y, t) => t === 0 ? (y * 7843) % W : 0,
-    ymove: () => 200,
+    spawn: { across: false, w: 3, h: 6, dx: 218 },
+    xmove: (y, t) => t === 0 ? (y * 7843) % 1024 : 0,
+    ymove: () => 425,
     shooting: 0,
   },
 ];
@@ -189,7 +188,7 @@ class Bar extends ent.Entity {
 
   constructor() {
     super();
-    this.pos.x = W / 2;
+    this.pos.x = 512;
     this.pos.y = BOT + BARH / 2;
   }
 
@@ -199,7 +198,7 @@ class Bar extends ent.Entity {
     const y = EY - this.pos.y;
     const left = Math.max(0, energy) / 100;
     this.gfx.clear()
-      .fill(PANEL).rect(-W / 2, -BARH / 2, W, BARH)
+      .fill(PANEL).rect(-512, -BARH / 2, 1024, BARH)
       .fill(DEEP).rect(-EW / 2, y, EW, EH)
       .fill(ORANGE).rect(-EW / 2, y, EW * left, EH);
 
@@ -210,11 +209,11 @@ class Bar extends ent.Entity {
     this.age = 0;
     new ent.Text({
       text: `+${n}`,
-      x: W / 2 + EW / 2 - 15,
-      y: BOT - 10,
-      size: 2,
+      x: 512 + EW / 2 - 32,
+      y: BOT - 21,
+      size: 4,
       color: ORANGE,
-      vel: [0, -40],
+      vel: [0, -85],
       duration: 0.3,
     });
   }
@@ -223,12 +222,12 @@ class Bar extends ent.Entity {
 class Player extends ent.Entity {
   constructor() {
     super();
-    this.pos.x = W / 2;
+    this.pos.x = 512;
     this.pos.y = PY;
     this.bullet = null;
     this.combo = 0;
-    this.hitBox(24, 36);
-    this.art.size(3, 8, 12).obj(
+    this.hitBox(48, 72);
+    this.art.size(6, 8, 12).obj(
       [WHITE],
       `
 ...00...
@@ -256,8 +255,8 @@ class Player extends ent.Entity {
       y: this.pos.y,
       color: WHITE,
       count: 80,
-      size: 6,
-      speed: [20, 50],
+      size: 13,
+      speed: [43, 107],
       duration: 1.5,
     });
     ent.shake(1);
@@ -285,7 +284,7 @@ class Player extends ent.Entity {
 
     if (input.press.left) this.pos.x = Math.max(PX, this.pos.x - WALK * time);
     else if (input.press.right) {
-      this.pos.x = Math.min(W - PX, this.pos.x + WALK * time);
+      this.pos.x = Math.min(1024 - PX, this.pos.x + WALK * time);
     }
   }
 }
@@ -295,8 +294,8 @@ class Bullet extends ent.Entity {
     super();
     this.pos.x = x;
     this.pos.y = SHOTY;
-    this.hitBox(6, 18);
-    this.art.size(3).color(WHITE).rect(0, 0, 2, 6);
+    this.hitBox(12, 36);
+    this.art.size(6).color(WHITE).rect(0, 0, 2, 6);
   }
 
   explode(hit) {
@@ -306,9 +305,9 @@ class Bullet extends ent.Entity {
         text: `x${player.combo}`,
         x: this.pos.x,
         y: this.pos.y,
-        size: 2,
+        size: 4,
         color: EMBER,
-        vel: [0, -50],
+        vel: [0, -107],
         duration: 0.5,
       });
     }
@@ -322,8 +321,8 @@ class EnemyBullet extends ent.Entity {
     super();
     this.pos.x = x;
     this.pos.y = y;
-    this.hitBox(6, 18);
-    this.art.size(3).color(BLACK).rect(0, 0, 2, 6);
+    this.hitBox(12, 36);
+    this.art.size(6).color(BLACK).rect(0, 0, 2, 6);
     new Light(x, y, false);
   }
 
@@ -333,7 +332,7 @@ class EnemyBullet extends ent.Entity {
       player.bullet.explode(true);
       // Shot down: white, held, and harmless on the way.
       this.clearHits();
-      this.art.clear().size(2).color(WHITE).rect(0, 0, 2, 6);
+      this.art.clear().size(4).color(WHITE).rect(0, 0, 2, 6);
       ent.after(WHITEOUT, () => this.remove());
       return;
     }
@@ -351,7 +350,7 @@ class Light extends ent.Entity {
     super();
     this.pos.x = x;
     this.pos.y = y;
-    this.gfx.fill(mine ? FLASH : BLACK).circle(0, 0, mine ? 12 : 8);
+    this.gfx.fill(mine ? FLASH : BLACK).circle(0, 0, mine ? 26 : 17);
   }
 
   update() {
@@ -382,7 +381,7 @@ class Enemy extends ent.Entity {
   }
 
   shoot() {
-    new EnemyBullet(this.pos.x + 2.5, this.pos.y + 12);
+    new EnemyBullet(this.pos.x + 5, this.pos.y + 26);
     sound.play("enemyshot");
   }
 
@@ -415,9 +414,9 @@ class Enemy extends ent.Entity {
         y: this.pos.y,
         color: WHITE,
         count: this.sprite.dots,
-        size: 6,
-        speed: [20, 50],
-        spread: 5,
+        size: 13,
+        speed: [43, 107],
+        spread: 11,
         duration: 0.5,
       });
     });
@@ -447,14 +446,14 @@ class Wave extends ent.Entity {
       const gap = BANDX / w;
       for (let y = 0; y < h; ++y) {
         for (let x = 0; x < w; ++x) {
-          add(y, x * gap + (y % 2) * (gap / 2) - 496, 50 + y * dy);
+          add(y, x * gap + (y % 2) * (gap / 2) - 1058, 107 + y * dy);
         }
       }
     } else {
       const gap = BANDY / h;
       for (let y = 0; y < h; ++y) {
         for (let x = 0; x < w; ++x) {
-          add(y, 15 + x * dx + this.strat.xmove(y, 0), -gap * y);
+          add(y, 32 + x * dx + this.strat.xmove(y, 0), -gap * y);
         }
       }
     }
@@ -462,10 +461,10 @@ class Wave extends ent.Entity {
     // Moved back off the entry edge, so the wave arrives rather than appears.
     if (across) {
       const max = Math.max(...this.all.map((e) => e.pos.x));
-      if (max > 0) { for (const e of this.all) e.pos.x -= max + 100; }
+      if (max > 0) { for (const e of this.all) e.pos.x -= max + 215; }
     } else {
       const max = Math.max(...this.all.map((e) => e.pos.y));
-      if (max > 0) { for (const e of this.all) e.pos.y -= max + 30; }
+      if (max > 0) { for (const e of this.all) e.pos.y -= max + 64; }
     }
   }
 
@@ -495,7 +494,7 @@ class Wave extends ent.Entity {
 
       if (e.pos.x >= WRAPX) e.pos.x -= BANDX;
       if (!across) {
-        if (e.pos.x <= -15) e.pos.x += BANDX;
+        if (e.pos.x <= -32) e.pos.x += BANDX;
         if (e.pos.y >= WRAPY) e.pos.y -= BANDY;
       }
 
@@ -514,7 +513,8 @@ class Wave extends ent.Entity {
 }
 
 // Mirrored left to right, generated again until it has enough set pixels to be
-// legible at 30 units across. The count is how many particles it comes apart into.
+// legible at 65 units across. The count is how many particles it comes apart
+// into.
 function pattern() {
   for (;;) {
     const pat = new Array(COLS * ROWS);

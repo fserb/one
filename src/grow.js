@@ -30,23 +30,19 @@ go too far and the loop swallows it
   date: "2015-09-08",
 };
 
-// The 480 box, and one world unit in one.js's 1024.
-const W = 480;
-const K = SIZE / W;
-
 const WHITE = 0xf7f0e8;
 const DARK = 0x3d0a0e;
 const GOLD = 0xffcf5c;
 
-const R0 = 100;
+const R0 = 213;
 const NODES = 28;
-const MINGAP = 10;
+const MINGAP = 21;
 
 // A push out along the normal, drag on the square of the speed, and a spring
 // back. They settle at REACH.
-const SPEED = 80;
-const THRUST = 500;
-const DRAG = 0.1;
+const SPEED = 170;
+const THRUST = 1070;
+const DRAG = 0.047;
 const SPRING = 10;
 const REACH = THRUST / SPRING;
 
@@ -58,12 +54,12 @@ const SMOOTH = 0.2;
 
 // The two summed are the tolerance on a crossing, so gold is taken exactly when
 // the discs meet.
-const BEAD = 8;
-const GOLDR = 7;
+const BEAD = 17;
+const GOLDR = 15;
 
 const GOLDS = 3;
-const NEAR = 24;
-const FAR = REACH - 14;
+const NEAR = 51;
+const FAR = REACH - 30;
 const RAMP = 12;
 
 // HOLDCOST is on top of the second a second already costs, so holding the
@@ -72,10 +68,9 @@ const START = 12;
 const BONUS = 2;
 const HOLDCOST = 0.75;
 
-const PAD = 24;
+const PAD = 51;
 
 const TAU = 2 * Math.PI;
-const css = (c) => `#${c.toString(16).padStart(6, "0")}`;
 const mod = (a, b) => ((a % b) + b) % b;
 
 // A multiple of the opening ring. Every length in the game is in these units.
@@ -96,7 +91,7 @@ class Path extends ent.Entity {
     this.pts = [];
     for (let i = 0; i < NODES; ++i) {
       const a = TAU * i / NODES;
-      this.pts.push({ x: 240 + R0 * Math.cos(a), y: 240 + R0 * Math.sin(a) });
+      this.pts.push({ x: 512 + R0 * Math.cos(a), y: 512 + R0 * Math.sin(a) });
     }
     // `head` is the bead itself; the arc takes a point every few frames.
     this.arc = null;
@@ -308,8 +303,8 @@ class Path extends ent.Entity {
     if (this.arc !== null && this.arc.length > 0) {
       const a = this.at(this.arcAt);
       ctx.globalAlpha = 0.45;
-      ctx.strokeStyle = css(WHITE);
-      ctx.lineWidth = 2 * scale;
+      ctx.strokeStyle = ent.css(WHITE);
+      ctx.lineWidth = 4 * scale;
       ctx.beginPath();
       ctx.moveTo(a.x, a.y);
       for (const p of this.arc) ctx.lineTo(p.x, p.y);
@@ -319,18 +314,18 @@ class Path extends ent.Entity {
     }
 
     const p = this.pts;
-    ctx.strokeStyle = css(WHITE);
-    ctx.lineWidth = 2 * scale;
+    ctx.strokeStyle = ent.css(WHITE);
+    ctx.lineWidth = 4 * scale;
     ctx.beginPath();
     ctx.moveTo(p[0].x, p[0].y);
     for (let i = 1; i < p.length; ++i) ctx.lineTo(p[i].x, p[i].y);
     ctx.closePath();
     ctx.stroke();
 
-    ctx.fillStyle = css(WHITE);
+    ctx.fillStyle = ent.css(WHITE);
     for (const q of p) {
       ctx.beginPath();
-      ctx.arc(q.x, q.y, 2 * scale, 0, TAU);
+      ctx.arc(q.x, q.y, 4 * scale, 0, TAU);
       ctx.fill();
     }
   }
@@ -410,8 +405,8 @@ class Cursor extends ent.Entity {
 
     if (this.h > 0) {
       ctx.globalAlpha = 0.45;
-      ctx.strokeStyle = css(WHITE);
-      ctx.lineWidth = 2 * scale;
+      ctx.strokeStyle = ent.css(WHITE);
+      ctx.lineWidth = 4 * scale;
       ctx.beginPath();
       ctx.moveTo(-this.n.x * this.h, -this.n.y * this.h);
       ctx.lineTo(0, 0);
@@ -419,13 +414,13 @@ class Cursor extends ent.Entity {
       ctx.globalAlpha = 1;
     }
 
-    ctx.fillStyle = css(WHITE);
+    ctx.fillStyle = ent.css(WHITE);
     ctx.beginPath();
     ctx.arc(0, 0, r, 0, TAU);
     ctx.fill();
 
-    ctx.strokeStyle = css(DARK);
-    ctx.lineWidth = 2 * scale;
+    ctx.strokeStyle = ent.css(DARK);
+    ctx.lineWidth = 4 * scale;
     ctx.beginPath();
     ctx.moveTo(0, 0);
     ctx.lineTo(this.n.x * r, this.n.y * r);
@@ -450,7 +445,7 @@ class Gold extends ent.Entity {
 
   render(ctx) {
     const r = GOLDR * scale * (1 + 0.1 * Math.sin(this.age * 6));
-    ctx.fillStyle = css(GOLD);
+    ctx.fillStyle = ent.css(GOLD);
     ctx.beginPath();
     ctx.arc(0, 0, r, 0, TAU);
     ctx.fill();
@@ -472,8 +467,8 @@ function take(g) {
     y: g.pos.y,
     color: GOLD,
     count: 12,
-    size: 3 * scale,
-    speed: [70 * scale, 40 * scale],
+    size: 6 * scale,
+    speed: [150 * scale, 85 * scale],
     spread: GOLDR * scale,
     duration: [0.4, 0.2],
     circle: true,
@@ -488,8 +483,8 @@ function lose(g) {
     y: g.pos.y,
     color: DARK,
     count: 8,
-    size: 2.5 * scale,
-    speed: [26 * scale, 20 * scale],
+    size: 5 * scale,
+    speed: [55 * scale, 43 * scale],
     spread: GOLDR * scale,
     duration: [0.5, 0.2],
     circle: true,
@@ -573,21 +568,17 @@ export function update(dt) {
 
 export function render(ctx) {
   ent.render(ctx);
-
-  ctx.save();
-  ctx.scale(K, K);
   drawClock(ctx);
-  ctx.restore();
 }
 
 function drawClock(ctx) {
-  const w = 320;
-  const x = (W - w) / 2;
-  const y = W - 20;
+  const w = 680;
+  const x = (1024 - w) / 2;
+  const y = 1024 - 43;
   ctx.globalAlpha = 0.25;
-  ctx.fillStyle = css(DARK);
-  ctx.fillRect(x, y, w, 8);
+  ctx.fillStyle = ent.css(DARK);
+  ctx.fillRect(x, y, w, 17);
   ctx.globalAlpha = 1;
-  ctx.fillStyle = css(clock < 3 ? WHITE : GOLD);
-  ctx.fillRect(x, y, w * Math.min(1, clock / START), 8);
+  ctx.fillStyle = ent.css(clock < 3 ? WHITE : GOLD);
+  ctx.fillRect(x, y, w * Math.min(1, clock / START), 17);
 }

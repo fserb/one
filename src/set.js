@@ -39,27 +39,28 @@ const INK = 0x010101;
 const COLS = 4;
 const CELLS = COLS * COLS;
 
-// A card draws in a 100-unit box scaled to CELL, so the eight units of pitch
+// A card draws in a 100-unit box scaled to CELL, so the eighteen units of pitch
 // left over are the gap.
-const PITCH = 100;
-const CELL = 92;
-const MARK = CELL - 8;
+const PITCH = 216;
+const CELL = 198;
+const MARK = CELL - 17;
 
-const X0 = 90;
-const Y0 = 75;
+// 188 leaves the same margin each side, so MID lands on 512.
+const X0 = 188;
+const Y0 = 160;
 // The clock spans these and the last set is right aligned to them, so the three
 // line up as one column.
 const LEFT = X0 - CELL / 2;
 const RIGHT = X0 + PITCH * (COLS - 1) + CELL / 2;
 const MID = (LEFT + RIGHT) / 2;
 
-const CLOCK_Y = 431;
-const CLOCK_H = 8;
+const CLOCK_Y = 920;
+const CLOCK_H = 17;
 
-const GRAVE = 30;
-const GRAVE_PITCH = 27;
+const GRAVE = 64;
+const GRAVE_PITCH = 58;
 const GRAVE_X = RIGHT - GRAVE / 2 - GRAVE_PITCH * 2;
-const GRAVE_Y = 460;
+const GRAVE_Y = 981;
 
 // One maximum, so a set refills the bar rather than extending past its end.
 // Ten seconds a set is the pace a player who can read the board holds.
@@ -181,7 +182,7 @@ class Card extends ent.Entity {
     this.code = code;
     this.pos.x = x;
     this.pos.y = y;
-    this.scale = CELL / PITCH;
+    this.scale = CELL / 100;
 
     const count = code & 3;
     const type = (code >> 2) & 3;
@@ -204,7 +205,7 @@ class Card extends ent.Entity {
   }
 
   entomb(i) {
-    this.scale = GRAVE / PITCH;
+    this.scale = GRAVE / 100;
     this.pos.x = GRAVE_X + GRAVE_PITCH * i;
     this.pos.y = GRAVE_Y;
   }
@@ -216,7 +217,7 @@ class Mark extends ent.Entity {
     this.cell = cell;
     this.pos.x = cellX(cell);
     this.pos.y = cellY(cell);
-    this.gfx.line(4, MARKED).rect(-MARK / 2, -MARK / 2, MARK, MARK);
+    this.gfx.line(9, MARKED).rect(-MARK / 2, -MARK / 2, MARK, MARK);
   }
 }
 
@@ -229,7 +230,7 @@ class Cursor extends ent.Entity {
     this.py = -1;
     this.over = null;
     this.moved = false;
-    this.gfx.line(4, POINTED).rect(-CELL / 2, -CELL / 2, CELL, CELL);
+    this.gfx.line(9, POINTED).rect(-CELL / 2, -CELL / 2, CELL, CELL);
     this.place();
   }
 
@@ -285,10 +286,10 @@ function pop(text) {
   new ent.Text({
     text,
     x: MID,
-    y: CLOCK_Y - 8,
-    size: 3,
+    y: CLOCK_Y - 17,
+    size: 6,
     color: INK,
-    vel: [0, -22],
+    vel: [0, -47],
     duration: 0.7,
   });
 }
@@ -299,8 +300,8 @@ function burst(card) {
     y: card.pos.y,
     color: COLORS[(card.code >> 4) & 3],
     count: [40, 15],
-    size: [4, 3],
-    speed: [60, 120],
+    size: [9, 6],
+    speed: [128, 256],
     duration: 0.5,
   });
 }

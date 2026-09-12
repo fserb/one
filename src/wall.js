@@ -36,15 +36,12 @@ the orange moves only while you cannot see it
   dpad: true,
 };
 
-// The 480 box the game is written in.
-const W = 480;
-
 // Two screens across and one down, so the camera only moves sideways. 23 rows
-// is 460, so the room sits 10 off the top and bottom.
-const TILE = 20;
+// is 966, so the room sits 29 off the top and bottom.
+const TILE = 42;
 const GW = 48;
 const GH = 23;
-const LY = (W - GH * TILE) / 2;
+const LY = (1024 - GH * TILE) / 2;
 const RW = GW * TILE;
 const RH = GH * TILE;
 
@@ -58,36 +55,36 @@ const DIMWALL = 0x252528;
 const TINT = 0.12;
 // A coin you cannot see yet, drawn through the dark so there is somewhere to go.
 const MARK = 0.45;
-const DOT = 6;
-const ARROW = 9;
+const DOT = 13;
+const ARROW = 19;
 
 // A round ends when the coins stop: a hunter moves closer only when the edge of
 // the light comes in or a wall covers it.
-const LIGHT = 200;
-const LIGHT_MAX = 220;
+const LIGHT = 425;
+const LIGHT_MAX = 470;
 const LIGHT_MIN = 0;
-const DRAIN = 5;
-const FEED = 28;
+const DRAIN = 11;
+const FEED = 60;
 const RAYS = 64;
 // A ray continues this far past the wall it stops on, so the light falls on the
 // wall's face rather than stopping at it.
-const BLEED = 4;
+const BLEED = 9;
 // A nudge either side of a corner: one ray becomes the two edges of its shadow.
 const NUDGE = 0.00001;
 // Always lit, whatever the walls say, so the sprite never draws half clipped.
-const NEAR = 11;
+const NEAR = 23;
 
 // Units a second.
-const WALK = 170;
-const HUNT = 205;
-const CAM = 200;
+const WALK = 360;
+const HUNT = 435;
+const CAM = 425;
 
 // Well under the tile, and a clipped corner is slid off rather than stopped
 // against, so a one-tile gap is a gap.
-const HALF = 6;
+const HALF = 13;
 const EDGE = 0.01;
-const TAKE = 12;
-const GRAB = 11;
+const TAKE = 26;
+const GRAB = 23;
 
 // Straight segments dropped into the room, each 2 to 6 tiles long.
 const BLOCKS = 26;
@@ -97,15 +94,15 @@ const SEGVARY = 5;
 const COINS = 4;
 const PER_HUNTER = 4;
 const HUNTERS = 5;
-const COIN_GAP = 90;
-const HUNT_GAP = 360;
+const COIN_GAP = 190;
+const HUNT_GAP = 770;
 // Hunters hold this long at the start of a round.
 const GRACE = 2.5;
 // On top of the hitstop.
 const DEATH = 0.7;
 
 // The nearest hunter, seen or not: the only information the dark gives you.
-const BEAT_NEAR = 300;
+const BEAT_NEAR = 640;
 const BEAT_FAST = 0.22;
 const BEAT_SLOW = 1;
 
@@ -174,7 +171,6 @@ let beat = 0;
 let taken = 0;
 let hunting = 0;
 
-const css = (c) => `#${c.toString(16).padStart(6, "0")}`;
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const tx = (x) => Math.floor(x / TILE);
 const ty = (y) => Math.floor((y - LY) / TILE);
@@ -446,7 +442,7 @@ class Player extends ent.Entity {
     super();
     this.pos.x = x;
     this.pos.y = y;
-    this.art.size(2, 7, 7).obj([CYAN], BODY);
+    this.art.size(4, 7, 7).obj([CYAN], BODY);
   }
 
   update() {
@@ -473,7 +469,7 @@ class Hunter extends ent.Entity {
     super();
     this.pos.x = cx(i);
     this.pos.y = cy(i);
-    this.art.size(2, 7, 7).obj([ORANGE, DIMWALL], BEAST);
+    this.art.size(4, 7, 7).obj([ORANGE, DIMWALL], BEAST);
   }
 
   update() {
@@ -530,7 +526,7 @@ class Coin extends ent.Entity {
     this.pos.x = cx(i);
     this.pos.y = cy(i);
     this.phase = 2 * Math.PI * Math.random();
-    this.art.size(2, 5, 5).obj([CYAN], PIP);
+    this.art.size(4, 5, 5).obj([CYAN], PIP);
   }
 
   update() {
@@ -551,8 +547,8 @@ class Coin extends ent.Entity {
       y: this.pos.y,
       color: CYAN,
       count: 18,
-      size: 2,
-      speed: [90, 50],
+      size: 4,
+      speed: [190, 107],
       duration: [0.35, 0.2],
     });
     this.remove();
@@ -603,8 +599,8 @@ function die() {
     y: player.pos.y,
     color: ORANGE,
     count: 50,
-    size: 3,
-    speed: [170, 90],
+    size: 6,
+    speed: [360, 190],
     duration: [0.6, 0.3],
   });
 }
@@ -612,7 +608,7 @@ function die() {
 export function init() {
   ent.reset([Coin, Hunter, Player]);
   // The bounds run the width of the room and fix y at the middle.
-  camera.bounds = { x: 0, y: 0, width: RW, height: W };
+  camera.bounds = { x: 0, y: 0, width: RW, height: 1024 };
 
   buildMap();
   const sx = Math.floor(GW / 4);
@@ -710,7 +706,7 @@ export function render(ctx) {
 
   drawRoom(ctx, FLOOR, WALL);
   ctx.globalAlpha = TINT;
-  ctx.fillStyle = css(CYAN);
+  ctx.fillStyle = ent.css(CYAN);
   ctx.fillRect(0, LY, RW, RH);
   ctx.globalAlpha = 1;
 
@@ -723,9 +719,9 @@ export function render(ctx) {
 }
 
 function drawRoom(ctx, floor, wall) {
-  ctx.fillStyle = css(floor);
+  ctx.fillStyle = ent.css(floor);
   ctx.fillRect(0, LY, RW, RH);
-  ctx.fillStyle = css(wall);
+  ctx.fillStyle = ent.css(wall);
 
   const v = camera.view;
   const x0 = Math.max(0, tx(v.x));
@@ -745,7 +741,7 @@ function drawRoom(ctx, floor, wall) {
 // screen.
 function drawMarks(ctx) {
   ctx.globalAlpha = MARK;
-  ctx.fillStyle = css(CYAN);
+  ctx.fillStyle = ent.css(CYAN);
   for (const c of ent.get(Coin)) {
     const s = camera.toScreen(c.pos.x, c.pos.y);
     if (s.x >= 0 && s.y >= 0 && s.x < SIZE && s.y < SIZE) {

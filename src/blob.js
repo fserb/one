@@ -1397,8 +1397,7 @@ export function init() {
   sim.preSolve = solveRail;
   sim.clear();
   ent.reset([Pool, Rail, Blob, Danger, Shocks, Arrow, Vignette]);
-  ent.world(SIZE); // the 1024 board, in place of the 480 box reset() sets
-  // After world(), which takes a shakeBase of its own off that box.
+  // After reset(), which sets a shakeBase of its own.
   camera.shakeBase = 3;
   camera.shakeRate = 15.5;
   camera.spin(Math.random() < 0.5 ? -1 : 1);

@@ -1,9 +1,9 @@
 /*
  * musician - "Street Musician".
  *
- * The idea the whole game is built on: `bpm` is both the tempo and the speed in
- * px a second. A grid step is a sixteenth, 60/(4*bpm) seconds, so a step is
- * 15px wide at every tempo and notes stay 75px apart however fast it gets. Only
+ * The idea the whole game is built on: the tempo is the speed. A grid step is a
+ * sixteenth, 60/(4*bpm) seconds, and a note covers STEP in one, so a step is 32
+ * units wide at every tempo and notes stay 160 apart however fast it gets. Only
  * the speed ramps.
  *
  * A throw is an arc arriving at its own apex rather than a straight shot up
@@ -21,7 +21,7 @@
  */
 
 import * as ent from "./lib/entity.js";
-import { gameOver, msg, score, SIZE } from "./lib/one.js";
+import { gameOver, msg, score } from "./lib/one.js";
 import { blip, coin, explosion, hit } from "./lib/fsfx/sfxr.js";
 import * as sound from "./lib/sound.js";
 
@@ -37,19 +37,18 @@ slide to catch coins and dodge tomatoes
   date: "2014-03-31",
 };
 
-const W = 480;
 // The lane along the top, and where a note comes on from.
-const LANE = 75;
-const BAND = 30;
-const MARK = 240;
-const SPAWN = 510;
-const FIRST = 430;
+const LANE = 160;
+const BAND = 64;
+const MARK = 512;
+const SPAWN = 1090;
+const FIRST = 915;
 
 // The pivot is off the bottom of the screen, so the walk is a shallow curve:
-// 36 degrees each way, 247 of the 480 across and 40 of it down.
-const PIVX = 240;
-const PIVY = 460;
-const ARM = 210;
+// 36 degrees each way, 527 of the 1024 across and 86 of it down.
+const PIVX = 512;
+const PIVY = 981;
+const ARM = 448;
 const LEAN = Math.PI / 5;
 // Radians a second: the keys, then an untouched lean unwinding.
 const TURN = 2 * Math.PI / 3;
@@ -61,14 +60,14 @@ const TILT = 0.5;
 // A throw starts off the bottom, arrives at the middle of the arc, and is gone
 // past FLOOR on the way back down. Each arrives at the top of its own arc, so
 // the time sets its gravity, and that is the only difference between the two.
-const THROW = 520;
-const REACH = 265;
-const FLOOR = 560;
+const THROW = 1110;
+const REACH = 565;
+const FLOOR = 1195;
 const COIN_TIME = 1;
 const TOMATO_TIME = 1.6;
 // The launch window, which is most of the arc.
-const AIM0 = 120;
-const AIM1 = 360;
+const AIM0 = 256;
+const AIM1 = 768;
 
 // Notes arrive at bpm/75 a second, so the tempo is its own derivative and
 // PER_NOTE fixes the doubling time at 22 seconds.
@@ -76,25 +75,28 @@ const BPM0 = 60;
 const PER_NOTE = 2.4;
 const DENSITY = 0.2;
 const TICK = 4; // four sixteenths between ticks, so the tick is the beat
-// WINDOW is the two 20-unit boxes overlapping and PAY is exactly centred. The
+// A note covers one grid step in a sixteenth, so the speed follows the tempo.
+const STEP = 32;
+const SPEED = 4 * STEP / 60; // units a second per bpm
+// WINDOW is the two 40-unit boxes overlapping and PAY is exactly centred. The
 // run is the tempo too, so an uncapped combo in the coin as well would make the
 // score the square of the game.
-const WINDOW = 20;
+const WINDOW = 40;
 const PAY = 9;
 const COMBO_CAP = 9;
 // A played note rises and a dropped one falls, at SETTLE, fading over FADE.
-const SETTLE = 100;
+const SETTLE = 215;
 const FADE = 0.5;
 
 // Half the body: what a tomato has to reach.
-const BODYW = 26;
-const BODYH = 36;
+const BODYW = 55;
+const BODYH = 77;
 // How far off the body a coin still counts, and the tomato's radius.
-const CATCH = 16;
-const SPLAT = 8;
+const CATCH = 34;
+const SPLAT = 16;
 
-const HATX = 240;
-const HATY = 360;
+const HATX = 512;
+const HATY = 768;
 
 const DEATH = 0.6;
 
@@ -161,7 +163,7 @@ let lastx = null;
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
-// Notes are 15px apart and 20 wide, so three can cover the mark at once and
+// Notes are 32 apart and 40 wide, so three can cover the mark at once and
 // only the leftmost unresolved one is yours. Picked here, ahead of the Note
 // group, which is what the draw order in init() is doing.
 class Mark extends ent.Entity {
@@ -169,7 +171,7 @@ class Mark extends ent.Entity {
     super();
     this.pos.x = MARK;
     this.pos.y = LANE;
-    this.art.size(4, 5, 5).obj([BLACK], HOLD);
+    this.art.size(8, 5, 5).obj([BLACK], HOLD);
   }
 
   update() {
@@ -192,7 +194,7 @@ class Note extends ent.Entity {
     this.done = false;
     this.good = false;
     this.red = false;
-    this.art.size(4, 5, 5).obj([ORANGE], NOTE);
+    this.art.size(8, 5, 5).obj([ORANGE], NOTE);
   }
 
   update() {
@@ -216,13 +218,13 @@ class Note extends ent.Entity {
     } else if (this.front && (this.pos.x < MARK || strike)) {
       this.drop();
     }
-    if (!this.done) this.pos.x -= bpm * t;
+    if (!this.done) this.pos.x -= SPEED * bpm * t;
   }
 
   paint(red) {
     if (red === this.red) return;
     this.red = red;
-    this.art.size(4, 5, 5).obj([red ? RED : ORANGE], NOTE);
+    this.art.size(8, 5, 5).obj([red ? RED : ORANGE], NOTE);
   }
 
   play(off) {
@@ -247,7 +249,7 @@ class Note extends ent.Entity {
 // whole shape of it: the gravity that puts the apex there follows, and so does
 // the speed it arrives at.
 function lob(e, time) {
-  e.pos.x = Math.random() * W;
+  e.pos.x = Math.random() * 1024;
   e.pos.y = THROW;
   e.grav = 2 * (THROW - REACH) / (time * time);
   e.vel.x = (AIM0 + (AIM1 - AIM0) * Math.random() - e.pos.x) / time;
@@ -259,7 +261,7 @@ class Coin extends ent.Entity {
     super();
     this.value = value;
     lob(this, COIN_TIME);
-    this.art.size(2, 5, 5).color(YELLOW).circle(2.5, 2.5, 2.5);
+    this.art.size(4, 5, 5).color(YELLOW).circle(2.5, 2.5, 2.5);
     // A coin counts from further out than a tomato, so two aimed at the same
     // place is a choice and not a trap.
     this.hitCircle(CATCH);
@@ -276,9 +278,9 @@ class Coin extends ent.Entity {
         text: `$${this.value}`,
         x: this.pos.x,
         y: this.pos.y,
-        size: 2,
+        size: 4,
         color: YELLOW,
-        vel: [0, -20],
+        vel: [0, -43],
         duration: 1,
       });
       this.remove();
@@ -292,7 +294,7 @@ class Tomato extends ent.Entity {
   constructor() {
     super();
     lob(this, TOMATO_TIME);
-    this.art.size(4, 5, 5).color(RED).circle(2.5, 2.5, 2)
+    this.art.size(8, 5, 5).color(RED).circle(2.5, 2.5, 2)
       .color(GREEN).dot(2, 1).dot(2, 0).dot(3, 0);
     this.hitCircle(SPLAT);
   }
@@ -307,8 +309,8 @@ class Tomato extends ent.Entity {
         y: this.pos.y,
         color: RED,
         count: 200,
-        size: [5, 6],
-        speed: [0, 200],
+        size: [11, 13],
+        speed: [0, 425],
         duration: [0.5, 0.5],
       });
       this.remove();
@@ -323,7 +325,7 @@ class Player extends ent.Entity {
   constructor() {
     super();
     this.lean = 0;
-    this.art.size(8, 5, 5).obj([GREY, RED, ORANGE, PINK], BUSKER);
+    this.art.size(17, 5, 5).obj([GREY, RED, ORANGE, PINK], BUSKER);
     this.hitPoly([
       -BODYW / 2,
       -BODYH / 2,
@@ -381,7 +383,7 @@ class Hat extends ent.Entity {
     super();
     this.pos.x = HATX;
     this.pos.y = HATY;
-    this.art.size(8, 4, 2).obj([BLACK], HAT);
+    this.art.size(17, 4, 2).obj([BLACK], HAT);
   }
 }
 
@@ -439,10 +441,7 @@ export function update(dt) {
 }
 
 export function render(ctx) {
-  ctx.save();
-  ctx.scale(SIZE / W, SIZE / W);
   ctx.fillStyle = LANE_BG;
-  ctx.fillRect(0, LANE - BAND / 2, W, BAND);
-  ctx.restore();
+  ctx.fillRect(0, LANE - BAND / 2, 1024, BAND);
   ent.render(ctx);
 }

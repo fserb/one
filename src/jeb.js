@@ -20,7 +20,7 @@
  */
 
 import * as ent from "./lib/entity.js";
-import { gameOver, score, SIZE } from "./lib/one.js";
+import { gameOver, score } from "./lib/one.js";
 import { blip, explosion, powerup } from "./lib/fsfx/sfxr.js";
 import * as sound from "./lib/sound.js";
 
@@ -36,34 +36,33 @@ drag to aim the nose, hold to burn
   date: "2014-03-30",
 };
 
-// The 480 box, and where the ship is fixed.
-const W = 480;
-const EYEX = W / 2;
-const EYEY = W / 2;
+// Where the ship is fixed on the board.
+const EYEX = 512;
+const EYEY = 512;
 
 // A planet is drawn as a large-pixel circle PX units to the pixel, so its
 // radius is PX times its own cell count.
-const WORLD = 1100;
-const EDGE = 130;
+const WORLD = 2350;
+const EDGE = 280;
 const PLANETS = 6;
-const GAP = 150;
-const PX = 4;
+const GAP = 320;
+const PX = 9;
 const CELL_MIN = 6;
 const CELL_MAX = 11;
 
 // Per unit of radius squared, so the surface pull is the same on every planet;
-// an actual planet pulls MU*r*r/d/d. 320 of thrust against a surface pull of
-// 120 leaves the ground at 200, so take-off is not most of a tank.
-const MU = 120;
-const THRUST = 320;
+// an actual planet pulls MU*r*r/d/d. 680 of thrust against a surface pull of
+// 256 leaves the ground at 424, so take-off is not most of a tank.
+const MU = 256;
+const THRUST = 680;
 const TURN = Math.PI;
-const CRASH = 62;
+const CRASH = 132;
 const TILT = Math.PI / 4;
 
 // One pointer has to aim and burn, so AIM_LAG separates them: a lander that
 // cannot turn without firing cannot be landed.
-const SHIP_R = 8;
-const DEAD = 10;
+const SHIP_R = 18;
+const DEAD = 21;
 const AIM_LAG = 0.18;
 
 // REFILL_OFF is the whole of the ramp: the drain and the burn stay fixed, and a
@@ -84,14 +83,14 @@ const STEP = 1 / 30;
 // The patch tiles, so there are stars wherever the ship goes. Nothing stops you
 // leaving the system, and out there the stars and the arrow are all that shows
 // which way is back.
-const PATCH = 700;
+const PATCH = 1500;
 const STARS = 150;
-const STAR = 1.6;
+const STAR = 3.4;
 
-const BAR_Y = W - 13;
-const BAR_H = 5;
-const BAR_PAD = 30;
-const ARROW = 10;
+const BAR_Y = 1024 - 28;
+const BAR_H = 11;
+const BAR_PAD = 64;
+const ARROW = 21;
 
 const DEATH = 0.7;
 
@@ -133,7 +132,6 @@ let lands = false;
 let landsAt = 0;
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
-const css = (c) => `#${c.toString(16).padStart(6, "0")}`;
 
 // Signed, in [-PI, PI). JS's % keeps the sign of its left side, so the usual
 // one-liner gives three quarters of a turn for a quarter turn once enough left
@@ -199,7 +197,7 @@ class Ship extends ent.Entity {
     this.burning = false;
     this.puff = 0;
     this.pressed = 0;
-    this.art.size(4, 5, 5).obj([GREY, DARKGREEN, BROWN, GREEN], SHIP);
+    this.art.size(9, 5, 5).obj([GREY, DARKGREEN, BROWN, GREEN], SHIP);
   }
 
   update() {
@@ -244,12 +242,12 @@ class Ship extends ent.Entity {
     this.puff = 0.05;
     sound.play("burn", { detune: -4 + 8 * Math.random() });
     new ent.Particle({
-      x: this.pos.x - Math.cos(a) * 12,
-      y: this.pos.y - Math.sin(a) * 12,
+      x: this.pos.x - Math.cos(a) * 26,
+      y: this.pos.y - Math.sin(a) * 26,
       color: BROWN,
       count: 3,
-      size: 3,
-      speed: [60, 30],
+      size: 6,
+      speed: [128, 64],
       direction: [a + Math.PI - 0.4, 0.8],
       duration: [0.4, 0.2],
     });
@@ -314,8 +312,8 @@ function wreck() {
     y: ship.pos.y,
     color: GREY,
     count: 90,
-    size: 3,
-    speed: [30, 90],
+    size: 6,
+    speed: [64, 190],
     duration: [0.7, 0.5],
   });
   new ent.Particle({
@@ -323,8 +321,8 @@ function wreck() {
     y: ship.pos.y,
     color: RED,
     count: 40,
-    size: 4,
-    speed: [20, 60],
+    size: 9,
+    speed: [43, 128],
     duration: [0.5, 0.4],
   });
 }
@@ -338,8 +336,8 @@ function arrive(p) {
     y: ship.pos.y,
     color: BROWN,
     count: 24,
-    size: 2,
-    speed: [70, 40],
+    size: 4,
+    speed: [150, 85],
     duration: [0.5, 0.3],
   });
   pickTarget(p);
@@ -461,8 +459,8 @@ function expire() {
     y: ship.pos.y,
     color: GREY,
     count: 24,
-    size: 2,
-    speed: [10, 26],
+    size: 4,
+    speed: [21, 55],
     duration: [0.8, 0.4],
   });
 }
@@ -481,43 +479,35 @@ function pointerMoved() {
 }
 
 export function render(ctx) {
-  const k = SIZE / W;
   const ox = EYEX - ship.pos.x;
   const oy = EYEY - ship.pos.y;
 
   ctx.save();
-  ctx.scale(k, k);
   ctx.translate(ox, oy);
   drawStars(ctx);
   drawPath(ctx);
-  ctx.restore();
-
-  ctx.save();
-  ctx.translate(ox * k, oy * k);
   ent.render(ctx);
   ctx.restore();
 
-  ctx.save();
-  ctx.scale(k, k);
+  // Outside the scroll: both are on the board rather than in the system.
   drawArrow(ctx, ox, oy);
   drawTank(ctx);
-  ctx.restore();
 }
 
 function drawStars(ctx) {
-  ctx.fillStyle = css(STARLIGHT);
+  ctx.fillStyle = ent.css(STARLIGHT);
   const x0 = ship.pos.x - EYEX;
   const y0 = ship.pos.y - EYEY;
   const i0 = Math.floor(x0 / PATCH);
   const j0 = Math.floor(y0 / PATCH);
-  for (let j = j0; j <= Math.floor((y0 + W) / PATCH); ++j) {
-    for (let i = i0; i <= Math.floor((x0 + W) / PATCH); ++i) {
+  for (let j = j0; j <= Math.floor((y0 + 1024) / PATCH); ++j) {
+    for (let i = i0; i <= Math.floor((x0 + 1024) / PATCH); ++i) {
       const ox = i * PATCH;
       const oy = j * PATCH;
       for (let n = 0; n < stars.length; n += 3) {
         const x = ox + stars[n];
         const y = oy + stars[n + 1];
-        if (x < x0 || y < y0 || x > x0 + W || y > y0 + W) continue;
+        if (x < x0 || y < y0 || x > x0 + 1024 || y > y0 + 1024) continue;
         const s = stars[n + 2];
         ctx.fillRect(x - s / 2, y - s / 2, s, s);
       }
@@ -530,14 +520,14 @@ function drawPath(ctx) {
   const bad = lands && landsAt > CRASH;
   ctx.strokeStyle = bad ? LINE_BAD : LINE;
   ctx.globalAlpha = 0.5;
-  ctx.lineWidth = 1;
+  ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.moveTo(ship.pos.x, ship.pos.y);
   for (let i = 0; i < path.length; i += 2) ctx.lineTo(path[i], path[i + 1]);
   ctx.stroke();
 
   const n = path.length;
-  const r = lands ? 3 : 2;
+  const r = lands ? 6 : 4;
   ctx.globalAlpha = lands ? 0.9 : 0.5;
   ctx.fillStyle = bad ? LINE_BAD : LINE;
   ctx.fillRect(path[n - 2] - r, path[n - 1] - r, 2 * r, 2 * r);
@@ -550,19 +540,19 @@ function drawArrow(ctx, ox, oy) {
   const sx = target.pos.x + ox;
   const sy = target.pos.y + oy;
   if (
-    sx > -target.r && sy > -target.r && sx < W + target.r &&
-    sy < W + target.r
+    sx > -target.r && sy > -target.r && sx < 1024 + target.r &&
+    sy < 1024 + target.r
   ) {
     return;
   }
 
   ctx.save();
   ctx.translate(
-    clamp(sx, ARROW, W - ARROW),
-    clamp(sy, ARROW, W - ARROW - 20),
+    clamp(sx, ARROW, 1024 - ARROW),
+    clamp(sy, ARROW, 1024 - ARROW - 43),
   );
   ctx.rotate(Math.atan2(sy - EYEY, sx - EYEX));
-  ctx.fillStyle = css(BROWN);
+  ctx.fillStyle = ent.css(BROWN);
   ctx.beginPath();
   ctx.moveTo(-ARROW / 2, -ARROW / 2);
   ctx.lineTo(ARROW / 2, 0);
@@ -572,9 +562,9 @@ function drawArrow(ctx, ox, oy) {
 }
 
 function drawTank(ctx) {
-  const w = W - 2 * BAR_PAD;
-  ctx.fillStyle = css(0x222222);
+  const w = 1024 - 2 * BAR_PAD;
+  ctx.fillStyle = ent.css(0x222222);
   ctx.fillRect(BAR_PAD, BAR_Y, w, BAR_H);
-  ctx.fillStyle = css(fuel >= 15 ? BROWN : RED);
+  ctx.fillStyle = ent.css(fuel >= 15 ? BROWN : RED);
   ctx.fillRect(BAR_PAD, BAR_Y, w * clamp(fuel / TANK, 0, 1), BAR_H);
 }

@@ -2,10 +2,9 @@
  * core.js - the entity model itself: the groups, the frame, and Entity. A game
  * imports entity.js, which re-exports this and props.js.
  *
- * The games are written in a 480x480 box. reset() sets it and render() maps it
- * onto one's 1024, so a game writes its constants once. With lib/camera.js that
- * box is the camera's opening framing and game.input's pointer is converted
- * back through it.
+ * The games are written in one's 1024 board, and render() draws in it directly.
+ * With lib/camera.js that board is the camera's opening framing and
+ * game.input's pointer is read back through it.
  *
  * begin() cannot run from the constructor, since a subclass's field
  * initialisers run after super() returns and would overwrite it. It runs at the
@@ -23,9 +22,9 @@ import { op, SIZE } from "./one.js";
 export const game = {
   time: 0,
   totalTime: 0,
-  size: 480, // the side of the square the game is written in
-  // The pointer in that box. The three button sets are input.js's own objects:
-  // unlike the pointer there is nothing to convert.
+  // The pointer on the board, which with a camera comes back through it. The
+  // three button sets are input.js's own objects: unlike the pointer there is
+  // nothing to convert.
   input: {
     x: 0,
     y: 0,
@@ -37,19 +36,6 @@ export const game = {
 
 // Class -> {layer, screen, list}, in construction order.
 const groups = new Map();
-
-// The box the game is written in, and with a camera the framing it opens on.
-// The bounds are cleared with it: they belong to a round, and a round starts
-// here.
-export function world(size) {
-  game.size = size;
-  if (!op.camera) return;
-  op.camera.bounds = null;
-  const half = size / 2;
-  op.camera.moveTo({ x: half, y: half, scale: SIZE / size, angle: 0 }).settle();
-  op.camera.shakeBase = SHAKE_BASE;
-  op.camera.shakeHz = SHAKE_HZ;
-}
 
 function groupOf(cls) {
   let g = groups.get(cls);
@@ -82,16 +68,23 @@ export function one(cls) {
 }
 
 // A round starts here: it removes the last one's entities, resets the time and
-// the shake, sets the 480 box back and takes the draw order.
+// the shake, frames the camera on the board and takes the draw order.
 export function reset(classes = []) {
   groups.clear();
   game.time = 0;
   game.totalTime = 0;
   shaking = held = 0;
   shakeHold = shakeX = shakeY = 0;
-  // world() ends in settle(), which is where the camera clears its own copy of
-  // the shake it was running for a round that is now over.
-  world(480);
+  // The bounds go with them: they belong to a round, and a round starts here.
+  // settle() is where the camera clears its own copy of the shake it was
+  // running for a round that is now over.
+  if (op.camera) {
+    const half = SIZE / 2;
+    op.camera.bounds = null;
+    op.camera.moveTo({ x: half, y: half, scale: 1, angle: 0 }).settle();
+    op.camera.shakeBase = SHAKE_BASE;
+    op.camera.shakeHz = SHAKE_HZ;
+  }
   order(classes);
 }
 
@@ -104,11 +97,6 @@ export function reset(classes = []) {
  * a second and reused in between. Reused, or it moves twice as fast at 120Hz as
  * at 60. Camera2D shakes on those same three numbers, so with a camera shake()
  * passes them over rather than offsetting a frame that is already offset.
- *
- * Both are on one's 1024 and not on the game's box, so a shake is the same size
- * on screen whatever the box is. Camera2D's shake is in screen units already;
- * stepShake() divides back into box units, since render() offsets under the
- * scale.
  */
 const SHAKE_BASE = 10;
 const SHAKE_FALL = 20;
@@ -145,7 +133,7 @@ function stepShake(dt) {
   shakeHold = 1 / SHAKE_HZ;
   // Square, not circle: a constant radius puts every offset on one circle, and
   // that looks like rotation rather than shaking.
-  const amp = (SHAKE_BASE + SHAKE_FALL * shaking) * game.size / SIZE;
+  const amp = SHAKE_BASE + SHAKE_FALL * shaking;
   shakeX = amp * (2 * Math.random() - 1);
   shakeY = amp * (2 * Math.random() - 1);
 }
@@ -302,9 +290,7 @@ export function update(dt) {
   game.time = dt;
   game.totalTime += dt;
 
-  const m = op.camera
-    ? op.camera.toWorld(input.x, input.y)
-    : { x: input.x * game.size / SIZE, y: input.y * game.size / SIZE };
+  const m = op.camera ? op.camera.toWorld(input.x, input.y) : input;
   game.input.x = m.x;
   game.input.y = m.y;
 
@@ -344,17 +330,13 @@ export function render(ctx) {
   const layers = ordered();
   ctx.save();
   if (op.camera) op.camera.apply(ctx);
-  else ctx.scale(SIZE / game.size, SIZE / game.size);
-  // Box units, which stepShake() has already converted from screen. With a
-  // camera there is nothing to add: apply() above already included its own.
+  // With a camera there is nothing to add: apply() above already included its
+  // own.
   if (shaking > 0) ctx.translate(shakeX, shakeY);
   draw(ctx, layers, false);
   ctx.restore();
 
   // Two passes and not one layer above the rest, since what separates them is
   // the transform. `layer` still orders the screen classes among themselves.
-  ctx.save();
-  ctx.scale(SIZE / game.size, SIZE / game.size);
   draw(ctx, layers, true);
-  ctx.restore();
 }

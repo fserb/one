@@ -5,7 +5,7 @@
  * one on top drives you down.
  *
  * No camera: the scene moves the world and not the view, so the ship stays at a
- * fixed 240 across and never above 200 down.
+ * fixed 512 across and never above 425 down.
  *
  * The ship collides as two polygons, which turn: entity.js only turns a
  * polygon, not a box.
@@ -27,14 +27,12 @@ which pushes you off it. space levels you
   dpad: true,
 };
 
-const W = 480;
-
 // Climbing faster than the slide only moves the ship up to the pin at HOLD.
-const SCROLL = 50;
-const HOLD = 200;
+const SCROLL = 105;
+const HOLD = 425;
 
 // Below this and the ship is gone. Obstacles score when they cross it too.
-const OUT = 500;
+const OUT = 1070;
 
 // Pieces the scene keeps stocked, counting those still above the screen, and
 // the seconds the wreck holds before gameOver() runs.
@@ -42,13 +40,13 @@ const FIELD = 10;
 const DEATH = 0.5;
 
 // Thrust over drag is the top speed and one over drag the time to reach it, so
-// these give 125 in half a second: over the 50 a second slide, under a dive
+// these give 265 in half a second: over the 105 a second slide, under a dive
 // into a field it cannot see coming.
-const THRUST = 250;
+const THRUST = 530;
 const DRAG = 2;
-const ARM = 30;
+const ARM = 64;
 const SPIN = 2 * Math.PI;
-const EXHAUST = 250;
+const EXHAUST = 530;
 
 const SHIP = 0x2ca244;
 const SHIP_DARK = 0x1e702f;
@@ -72,8 +70,8 @@ class Engine extends ent.Entity {
     super();
     this.ship = ship;
     this.offset = offset;
-    this.art.size(5, 4, 4).color(FLAME, FLAME_DARK, 23).rect(0, 0, 4, 4)
-      .color(0xffffff).text(1.8, 1.8, label, 2);
+    this.art.size(11, 4, 4).color(FLAME, FLAME_DARK, 23).rect(0, 0, 4, 4)
+      .color(0xffffff).text(1.8, 1.8, label, 4);
   }
 
   update() {
@@ -90,8 +88,8 @@ class Engine extends ent.Entity {
       y: this.pos.y,
       color: FLAME,
       count: [1, 2],
-      size: [5, 5],
-      speed: [EXHAUST, 100],
+      size: [11, 11],
+      speed: [EXHAUST, 210],
       direction: [this.angle + this.offset - Math.PI / 8, Math.PI / 4],
       delay: [0, 0.05],
       duration: [0.25, 0.1],
@@ -102,10 +100,10 @@ class Engine extends ent.Entity {
 class Player extends ent.Entity {
   constructor() {
     super();
-    this.art.color(SHIP, SHIP_DARK, 253).size(20, 4, 4)
+    this.art.color(SHIP, SHIP_DARK, 253).size(42, 4, 4)
       .rect(0, 1.5, 4, 1).rect(1.5, 0, 1, 4);
-    this.hitPoly([-40, -10, 40, -10, 40, 10, -40, 10]);
-    this.hitPoly([-10, -40, 10, -40, 10, 40, -10, 40]);
+    this.hitPoly([-84, -21, 84, -21, 84, 21, -84, 21]);
+    this.hitPoly([-21, -84, 21, -84, 21, 84, -21, 84]);
     // Right, up, left, down: the order Player.update() fires them.
     this.engines = ["D", "W", "A", "S"].map((label, i) =>
       new Engine(this, -i * Math.PI / 2, label)
@@ -136,21 +134,21 @@ class Player extends ent.Entity {
     this.accelerate(-DRAG * this.vel.x, -DRAG * this.vel.y);
     // Sliding sideways rolls the ship and a rolled ship thrusts sideways, so a
     // dodge left alone tips over within seconds. Levelling brings it back.
-    this.angle += time * this.vel.x / 200;
+    this.angle += time * this.vel.x / 425;
 
     if (this.pos.y > OUT) this.kill();
   }
 
   kill() {
-    // At 20 to 50 a second this is a green lump. At 200 to 400 it is a ship
+    // At 40 to 105 a second this is a green lump. At 425 to 850 it is a ship
     // coming apart.
     new ent.Particle({
       x: this.pos.x,
       y: this.pos.y,
       color: SHIP,
       count: 100,
-      size: [5, 25],
-      speed: [200, 200],
+      size: [11, 53],
+      speed: [425, 425],
       duration: [2, 0.5],
     });
     for (const e of this.engines) e.remove();
@@ -161,11 +159,11 @@ class Player extends ent.Entity {
 
 class Obstacle extends ent.Entity {
   begin() {
-    this.art.color(ROCK, ROCK_DARK, 52).size(7, 4, 4)
+    this.art.color(ROCK, ROCK_DARK, 52).size(15, 4, 4)
       .rect(0, 1.5, 4, 1).rect(1.5, 0, 1, 4);
     place(this);
     this.angle = 2 * Math.PI * Math.random();
-    this.hitBox(28);
+    this.hitBox(60);
   }
 
   update() {
@@ -179,9 +177,10 @@ class Obstacle extends ent.Entity {
     score.value += 5;
     new ent.Text({
       text: "+5",
-      x: Math.min(Math.max(this.pos.x, 10), W - 10),
-      y: W,
-      vel: [0, -20],
+      x: Math.min(Math.max(this.pos.x, 20), 1004),
+      y: 1024,
+      size: 2,
+      vel: [0, -40],
       duration: 1,
     });
     this.remove();
@@ -191,11 +190,11 @@ class Obstacle extends ent.Entity {
 class Gold extends ent.Entity {
   begin() {
     this.points = Math.round(1 + Math.random() * 8) * 10;
-    this.art.color(GOLD, GOLD_DARK, 23).size(3, 8, 7).rect(0, 0, 8, 7)
+    this.art.color(GOLD, GOLD_DARK, 23).size(6, 8, 7).rect(0, 0, 8, 7)
       .color(GOLD_EDGE).lrect(0, 0, 8, 7)
-      .color(GOLD_TEXT).text(4, 3.5, String(this.points), 1);
+      .color(GOLD_TEXT).text(4, 3.5, String(this.points), 2);
     place(this);
-    this.hitBox(24, 21);
+    this.hitBox(48, 42);
   }
 
   update() {
@@ -205,7 +204,8 @@ class Gold extends ent.Entity {
         text: `+${this.points}`,
         x: this.pos.x,
         y: this.pos.y,
-        vel: [0, -20],
+        size: 2,
+        vel: [0, -40],
         duration: 1,
       });
       this.remove();
@@ -218,15 +218,15 @@ class Gold extends ent.Entity {
 
 // Anywhere across, and up to a screen above the top one.
 function place(e) {
-  e.pos.x = W * Math.random();
-  e.pos.y = -20 - (W - 20) * Math.random();
+  e.pos.x = 1024 * Math.random();
+  e.pos.y = -40 - 984 * Math.random();
 }
 
 export function init() {
   ent.reset([Obstacle, Gold, Player, Engine, ent.Particle]);
 
   player = new Player();
-  player.pos.x = player.pos.y = 240;
+  player.pos.x = player.pos.y = 512;
   adds = 0;
   dying = 0;
 }
@@ -243,7 +243,7 @@ export function update(dt) {
 
   // Before the entities, and the order matters: this slides the world out from
   // under a step that has not run.
-  const dx = W / 2 - player.pos.x;
+  const dx = 512 - player.pos.x;
   const dy = Math.max(SCROLL * dt, HOLD - player.pos.y);
   player.pos.x += dx;
   player.pos.y += dy;
@@ -255,7 +255,7 @@ export function update(dt) {
     for (const e of ent.get(cls)) {
       e.pos.x += dx;
       e.pos.y += dy;
-      if (e.pos.x >= 0 && e.pos.x <= W && e.pos.y <= W) valid += 1;
+      if (e.pos.x >= 0 && e.pos.x <= 1024 && e.pos.y <= 1024) valid += 1;
     }
   }
 

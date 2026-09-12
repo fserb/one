@@ -3,15 +3,17 @@
  * built in one expression from an options object over the defaults.
  *
  * ```js
- * new ent.Text({ text: `+${n}`, x, y, size: 2, vel: [0, -20], duration: 1 });
- * new ent.Particle({ x, y, count: 20, speed: [50, 20], circle: true });
+ * new ent.Text({ text: `+${n}`, x, y, size: 4, vel: [0, -40], duration: 1 });
+ * new ent.Particle({ x, y, count: 20, speed: [107, 43], circle: true });
  * ent.every(1.5, () => { new Enemy(); });
  * ent.after(0.75, () => gameOver({ score: true }));
  * ```
  */
 
-import { css, glyphs } from "./art.js";
+import { glyphs } from "./art.js";
+import { css } from "./gfx.js";
 import { Entity, game } from "./core.js";
+import { SIZE } from "./one.js";
 
 // The fraction of the box that is before the anchor point.
 const ALIGN = { left: 0, center: 0.5, right: 1 };
@@ -28,7 +30,7 @@ export class Text extends Entity {
       text: "",
       x: 0,
       y: 0,
-      size: 1,
+      size: 2,
       color: 0xffffff,
       align: "center middle",
       vel: [0, 0],
@@ -94,8 +96,8 @@ export class Particle extends Entity {
       y: null,
       color: 0xffffff,
       count: 100,
-      size: 1,
-      speed: 50,
+      size: 2,
+      speed: 107,
       direction: [0, 2 * Math.PI],
       delay: 0,
       spread: 0,
@@ -104,8 +106,8 @@ export class Particle extends Entity {
       ...opts,
     };
 
-    this.pos.x = o.x ?? game.size / 2;
-    this.pos.y = o.y ?? game.size / 2;
+    this.pos.x = o.x ?? SIZE / 2;
+    this.pos.y = o.y ?? SIZE / 2;
     this.parts = []; // begin() fills these in, one frame later
   }
 
