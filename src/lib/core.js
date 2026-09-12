@@ -14,7 +14,6 @@
  */
 
 import { Collider } from "../alma/src/collider.js";
-import { Art } from "./art.js";
 import { Gfx } from "./gfx.js";
 import { input } from "./input.js";
 import { op, SIZE } from "./one.js";
@@ -158,7 +157,6 @@ export class Entity {
     this.angle = 0;
     this.age = 0; // seconds since it began
     this.dead = false;
-    this.art = new Art();
     this.gfx = new Gfx();
     this.flipX = false;
     this.scale = 1; // uniform: no game has needed two axes
@@ -172,10 +170,7 @@ export class Entity {
   update() {}
   postUpdate() {}
 
-  // Each centres on its own bounding box, not the union of the two, so an
-  // entity drawing with both is offset unless the two centres agree.
   render(ctx) {
-    this.art.render(ctx);
     this.gfx.render(ctx);
   }
 
@@ -201,9 +196,9 @@ export class Entity {
     return this;
   }
 
-  // These centre on the position and `art` and `gfx` on their own bounding box,
-  // so a drawing that is not centred on the origin is offset from its hit
-  // shape; `gfx.size(w, h)` is the empty box that aligns them.
+  // These centre on the position and `gfx` on its own bounding box, so a
+  // drawing that is not centred on the origin is offset from its hit shape;
+  // `gfx.size(w, h)` is the empty box that aligns them.
   hitCircle(r, x = 0, y = 0) {
     this.hits.push({ shape: Collider.circle(x, y, r), turns: false });
     return this;

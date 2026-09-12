@@ -34,7 +34,6 @@ take an equal count of every colour you touch
 
 const BLACK = 0x000000;
 const WHITE = 0xffffff;
-const SHADE = 0x444444;
 const COLORS = [0xff6819, 0xc0dc61, 0x1ebed8, 0xfec804, 0xe284cc];
 
 const COLS = 9;
@@ -72,27 +71,15 @@ const HIGHRATE = 5 / 367;
 // one cell in twenty-five.
 const HOLE = 0.04;
 
-// The eye whites sit two pixels in, with the pupils drawn over them.
-const BODY = `
-211111112
-100000001
-103303301
-103303301
-100000001
-100000001
-100000001
-211111112`;
-
-const BRACKET = `
-100...001
-0.......0
-0.......0
-.........
-.........
-.........
-0.......0
-0.......0
-100...001`;
+// A box is 81 across: 72 of colour under a 9-thick black edge, rounded by that
+// same 9, with the two eyes on it. A cursor is four corner brackets, 9 thick
+// and 27 along each side.
+const BOX = 36;
+const EDGE = 9;
+const EYE = 13.5;
+const EYE_R = 9;
+const PUPIL = 4.5;
+const ARM = 18;
 
 const _ = -1;
 
@@ -201,18 +188,20 @@ class Piece extends ent.Entity {
   }
 
   draw() {
-    this.art.size(9, 9, 9).obj([COLORS[this.color], BLACK, SHADE, WHITE], BODY);
-
-    // size() keeps the pupils on the art's own 81x81 box.
+    // A pupil sits PUPIL off centre at most, which is where it meets the white.
     const dx = this.eye.x - this.pos.x;
     const dy = this.eye.y - this.pos.y;
     const d = Math.hypot(dx, dy);
-    const tx = d === 0 ? 0 : dx / (2 * d);
-    const ty = d === 0 ? 0 : dy / (2 * d);
-    const eyey = Math.round(9 * (2.5 + ty)) - 40.5;
-    this.gfx.clear().size(81, 81).fill(BLACK)
-      .rect(Math.round(9 * (2.5 + tx)) - 40.5, eyey, 9, 9)
-      .rect(Math.round(9 * (5.5 + tx)) - 40.5, eyey, 9, 9);
+    const px = d === 0 ? 0 : PUPIL * dx / d;
+    const py = d === 0 ? 0 : PUPIL * dy / d;
+    this.gfx.clear()
+      .fill(COLORS[this.color]).line(EDGE, BLACK)
+      .rect(-BOX, -BOX, 2 * BOX, 2 * BOX, 2 * EDGE)
+      .line(null)
+      .fill(WHITE).circle(-EYE, -EYE, EYE_R).circle(EYE, -EYE, EYE_R)
+      .fill(BLACK)
+      .circle(-EYE + px, -EYE + py, PUPIL)
+      .circle(EYE + px, -EYE + py, PUPIL);
   }
 
   update() {
@@ -261,8 +250,13 @@ class Cursor extends ent.Entity {
   }
 
   draw() {
-    const cols = this.head ? [0xff6666, 0xff9999] : [0x666666, 0x999999];
-    this.art.size(9, 9, 9).obj(cols, BRACKET);
+    const c = this.head ? 0xff6666 : 0x666666;
+    const g = this.gfx.clear().line(EDGE, c);
+    for (const sx of [-1, 1]) {
+      for (const sy of [-1, 1]) {
+        g.mt(sx * BOX, sy * ARM).lt(sx * BOX, sy * BOX).lt(sx * ARM, sy * BOX);
+      }
+    }
   }
 
   update() {

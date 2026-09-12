@@ -26,9 +26,7 @@ catch the coin before it goes
 
 const DARK = 0x533846;
 const WHITE = 0xfafafa;
-const GREY = 0xd7e6cc;
 const BIRD = 0xf8b733;
-const BIRD_LIGHT = 0xfad78c;
 const BIRD_DARK = 0xe0802c;
 const BIRD_LIPS = 0xfc3800;
 
@@ -47,18 +45,23 @@ const SPEED = 210;
 const FLAP = 420;
 const GRAVITY = 630;
 
+// It faces right and flipX turns it around. The beak is drawn first, so the
+// body's outline is the line between the two. The wing is the second tone on
+// the body and the eye the one white. size() holds the box whatever the beak
+// reaches, so the drawing does not shift with it.
+const BODY_R = 22;
+
 class Bird extends ent.Entity {
   begin() {
     this.pos.x = this.pos.y = 512;
     this.left = false;
-    this.art.size(4, 17, 12).obj(
-      [DARK, WHITE, GREY, BIRD, BIRD_LIGHT, BIRD_DARK, BIRD_LIPS],
-      `
-......000000.........004440110.......04433011110.....0433330211010..
-.03333330211010...00000333021110..0111110333000000.04111403306666660
-.000005506000000...05555550666660....005555500000.......00000.......`,
-    );
-    // 17x12 pixels at four units each, near enough to the drawing.
+    this.gfx.size(80, 52)
+      .fill(BIRD_LIPS).mt(10, -11).lt(38, 0).lt(10, 11)
+      .fill(BIRD).line(5, DARK).circle(-6, 0, BODY_R)
+      .fill(BIRD_DARK).line(null).rect(-24, 3, 20, 11, 11)
+      .fill(WHITE).line(4, DARK).circle(6, -9, 9)
+      .fill(DARK).line(null).circle(9, -9, 4);
+    // The body and the beak, near enough to the drawing.
     this.hitBox(64, 44);
   }
 

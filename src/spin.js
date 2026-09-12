@@ -106,12 +106,12 @@ const CLIMB = 4;
 const LOOK = 0.4;
 const LOST = 2;
 
-// `big` splices STRETCH in above the feet.
-const HEAD_L = "00000..000000.";
-const HEAD_R = "..00000.000000";
-const BODY = ".0.0.0..00000..00000...000..";
-const STRETCH = "..000....000....000..";
-const FEET = ".00000.";
+// A head, a body and two legs, 42 across. The head sits HEAD_X off centre the
+// way the figure faces, and `big` adds BIG_H to the body while it is rising,
+// which the box grows with, so the feet stay under it.
+const FIG = 42;
+const BIG_H = 18;
+const HEAD_X = 3;
 
 // 0 wall, 1 one-way platform, anything else air.
 const MAP = `
@@ -314,11 +314,14 @@ class Player extends ent.Entity {
   }
 
   paint() {
-    this.art.size(6, 7, this.big ? 10 : 7).obj(
-      [CYAN],
-      (this.face < 0 ? HEAD_L : HEAD_R) + BODY +
-        (this.big ? STRETCH : "") + FEET,
-    );
+    this.painted = this.face;
+    const h = this.big ? FIG + BIG_H : FIG;
+    const dx = this.face < 0 ? -HEAD_X : HEAD_X;
+    this.gfx.clear().size(FIG, h).fill(CYAN)
+      .circle(dx, 10 - h / 2, 10)
+      .rect(-13, 17 - h / 2, 26, h - 26, 20)
+      .rect(-11, h / 2 - 11, 7, 11)
+      .rect(4, h / 2 - 11, 7, 11);
   }
 
   update() {
@@ -373,8 +376,10 @@ class Player extends ent.Entity {
     this.kicked = Math.max(0, this.kicked - t);
     if (this.kicked <= 0) this.vel.x = mx * WALK;
 
+    // The head is on the side it faces, so a turn repaints it as a stretch
+    // does.
     const big = this.vel.y < -BIG;
-    if (big !== this.big) {
+    if (big !== this.big || this.face !== this.painted) {
       this.big = big;
       this.paint();
     }
@@ -399,7 +404,7 @@ class Mark extends ent.Entity {
     this.pos.x = ex(i) + TILE / 2;
     this.pos.y = ey(j) + TILE / 2;
     this.phase = 2 * Math.PI * Math.random();
-    this.art.size(6, 5, 5).color(ORANGE).circle(2, 2, 2);
+    this.gfx.fill(ORANGE).circle(0, 0, 12);
     this.hitCircle(MARK_R);
   }
 

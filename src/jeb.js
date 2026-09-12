@@ -105,14 +105,6 @@ const STARLIGHT = 0x3c3c46;
 const LINE = "#44891a";
 const LINE_BAD = "#be2633";
 
-const SHIP = `
-.000.
-00300
-00100
-00000
-02220
-`;
-
 sound.voice("burn", { ...blip(511), vol: 0.05 });
 sound.voice("land", { ...powerup(3607), vol: 0.13 });
 sound.voice("crash", { ...explosion(3613), vol: 0.2 });
@@ -158,9 +150,7 @@ class Planet extends ent.Entity {
   }
 
   paint() {
-    this.art.size(PX, 2 * this.cells, 2 * this.cells)
-      .color(this.lit ? BROWN : PURPLE)
-      .circle(this.cells, this.cells, this.cells);
+    this.gfx.clear().fill(this.lit ? BROWN : PURPLE).circle(0, 0, this.r);
   }
 
   light(on) {
@@ -197,7 +187,14 @@ class Ship extends ent.Entity {
     this.burning = false;
     this.puff = 0;
     this.pressed = 0;
-    this.art.size(9, 5, 5).obj([GREY, DARKGREEN, BROWN, GREEN], SHIP);
+    // A hull that tapers to the nose, one porthole, and the engine block the
+    // legs come off, 45 across and 45 down.
+    this.gfx.size(45, 45)
+      .fill(GREY).mt(-9, -22).lt(9, -22).lt(20, -4).lt(20, 12).lt(-20, 12)
+      .lt(-20, -4)
+      .fill(GREEN).line(4, DARKGREEN).circle(0, -5, 7)
+      .fill(BROWN).line(null).rect(-15, 9, 30, 11, 6)
+      .rect(-20, 16, 6, 6).rect(14, 16, 6, 6);
   }
 
   update() {

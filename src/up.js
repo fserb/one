@@ -53,13 +53,22 @@ const SHIP_DARK = 0x1e702f;
 const ROCK = 0xac0213;
 const ROCK_DARK = 0x881511;
 const GOLD = 0xe3c61e;
-const GOLD_DARK = 0xdacc3d;
 const GOLD_EDGE = 0xca8727;
 const GOLD_TEXT = 0x604013;
 // The WASD letter on each engine.
 const KEY = 0xffffff;
 const FLAME = 0xaa9936;
 const FLAME_DARK = 0x988946;
+
+// The ship and the rocks are the same plus: `arm` out from the centre, `half`
+// across, with the darker tone on the square the two bars share. Two bars and
+// not one path, since they overlap rather than meet, so no join shows.
+function cross(gfx, arm, half, color, dark) {
+  gfx.fill(color)
+    .rect(-arm, -half, 2 * arm, 2 * half)
+    .rect(-half, -arm, 2 * half, 2 * arm)
+    .fill(dark).rect(-half, -half, 2 * half, 2 * half);
+}
 
 let player = null;
 // Earned but not yet added to the score.
@@ -73,7 +82,7 @@ class Engine extends ent.Entity {
     this.ship = ship;
     this.offset = offset;
     this.label = label;
-    this.art.size(11, 4, 4).color(FLAME, FLAME_DARK, 23).rect(0, 0, 4, 4);
+    this.gfx.fill(FLAME).line(5, FLAME_DARK).rect(-19.5, -19.5, 39, 39, 12);
   }
 
   update() {
@@ -99,7 +108,7 @@ class Engine extends ent.Entity {
   }
 
   render(ctx) {
-    this.art.render(ctx);
+    this.gfx.render(ctx);
     ctx.fillStyle = ent.css(KEY);
     ctx.text(this.label, 0, 0, 34);
   }
@@ -108,8 +117,7 @@ class Engine extends ent.Entity {
 class Player extends ent.Entity {
   constructor() {
     super();
-    this.art.color(SHIP, SHIP_DARK, 253).size(42, 4, 4)
-      .rect(0, 1.5, 4, 1).rect(1.5, 0, 1, 4);
+    cross(this.gfx, 84, 21, SHIP, SHIP_DARK);
     this.hitPoly([-84, -21, 84, -21, 84, 21, -84, 21]);
     this.hitPoly([-21, -84, 21, -84, 21, 84, -21, 84]);
     // Right, up, left, down: the order Player.update() fires them.
@@ -167,8 +175,7 @@ class Player extends ent.Entity {
 
 class Obstacle extends ent.Entity {
   begin() {
-    this.art.color(ROCK, ROCK_DARK, 52).size(15, 4, 4)
-      .rect(0, 1.5, 4, 1).rect(1.5, 0, 1, 4);
+    cross(this.gfx, 30, 7.5, ROCK, ROCK_DARK);
     place(this);
     this.angle = 2 * Math.PI * Math.random();
     this.hitBox(60);
@@ -198,8 +205,7 @@ class Obstacle extends ent.Entity {
 class Gold extends ent.Entity {
   begin() {
     this.points = Math.round(1 + Math.random() * 8) * 10;
-    this.art.color(GOLD, GOLD_DARK, 23).size(6, 8, 7).rect(0, 0, 8, 7)
-      .color(GOLD_EDGE).lrect(0, 0, 8, 7);
+    this.gfx.fill(GOLD).line(6, GOLD_EDGE).rect(-21, -18, 42, 36, 10);
     place(this);
     this.hitBox(48, 42);
   }
@@ -223,7 +229,7 @@ class Gold extends ent.Entity {
   }
 
   render(ctx) {
-    this.art.render(ctx);
+    this.gfx.render(ctx);
     ctx.fillStyle = ent.css(GOLD_TEXT);
     ctx.text(String(this.points), 0, 0, 19);
   }

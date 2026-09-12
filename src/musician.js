@@ -111,35 +111,10 @@ const BLACK = 0x000000;
 // The one colour outside that palette: it separates instrument from street.
 const LANE_BG = "#383838";
 
-// 0 body, 1 hat, 2 instrument, 3 face.
-const BUSKER = `
-..1..
-.111.
-.3322
-.000.
-.0.0.
-`;
-
-const NOTE = `
-..0..
-.000.
-00000
-.000.
-.000.
-`;
-
-const HOLD = `
-..0..
-.0.0.
-0...0
-.0.0.
-.000.
-`;
-
-const HAT = `
-0000
-.00.
-`;
+// A note is a filled diamond and the mark the same diamond as an outline, so
+// a note arriving sits inside the shape it has to land in.
+const NOTE_R = 16;
+const MARK_R = 20;
 
 sound.voice("note", { ...blip(0), vol: 0.13 });
 sound.voice("tick", { ...blip(0), vol: 0.035 });
@@ -163,6 +138,11 @@ let lastx = null;
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
+// A stroked path does not close itself, so the outline comes back to its start.
+function diamond(gfx, r) {
+  gfx.mt(0, -r).lt(r, 0).lt(0, r).lt(-r, 0).lt(0, -r);
+}
+
 // Notes are 32 apart and 40 wide, so three can cover the mark at once and
 // only the leftmost unresolved one is yours. Picked here, ahead of the Note
 // group, which is what the draw order in init() is doing.
@@ -171,7 +151,7 @@ class Mark extends ent.Entity {
     super();
     this.pos.x = MARK;
     this.pos.y = LANE;
-    this.art.size(8, 5, 5).obj([BLACK], HOLD);
+    diamond(this.gfx.line(6, BLACK), MARK_R);
   }
 
   update() {
@@ -194,7 +174,7 @@ class Note extends ent.Entity {
     this.done = false;
     this.good = false;
     this.red = false;
-    this.art.size(8, 5, 5).obj([ORANGE], NOTE);
+    diamond(this.gfx.fill(ORANGE), NOTE_R);
   }
 
   update() {
@@ -224,7 +204,7 @@ class Note extends ent.Entity {
   paint(red) {
     if (red === this.red) return;
     this.red = red;
-    this.art.size(8, 5, 5).obj([red ? RED : ORANGE], NOTE);
+    diamond(this.gfx.clear().fill(red ? RED : ORANGE), NOTE_R);
   }
 
   play(off) {
@@ -261,7 +241,7 @@ class Coin extends ent.Entity {
     super();
     this.value = value;
     lob(this, COIN_TIME);
-    this.art.size(4, 5, 5).color(YELLOW).circle(2.5, 2.5, 2.5);
+    this.gfx.fill(YELLOW).circle(0, 0, 10);
     // A coin counts from further out than a tomato, so two aimed at the same
     // place is a choice and not a trap.
     this.hitCircle(CATCH);
@@ -294,8 +274,8 @@ class Tomato extends ent.Entity {
   constructor() {
     super();
     lob(this, TOMATO_TIME);
-    this.art.size(8, 5, 5).color(RED).circle(2.5, 2.5, 2)
-      .color(GREEN).dot(2, 1).dot(2, 0).dot(3, 0);
+    this.gfx.fill(RED).circle(0, 0, 16)
+      .fill(GREEN).rect(-4, -20, 8, 13).mt(3, -20).lt(15, -20).lt(3, -9);
     this.hitCircle(SPLAT);
   }
 
@@ -325,7 +305,14 @@ class Player extends ent.Entity {
   constructor() {
     super();
     this.lean = 0;
-    this.art.size(17, 5, 5).obj([GREY, RED, ORANGE, PINK], BUSKER);
+    // A hat, a face, a body on two legs, and the guitar held across it.
+    this.gfx.size(85, 85)
+      .fill(GREY).rect(-20, -8, 40, 34, 16)
+      .rects([[-19, 22, 14, 20], [5, 22, 14, 20]])
+      .fill(PINK).circle(0, -18, 13)
+      .fill(RED).rect(-11, -42, 22, 14, 6).rect(-27, -30, 54, 10, 8)
+      .fill(ORANGE).mt(-24, -4).lt(-19, -10).lt(6, 8).lt(1, 14)
+      .circle(10, 10, 14);
     this.hitPoly([
       -BODYW / 2,
       -BODYH / 2,
@@ -383,7 +370,10 @@ class Hat extends ent.Entity {
     super();
     this.pos.x = HATX;
     this.pos.y = HATY;
-    this.art.size(17, 4, 2).obj([BLACK], HAT);
+    // Upturned: the brim on top and the crown under it.
+    this.gfx.size(68, 34).fill(BLACK)
+      .rect(-34, -17, 68, 9, 6)
+      .mt(-25, -9).lt(25, -9).lt(18, 17).lt(-18, 17);
   }
 }
 

@@ -227,22 +227,12 @@ class Player extends ent.Entity {
     this.bullet = null;
     this.combo = 0;
     this.hitBox(48, 72);
-    this.art.size(6, 8, 12).obj(
-      [WHITE],
-      `
-...00...
-..0000..
-.000000.
-.000000.
-..0000..
-...00...
-00.00.00
-00.00.00
-00000000
-00000000
-00....00
-00....00`,
-    );
+    // A round cockpit over wings that sweep out to two thrusters, 48 across
+    // and 72 down. One path under the cockpit, so no join shows in it.
+    this.gfx.size(48, 72).fill(WHITE)
+      .circle(0, -17, 17)
+      .mt(-6, -14).lt(6, -14).lt(6, -2).lt(24, 10).lt(24, 36).lt(11, 36)
+      .lt(11, 22).lt(-11, 22).lt(-11, 36).lt(-24, 36).lt(-24, 10).lt(-6, -2);
   }
 
   explode() {
@@ -295,7 +285,7 @@ class Bullet extends ent.Entity {
     this.pos.x = x;
     this.pos.y = SHOTY;
     this.hitBox(12, 36);
-    this.art.size(6).color(WHITE).rect(0, 0, 2, 6);
+    this.gfx.fill(WHITE).rect(-6, -18, 12, 36);
   }
 
   explode(hit) {
@@ -322,7 +312,7 @@ class EnemyBullet extends ent.Entity {
     this.pos.x = x;
     this.pos.y = y;
     this.hitBox(12, 36);
-    this.art.size(6).color(BLACK).rect(0, 0, 2, 6);
+    this.gfx.fill(BLACK).rect(-6, -18, 12, 36);
     new Light(x, y, false);
   }
 
@@ -332,7 +322,7 @@ class EnemyBullet extends ent.Entity {
       player.bullet.explode(true);
       // Shot down: white, held, and harmless on the way.
       this.clearHits();
-      this.art.clear().size(4).color(WHITE).rect(0, 0, 2, 6);
+      this.gfx.clear().fill(WHITE).rect(-4, -12, 8, 24);
       ent.after(WHITEOUT, () => this.remove());
       return;
     }
@@ -371,13 +361,22 @@ class Enemy extends ent.Entity {
     this.draw(BLACK);
   }
 
+  // One shape and not one cell at a time: two cells that share an edge, filled
+  // separately, leave a line along the join.
   draw(c) {
-    this.art.size(PIXEL, COLS, ROWS).color(c);
+    const cells = [];
     for (let y = 0; y < ROWS; ++y) {
       for (let x = 0; x < COLS; ++x) {
-        if (this.sprite.pat[x + y * COLS]) this.art.dot(x, y);
+        if (!this.sprite.pat[x + y * COLS]) continue;
+        cells.push([
+          (x - COLS / 2) * PIXEL,
+          (y - ROWS / 2) * PIXEL,
+          PIXEL,
+          PIXEL,
+        ]);
       }
     }
+    this.gfx.clear().size(COLS * PIXEL, ROWS * PIXEL).fill(c).rects(cells);
   }
 
   shoot() {

@@ -106,35 +106,6 @@ const BEAT_NEAR = 640;
 const BEAT_FAST = 0.22;
 const BEAT_SLOW = 1;
 
-// The player. It never turns, so there is one facing.
-const BODY = `
-00000..
-000000.
-.0.0.0.
-.00000.
-.00000.
-..000..
-.00000.
-`;
-
-const BEAST = `
-00...00
-0000000
-0110110
-0000000
-0000000
-.00000.
-0.0.0.0
-`;
-
-const PIP = `
-..0..
-.000.
-00000
-.000.
-..0..
-`;
-
 // The vols are the original game's own volumes.
 sound.voice("coin", { ...coin(4021), vol: 0.14 });
 sound.voice("die", { ...explosion(4057), vol: 0.2 });
@@ -437,12 +408,18 @@ function lit(p) {
   return sight.clear(player.pos.x, player.pos.y, p.x, p.y);
 }
 
+// A head over a body on two legs, 28 across. It never turns, so there is one
+// facing and flipX is the other.
 class Player extends ent.Entity {
   constructor(x, y) {
     super();
     this.pos.x = x;
     this.pos.y = y;
-    this.art.size(4, 7, 7).obj([CYAN], BODY);
+    this.gfx.size(28, 28).fill(CYAN)
+      .circle(-2, -7, 6.5)
+      .rect(-8.5, -4, 17, 12, 13)
+      .rect(-7.5, 6, 5, 8)
+      .rect(2.5, 6, 5, 8);
   }
 
   update() {
@@ -464,12 +441,19 @@ class Player extends ent.Entity {
   }
 }
 
+// Four legs, two ears and two eyes, against the player's two legs and none of
+// the rest: which one moved is the shape and not only the colour.
 class Hunter extends ent.Entity {
   constructor(i) {
     super();
     this.pos.x = cx(i);
     this.pos.y = cy(i);
-    this.art.size(4, 7, 7).obj([ORANGE, DIMWALL], BEAST);
+    this.gfx.size(28, 28).fill(ORANGE)
+      .mt(-13, -14).lt(-3, -5).lt(-13, -5)
+      .mt(13, -14).lt(13, -5).lt(3, -5)
+      .rect(-14, -8, 28, 16, 8)
+      .rects([[-13, 6, 5, 8], [-6, 6, 5, 8], [1, 6, 5, 8], [8, 6, 5, 8]])
+      .fill(DIMWALL).rect(-9, -4, 6, 4, 4).rect(3, -4, 6, 4, 4);
   }
 
   update() {
@@ -526,7 +510,7 @@ class Coin extends ent.Entity {
     this.pos.x = cx(i);
     this.pos.y = cy(i);
     this.phase = 2 * Math.PI * Math.random();
-    this.art.size(4, 5, 5).obj([CYAN], PIP);
+    this.gfx.fill(CYAN).mt(0, -10).lt(10, 0).lt(0, 10).lt(-10, 0);
   }
 
   update() {

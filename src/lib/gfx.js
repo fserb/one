@@ -7,7 +7,7 @@
  * ```
  *
  * fill() and line() set what every shape after them uses, and null turns
- * either off. mt()/lt()/ct() draw a path where the four shape calls will not.
+ * either off. mt()/lt()/ct() draw a path where the shape calls will not.
  *
  * css(c) is here too: it turns one of those 0xrrggbb numbers into the string a
  * canvas takes, and every game reaches it through entity.js.
@@ -120,6 +120,16 @@ export class Gfx {
       ["A", x + r, y + r, r, 2 * q, 3 * q, false],
       ["Z"],
     ]);
+  }
+
+  // Several rectangles as one shape, each [x, y, w, h]. Filled separately, two
+  // that share an edge each antialias against it, and 40% coverage over 60% of
+  // the same colour is 76%, not 100%, so the join shows as a line.
+  rects(boxes) {
+    if (this.disabled) return this;
+    const path = [];
+    for (const [x, y, w, h] of boxes) path.push(...rectPath(x, y, w, h));
+    return this.push(path);
   }
 
   // An empty box that sets what the drawing centres in, so a shape that is

@@ -202,17 +202,12 @@ class EnemyChaser extends ent.Entity {
   begin() {
     this.dir = 0;
     this.hitBox(CHASER);
-    this.art.size(6, 7, 7).obj(
-      [BLACK],
-      `
-.00000.
-0000000
-0.000.0
-0000000
-0000000
-0.0.0.0
-0.0.0.0`,
-    );
+    // Four legs under a body with two eyes: the turret is a disc with a
+    // barrel, so what chases you has to read as the other thing on the board.
+    this.gfx.size(42, 42).fill(BLACK)
+      .rect(-21, -21, 42, 30, 16)
+      .rects([[-21, 3, 6, 18], [-9, 3, 6, 18], [3, 3, 6, 18], [15, 3, 6, 18]])
+      .fill(WHITE).circle(-12, -6, 4.5).circle(12, -6, 4.5);
   }
 
   update() {
