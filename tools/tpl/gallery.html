@@ -13,13 +13,12 @@
 <meta name="theme-color" content="#f2f0e5">
 <link rel="icon" href="{{icon}}">
 <style>
-/* Pressing a card is a real navigation to the game's page. Both documents opt
-   in here, so the browser morphs the card into that page's board instead of
-   cutting; see the script for which card carries the name. */
+/* Pressing a card is a real navigation. Both documents opt in here, so the
+   browser morphs the card into that page's board instead of cutting. */
 @view-transition { navigation: auto; }
 * { box-sizing: border-box; }
-/* The gutter is reserved on the game's page too, so the viewport is the same
-   width on both sides of the transition and nothing slides sideways. */
+/* Reserved on the game's page too, so the viewport is the same width on both
+   sides of the transition and nothing slides sideways. */
 html { background: #f2f0e5; scrollbar-gutter: stable; }
 body {
   margin: 0;
@@ -27,9 +26,8 @@ body {
   font: 14px/1.45 Verdana, sans-serif;
   color: #212123;
 }
-/* The same rules as a game's page, so the site's name is in the same place and
-   the same size on both and the transition leaves it where it is. There it
-   carries an arrow back to here, and the game's name sits in the middle. */
+/* The same rules as a game's page, so the site's name holds still across the
+   transition. */
 header {
   position: relative;
   display: flex;
@@ -52,9 +50,8 @@ header {
 header a { color: inherit; }
 .site a { text-decoration: none; }
 .site a:hover { text-decoration: underline; }
-/* The arrow is the way back, and only leads anywhere on a game's page. The wall
-   carries the same glyph and hides it, so the site's name starts at the same x
-   on both pages and the transition does not slide it sideways. */
+/* Hidden here and visible on a game's page, so the site's name starts at the
+   same x on both. */
 .arrow { visibility: hidden; }
 a .arrow { visibility: visible; }
 @media (max-width: 560px) {
@@ -62,7 +59,7 @@ a .arrow { visibility: visible; }
 }
 
 /* Flex, not grid: the count sizes the card and a row of n fills the width
-   exactly, so the wall stays on one rhythm without a grid's fixed tracks. */
+   exactly, without a grid's fixed tracks. */
 #cards {
   --gap: 14px;
   --n: 2;
@@ -79,8 +76,8 @@ a .arrow { visibility: visible; }
 @media (min-width: 1080px) { #cards { --n: 5; } }
 @media (min-width: 1340px) { #cards { --n: 6; } }
 
-/* A card is a picture of a game, not a paragraph: dragging across the wall
-   should not leave half the titles highlighted. */
+/* A card is a picture, not a paragraph: dragging across the wall should not
+   leave half the titles highlighted. */
 li {
   flex: 0 0 var(--card);
   position: relative;
@@ -94,8 +91,8 @@ li {
   container-type: inline-size;
 }
 li > a { position: absolute; inset: 0; color: inherit; text-decoration: none; }
-/* The recorded clip, under the title. A game without one is flat --bg, which
-   is also what the clip's own background is, so the title reads either way. */
+/* A game with no clip is flat --bg, which is the clip's own background too, so
+   the title reads either way. */
 li video {
   position: absolute;
   inset: 0;
@@ -103,9 +100,7 @@ li video {
   height: 100%;
   object-fit: cover;
 }
-/* Bottom left, since the board's own action tends to sit high and centred.
-   Both lines of meta.desc are the link's title attribute instead of a second
-   line here: a card is a picture of a game, and the rules read on hover. */
+/* Bottom left, since the board's own action tends to sit high and centred. */
 .tag {
   position: absolute;
   left: 0;
@@ -143,40 +138,31 @@ li video {
 </ul>
 <script type="module">
 /*
- * The cards are plain links and pressing one is a plain navigation, so this
- * page needs no script to work. What the script adds is which card the browser
- * hands to the game's page: the one the navigation is going through takes
- * `view-transition-name: board`, which is the name that page's board carries,
- * and the browser morphs the one into the other across the two documents.
- *
- * It has to be the card being left through and no other, because a name has to
- * be unique in the document at the moment the snapshot is taken.
+ * The cards are plain links, so this page needs no script to work. What the
+ * script adds is which card the browser hands to the game's page: the one being
+ * left through takes `view-transition-name: board`, the name that page's board
+ * carries. It has to be that card and no other, because a name has to be unique
+ * in the document at the moment the snapshot is taken.
  */
 const list = document.getElementById("cards");
 
-// The one card under the pointer is the one running; the rest hold the frame
-// they stopped on, and one never pointed at holds its poster. Pause and no
-// rewind, so pointing at a card again carries on from where it was left.
-//
-// A screen with no pointer has no way to ask, so there the clips play while
-// they are on screen. Either way the videos carry preload="none", so a card
-// below the fold costs its poster and nothing else until you reach it.
+// The one card under the pointer runs; the rest hold the frame they stopped on,
+// and one never pointed at holds its poster. A screen with no pointer has no
+// way to ask, so there the clips play while they are on screen.
 const videos = [...list.querySelectorAll("video")];
 
 if (matchMedia("(hover: hover)").matches) {
   for (const v of videos) {
     const li = v.closest("li");
-    // pointermove rather than pointerenter, so the card the pointer is already
-    // on can start: coming back from a game restores this page under a pointer
-    // that never crossed a card's edge, and no enter event is owed.
+    // pointermove and not pointerenter: coming back from a game restores this
+    // page under a pointer that crossed no card's edge, so no enter is owed.
     li.addEventListener("pointermove", () => {
       if (v.paused) v.play().catch(() => {});
     });
     li.addEventListener("pointerleave", () => v.pause());
   }
   // A clip restored from the back/forward cache picks up where it was paused,
-  // which is playing if the card was pressed through. The pointer may be
-  // anywhere by then, so the wall stops and the pointer says which one runs.
+  // which is playing if the card was pressed through.
   addEventListener("pageshow", () => videos.forEach((v) => v.pause()));
 } else {
   const onscreen = new IntersectionObserver((es) => {
@@ -198,16 +184,14 @@ function mark(url) {
   return marked;
 }
 
-// Named before this page's snapshot is taken, which is what pageswap is for.
-// A card that is not the one being left through, or a navigation off the site,
-// leaves nothing named and the whole page cross-fades instead.
+// Named before this page's snapshot is taken. A navigation off the site leaves
+// nothing named and the whole page cross-fades instead.
 addEventListener("pageswap", (e) => {
   if (e.viewTransition) mark(e.activation?.entry.url);
 });
 
-// Coming back. Off the back/forward cache the wall is where it was left, so
-// the card is already on screen; a fresh load of this page has it scrolled off
-// the top, and the board would fly to somewhere nobody can see.
+// A fresh load of this page has the card scrolled off the top, and the board
+// would fly to somewhere nobody can see.
 addEventListener("pagereveal", (e) => {
   if (!e.viewTransition) return;
   const li = mark(globalThis.navigation?.activation?.from?.url);

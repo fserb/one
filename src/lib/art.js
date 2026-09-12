@@ -1,17 +1,12 @@
 /*
  * art.js - a 6x8 bitmap font and a chunky-pixel renderer.
  *
- * The entity games draw everything out of two-colour dithered pixels 3 to 8
- * screen units wide. `art` collects an entity's pixels; entity.js blits them
- * centred on its position.
- *
  * ```js
  * art.size(3).color(0xe1b81f, 0xa37d1d, 32).circle(8, 8, 8);
  * ```
  *
  * `size(px)` is how wide one pixel is; shapes are addressed in pixels, so a
- * radius of 8 at size 3 is 48 units across. gfx.js takes the font and the
- * colour cache from here.
+ * radius of 8 at size 3 is 48 units across.
  *
  * `color(c, c2, pat)` is the dither. `pat` is up to three digits read
  * right-to-left as periods along x, y and x+y; a pixel counts
@@ -219,9 +214,8 @@ const FONTDATA = [
 
 const GLYPHS = new Map();
 
-// The pixels of `text` at one unit per pixel, laid out proportionally: each
-// glyph two pixels past the rightmost lit column so far.
-// Everything scales linearly, so callers multiply.
+// One unit per pixel, laid out proportionally: each glyph two pixels past the
+// rightmost lit column so far. Everything scales linearly, so callers multiply.
 export function glyphs(text) {
   const hit = GLYPHS.get(text);
   if (hit) return hit;
@@ -263,14 +257,12 @@ export function css(c) {
 }
 
 /*
- * The midpoint circle walk, one point per step over the first octant, which
- * circle() mirrors into four spans and lcircle() into eight dots. Held here
- * because the two have to agree: an outline drawn by one walk and a fill by
- * another sit a pixel apart at half the radii.
- *
- * alma's bresenhamCircle() is the other midpoint variant, off `3 - 2r` rather
- * than `1 - x`, and picks different pixels at 29 of the first 60 radii. At
- * size 3 to 8 that is a visible change to every sprite, so this stays.
+ * The midpoint circle walk over the first octant, which circle() mirrors into
+ * four spans and lcircle() into eight dots. Shared because the two have to
+ * agree: an outline drawn by one variant and a fill by another sit a pixel
+ * apart at half the radii. alma's bresenhamCircle() is the other variant, off
+ * `3 - 2r` rather than `1 - x`, and picks different pixels at 29 of the first
+ * 60 radii, so it stays out.
  */
 function octant(r, step) {
   let x = Math.round(r);
@@ -288,11 +280,7 @@ function octant(r, step) {
   }
 }
 
-/*
- * A bag of chunky pixels in pixel coordinates. Every shape reduces to dot(),
- * which resolves the dither and appends to a run; render() blits the lot
- * centred on the origin.
- */
+// Every shape reduces to dot(), which resolves the dither and appends to a run.
 export class Art {
   constructor() {
     this.runs = [];
@@ -310,8 +298,8 @@ export class Art {
     this.dirty = true;
   }
 
-  // px is one pixel wide. w and h fix the box the art centres in, which obj()
-  // also reads as its row length.
+  // w and h fix the box the art centres in, which obj() reads as its row
+  // length.
   size(px = 1, w = 0, h = 0) {
     if (this.disabled) return this;
     this.px = px;
@@ -354,8 +342,7 @@ export class Art {
     return this;
   }
 
-  // Skip every drawing call until the index changes: the games redraw inside
-  // update().
+  // Skip every drawing call until the index changes: games redraw in update().
   cache(idx) {
     if (idx === this.cached) {
       this.disabled = true;
@@ -369,9 +356,9 @@ export class Art {
   dot(x, y) {
     if (this.disabled) return this;
 
-    // The dither reads the whole pixel the dot falls in, the run keeps the
-    // coordinate given, drawn at x*px with no rounding: so `rect(0, 1.5, 4, 1)`
-    // is a one-pixel bar centred on a four-pixel box.
+    // The dither reads the whole pixel the dot falls in and the run keeps the
+    // coordinate given, so `rect(0, 1.5, 4, 1)` is a one-pixel bar centred on a
+    // four-pixel box.
     let v = 0;
     if (this.xpat > 0) v += Math.trunc(x) % this.xpat;
     if (this.ypat > 0) v += Math.trunc(y) % this.ypat;
@@ -446,8 +433,8 @@ export class Art {
     return this;
   }
 
-  // A sprite from a string, one character per pixel: `.` transparent, a digit
-  // an index into `colors`. Rows are boxw wide, set by size().
+  // One character per pixel: `.` transparent, a digit an index into `colors`.
+  // Rows are boxw wide, set by size().
   obj(colors, data) {
     if (this.disabled) return this;
     this.color2 =
@@ -472,8 +459,7 @@ export class Art {
     return this;
   }
 
-  // Measured in screen units, so `size` is independent of size(px). Centred
-  // on (x, y) in art coordinates.
+  // In screen units, so `size` is independent of size(px).
   text(x, y, s, size = 1) {
     if (this.disabled) return this;
     this.texts.push({
@@ -531,11 +517,10 @@ export class Art {
     const oy = -by - bh / 2;
     const px = this.px;
 
-    // One path per run of the same colour, filled once. Filled separately,
-    // two rectangles sharing an edge each antialias against it, and 40%
-    // coverage over 60% of the same colour is 76%, not 100%: a seam a quarter
-    // of a shade darker down every shared edge. A single path has no shared
-    // edges. Consecutive runs only, so draw order is kept.
+    // One path per run of the same colour. Filled separately, two rectangles
+    // sharing an edge each antialias against it, and 40% coverage over 60% of
+    // the same colour is 76%, not 100%: a seam a quarter of a shade darker down
+    // every shared edge. Consecutive runs only, so draw order is kept.
     let last = -1;
     for (const [x, y, w, c] of this.runs) {
       if (c !== last) {

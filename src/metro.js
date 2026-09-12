@@ -2,23 +2,17 @@
  * metro - "You are a metro car". Ludum Dare 29, April 2014, written in about
  * ten hours.
  *
- * You drive one car. Up runs it forward, down backs it up, and left and right
- * pick which tunnel it leaves by at the station ahead; the purple stub is the
- * one it will take. A red marker names a station and a pie drains. Touching
- * another car ends the round.
- *
- * The map is a Voronoi diagram of a few hundred stations, and every tunnel is
- * an edge between two cells. Those pairs are the Delaunay dual, so `tunnels()`
+ * The map is a Voronoi diagram of a few hundred stations and every tunnel an
+ * edge between two cells. Those pairs are the Delaunay dual, so `tunnels()`
  * computes the dual directly and never builds the diagram: Bowyer-Watson, a
  * couple of milliseconds, against a Fortune sweep for a picture nothing draws.
  *
  * Tunnels longer than LONG are dropped and only the largest connected piece is
- * kept. Delaunay joins two points whenever some empty circle passes through
+ * kept: Delaunay joins two points whenever some empty circle passes through
  * both, and out past the edge of the cloud that circle can be enormous.
  *
- * Stations are data, not one entity each: 380 entities are 380 draws whether on
- * screen or not. A car collides as the 34x16 box it is drawn as, since it
- * spends most of its time diagonal and hitPoly() is what turns with `angle`.
+ * Stations are data and not one entity each: 380 entities are 380 draws whether
+ * on screen or not.
  */
 
 import * as ent from "./lib/entity.js";
@@ -64,8 +58,7 @@ const W = 480;
 const DIM = W * 4;
 const GAP = 75;
 const TRIES = 3000;
-// Also how far off screen a station must be before none of its tunnels can
-// cross it.
+// Also how far off screen a station must be before none of its tunnels reach.
 const LONG = 200;
 
 // Half-turns a second, then units a second.
@@ -76,34 +69,28 @@ const EACC = 80;
 
 const CAR = [-17, -8, 17, -8, 17, 8, -17, 8];
 
-// On top of the hitstop.
-const DEATH = 0.5;
+const DEATH = 0.5; // on top of the hitstop
 
 const BAR = 270;
 const OFF = 500;
 const ON = 440;
 
-// The vols are the original game's own volumes.
 sound.voice("reach", { ...coin(82), vol: 0.25 });
 sound.voice("timeup", { ...explosion(4073), vol: 0.1 });
 sound.voice("crash", { ...explosion(4005), vol: 0.25 });
 sound.voice("station", { ...coin(112), vol: 0.15 });
 sound.voice("switch", { ...hit(764), vol: 0.25 });
 
-// In entity.js's 480 coordinates: follow() slides every station once a frame
-// so the car stays in the middle, which is why nothing here needs a camera.
+// In entity.js's 480 coordinates: follow() slides every station once a frame so
+// the car stays in the middle, which is why nothing here needs a camera.
 let stations = [];
 let edges = [];
 let train = null;
 let mission = null;
 let enemies = 0;
 
-/*
- * The map.
- *
- * Stations are thrown down at random and kept when nothing else is within GAP;
- * tunnels() joins the pairs whose Voronoi cells share a wall.
- */
+// Stations are thrown down at random and kept when nothing else is within GAP;
+// tunnels() joins the pairs whose Voronoi cells share a wall.
 function build() {
   // A cell is GAP across the diagonal, so it holds one station at most and
   // nothing two cells away can be too close.
@@ -161,7 +148,6 @@ function build() {
 
 // Bowyer-Watson: hold a triangulation, and for each new point drop the
 // triangles whose circumcircle swallows it and fill the hole from its edges.
-// The three corners of the enclosing triangle come off at the end.
 function tunnels(pts) {
   const n = pts.length;
   const far = DIM * 10;
@@ -273,8 +259,8 @@ function offscreen() {
   return pick ?? stations[Math.floor(Math.random() * stations.length)];
 }
 
-// Before the frame, not after, so everything reading a station's position this
-// frame reads the one it is about to be drawn at.
+// Before the frame and not after, so everything reading a station's position
+// reads the one it is about to be drawn at.
 function follow() {
   const dx = train.pos.x - W / 2;
   const dy = train.pos.y - W / 2;
@@ -291,10 +277,8 @@ function follow() {
   }
 }
 
-/*
- * The map, drawn. One entity, parked at the origin and never moved, so its own
- * coordinates are the screen's.
- */
+// One entity, parked at the origin and never moved, so its own coordinates are
+// the screen's.
 class Grid extends ent.Entity {
   render(ctx) {
     ctx.lineCap = "round";
@@ -309,7 +293,6 @@ class Grid extends ent.Entity {
     }
     ctx.stroke();
 
-    // Under the stations.
     ctx.lineWidth = 8;
     stub(ctx, HERE, train.from, train.to);
     stub(ctx, AHEAD, train.to, train.next);
@@ -337,10 +320,8 @@ function stub(ctx, color, a, b) {
   ctx.stroke();
 }
 
-/*
- * The car. It turns towards the station ahead and only drives once it is
- * pointing there, which is what makes a junction cost time.
- */
+// It turns towards the station ahead and only drives once it is pointing
+// there, which is what makes a junction cost time.
 class Train extends ent.Entity {
   constructor(at) {
     super();
@@ -391,8 +372,7 @@ class Train extends ent.Entity {
     }
 
     if (!key.down || full === 0) return;
-    // No further back than the station behind, which is what has already been
-    // travelled along the way the car faces.
+    // No further back than the station behind.
     const ux = dx / full;
     const uy = dy / full;
     const back = ux * (this.pos.x - this.from.x) + uy * (this.pos.y - this.from.y);

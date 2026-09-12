@@ -4,18 +4,10 @@
  *
  * The floor is one of four colours and the ghost wearing it is off the board.
  * Hook one of the other three and reel it in: its colour becomes the floor, it
- * leaves, and the old floor colour walks back on. Always three ghosts, always a
- * different three, each with its own way to kill you. Every grab makes
- * everything 6% faster, and throwing the hook roots you where you stand.
+ * leaves, and the old floor colour walks back on.
  *
  * It needs a keyboard or gamepad to move and a pointer to aim. Alone in the
  * collection, it is not playable with either one alone.
- *
- * A hit shape does not turn with the drawing, so the hook's 20x18 claw box is a
- * circle on the claw.
- *
- * Death runs an EndGame quad rather than a countdown: the board goes black out
- * of the body before the finish panel arrives.
  */
 
 import * as ent from "./lib/entity.js";
@@ -38,9 +30,8 @@ grab a ghost, its colour becomes the floor
 const BLACK = 0x010101;
 const WHITE = 0xfafafa;
 
-// Named as the author's write-up named them, which is not what the eye calls
-// two of them: the `cyan` of the write-up is this purple, its `purple` this
-// pink.
+// Named as the write-up named them, which is not what the eye calls two of
+// them: its `cyan` is this purple and its `purple` this pink.
 const YELLOW = 0xffdc3b;
 const PINK = 0xff54b1;
 const PURPLE = 0xaa00ff;
@@ -49,8 +40,7 @@ const FLOORS = [YELLOW, PURPLE, BLUE, PINK];
 
 // The 480 box the game thinks in.
 const W = 480;
-// How far off each wall the ghosts start, and where the player's wall is. A
-// radius of the player pokes past it.
+// How far off each wall the ghosts start, and where the player's wall is.
 const EDGE = 10;
 
 const PR = 16;
@@ -73,10 +63,8 @@ const GR = 10;
 const BR = 6;
 // Seconds a fresh ghost cannot hurt you and will not shoot, over the speed.
 const GRACE = 1.5;
-// Pink's stand-off, and the radius its bullet swings at.
-const KEEP = 128;
-// Yellow's distance from the centre, and how far purple throws.
-const FAR = 200;
+const KEEP = 128; // pink's stand-off, and the radius its bullet swings at
+const FAR = 200; // yellow's distance from the centre, and purple's throw
 const DODGE = 50;
 // Both over the speed: how fast a ghost walks and how fast a bullet travels.
 const WALK = 50;
@@ -115,8 +103,7 @@ class Player extends ent.Entity {
   update() {
     const { key } = ent.game;
 
-    // EndGame ends the round once the board is black.
-    if (this.dying) return;
+    if (this.dying) return; // EndGame ends the round once the board is black
 
     if (hook.action === IDLE) {
       let mx = 0;
@@ -171,8 +158,8 @@ class Player extends ent.Entity {
   }
 }
 
-// The hook: points at the pointer while idle, goes out at THROW, comes back at
-// PULL with whatever it caught.
+// Points at the pointer while idle, goes out at THROW, comes back at PULL with
+// whatever it caught.
 class Hook extends ent.Entity {
   constructor() {
     super();
@@ -278,8 +265,8 @@ class Bullet extends ent.Entity {
   }
 }
 
-// A ghost. All four walk at WALK towards a point, and differ only in how they
-// pick the point and what they do with their one bullet.
+// All four walk at WALK towards a point and differ only in how they pick the
+// point and what they do with their one bullet.
 class Ghost extends ent.Entity {
   constructor(color, x = null, y = null) {
     super();
@@ -306,8 +293,8 @@ class Ghost extends ent.Entity {
   update() {
     this.wait = Math.max(0, this.wait - ent.game.time);
 
-    // The floor's colour is out of play, so a ghost leaves when its own is
-    // put down.
+    // The floor's colour is out of play, so a ghost leaves when its own is put
+    // down.
     if (this.color === floor) {
       this.remove();
       this.bullet?.remove();
@@ -416,14 +403,10 @@ class Ghost extends ent.Entity {
 }
 
 /*
- * EndGame: a black 20x20 square on the spot where you died, whose
- * four corners then fly to the four corners of the board. One corner at a time,
- * in this order, and each waits for the one before it: all four at once would
- * expand the square, where one at a time drags the black out of the body.
- * Nothing here interpolates, so it is four hard pulls and not a fade.
- *
- * gameOver() waits for the last corner. The board is already meta.bg by then,
- * so overlay.js's dim under the finish panel changes nothing.
+ * A black 20x20 square on the spot where you died, whose four corners then fly
+ * to the four corners of the board. One at a time and each waiting for the one
+ * before it: all four at once would expand the square, where one at a time
+ * drags the black out of the body.
  */
 // [corner, x, y]: top-left, bottom-left, top-right, bottom-right.
 const SWEEP = [[0, 0, 0], [3, 0, W], [1, W, 0], [2, W, W]];
@@ -455,7 +438,7 @@ class EndGame extends ent.Entity {
   }
 
   // size() pins the box to the whole board, so the corners moving inside it do
-  // not drag the drawing's own centre around with them.
+  // not drag the drawing's own centre with them.
   draw() {
     const [a, b, c, d] = this.p;
     this.gfx.clear().size(W, W, W / 2, W / 2).fill(BLACK)
@@ -463,7 +446,7 @@ class EndGame extends ent.Entity {
   }
 }
 
-// A claw: a bar 5 across and 10 long out of the hook's hub at `a`.
+// A bar 5 across and 10 long out of the hook's hub at `a`.
 function prong(gfx, a) {
   const vx = Math.cos(a);
   const vy = Math.sin(a);
@@ -495,7 +478,7 @@ function wrap(p) {
   if (p.y >= W) p.y -= W;
 }
 
-// One bullet, fired at the player and then left to itself. Yellow's and blue's.
+// Fired at the player and then left to itself. Yellow's and blue's.
 function shoot(g) {
   const b = new Bullet(g.color, g.pos.x, g.pos.y);
   const a = angle(g.pos, player.pos);
@@ -505,8 +488,8 @@ function shoot(g) {
   return b;
 }
 
-// A ghost reeled all the way in. Its colour becomes the floor, taking it off
-// the board, and the colour it replaces walks back on.
+// Its colour becomes the floor, taking it off the board, and the colour it
+// replaces walks back on.
 function eat(color) {
   new Ghost(floor);
   ent.shake(0.2);

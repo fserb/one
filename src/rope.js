@@ -1,14 +1,9 @@
 /*
  * rope - swing up an endless cave on two hands.
  *
- * Drag a hand and let go to fling it. Whatever rope it touches it grabs, and
- * the other hand follows. The ropes are simulated: each is a chain of rigid
- * bodies, and the cave generates itself ahead along a wandering path. A red saw
- * follows that path up. Let go for five seconds, or let the saw reach you, and
- * the run ends.
- *
- * The only game that needs a physics engine, so the only one paying for alma's
- * rigid.js and the Box2D under it.
+ * Each rope is a chain of rigid bodies and the cave generates itself ahead
+ * along a wandering path. The only game that needs a physics engine, so the
+ * only one paying for alma's rigid.js and the Box2D under it.
  */
 
 import { ease, extra, vec } from "./alma/src/index.js";
@@ -47,7 +42,6 @@ const ZOOM = 1.5;
 // Ropes further than this from the player are generated ahead / culled behind.
 const REACH = VIEW * 2;
 const CULL = VIEW * 3;
-// Two plucked strings an octave apart, cut short: a rope going taut.
 sound.make("hold", 0.1, (track) => {
   track(karplus_strong, { b: 1, freq: 100, S: 0.5 });
   track(karplus_strong, { b: 0.5, freq: 50, S: 0.5 });
@@ -165,25 +159,18 @@ function createPlayer() {
 
   player.head = world.body({ x: 0, y: 0, type: "dynamic", data: "head" });
   // A category of its own, which only the saw carries and only the saw's mask
-  // takes. planck read the shared group index first, so a head at category 0
-  // still met the saw; box2d asks the broadphase for the sensor's mask against
-  // the shape's category before it asks whether the two collide at all, and a
-  // category of 0 answers no to every query, so the saw ran straight over the
-  // head and the round never ended.
+  // takes. box2d asks the broadphase for the sensor's mask against the shape's
+  // category before it asks whether the two collide, and a category of 0
+  // answers no to every query, so the saw would run straight over the head.
   player.head.circle({ r: 0.6, density, filter: { category: 8, mask: 8 } });
 
   let last = player.head;
   for (let i = 0; i < 2; ++i) {
-    // Damped, where planck's tail needed nothing. planck's rope joint stopped
-    // a link dead the moment it went taut, and that inelastic stop took a
-    // jump's energy back out of the tail. box2d solves the same limit softly
-    // and hands the energy back, so the tail kept every jump and wound round
-    // the head for seconds. Nothing on the joint reaches that, since a tail
-    // spinning round the head is not changing its length; damping is the only
-    // thing left. 3 is where it lands on the old tail: driving both engines
-    // with one recorded head path, the tail winds 1.48 turns a second against
-    // planck's 1.50, turns at 9.3 rad/s against 9.4, and sits 1.30 metres off
-    // the head, as planck's did. Undamped it winds 5.22 and turns at 32.9.
+    // box2d solves the length limit softly and hands the energy back, so
+    // undamped the tail keeps every jump and winds round the head at 5.2 turns
+    // a second. Nothing on the joint reaches that, since a tail spinning round
+    // the head is not changing its length; damping is what is left. At 3 it
+    // winds 1.48 turns a second and sits 1.30 metres off the head.
     const o = world.body({ x: 0, y: i, type: "dynamic", damping: 3 });
     o.radius = 0.4 - i * 0.2;
     o.circle({
@@ -213,11 +200,9 @@ function createPlayer() {
     });
     // A small solid one that meets rope, a wide sensor for a click near the
     // hand, and a tiny one for the pointer query. Only the solid one carries
-    // mass: rigid leaves density at 1 where planck left it at 0, and a sensor
-    // weighs what its density says like any other shape, so the 1.2 metre one
-    // at the default made the hand 4.8 kg against 0.28 and a full-strength
-    // fling carried it 1.5 metres instead of 25. The dense shape is built
-    // first, since box2d asserts on a body that is momentarily massless.
+    // mass: a sensor weighs what its density says like any other shape, and the
+    // 1.2 metre one at density 1 would make the hand 4.8 kg against 0.28. The
+    // dense shape is built first, since box2d asserts on a massless body.
     a.hand.circle({
       r: 0.3,
       density: 1,
@@ -237,9 +222,8 @@ function createPlayer() {
 }
 
 // The hard limit and the give in one joint: below `max` a spring at `hertz`
-// pulls toward `length`, and `max` is where it stops paying out. Left at the
-// default 0 hertz the spring is off and the joint is a rope, which is how the
-// tail hangs off the head.
+// pulls toward `length`, and `max` is where it stops paying out. At the default
+// 0 hertz the spring is off and the joint is a rope, which is the tail.
 function link(a, b, { max, length = max, hertz, damping, localB }) {
   return world.distance(a, b, {
     localA: [0, 0],
@@ -342,8 +326,7 @@ function stepPath() {
   const yv = vec.mul(vec.normalize(pathDir), step);
   const xv = vec.mul(vec.normalize(vec.perp(yv)), length);
 
-  // Advance the horizon by how far each column travelled: a turn moves the
-  // outside of the bend further than the inside.
+  // A turn moves the outside of the bend further than the inside.
   let lastDir = vec.sub(last, path[path.length - 2] ?? last);
   if (lastDir.x === 0 && lastDir.y === 0) lastDir = { x: 0, y: -1 };
   const lastNorm = vec.mul(vec.normalize(vec.perp(lastDir)), length);
@@ -378,8 +361,7 @@ function stepPath() {
     space[i] = opts[Math.floor(opts.length * Math.random())];
   }
 
-  // Never three horizontal columns in a row, then punch holes so the band
-  // stays climbable.
+  // Never three horizontal in a row, then punch holes so the band is climbable.
   let cut = Math.max(1, divs - 4);
   for (let i = 0; i < divs - 2; ++i) {
     if (space[i] === true && space[i + 1] === true && space[i + 2] === true) {
@@ -441,7 +423,6 @@ function stepPath() {
 
   path.push(next);
 
-  // The path wanders: steer a little, bounded, and keep going.
   const MAXV = 0.1;
   pathVel = clamp(pathVel + MAXV * (2 * Math.random() - 1) * 0.5, -MAXV, MAXV);
   const n = vec.mul(vec.normalize(vec.perp(pathDir)), pathVel);
@@ -456,8 +437,8 @@ function updateMap() {
 
   for (const r of ropes) {
     if (vec.len(vec.sub(at(r[0]), pos)) < CULL) continue;
-    // A rope a hand still holds stays: destroying it would take the hold
-    // joint with it and leave the arm pointing at a dead one.
+    // A rope a hand still holds stays: destroying it takes the hold joint with
+    // it and leaves the arm pointing at a dead one.
     if (player.arms.some((a) => a.hold && r.includes(a.hold.b))) continue;
     for (const x of r) x.destroy();
     ropes.delete(r);
@@ -477,9 +458,8 @@ function armOf(hand) {
 }
 
 // A hand holding something passes through rope, and so does one that just let
-// go: 300ms for the rope it left, 50ms for any other. Dropping the contact
-// here is also what holds the grab off, since a contact that never touches
-// reports nothing to begin().
+// go: 300ms for the rope it left, 50ms for any other. Dropping the contact here
+// is also what holds the grab off, since it never reaches begin().
 function presolve(fa, fb) {
   const hit = pair(fa.body, fb.body, "hand", "rope");
   if (!hit) return true;
@@ -494,7 +474,6 @@ function presolve(fa, fb) {
   return delta > grace;
 }
 
-// Touching rope with a free hand grabs it, at the contact point.
 function begin(contact) {
   const hit = pair(contact.a.body, contact.b.body, "hand", "rope");
   if (!hit) return;
@@ -573,29 +552,22 @@ function updateCamera(dt) {
   const ang = TAU * -(p.x - camera.x) / 40;
   const angle = Math.abs(ang) < TAU / 40 ? 0 : ang;
 
-  // approach()'s rates are per second: 3 is its default for the pan and the
-  // lean follows slower. The camera this was written against was passed
-  // {x: 0.02, y: 0.005} a frame and never read it. Applying that loses the
-  // player: the saw sets over a metre a second late in a run, and a y rate of
-  // 0.3 turns that into three metres of lag on a 19.5 metre screen. Measured
-  // against a recorded climb, the head averages 3.9 metres off centre against
-  // 0.8, and touches 10.3.
+  // approach()'s rates are per second: 3 is its default for the pan, and the
+  // lean follows slower. Slowing the pan loses the player, who is moving over a
+  // metre a second late in a run on a 19.5 metre screen.
   camera.approach({ x: p.x, y: p.y, angle }, dt, { angle: 2.45 });
 }
 
-// Press near a hand, drag to aim, release to fling. The pull is backwards:
-// the hand flies away from the drag, like a slingshot.
+// The pull is backwards: the hand flies away from the drag, like a slingshot.
 function updateShot() {
   if (mouse.click) {
     const p = camera.toWorld(mouse.x, mouse.y);
 
-    // The hand's wide sensor is what makes a press near one count.
     let hand = null;
     let dist = Infinity;
     for (const f of world.pick(p.x, p.y)) {
       const b = f.body;
       if (b.data !== "hand") continue;
-      // A free hand already flying fast is not catchable.
       if (!armOf(b).hold && vec.len({ x: b.vx, y: b.vy }) > 5) continue;
 
       const d = vec.len(vec.sub(p, at(b)));
@@ -605,10 +577,9 @@ function updateShot() {
       }
     }
 
-    // The target is metres, like every other point here. A click and a
-    // release inside one frame skips the press branch below, and a target in
-    // 1024-space would read as a 600 metre drag and fling the hand off the
-    // world.
+    // Metres, like every other point here: a click and a release inside one
+    // frame skips the press branch below, and a target in 1024-space would read
+    // as a 600 metre drag.
     if (hand !== null) shot = { hand, offset: 0, target: at(hand) };
   }
 
@@ -644,8 +615,7 @@ function updateShot() {
   shot = null;
 }
 
-// Crawls up the path, turning to face along it. Speeds up over time, and
-// sprints if the player gets too far ahead.
+// Speeds up over time, and sprints if the player gets too far ahead.
 function updateEnemy() {
   enemyPhase = (enemyPhase + 1) % TEETH_PHASE;
   if (enemyPath >= path.length || path.length <= 12) return;
@@ -694,7 +664,6 @@ export function update(dt) {
     updateEnemy();
   });
 
-  // Scored in seconds survived, once the cave proper has started.
   if (path.length > 12) score.value += dt;
 
   updatePlayer(dt);
@@ -728,8 +697,7 @@ export function render(ctx) {
   renderEnemy(ctx);
 }
 
-// Bricks parallaxed back by BGZOOM. The pattern is a hash of the cell, so it
-// is stable without being stored.
+// Bricks parallaxed back by BGZOOM, on a hash of the cell so nothing is stored.
 const BGZOOM = 4;
 const BGSEED = 1 + Math.random();
 
@@ -760,8 +728,6 @@ function renderBG(ctx) {
   }
 }
 
-// The chain drawn as one curve through the link centres, with a dot on each
-// pinned end.
 function renderRope(ctx, r) {
   let prev = at(r[0]);
 
@@ -788,8 +754,7 @@ const SMALLARM = 0.15;
 function renderPlayer(ctx) {
   const h = at(player.head);
 
-  // A tapered band, wide at the shoulder and narrow at the hand, bending
-  // through the elbow body.
+  // Tapered, wide at the shoulder and narrow at the hand, bent at the elbow.
   ctx.fillStyle = BODY;
   for (const arm of player.arms) {
     const p = at(arm.hand);
@@ -809,8 +774,8 @@ function renderPlayer(ctx) {
     ctx.fillCircle(arm.hand.x, arm.hand.y, arm.hold ? 0.22 : 0.3);
   }
 
-  // Second segment up to the head, round capped. The first is pulled back
-  // towards the midpoint so it cannot fold through the head.
+  // The first segment is pulled back toward the midpoint so it cannot fold
+  // through the head.
   const b = player.body[1];
   const p = at(b);
   const mid = vec.mul(vec.add(h, p), 0.5);
@@ -894,7 +859,6 @@ function renderHead(ctx, h) {
   ctx.restore();
 }
 
-// A dashed slingshot band from the hand out to where you are dragging.
 function renderShot(ctx) {
   if (!shot) return;
 
@@ -927,8 +891,7 @@ function renderShot(ctx) {
 const TEETH = 20;
 const TEETH_PHASE = 50;
 
-// An infinite line, so draw only the span crossing the view: sliding triangles
-// along it, filled solid on the far side.
+// An infinite line, so draw only the span crossing the view.
 function renderEnemy(ctx) {
   const pos = at(enemy);
   const dir = vec.rotate({ x: 1, y: 0 }, enemy.angle);
@@ -948,7 +911,7 @@ function renderEnemy(ctx) {
 
   const size = b * 2 / (TEETH - 1);
   const h = 1;
-  // Anchored to the world, not the view, so they do not swim as it moves.
+  // Anchored to the world, so the teeth do not swim as the view moves.
   const dd = size * (-enemyPhase / TEETH_PHASE) - (adv % size);
   const a0 = vec.add(vec.add(p0, vec.mul(other, h / 3)), vec.mul(dir, dd));
   const b0 = vec.add(p1, vec.mul(other, h / 3));

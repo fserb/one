@@ -1,31 +1,16 @@
 /*
- * core.js - the entity model itself: the groups, the frame, and Entity.
- *
- * An entity registers itself under its own class when constructed, and
- * update() walks the groups in draw order once a frame. entity.js is the
- * file a game imports; it re-exports the three.
+ * core.js - the entity model itself: the groups, the frame, and Entity. A game
+ * imports entity.js, which re-exports this and props.js.
  *
  * The games think in a 480x480 box. reset() sets it and render() puts it on
- * one's 1024, so a game writes its constants once. A game that imports
- * lib/camera.js gets that box as the camera's opening framing and moves the
- * camera instead of writing its own transform, and game.mouse comes back
- * through it, so nothing has to subtract the view by hand.
- *
- * A class with `static screen = true` draws after the world with the camera and
- * the shake off, in the game's box either way. Only the drawing changes.
- *
- * Every entity owns an `art` and a `gfx`, the two drawing buffers: pixels and
- * paths. Both are always there, so a game imports neither file itself.
- *
- * The overlap tests are alma's `Collider`. hitCircle/hitBox/hitPoly build one
- * of its shapes in entity-local coordinates, and _world() moves them out at
- * test time.
+ * one's 1024, so a game writes its constants once. With lib/camera.js that box
+ * is the camera's opening framing and game.mouse comes back through it.
  *
  * begin() cannot run from the constructor, since a subclass's field
- * initialisers run after super() returns and would overwrite it. It runs at
- * the top of the entity's first frame, before its first update(). So an entity
- * is drawn on the frame it was made with only what its constructor set, and an
- * entity built inside another's update() first steps on the next frame.
+ * initialisers run after super() returns and would overwrite it. It runs at the
+ * top of the entity's first frame, so an entity is drawn on the frame it was
+ * made with only what its constructor set, and one built inside another's
+ * update() first steps on the next frame.
  */
 
 import { Collider } from "../alma/src/collider.js";
@@ -37,25 +22,16 @@ import { op, SIZE } from "./one.js";
 export const game = {
   time: 0,
   totalTime: 0,
-  // The side of the square box the game thinks in. Square because the canvas
-  // is, and because a camera has one scale.
-  size: 480,
+  size: 480, // the side of the square box the game thinks in
   mouse: { x: 0, y: 0, click: false, press: false, release: false },
-  // input.js's own object: unlike the pointer there is nothing to convert.
-  key,
+  key, // input.js's own object: unlike the pointer there is nothing to convert
 };
 
-// Class -> {layer, screen, list}, every live instance of exactly that class, in
-// construction order.
+// Class -> {layer, screen, list}, in construction order.
 const groups = new Map();
 
-/*
- * The box the game thinks in, and with a camera the framing it opens on. The
- * bounds go with it: they belong to a round, and a round starts here.
- *
- * reset() calls this with 480, which is the box every game uses; a game that
- * wants another one calls it again after.
- */
+// The box the game thinks in, and with a camera the framing it opens on. The
+// bounds go with it: they belong to a round, and a round starts here.
 export function world(size) {
   game.size = size;
   if (!op.camera) return;
@@ -82,8 +58,8 @@ export function order(classes) {
   });
 }
 
-// Only entities that have begun. One constructed earlier this frame has not
-// run begin() yet, so its fields are undefined and it is not in play.
+// Only entities that have begun: one constructed earlier this frame has not run
+// begin() yet, so its fields are undefined and it is not in play.
 export function get(cls) {
   const g = groups.get(cls);
   if (!g) return [];
@@ -96,12 +72,8 @@ export function one(cls) {
   return g.list.find((e) => e.started && !e.dead) ?? null;
 }
 
-/*
- * A round starts here: the entities from the last one, the clock, the shake
- * and the box. It takes the draw order because every game sets one in the same
- * breath, and world(480) because that is the box all of them use. Both are
- * still exported for a game that wants to change one mid-round.
- */
+// A round starts here: it drops the last one's entities, clock and shake, sets
+// the 480 box back and takes the draw order.
 export function reset(classes = []) {
   groups.clear();
   game.time = 0;
@@ -115,17 +87,14 @@ export function reset(classes = []) {
 }
 
 /*
- * The two screen-wide effects. shake() jitters the world under render();
- * delay() is hitstop, holding every entity while the clock runs on. Each takes
- * the longer of what is asked and what is already running.
+ * shake() jitters the world under render(); delay() is hitstop, holding every
+ * entity while the clock runs on. Each takes the longer of what is asked and
+ * what is already running.
  *
  * The rattle is BASE + FALL times the seconds it has left, a fresh offset HZ
  * times a second and held in between. Held, or it runs twice as fast at 120Hz
  * as at 60. Camera2D rattles on those same three numbers, so with a camera
- * shake() hands them over rather than jittering the world under a frame that
- * is already jittering: one call and one rattle either way. world() is what
- * gives the camera BASE and HZ, since turning these world units into the
- * screen ones it counts in needs the box.
+ * shake() hands them over rather than jittering a frame that already is.
  */
 const SHAKE_BASE = 5;
 const SHAKE_FALL = 10;
@@ -149,8 +118,8 @@ export function delay(t) {
   held = Math.max(held, t);
 }
 
-// Camera2D's own step, on this file's clock. Math.random and not a seeded
-// stream: how often the screen is painted must not move a game along.
+// Math.random and not a seeded stream: how often the screen is painted must not
+// move a game along.
 function stepShake(dt) {
   shaking = Math.max(0, shaking - dt);
   if (shaking <= 0) {
@@ -167,7 +136,6 @@ function stepShake(dt) {
   shakeY = amp * (2 * Math.random() - 1);
 }
 
-// Every pair of two entities' world shapes, stopping at the first overlap.
 function anyHit(as, bs) {
   for (const a of as) {
     for (const b of bs) {
@@ -179,23 +147,19 @@ function anyHit(as, bs) {
 
 export class Entity {
   static layer = 10;
-  // Over the world, in the game's box, with camera and shake off.
-  static screen = false;
+  static screen = false; // draws after the world, with camera and shake off
 
   constructor() {
     this.pos = { x: 0, y: 0 };
     this.vel = { x: 0, y: 0 };
     this.acc = { x: 0, y: 0 };
     this.angle = 0;
-    // Seconds since it began.
-    this.age = 0;
+    this.age = 0; // seconds since it began
     this.dead = false;
     this.art = new Art();
     this.gfx = new Gfx();
-    // Mirror the drawing.
     this.flipX = false;
-    // Uniform scale: no game has wanted two axes.
-    this.scale = 1;
+    this.scale = 1; // uniform: no game has wanted two axes
     this.alpha = 1;
     this.hits = [];
     this.started = false;
@@ -235,13 +199,9 @@ export class Entity {
     return this;
   }
 
-  // Overlap shapes, offset from the entity's position. A box stays
-  // axis-aligned: `angle` turns the drawing, not the box, so only hitPoly()
-  // is built with `turns` set.
-  //
-  // These centre on the position, `art` and `gfx` on their own bounding box, so
-  // a drawing lopsided about the origin sits off its hit shape. `gfx.size(w, h)`
-  // is the empty box that puts it back.
+  // These centre on the position and `art` and `gfx` on their own bounding box,
+  // so a drawing lopsided about the origin sits off its hit shape;
+  // `gfx.size(w, h)` is the empty box that puts it back.
   hitCircle(r, x = 0, y = 0) {
     this.hits.push({ shape: Collider.circle(x, y, r), turns: false });
     return this;
@@ -255,8 +215,7 @@ export class Entity {
     return this;
   }
 
-  // A convex polygon, a flat list of x, y pairs, and the one shape that turns
-  // with `angle`: a ship drawn as a triangle collides as one.
+  // A flat list of x, y pairs, and the one shape that turns with `angle`.
   hitPoly(p) {
     const points = [];
     for (let i = 0; i < p.length; i += 2) points.push({ x: p[i], y: p[i + 1] });
@@ -264,8 +223,7 @@ export class Entity {
     return this;
   }
 
-  // The shapes in world coordinates, which is what Collider.hit() reads. One
-  // array per call: hitGroup() takes its own once and reuses it down the group.
+  // One array per call: hitGroup() takes its own once and reuses it.
   _world() {
     return this.hits.map(({ shape, turns }) =>
       Collider.transform(shape, this.pos.x, this.pos.y, turns ? this.angle : 0)
@@ -330,8 +288,6 @@ export function update(dt) {
   game.time = dt;
   game.totalTime += dt;
 
-  // Where the pointer points in the world, which under a camera is not where
-  // it sits on the board.
   const m = op.camera
     ? op.camera.toWorld(mouse.x, mouse.y)
     : { x: mouse.x * game.size / SIZE, y: mouse.y * game.size / SIZE };
@@ -352,9 +308,8 @@ export function update(dt) {
   }
 
   for (const g of ordered()) {
-    // Entities built during this pass wait for the next frame. The snapshot
-    // alone does not do it, since a new entity can land in a group this loop
-    // has not reached yet; `started` is what holds it back.
+    // The snapshot alone does not hold back entities built during this pass,
+    // since a new one can land in a group this loop has not reached yet.
     for (const e of [...g.list]) {
       if (!e.dead && e.started) e._step();
     }
@@ -379,9 +334,8 @@ export function render(ctx) {
   ctx.save();
   if (op.camera) op.camera.apply(ctx);
   else ctx.scale(SIZE / game.size, SIZE / game.size);
-  // World units, so a shake is the same size whatever the box is. The
-  // background goes with it and meta.bg shows along the edge it leaves. With a
-  // camera there is nothing to add: apply() above carried its own.
+  // World units, so a shake is the same size whatever the box is. With a camera
+  // there is nothing to add: apply() above carried its own.
   if (shaking > 0) ctx.translate(shakeX, shakeY);
   draw(ctx, layers, false);
   ctx.restore();

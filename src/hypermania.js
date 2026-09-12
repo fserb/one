@@ -1,23 +1,18 @@
 /*
  * hypermania.
  *
- * Megamania on a fuse. A formation crosses the screen, you hold one bullet in
- * the air at a time, and the orange bar is both clock and magazine: it drains
- * on its own, every shot takes half a point off it, and at zero the ship goes
- * up. Clearing a wave spends what is left for score, two points per energy
- * point per wave already cleared, then refills it. The score is what you did
- * not spend clearing.
+ * Megamania on a fuse. The orange bar is both clock and magazine: it drains on
+ * its own, every shot takes half a point off it, and at zero the ship goes up.
+ * Clearing a wave spends what is left for score, two points per energy point
+ * per wave already cleared, then refills it. The score is what you did not
+ * spend clearing.
  *
  * Eight formations rotate, four crossing and four falling, and every eight
  * waves a timing pattern runs the formation in bursts of up to three times
  * speed. Hits chain: a kill is worth (waves + 1) times the length of its chain.
  *
- * The bar carries no score line, so it is 49 units rather than 70 and the field
- * is 431.
- *
- * The shooter is drawn at random from the enemies on screen. A wave fires 0.2
- * to 1.2 bullets a second, and if each came down your own column there would be
- * nothing to do but dodge.
+ * The shooter is drawn at random from the enemies on screen: if each bullet
+ * came down your own column there would be nothing to do but dodge.
  */
 
 import * as ent from "./lib/entity.js";
@@ -55,16 +50,14 @@ const EW = 400;
 const EH = 12;
 const EY = BOT + (BARH - EH) / 2;
 
-// Rests 28 above the bar, drops to 10 on the recoil, climbs back at RISE. The
-// ship is 24 across, so WALL is 18.
+// Rests 28 above the bar, drops to 10 on the recoil, climbs back at RISE.
 const PY = BOT - 28;
 const PDIP = BOT - 10;
 const RISE = 100;
 const WALK = 200;
 const PX = 18;
 
-// A shot leaves from above the ship whatever the recoil is doing, and has
-// missed once past the top of the field.
+// A shot leaves from above the ship whatever the recoil is doing.
 const SHOTY = PY - 18;
 const UP = 500;
 const DOWN = 400;
@@ -79,14 +72,12 @@ const FILL = 0.75;
 const BEAT = 0.1;
 
 // Wider than the screen on both axes, so an enemy leaving one side is already
-// in place at the other.
+// in place at the other. Wrapping happens 5 past the foot of the field.
 const WRAPX = W + 15;
 const BANDX = W + 30;
-// Wrapping happens 5 past the foot of the field.
 const WRAPY = BOT + 5;
 const BANDY = 430;
 
-// 5x4 pixels at 6 units each.
 const COLS = 5;
 const ROWS = 4;
 const PIXEL = 6;
@@ -104,12 +95,9 @@ sound.voice("dead", { ...explosion(1344), vol: 0.2 });
 sound.voice("enemyshot", { ...laser(1403), vol: 0.2 });
 sound.voice("boom", { ...explosion(1345), vol: 0.2 });
 
-/*
- * The eight formations. `across` spawns w by h off the left edge and walks them
- * right; the other spawns a column every dx and walks them down. At t == 0,
- * `xmove(row, t)` is not a speed but the spawn offset of that row, which is the
- * one place spawn() reads it for.
- */
+// `across` spawns w by h off the left edge and walks them right; the other
+// spawns a column every dx and walks them down. At t == 0, `xmove(row, t)` is
+// not a speed but that row's spawn offset, which is what spawn() reads it for.
 const STRATS = [
   {
     spawn: { across: true, w: 5, h: 3, dy: 50 },
@@ -166,12 +154,9 @@ const STRATS = [
   },
 ];
 
-/*
- * Extra substeps the formation takes this frame, on top of its ten. A wave
- * runs a tenth of a step per substep, so 20 is three times speed and -2 is
- * four fifths of it. The formation's own clock runs at the same rate, which is
- * what makes the patterns above shift with it.
- */
+// Extra substeps the formation takes this frame, on top of its ten. A wave runs
+// a tenth of a step a substep, so 20 is three times speed and -2 is four fifths
+// of it, and the formation's own clock runs at the same rate.
 const TICKERS = [
   () => 0,
   (t) => Math.trunc(t) % 2 === 0 ? 0 : 10,
@@ -357,10 +342,7 @@ class EnemyBullet extends ent.Entity {
   }
 }
 
-/*
- * A muzzle flash, at the end of the barrel that fired. One frame is 16ms on one
- * screen and 8 on another, so it holds for LIGHT instead.
- */
+// One frame is 16ms on one screen and 8 on another, so it holds for LIGHT.
 class Light extends ent.Entity {
   constructor(x, y, mine) {
     super();
@@ -439,11 +421,8 @@ class Enemy extends ent.Entity {
   }
 }
 
-/*
- * The formation. It owns its enemies rather than reading them back out of the
- * group, because it moves them itself: an enemy has no velocity of its own,
- * only a place in the pattern.
- */
+// It owns its enemies rather than reading them back out of the group, because
+// it moves them itself: an enemy has no velocity, only a place in the pattern.
 class Wave extends ent.Entity {
   // Not begin(): the wave is built and pushed off its entry edge in the same
   // breath, and begin() runs a frame later.
@@ -498,8 +477,8 @@ class Wave extends ent.Entity {
     const { xmove, ymove, shooting } = this.strat;
     const steps = 10 + this.ticker(this.age);
 
-    // One bullet at a time from the whole wave. Reservoir sampling: each of the
-    // n on screen gets the same 1/n chance without counting them first.
+    // Reservoir sampling: each of the n on screen gets the same 1/n chance
+    // without counting them first.
     const shoot = Math.random() < shooting * time * 2;
     let shooter = null;
     let seen = 0;
@@ -531,11 +510,8 @@ class Wave extends ent.Entity {
   }
 }
 
-/*
- * A 5x4 blob, mirrored left to right, rerolled until it has enough lit pixels
- * to read at 30 units across. Every enemy in a wave wears the same one, and
- * the count is how many particles it comes apart into.
- */
+// Mirrored left to right, rerolled until it has enough lit pixels to read at 30
+// units across. The count is how many particles it comes apart into.
 function pattern() {
   for (;;) {
     const pat = new Array(COLS * ROWS);
@@ -604,9 +580,8 @@ export function init() {
 }
 
 export function update(dt) {
-  // Entities first, then the scene: entity.js holds a hit by running a frame
-  // at dt 0 rather than skipping it, which the drain below only sees by
-  // running after.
+  // Entities first: entity.js holds a hit by running a frame at dt 0 rather
+  // than skipping it, which the drain below only sees by running after.
   ent.update(dt);
 
   if (dying > 0) {

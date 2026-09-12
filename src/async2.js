@@ -1,25 +1,16 @@
 /*
  * async2 - the earlier async, with the 3D boards.
  *
- * Two 4x6 boards side by side, and gravity pulls them towards each other:
- * right on the left board, left on the right one. Click a block on each board
- * and the two colours swap, but only when the swap leaves some block able to
- * grow. Same-coloured blocks that fill a rectangle merge into one, and
- * clicking a merged block destroys it; what is left falls inward and new
- * blocks feed in off the outer edge.
+ * Two 4x6 boards side by side, gravity pulling each towards the other. A swap
+ * is only allowed when it leaves some block able to grow.
  *
- * The boards are quads under a perspective divide rather than flat rects. Each
- * one holds a rotation about its vertical axis, sprung towards a small resting
- * tilt, and a click pushes on it in proportion to how far off centre it landed,
- * so the board rocks. A block's depth is sprung the same way: a selected block
- * sits forward, and a swap arcs the two blocks over each other, one high and
- * one low. Every block position comes from interpolating the board's quad, so
- * the perspective is applied once, to the board, and the blocks inherit it.
+ * The boards are quads under a perspective divide rather than flat rects, each
+ * holding a rotation about its vertical axis sprung towards a small resting
+ * tilt. Every block position comes from interpolating the board's quad, so the
+ * perspective is applied once, to the board, and the blocks inherit it.
  *
- * The run has no end. Nothing is scored against a clock, nothing runs out, and
- * gameOver() is never called, so this is a board to play with rather than a
- * game. score.value counts merged blocks destroyed, which is the number a
- * losing condition would be measured against once there is one.
+ * The run has no end: gameOver() is never called, so this is a board to play
+ * with rather than a game. score.value counts merged blocks destroyed.
  */
 
 import { Collider } from "./alma/src/collider.js";
@@ -60,13 +51,9 @@ const ANIM_DROP_TIME = 0.25;
 
 const PERSPECTIVE = 1000;
 
-/*
- * The two board rects. The board is always square here, so this is arithmetic
- * rather than a layout solve: outer margin, board, gap, spine, gap, board,
- * outer margin across the width, and the pair centred in what is left of the
- * height. The width binds, which is why 4x6 side by side leaves board colour
- * above and below.
- */
+// Arithmetic rather than a layout solve: outer margin, board, gap, spine, gap,
+// board, outer margin across the width, the pair centred in what is left of the
+// height. The width binds, which is why 4x6 leaves board colour above and below.
 const MARGIN = SIZE * 0.04;
 const SPINE = SIZE * 0.025;
 const BOARD_ASPECT = (BOARD_WIDTH + (BOARD_WIDTH - 1) * MARGIN_RATIO) /
@@ -143,12 +130,8 @@ function isValidPosition(board, x, y, width, height, excludeBlock) {
   return true;
 }
 
-/*
- * Whether growing `block` by (dx, dy) lands on a rectangle of its own colour
- * with nothing hanging over the edge. Every cell in the target box has to hold
- * a block of the same colour that fits inside the box: a bigger neighbour
- * poking out would make the union non-rectangular.
- */
+// Every cell in the target box has to hold a block of the same colour that fits
+// inside the box: a bigger neighbour poking out makes the union non-rectangular.
 function isValidResize(block, boardIndex, dx, dy) {
   const maxX = block.x + block.width + dx;
   const maxY = block.y + block.height + dy;
@@ -166,9 +149,8 @@ function isValidResize(block, boardIndex, dx, dy) {
   return true;
 }
 
-// The largest growth this block has, down and right, or zeroes for none. A
-// result one cell wide or one cell tall is not a merge, so the area has to
-// beat 4: the smallest merge is 2x2.
+// The largest growth this block has, down and right, or zeroes for none. One
+// cell wide or tall is not a merge, so the area has to beat 4.
 function getMaxSquare(block) {
   let expand = { x: 0, y: 0 };
   let bestArea = 4;
@@ -189,8 +171,8 @@ function getMaxSquare(block) {
   return expand;
 }
 
-// Try the swap, ask whether anything can grow, put it back. This is the rule
-// that makes a swap a move rather than a shuffle.
+// Try the swap, ask whether anything can grow, put it back. The rule that makes
+// a swap a move rather than a shuffle.
 function canSwapCreateBiggerBlocks(block1, block2) {
   [block1.color, block2.color] = [block2.color, block1.color];
 
@@ -221,11 +203,9 @@ function fillEmptySpacesInit() {
   }
 }
 
-/*
- * Gravity, then the refill, then one animation for both. `displacement` is how
- * many cells a block is drawn short of where it already is, tweened to zero,
- * so the model settles first and the tween is only the picture catching up.
- */
+// `displacement` is how many cells a block is drawn short of where it already
+// is, tweened to zero, so the model settles first and the tween is only the
+// picture catching up.
 async function applyGravityAndFill() {
   const animated = [];
   const before = blocks.map((b) => ({ block: b, x: b.x }));
@@ -296,9 +276,8 @@ async function applyGravityAndFill() {
   );
 }
 
-// Merge every rectangle of one colour there is, largest growth first per
-// block, until a pass finds nothing. The merged block keeps the identity of
-// its top-left corner and the rest are dropped.
+// Largest growth first per block, until a pass finds nothing. The merged block
+// keeps the identity of its top-left corner and the rest are dropped.
 function mergeBlocks() {
   if (act.is()) return;
 
@@ -325,8 +304,8 @@ function mergeBlocks() {
   }
 }
 
-// The board as four screen points: rotate the rect about its vertical axis in
-// 3D, then divide by depth. Everything else on the board interpolates this.
+// Rotate the rect about its vertical axis in 3D, then divide by depth.
+// Everything else on the board interpolates this.
 function getBoardQuadPoints(boardIndex) {
   const { layout, rotation } = boards[boardIndex];
   const { width, height, x, y } = layout;
@@ -382,8 +361,8 @@ function getBlockQuadPoints(block, withMargin = true) {
   const depthScale = block.depth >= 0 ? 1 / (1 + block.depth) : (1 - block.depth);
   let out = quad.scale(depthScale);
 
-  // Displacement is in cells, and it is drawn outward: the left board's blocks
-  // are held back to the left of where the model already has them.
+  // In cells, drawn outward: the left board's blocks are held back to the left
+  // of where the model already has them.
   if (block.displacement !== 0) {
     const pixels = block.displacement *
       (boards[block.board].layout.width / BOARD_WIDTH);
@@ -424,8 +403,8 @@ async function handleClick(x, y) {
   const point = Collider.point(x, y);
   let clicked = null;
 
-  // Hit-test the drawn quad, not the grid: the board is under a perspective
-  // divide and a rocking rotation, so the cell a pixel is in is not arithmetic.
+  // Hit-test the drawn quad and not the grid: the board is under a perspective
+  // divide and a rocking rotation.
   for (const block of blocks) {
     const quad = getBlockQuadPoints(block, false);
     if (Collider.hit(point, Collider.polygon(quad))) {
@@ -435,9 +414,8 @@ async function handleClick(x, y) {
   }
   if (!clicked) return;
 
-  // The board rocks away from the click, harder the further off centre it
-  // landed. The square root makes the edge only twice the push of a quarter
-  // out rather than four times.
+  // The square root makes the edge only twice the push of a quarter out rather
+  // than four times.
   const { layout } = boards[clicked.board];
   const dist = (x - (layout.x + layout.width * 0.5)) / layout.width;
   boards[clicked.board].rotationVelocity += -ROTATION_STRENGTH *
@@ -465,8 +443,7 @@ async function handleClick(x, y) {
   }
 
   if (crossBoard && canSwapCreateBiggerBlocks(previous, clicked)) {
-    // One progress object per block, so the two arcs are separate tracks and
-    // the render can read how far along each is.
+    // One progress object per block, so the two arcs are separate tracks.
     const anim1 = { progress: 0 };
     const anim2 = { progress: 0 };
     previous.swapAnim = { progress: anim1, target: clicked, high: true };
@@ -487,17 +464,16 @@ async function handleClick(x, y) {
     return;
   }
 
-  // Nothing selected, or the click stayed on the selected board: this is the
-  // new selection. One block per board, so a second click on the same board
-  // moves the selection rather than trying to swap.
+  // One block per board, so a second click on the same board moves the
+  // selection rather than trying to swap.
   selectedBlock = clicked;
   selectedBoard = clicked.board;
   selectedBlock.targetDepth = -0.25;
   clicked.selected = true;
 }
 
-// The two blocks cross over each other, one arcing forward and one back,
-// meeting at the midpoint of their two lifted positions.
+// The two cross over each other, one arcing forward and one back, meeting at
+// the midpoint of their two lifted positions.
 function calculateSwapPosition(block) {
   const progress = block.swapAnim.progress.progress;
   const target = block.swapAnim.target;
@@ -533,8 +509,8 @@ function calculateSwapPosition(block) {
   }));
 }
 
-// The corner radius is 0.2 of a cell, so a merged block's corners are the same
-// size as a single block's rather than scaling with it.
+// 0.2 of a cell, so a merged block's corners are the same size as a single
+// block's rather than scaling with it.
 function getBlockCornerRadius(block) {
   return {
     rx: 0.2 / (block.width + (block.width - 1) * MARGIN_RATIO),
@@ -557,8 +533,7 @@ export function init() {
 }
 
 export function update(dt) {
-  // Not awaited: a click lands while an earlier one is still animating, the
-  // same as it did before.
+  // Not awaited: a click lands while an earlier one is still animating.
   if (mouse.click) handleClick(mouse.x, mouse.y);
   updatePhysics(dt);
 }

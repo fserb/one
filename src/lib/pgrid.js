@@ -1,20 +1,15 @@
 /*
- * pgrid.js - partitions a rectangle into orthogonally-connected regions whose
- * sizes obey a per-size quota. tower's board is one of these: every cell is in
- * exactly one region, and the region sizes are the numbers the puzzle is built
- * out of.
+ * pgrid.js - cuts a rectangle into orthogonally-connected regions under a
+ * per-size quota. tower's board.
  *
- * solve() is a backtracking search. It always fills from the emptiest cell,
+ * solve() is a backtracking search that always fills from the emptiest cell,
  * which is what keeps a single orphaned square from being left behind: a cell
  * with one free neighbour has to be claimed now or never. growSmartRegion()
- * then grows out of that cell by preferring the candidate with the most
- * neighbours, so a region wraps a pocket rather than snaking past it.
+ * then prefers the candidate with the most neighbours, so a region wraps a
+ * pocket rather than snaking past it.
  *
- * A region in one row or one column is rejected. A straight bar reads as a
- * ruler rather than a shape, and the puzzle is read by shape.
- *
- * Sizes are tried in a shuffled order with the under-quota ones first, so two
- * boards off the same constraints do not come out the same.
+ * A region in one row or one column is rejected: a bar reads as a ruler rather
+ * than a shape, and the puzzle is read by shape.
  */
 
 export class GridFiller {

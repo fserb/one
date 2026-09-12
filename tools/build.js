@@ -1,24 +1,13 @@
 /*
- * build.js - turns src/<game>.js into www/<game>/index.html.
- *
- * Every page is self-contained: bundle, CSS and favicon inlined, so a built
- * game is one file. `deno bundle` (esbuild) tree-shakes, so a game only pays
- * for the parts of alma it imports.
+ * build.js - turns src/<game>.js into www/<game>/index.html, bundle, CSS and
+ * favicon inlined, so a built game is one file.
  *
  * The HTML is tools/tpl/, plain files with {{name}} holes, out of `deno fmt`
- * because a hole is not valid in most of the places one sits. They are written
- * to be read, and their <style> and <script> are minified on the way in, so
- * none of that commentary reaches the page.
+ * because a hole is not valid in most of the places one sits. Their <style> and
+ * <script> are minified on the way in, so their comments do not ship.
  *
- * The gallery reads each game's `meta` by importing the module under Deno.
- * That works only while game modules have no side effects. Keep it that way.
- *
- * `meta.draft: true` keeps a game out of www/ entirely, and deletes any page a
- * previous build left. Play it with dev.html.
- *
- * media/<game>/card.mp4/.gif/.png are optional, from `./task media <game>`.
- * They become the moving gallery card and the page's og:image; a game without
- * them gets the flat colour card.
+ * Each game's `meta` comes from importing the module under Deno, which works
+ * only while game modules have no side effects. Keep it that way.
  *
  *   deno run -A tools/build.js            # every game, plus the gallery
  *   deno run -A tools/build.js wow trap   # just these
@@ -39,8 +28,7 @@ const src = (name) => new URL(name, SRC).href;
 const tpl = (name) =>
   Deno.readTextFile(new URL(`tpl/${name}.html`, import.meta.url));
 
-// esbuild, through `deno bundle`. It reads a file and writes one, so both
-// callers hand it a temp directory. Throws with esbuild's own message.
+// It reads a file and writes one, so both callers hand it a temp directory.
 async function esbuild(entry, out) {
   const cmd = new Deno.Command("deno", {
     args: [
@@ -59,8 +47,7 @@ async function esbuild(entry, out) {
   if (code !== 0) throw new Error(new TextDecoder().decode(stderr));
 }
 
-// One block of a template, minified. The extension is what tells esbuild
-// whether it is reading CSS or JavaScript.
+// The extension is what tells esbuild whether it is reading CSS or JavaScript.
 async function press(code, ext) {
   const dir = await Deno.makeTempDir();
   try {
@@ -74,10 +61,8 @@ async function press(code, ext) {
 
 const BLOCK = /(<(style|script)\b[^>]*>)([\s\S]*?)(<\/\2>)/g;
 
-// Every <style> and every hand-written <script> in a template, minified once
-// when the template is read. A block that is nothing but a hole is left alone:
-// {{script}} is not JavaScript until the bundle fills it, and the bundle comes
-// out of esbuild already.
+// A block that is nothing but a hole is left alone: {{script}} is not
+// JavaScript until the bundle fills it, and that comes out of esbuild already.
 async function squeeze(html) {
   const out = [];
   let at = 0;
@@ -95,12 +80,10 @@ async function squeeze(html) {
 const TEMPLATE = {
   game: await squeeze(await tpl("game")),
   gallery: await squeeze(await tpl("gallery")),
-  // Joined with newlines into the gallery's list, so no trailing one.
-  card: (await tpl("card")).trimEnd(),
+  card: (await tpl("card")).trimEnd(), // joined with newlines, so no trailing
 };
 
-// {{name}} becomes vars.name. One pass, so a value containing {{...}} itself
-// is left alone.
+// One pass, so a value containing {{...}} itself is left alone.
 function fill(template, vars) {
   return template.replace(/\{\{(\w+)\}\}/g, (_, name) => {
     if (!(name in vars)) throw new Error(`template has no ${name}`);
@@ -159,8 +142,7 @@ async function exists(url) {
   }
 }
 
-// What `./task media <game>` left, keyed by extension. The names match
-// www/<game>/, so nothing is renamed.
+// What `./task media <game>` left, keyed by extension.
 async function shot(game) {
   const out = {};
   for (const ext of ["mp4", "gif", "png"]) {
@@ -186,10 +168,8 @@ const esc = (s) =>
 
 const kb = (bytes) => `${(bytes / 1024).toFixed(1)} KB`;
 
-// The mark in the game's two colours: a disc with a round-capped bar cut out
-// of the bottom, reading as an "n". Measured off ~/web/games/one/icon.png and
-// normalised from its 512 box to 32: disc r=180.9, bar half-width 49, cap
-// centre y=259, all about x=255.5.
+// A disc with a round-capped bar cut out of the bottom, reading as an "n".
+// Measured off icon.png and normalised from its 512 box to 32.
 function favicon(m) {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">` +
     `<rect width="32" height="32" fill="${m.bg}"/>` +
@@ -222,10 +202,8 @@ function gallery(entries) {
       title: esc(m.title),
       year: esc((m.date ?? "").slice(0, 4)),
       bg: m.bg,
-      // The panel fill, not the panel text: the title sits straight on the
-      // clip with no panel behind it, and the fill is the half overlay.js
-      // picked to read over the board. So the card names its game in the same
-      // colour that game's own panels are drawn in.
+      // The panel fill and not the panel text: the title sits straight on the
+      // clip with no panel behind it.
       ink: theme(m).bg,
       media: s.mp4
         ? `<video src="./${game}/card.mp4"${
@@ -273,8 +251,6 @@ for (const game of await games()) {
   const found = entries.find(([g]) => g === game);
   const entry = found ?? [game, await meta(game)];
   if (entry[1].draft) continue;
-  // Every listed game, so `build <one game>` still leaves the gallery pointing
-  // at clips that exist.
   const s = await shot(game);
   await copyShot(game, s);
   all.push([...entry, s]);

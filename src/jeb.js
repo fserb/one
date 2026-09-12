@@ -1,30 +1,22 @@
 /*
  * jeb - "Jebediah's Revenge".
  *
- * A lander in a system of planets. Gravity is the only thing moving you between
- * them: the green line out of the nose is where you go if you do nothing, drawn
- * AHEAD seconds ahead through the same gravity, ending where you would hit. One
- * planet is lit; land on it slowly and upright and it fills the tank and lights
- * another. The tank is the clock and drains whether you burn or not.
+ * The green line out of the nose is where you go if you do nothing, drawn AHEAD
+ * seconds ahead through the same gravity.
  *
- * The landing rule is the whole of it: over CRASH and you are scrap, more than
- * a quarter turn off the upright of where you touched down and you are scrap,
- * otherwise the ship stops dead and snaps to the vertical. The second is the
- * one that catches you, because rotating is slow.
+ * The landing rule is the whole of it: over CRASH is scrap, more than a quarter
+ * turn off the upright of where you touched down is scrap, otherwise the ship
+ * stops dead and snaps to the vertical. The second is the one that catches you,
+ * because rotating is slow.
  *
- * That rule runs on arrival, not on every frame of contact: re-snapping the
+ * That rule runs on arrival and not on every frame of contact: re-snapping the
  * angle every frame leaves no way to point the nose before lifting off. A
- * landed ship is put on the surface rather than left to sink into it,
- * except while it is burning away, or a frame of thrust moves it less than the
- * resting rule puts back and it can never leave.
+ * landed ship is put back on the surface, except while it is burning away, or a
+ * frame of thrust moves it less than the resting rule puts back.
  *
  * Gravity is every planet at once, so the pull does not jump when the nearest
- * planet changes. MU is per unit of radius squared, so every planet has the
- * same gravity underfoot, and THRUST is picked against that.
- *
- * The stars are in world coordinates and the patch tiles: the ship holds at the
- * centre and the world moves past it, so on black with no planet in frame
- * nothing else says you are moving, and nothing stops you leaving the system.
+ * changes. MU is per unit of radius squared, so every planet has the same
+ * gravity underfoot, and THRUST is picked against that.
  */
 
 import * as ent from "./lib/entity.js";
@@ -59,18 +51,16 @@ const PX = 4;
 const CELL_MIN = 6;
 const CELL_MAX = 11;
 
-// Per unit of radius squared, so the surface pull is the same on every planet.
-// An actual planet pulls MU*r*r/d/d.
+// Per unit of radius squared, so the surface pull is the same on every planet;
+// an actual planet pulls MU*r*r/d/d. 320 of thrust against a surface pull of
+// 120 leaves the ground at 200, so take-off is not most of a tank.
 const MU = 120;
-// Per second. THRUST is picked against MU: 320 against a surface pull of 120
-// leaves the ground at 200, so take-off is not most of a tank.
 const THRUST = 320;
 const TURN = Math.PI;
 const CRASH = 62;
-// A quarter turn off the vertical of where you touched down.
 const TILT = Math.PI / 4;
 
-// One pointer has to aim and burn, so HOLD separates them: a lander that
+// One pointer has to aim and burn, so AIM_LAG separates them: a lander that
 // cannot turn without firing cannot be landed.
 const SHIP_R = 8;
 const DEAD = 10;
@@ -91,9 +81,9 @@ const FILL_MIN = 12;
 const AHEAD = 7;
 const STEP = 1 / 30;
 
-// The patch tiles, so there are stars wherever the ship goes. Nothing stops
-// you leaving the system, and out there the stars and the arrow are all there
-// is to say which way is back.
+// The patch tiles, so there are stars wherever the ship goes. Nothing stops you
+// leaving the system, and out there the stars and the arrow are all that says
+// which way is back.
 const PATCH = 700;
 const STARS = 150;
 const STAR = 1.6;
@@ -124,7 +114,6 @@ const SHIP = `
 02220
 `;
 
-// The vols are the original game's own volumes.
 sound.voice("burn", { ...blip(511), vol: 0.05 });
 sound.voice("land", { ...powerup(3607), vol: 0.13 });
 sound.voice("crash", { ...explosion(3613), vol: 0.2 });
@@ -134,7 +123,6 @@ let ship = null;
 // which is all of them while init() runs, and predict() asks two hundred times
 // a frame.
 const planets = [];
-// Stars are three numbers each and never move.
 let target = null;
 let fuel = 0;
 let dying = 0;
@@ -149,8 +137,7 @@ const css = (c) => `#${c.toString(16).padStart(6, "0")}`;
 
 // Signed, in [-PI, PI). JS's % keeps the sign of its left side, so the usual
 // one-liner reads a quarter turn as three quarters once enough left turns have
-// taken `angle` below -3*PI. Wrapping the difference works wherever it came
-// from, where wrapping `angle` itself needs doing every frame.
+// taken `angle` below -3*PI.
 function apart(a, b) {
   const d = (a - b) % (2 * Math.PI);
   if (d < -Math.PI) return d + 2 * Math.PI;
@@ -158,11 +145,8 @@ function apart(a, b) {
   return d;
 }
 
-/*
- * A planet. Its mass is its radius squared, so the pull at the surface is MU
- * on every one of them and a big planet is only a bigger target with a longer
- * reach, never a heavier surface to leave.
- */
+// Its mass is its radius squared, so a big planet is a bigger target with a
+// longer reach and never a heavier surface to leave.
 class Planet extends ent.Entity {
   constructor(x, y, cells) {
     super();
@@ -224,10 +208,8 @@ class Ship extends ent.Entity {
     const { key, mouse } = ent.game;
 
     this.pressed = mouse.press ? this.pressed + t : 0;
-    // Read every frame, or a run of arrow keys reports as one move at the end.
     const aiming = pointerMoved() || mouse.press;
 
-    // A rate, not a jump: the turn is what you have to have started early.
     let want = null;
     if (key.left) this.angle -= TURN * t;
     if (key.right) this.angle += TURN * t;
@@ -283,8 +265,8 @@ class Ship extends ent.Entity {
       const nx = dx / d;
       const ny = dy / d;
 
-      // A take-off. Without this the ship can never leave: a frame of thrust
-      // moves it a fraction of a unit and the resting rule below puts it back.
+      // Without this the ship can never leave: a frame of thrust moves it a
+      // fraction of a unit and the resting rule below puts it back.
       const a = this.angle - Math.PI / 2;
       if (
         this.landed === p && this.burning &&
@@ -298,17 +280,8 @@ class Ship extends ent.Entity {
     this.landed = null;
   }
 
-  /*
-   * The landing rule, on arrival only: over CRASH is scrap, more than TILT off
-   * the vertical of the place you touched down is scrap, and otherwise the
-   * ship snaps to that vertical and stops dead.
-   *
-   * Arrival only: running the whole of it every frame the ship is in contact
-   * pins a resting ship upright and leaves no way to turn on the ground.
-   * Turning is slow and it is the half of the landing that catches you; being
-   * able to point the nose before lifting off is most of what makes the next
-   * one possible.
-   */
+  // On arrival only: running it every frame of contact pins a resting ship
+  // upright and leaves no way to point the nose before lifting off.
   touch(p, nx, ny) {
     const up = Math.atan2(ny, nx) + Math.PI / 2;
     if (this.landed !== p) {
@@ -390,12 +363,8 @@ function pickTarget(from) {
   target.light(true);
 }
 
-/*
- * Scatter a system: planets inside the world with EDGE to spare and GAP of
- * clear space between any two. Failing to place one is fine, the system is
- * just smaller, and the tries are capped because a run of unlucky rolls in a
- * world this size can take a while to find the last spot.
- */
+// Failing to place one is fine, the system is just smaller, and the tries are
+// capped because a run of unlucky rolls can take a while to find the last spot.
 function makeSystem() {
   planets.length = 0;
   for (let n = 0; n < 400 && planets.length < PLANETS; ++n) {
@@ -483,7 +452,6 @@ export function update(dt) {
   expire();
 }
 
-// The other way a round ends, and not a crash.
 function expire() {
   if (dying > 0) return;
   dying = DEATH;
@@ -559,7 +527,6 @@ function drawStars(ctx) {
 
 function drawPath(ctx) {
   if (path.length < 4 || dying > 0) return;
-  // The speed half of the landing rule, said out loud.
   const bad = lands && landsAt > CRASH;
   ctx.strokeStyle = bad ? LINE_BAD : LINE;
   ctx.globalAlpha = 0.5;
@@ -577,8 +544,7 @@ function drawPath(ctx) {
   ctx.globalAlpha = 1;
 }
 
-// An arrow at the edge when the lit planet is off screen. The world is more
-// than two screens across, so without it you fly until it turns up.
+// An arrow at the edge when the lit planet is off screen.
 function drawArrow(ctx, ox, oy) {
   if (target === null || dying > 0) return;
   const sx = target.pos.x + ox;

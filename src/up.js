@@ -1,19 +1,14 @@
 /*
  * up. Based on Aba Games' WASD THRUST.
  *
- * Four thrusters, one per arrow key, each lettered with its key, and each
- * pushing the ship away from itself: the one on top drives you down. The world
- * slides down 50 units a second, so the game is holding enough upward thrust to
- * stay off the bottom while a field of red crosses comes at you.
+ * Four thrusters, one an arrow key, each pushing the ship away from itself: the
+ * one on top drives you down.
  *
- * No camera: the scene moves the world, not the view, so the ship sits at a
+ * No camera: the scene moves the world and not the view, so the ship sits at a
  * fixed 240 across and never above 200 down.
  *
- * THRUST says what the thrust and drag are picked against.
- *
  * The ship collides as two polygons, which turn: entity.js only turns a
- * polygon, not a box. The thrusters draw on top of the ship, or the ship's own
- * cross hides all four letters.
+ * polygon, not a box.
  */
 
 import * as ent from "./lib/entity.js";
@@ -33,8 +28,7 @@ which pushes you off it. x and c spin
 
 const W = 480;
 
-// Units a second the world slides, and the highest the ship gets to sit.
-// Climbing faster than the slide only buys the pin at 200.
+// Climbing faster than the slide only buys the pin at HOLD.
 const SCROLL = 50;
 const HOLD = 200;
 
@@ -46,12 +40,9 @@ const OUT = 500;
 const FIELD = 10;
 const DEATH = 0.5;
 
-// Thruster acceleration, drag, how far out a thruster sits, spin rate, exhaust
-// speed.
-//
 // Thrust over drag is the top speed and one over drag the time to reach it, so
-// these give 125 (over the 50 a second slide, under a dive into a field it
-// cannot see coming) in half a second.
+// these give 125 in half a second: over the 50 a second slide, under a dive
+// into a field it cannot see coming.
 const THRUST = 250;
 const DRAG = 2;
 const ARM = 30;
@@ -74,7 +65,6 @@ let player = null;
 let adds = 0;
 let dying = 0;
 
-// One thruster, at a fixed angle out from the ship and lettered with its key.
 // The exhaust is what moves the ship, so firing pushes along `offset` reversed.
 class Engine extends ent.Entity {
   constructor(ship, offset, label) {
@@ -193,7 +183,6 @@ class Obstacle extends ent.Entity {
   }
 }
 
-// A coin worth what is written on it, 10 to 90.
 class Gold extends ent.Entity {
   begin() {
     this.points = Math.round(1 + Math.random() * 8) * 10;
@@ -238,8 +227,8 @@ export function init() {
 }
 
 export function update(dt) {
-  // The wreck runs on a still board: the slide is the only thing that moves a
-  // piece, so holding it also stops an obstacle cashing out.
+  // The slide is the only thing that moves a piece, so holding it also stops an
+  // obstacle cashing out.
   if (dying > 0) {
     dying -= dt;
     ent.update(dt);
@@ -247,8 +236,8 @@ export function update(dt) {
     return;
   }
 
-  // The scene runs before the entities, and the order matters: this slides the
-  // world out from under a step that has not run.
+  // Before the entities, and the order matters: this slides the world out from
+  // under a step that has not run.
   const dx = W / 2 - player.pos.x;
   const dy = Math.max(SCROLL * dt, HOLD - player.pos.y);
   player.pos.x += dx;

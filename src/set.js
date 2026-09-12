@@ -2,11 +2,10 @@
  * set.
  *
  * The card game. Sixteen cards, four traits with three values each, and three
- * cards are a set when every trait is all the same or all different. Take one
- * and the three are replaced off an 81-card deck.
+ * cards are a set when every trait is all the same or all different.
  *
- * The clock is what makes a wrong guess cost anything, since the board holds
- * 560 triples and about five sets, so with a free guess the game is 560 button
+ * The clock is what makes a wrong guess cost anything: the board holds 560
+ * triples and about five sets, so with a free guess the game is 560 button
  * presses rather than looking.
  *
  * The cursor follows the pointer when it moves and the arrows when it is still,
@@ -14,10 +13,6 @@
  *
  * Sixteen cards almost always hold a set, and almost always is not never, so a
  * board without one is dealt again.
- *
- * The pitch is 100, and the room that leaves along the bottom carries the clock
- * and the last set. Cards draw in a 100-unit box, scaled by `CELL / 100` on the
- * way out.
  */
 
 import * as ent from "./lib/entity.js";
@@ -52,8 +47,8 @@ const MARK = CELL - 8;
 
 const X0 = 90;
 const Y0 = 75;
-// The board's edges. The clock spans them and the last set is right aligned to
-// them, so the three read as one column.
+// The clock spans these and the last set is right aligned to them, so the three
+// read as one column.
 const LEFT = X0 - CELL / 2;
 const RIGHT = X0 + PITCH * (COLS - 1) + CELL / 2;
 const MID = (LEFT + RIGHT) / 2;
@@ -66,23 +61,20 @@ const GRAVE_PITCH = 27;
 const GRAVE_X = RIGHT - GRAVE / 2 - GRAVE_PITCH * 2;
 const GRAVE_Y = 460;
 
-// The starting clock and its ceiling, so a set tops the bar up rather than
-// pushing past the end of it. Ten seconds a set is the pace a player who can
-// read the board holds.
+// One ceiling, so a set tops the bar up rather than pushing past the end of it.
+// Ten seconds a set is the pace a player who can read the board holds.
 const CLOCK_MAX = 45;
 const SET_TIME = 10;
 const MISS_TIME = 5;
 
-// Cards not yet dealt, and cards taken. The sixteen on the board are in
-// neither, so the deck refills out of the discards without repeating one.
+// The sixteen on the board are in neither, so the deck refills out of the
+// discards without repeating one.
 let deck = [];
 let discard = [];
 
 let board = [];
-// At most three.
-let marks = [];
-// The last set found, shrunk into the bottom corner.
-let grave = [];
+let marks = []; // at most three
+let grave = []; // the last set found, shrunk into the bottom corner
 
 let clock = CLOCK_MAX;
 
@@ -114,8 +106,8 @@ function pick() {
   return c;
 }
 
-// Every trait all same or all different, which is exactly "the three values
-// sum to a multiple of three": 3v and 0+1+2 do, two alike and one apart never.
+// Every trait all same or all different is exactly "the three values sum to a
+// multiple of three": 3v and 0+1+2 do, two alike and one apart never.
 function isSet(a, b, c) {
   for (let s = 0; s <= 6; s += 2) {
     const t = ((a >> s) & 3) + ((b >> s) & 3) + ((c >> s) & 3);
@@ -143,8 +135,7 @@ function cellY(i) {
   return Y0 + PITCH * Math.floor(i / COLS);
 }
 
-// The cell a point is in, or null. The gap counts too, so a tap has no dead
-// strip to land in.
+// The gap counts too, so a tap has no dead strip to land in.
 function cellAt(x, y) {
   const col = Math.floor((x - X0 + PITCH / 2) / PITCH);
   const row = Math.floor((y - Y0 + PITCH / 2) / PITCH);
@@ -152,8 +143,8 @@ function cellAt(x, y) {
   return col + row * COLS;
 }
 
-// The stripes of a hollow shape, a half width and a height each: there is no
-// hatch, so a striped card is a shape with four lines inside it.
+// A half width and a height each: there is no hatch, so a striped card is a
+// shape with four lines inside it.
 const STRIPES = [
   [[10, -6], [10, -2], [10, 2], [10, 6]],
   [[7, -6], [10, -2], [10, 2], [7, 6]],
@@ -182,11 +173,8 @@ function symbol(gfx, x, y, color, fill, type) {
   }
 }
 
-/*
- * A card, built in the constructor so it is on screen the frame it replaces
- * one. gfx.size(100, 100) pins the box and size() centres it on the entity, so
- * every coordinate below runs -50..50.
- */
+// Built in the constructor so it is on screen the frame it replaces one.
+// gfx.size(100) pins the box, so every coordinate below runs -50..50.
 class Card extends ent.Entity {
   constructor(code, x, y) {
     super();
@@ -249,7 +237,6 @@ class Cursor extends ent.Entity {
     const { key, mouse } = ent.game;
 
     // The pointer takes the cursor when it moves, the arrows when it is still.
-    // Neither locks the other out.
     this.moved = mouse.x !== this.px || mouse.y !== this.py;
     this.px = mouse.x;
     this.py = mouse.y;
@@ -280,13 +267,12 @@ class Clock extends ent.Entity {
   }
 
   update() {
-    // The clock holds while meta.desc is up: here the hint is the rule, and
-    // the rule is the game.
+    // The clock holds while the hint is up: here the hint is the rule.
     if (hint() === 0) clock = Math.max(0, clock - ent.game.time);
 
     const w = RIGHT - LEFT;
-    // The empty track pins the bounding box, so the bar shortens from the
-    // right instead of recentring as it goes.
+    // The empty track pins the bounding box, so the bar shortens from the right
+    // instead of recentring as it goes.
     this.gfx.clear()
       .fill(INK, 0.12).rect(-w / 2, -CLOCK_H / 2, w, CLOCK_H)
       .fill(INK).rect(-w / 2, -CLOCK_H / 2, w * clock / CLOCK_MAX, CLOCK_H);
@@ -375,8 +361,8 @@ function mark(cell) {
   marks.push(new Mark(cell));
   if (marks.length < 3) return;
 
-  // Board order, not click order, so the last set reads across the corner the
-  // way it read across the board.
+  // Board order and not click order, so the last set reads across the corner
+  // the way it read across the board.
   const cells = marks.map((m) => m.cell).sort((a, b) => a - b);
   for (const m of marks) m.remove();
   marks = [];

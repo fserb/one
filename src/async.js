@@ -2,11 +2,8 @@
  * async - two boards, one conveyor belt of orders.
  *
  * The two boards fall towards each other: gravity pulls right on the left one
- * and left on the right. A click picks one block per board and their colours
- * swap, but only if the swap leaves some block able to grow. Same-coloured
- * blocks filling a rectangle merge; clicking a merged block ships it against
- * the front of the belt. The belt never stops, and reaching the left edge ends
- * the run.
+ * and left on the right. A swap is only allowed when it leaves some block able
+ * to grow. The belt never stops, and reaching the left edge ends the run.
  */
 
 import { ease, extra, vec } from "./alma/src/index.js";

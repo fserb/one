@@ -1,21 +1,17 @@
 /*
  * amaze.
  *
- * A maze, a key, a locked square, and one jump every three seconds. The jump
- * goes through one wall in whatever direction you face, so the maze is two
- * mazes at once and the game is choosing which wall. Bots patrol straight runs
- * and charge down any row or column you share with them.
+ * A maze, a key, a locked square, and one jump every three seconds through one
+ * wall, so the maze is two mazes at once and the game is choosing which wall.
  *
  * The maze is a randomised Prim's from the middle, where the four ways out of a
  * new cell are tried in an order set by which way the cell lies from the
  * centre. That is what makes the corridors run around the centre rather than at
  * it.
  *
- * Cells are 30, so the 15x15 maze has a margin around it. The level change is
- * on a clock rather than a key press, because a modal mid-round is a place
- * where input does nothing. The jump is the tap and walking is the hold, since
- * one pointer has to do both. And the bots stand still for STILL seconds,
- * without which two of fourteen bench rounds ended inside five seconds.
+ * The level change is on a clock rather than a key press, because a modal
+ * mid-round is a place where input does nothing. The jump is the tap and
+ * walking is the hold, since one pointer has to do both.
  */
 
 import * as ent from "./lib/entity.js";
@@ -73,7 +69,6 @@ const BAIL = 0.94;
 // A press let go inside this is a jump; held past it, it walks.
 const TAP = 0.15;
 
-// Scaled from a 32-unit cell to this one.
 const YOU_R = 7.5;
 const YOU_BOX = 15;
 const BOT_R = 5.5;
@@ -97,7 +92,6 @@ const YOU = 0xffffff;
 const BOT = 0xc24079;
 const BG = 0x3dbf86;
 
-// The seeds and the vols are the original game's.
 sound.voice("jump", { ...jump(4), vol: 0.1 });
 sound.voice("key", { ...coin(12), vol: 0.13 });
 sound.voice("gate", { ...powerup(3), vol: 0.13 });
@@ -131,15 +125,14 @@ const ci = (x) => Math.round((x - MX) / CELL - 0.5);
 const cj = (y) => Math.round((y - MY) / CELL - 0.5);
 
 /*
- * A randomised Prim's from the middle cell out. A cell
- * still at 15, every wall up, has not been reached. The frontier is every
- * unreached cell next to a reached one, one is taken from it at random, and it
- * is joined to whichever reached neighbour the order picks.
+ * A randomised Prim's from the middle cell out. A cell still at 15, every wall
+ * up, has not been reached; the frontier is every unreached cell next to a
+ * reached one.
  *
- * The order is the interesting part. It depends on which way the cell lies
- * from the centre: the two perpendicular directions first, then away, then
- * back toward the middle. Joining perpendicular runs the corridors around the
- * centre rather than spoking out of it.
+ * The order is the interesting part. It depends on which way the cell lies from
+ * the centre: the two perpendicular directions first, then away, then back
+ * toward the middle, which runs the corridors around the centre rather than
+ * spoking out of it.
  */
 function generate() {
   map.fill(15);
@@ -211,8 +204,8 @@ function wall(i, j, bit) {
   return (map[j * N + i] & bit) !== 0;
 }
 
-// Once per level, from both sides: a second copy of each, and no need to work
-// out which side owns it.
+// Once a level, from both sides: a second copy of each, and no need to work out
+// which side owns it.
 function buildWalls() {
   walls.length = 0;
   for (let j = 0; j < N; ++j) {
@@ -239,8 +232,7 @@ class Player extends ent.Entity {
     this.pos.y = cy(MID);
     this.facing = N_W;
     this.cool = 0;
-    // Counts down from 1 while folding into the gate, negative otherwise.
-    this.leaving = -1;
+    this.leaving = -1; // counts down from 1 while folding into the gate
     this.hitBox(YOU_BOX);
   }
 
@@ -248,8 +240,7 @@ class Player extends ent.Entity {
     if (this.leaving < 0) this.leaving = 1;
   }
 
-  // Face `d`, and step if there is no wall and the other axis is lined up.
-  // Facing happens either way, which is how a jump is aimed.
+  // Facing happens even when the step does not, which is how a jump is aimed.
   moveTo(d) {
     this.facing = d;
     this.angle = d === N_W
@@ -413,8 +404,7 @@ class Bot extends ent.Entity {
   // a corridor sweep into a wander.
   runX(x0, y, dx, wander) {
     // Zero is not a direction, and it is what `retarget` asks for whenever the
-    // bot is already in the player's column, where the loop below would add it
-    // to x for ever.
+    // bot is already in the player's column.
     if (dx === 0) return x0;
     let x = x0;
     while (x >= 0 && x < N) {
@@ -604,8 +594,8 @@ function buildLevel() {
 
   player = new Player();
   // Point symmetric about the middle, `p1 = 15*15 - 1 - p0`, so a level is
-  // always a there and a back. Not the middle itself: p1 is its own
-  // mirror there, and both would land underfoot.
+  // always a there and a back. Not the middle itself: p1 is its own mirror
+  // there, and both would land underfoot.
   const home = MID + N * MID;
   let p0 = home;
   while (p0 === home) p0 = Math.floor(N * N * Math.random());
@@ -627,8 +617,8 @@ export function init() {
 }
 
 export function update(dt) {
-  // Off input.js's mouse, not entity.js's copy, which the player would read
-  // a frame behind during ent.update().
+  // Off input.js's mouse, not entity.js's copy, which the player would read a
+  // frame behind during ent.update().
   tapped = mouse.release && pressed > 0 && pressed <= TAP;
   pressed = mouse.press ? pressed + dt : 0;
 
@@ -677,7 +667,6 @@ export function render(ctx) {
   ctx.restore();
 }
 
-// On a clock instead of a key press.
 function drawWipe(ctx) {
   if (phase === PLAY) return;
   ctx.fillStyle = css(DARK);

@@ -1,8 +1,7 @@
 /*
- * input.js - every device collapsed into `mouse` (1024-space position, three
- * click edges, swipe) and `key` (held now, plus what went down this frame).
- * poll() runs before the game's update and flush() after the frame, because
- * alma's Input keeps an edge alive for exactly one update() call.
+ * input.js - every device collapsed into `mouse` and `key`. poll() runs before
+ * the game's update and flush() after the frame, because alma's Input keeps an
+ * edge alive for exactly one update() call.
  *
  * It owns `mouse` and `key` rather than one.js, so nothing here imports the
  * rest of src/lib and the one.js <-> input.js cycle never exists.
@@ -19,14 +18,10 @@ export const LEFT = 4;
 export const mouse = {
   x: 0,
   y: 0,
-  // Went down this frame.
-  click: false,
-  // Is down.
-  press: false,
-  // Went up this frame.
-  release: false,
-  // One of UP/RIGHT/DOWN/LEFT this frame, or 0.
-  swipe: 0,
+  click: false, // went down this frame
+  press: false, // is down
+  release: false, // went up this frame
+  swipe: 0, // one of UP/RIGHT/DOWN/LEFT this frame, or 0
 };
 
 // Held now, plus what went down this frame. b1 doubles as the pointer, so
@@ -52,8 +47,8 @@ const DIRS = [["up", UP], ["right", RIGHT], ["down", DOWN], ["left", LEFT]];
 const KEYS = ["up", "right", "down", "left", "b1", "b2"];
 
 let input = null;
-// alma's Screen, for toLogical(). Held here so input.js imports nothing from
-// the rest of src/lib.
+// alma's Screen, for toLogical(). Held rather than read off op, so input.js
+// imports nothing from the rest of src/lib.
 let screen = null;
 
 export function init(scr) {
@@ -73,8 +68,7 @@ export function init(scr) {
   );
   input.bind("down", "arrowdown", "s", "pad:down", "pad:lsdown", "swipe:down");
   input.bind("left", "arrowleft", "a", "pad:left", "pad:lsleft", "swipe:left");
-  // X and the full stop are on b1, C on b2. The click is on b1 too, so the
-  // action button is the button the pointer already is.
+  // The click is on b1 too, so the action button is the pointer.
   input.bind("b1", "click", "space", "enter", "x", "period", "pad:a");
   input.bind("b2", "c", "slash", "pad:b");
 

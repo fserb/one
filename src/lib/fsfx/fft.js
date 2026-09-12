@@ -1,10 +1,8 @@
 /*
- * fft.js - circular convolution, over alma's FFT.
- *
- * The one file here that is not the original fsfx. Nayuki's transform it used
- * to carry took any length; alma's is radix-2, so this pads to a power of two
- * with room for the whole linear convolution and folds the tail back by hand,
- * which lands on the same circular result.
+ * fft.js - circular convolution, over alma's FFT. The one file here that is not
+ * the original fsfx: Nayuki's transform took any length where alma's is
+ * radix-2, so this pads to a power of two with room for the whole linear
+ * convolution and folds the tail back by hand.
  */
 
 // Straight from algo/, not through alma's index: `export * as fft` is a
@@ -16,8 +14,8 @@ export function convolveReal(x, h) {
   const n = x.length;
   if (n !== h.length) throw new Error("Mismatched lengths");
 
-  // Where the impulse actually stops. Past that is the zero padding the caller
-  // added to match lengths, and it decides how much room the transform needs.
+  // Where the impulse stops: past that is the caller's zero padding, and it
+  // decides how much room the transform needs.
   let m = n;
   while (m > 0 && h[m - 1] === 0) --m;
   if (m === 0) {
@@ -45,8 +43,7 @@ export function convolveReal(x, h) {
   const y = ifft1d(a);
 
   // alma's transforms are unitary, so the round trip comes back scaled by
-  // sqrt(size). Everything past n is what a circular convolution of length n
-  // folds onto its own start.
+  // sqrt(size). Everything past n folds onto the start.
   const k = Math.sqrt(size);
   for (let i = 0; i < n; ++i) {
     x[i] = k * (y[2 * i] + (i + n < size ? y[2 * (i + n)] : 0));

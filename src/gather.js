@@ -1,26 +1,20 @@
 /*
  * gather - the sketch the full Gather (fserb.com/vault/gather) grew out of.
  *
- * A board of five-colour boxes slides down at you. The cursor walks onto a box
- * and drags a chain behind it, one box per press, and the chain cashes in the
- * moment it holds two or more colours in equal numbers. The score is
- * `colours * each * (each - 1) * (colours - 1)`.
+ * The cursor walks onto a box and drags a chain behind it, one box per press,
+ * and the chain cashes in the moment it holds two or more colours in equal
+ * numbers, for `colours * each * (each - 1) * (colours - 1)`.
  *
- * The clock is where you stand. The scroll crawls while your lowest cursor is
+ * The clock is where you stand: the scroll crawls while your lowest cursor is
  * in the bottom half and multiplies by up to 23 as it climbs, and again by up
  * to 6 once the top of the chain passes the second line.
  *
- * The first round opens on a scripted board that resets the score and hands
- * over to the random feed. Dying inside it replays it; finishing retires it.
- *
- * The chain is an explicit list, and one press moves it one step.
+ * The first round opens on a scripted board that resets the score. Dying inside
+ * it replays it; finishing retires it.
  *
  * Undo waits for the pointer to lift, and a lift that turned out to be a swipe
  * undoes nothing: b1 carries the click, so undoing on the press would unravel
  * the chain before the swipe arrived.
- *
- * art and gfx each centre on their own box, so a box's pupils need `gfx.size()`
- * to hold them on the body.
  */
 
 import * as ent from "./lib/entity.js";
@@ -53,17 +47,12 @@ const X0 = 88;
 const Y0 = 73;
 
 // The lines the board hangs from and ends on, and the depth a cursor dies at.
-// 54 rather than 50 because the overlay used to hang a score chip over the left
-// end of the line; the chip is gone and the 4 stays, since media/gather/card.*
-// is recorded at this layout.
 const HEAD = 54;
 const FOOT = 472;
 const DIE = 454;
 
-// The tray sits in the top-right corner, right-aligned on the line the board
-// ends at and centred in the strip above that line. TRAY_Y is that centre and
-// not a top edge, so a tray of one row and a tray of five sit on the same
-// middle instead of hanging from the same ceiling.
+// TRAY_Y is a centre and not a top edge, so a tray of one row and a tray of
+// five sit on the same middle rather than hanging from the same ceiling.
 const TRAY_R = 420;
 const TRAY_Y = HEAD / 2;
 const FLY = 0.3;
@@ -73,8 +62,7 @@ const DEATH = 0.35;
 const GROW = 0.3;
 const HELD = 0.5;
 
-// 5/CELL is an eighth of a row a second. The multipliers below are what move
-// the board.
+// 5/CELL is an eighth of a row a second; the multipliers move the board.
 const CRAWL = 5;
 const NEAR = 240;
 const NEARRATE = 9 / 70;
@@ -82,11 +70,8 @@ const NEARRATE = 9 / 70;
 // from 240, so the multiplier is already 4.4 the frame it applies.
 const HIGH = 122;
 const HIGHRATE = 5 / 172;
-// Per minute, for ever.
-const RAMP = 0.4;
-// Per cell, a tenth of the difficulty, capping a minute in at one cell in
-// twenty-five.
-const HOLE = 0.04;
+const RAMP = 0.4; // per minute, for ever
+const HOLE = 0.04; // per cell, capping a minute in at one cell in twenty-five
 
 // The eye whites sit two pixels in, with the pupils drawn over them.
 const BODY = `
@@ -112,13 +97,9 @@ const BRACKET = `
 
 const _ = -1;
 
-/*
- * The scripted opening, fed in from the end of the list, one row per shift. An
- * empty row means "say the next line and carry on with the row after it", and
- * running off the front of the list ends the script. The first five rows the
- * list gives up are the board the round starts on, so the column of two and
- * two is on screen from frame one.
- */
+// Fed in from the end of the list, one row per shift. An empty row means "say
+// the next line and carry on with the row after it", and running off the front
+// ends the script. The first five rows out are the board the round starts on.
 const INTRO = [
   [],
   [_, _, _, _, _, _, _, _, _],
@@ -137,15 +118,13 @@ const INTRO = [
   [_, _, _, _, 0, _, _, _, _],
 ];
 
-// Taken from the end, so the last line is the first said. init() says that one
-// on frame one and the empty rows in INTRO say the other two.
+// Taken from the end, so the last line is the first said.
 const NOTES = [
   "good luck",
   "group with same number of each color",
   "use keys to move, space to undo",
 ];
 
-// 0.2 is the volume these four were made against.
 sound.voice("move", { ...jump(12), vol: 0.2 });
 sound.voice("gather", { ...explosion(25), vol: 0.2 });
 sound.voice("score", { ...coin(12), vol: 0.2 });
@@ -163,8 +142,7 @@ let tray = null;
 let note = null;
 let dying = 0;
 
-// Survives a round: the tutorial is once per page unless the player died in
-// it.
+// Survives a round: the tutorial is once a page unless the player died in it.
 let introAt = INTRO.length;
 let noteAt = NOTES.length;
 
@@ -178,17 +156,14 @@ function cellY(y) {
   return scroll + Y0 + CELL * y;
 }
 
-// A cursor scrolls past the last row before it dies, so y is out of range for
-// a frame.
+// A cursor scrolls past the last row before it dies, so y is out of range for a
+// frame.
 function at(x, y) {
   return grid[x]?.[y] ?? null;
 }
 
-/*
- * A box. It shrinks to HELD while the chain holds it and to nothing when it
- * pops, and its pupils follow whatever `eye` is: a random point on the board,
- * the cursor when the cursor is next to it, and its own centre while held.
- */
+// Its pupils follow whatever `eye` is: a random point on the board, the cursor
+// when the cursor is next to it, and its own centre while held.
 class Piece extends ent.Entity {
   constructor(x, y, color) {
     super();
@@ -228,8 +203,7 @@ class Piece extends ent.Entity {
   draw() {
     this.art.size(4, 9, 9).obj([COLORS[this.color], BLACK, SHADE, WHITE], BODY);
 
-    // size() holds the pupils on the art's own 36x36 box, which gfx otherwise
-    // knows nothing about.
+    // size() holds the pupils on the art's own 36x36 box.
     const dx = this.eye.x - this.pos.x;
     const dy = this.eye.y - this.pos.y;
     const d = Math.hypot(dx, dy);
@@ -274,8 +248,7 @@ class Piece extends ent.Entity {
   }
 }
 
-// Red while it is the head, grey once the chain has moved past it. On its own
-// it only rides the scroll.
+// Red while it is the head, grey once the chain has moved past it.
 class Cursor extends ent.Entity {
   constructor(x, y) {
     super();
@@ -298,11 +271,8 @@ class Cursor extends ent.Entity {
   }
 }
 
-/*
- * What the chain is holding: one row per colour, longest first, one square per
- * box. It is the whole readout the win condition needs - equal rows, two of
- * them or more - and on a gather it flies up off the top carrying the points.
- */
+// One row per colour, longest first, one square per box: the whole readout the
+// win condition needs, equal rows and two of them or more.
 class Tray extends ent.Entity {
   constructor() {
     super();
@@ -326,13 +296,11 @@ class Tray extends ent.Entity {
       row += 1;
     }
 
-    // gfx centres on its own box: the right edge costs half the width, and the
-    // middle costs nothing however many rows there are.
+    // gfx centres on its own box, so the right edge costs half the width.
     this.pos.x = TRAY_R - (8 * Math.max(...counts) - 1) / 2;
     this.pos.y = TRAY_Y;
   }
 
-  // Every colour is equal by now, so the widest row is the count of each.
   go() {
     this.moving = true;
     this.age = 0;
@@ -352,12 +320,8 @@ class Tray extends ent.Entity {
   }
 }
 
-/*
- * The white strip above the board and the one below it, which is what an
- * incoming row slides out from behind and a dropped one slides away under, plus
- * the two lines that bound the board. The lines fade downward off the top one
- * and upward off the bottom one.
- */
+// The strips an incoming row slides out from behind and a dropped one slides
+// away under, plus the two lines that bound the board.
 class Frame extends ent.Entity {
   constructor() {
     super();
@@ -468,8 +432,8 @@ function advance(dt) {
   shift();
 }
 
-// A key press, or a tap. A press cannot be the signal on a phone: b1 carries
-// the click, so every swipe starts with one.
+// A press cannot be the signal on a phone: b1 carries the click, so every swipe
+// starts with one.
 function undoing() {
   if (mouse.click) tapping = true;
   if (mouse.swipe !== 0) tapping = false;
@@ -492,10 +456,8 @@ function undo() {
   tray.set([0, 0, 0, 0, 0]);
 }
 
-/*
- * What the chain is holding, and whether that is a gather: two colours or
- * more, at least two of each, and every colour present in the same number.
- */
+// A gather is two colours or more, at least two of each, and every colour
+// present in the same number.
 function check() {
   const counts = [0, 0, 0, 0, 0];
   for (const c of chain) {
@@ -517,14 +479,12 @@ function check() {
   chain = [head];
   sound.play("gather");
 
-  // The tray flies off with the points and an empty one takes its place.
   tray.go();
   tray = new Tray();
 }
 
-// One press, one step. An empty cell is a step only when the head is on one
-// too, which keeps the chain unbroken and the first cursor somewhere an undo
-// can return to.
+// An empty cell is a step only when the head is on one too, which keeps the
+// chain unbroken and the first cursor somewhere an undo can return to.
 function control() {
   if (undoing()) undo();
 
@@ -587,8 +547,7 @@ export function init() {
   new Frame();
   tray = new Tray();
 
-  // Frame one is the game: the script's first five rows are the opening board,
-  // not something that scrolls in.
+  // Frame one is the game: the script's first five rows are the opening board.
   for (let y = 0; y < 5 && introAt >= 0; ++y) {
     const row = INTRO[--introAt];
     for (let x = 0; x < COLS; ++x) {

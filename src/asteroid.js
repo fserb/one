@@ -4,21 +4,15 @@
  *
  * Time runs at a fiftieth of its speed unless you are thrusting or shooting.
  * Turning always runs on the wall clock, so a frozen board is a place to aim
- * from. The score is seconds of running clock plus 2 a rock and 10 a ship, so
- * sitting still earns nothing.
+ * from, and the score is seconds of running clock plus 2 a rock and 10 a ship.
  *
  * The enemy AI is one rule: pick a wandering target weighted towards the player
  * by age, and steer by mirroring the heading about the line to it, which
- * overshoots and is why they weave. Up to speed and pointed right, a ship stops
- * steering and spends the nose on aiming.
+ * overshoots and is why they weave.
  *
  * Both ships collide as their own triangle: a circle over this dart is wrong
  * either way round, and at a fiftieth speed you watch the bullet arrive and can
  * see which. entity.js grew hitPoly() for this game.
- *
- * The death is 2.5 seconds of full-speed board with title and score swapping
- * over it, and cannot wait for input: the click belongs to overlay.js's finish
- * screen, so holding the flip until a key would cost two clicks.
  */
 
 import * as ent from "./lib/entity.js";
@@ -52,8 +46,8 @@ const DYING = 2.5;
 const FLIP = 1;
 const FLIP_GAP = 120;
 
-// The shape dart() draws, moved from the corner of the sprite's 24x24 box onto
-// the centre it is drawn about.
+// dart()'s shape, moved from the corner of the sprite's 24x24 box onto the
+// centre it is drawn about.
 const SHIP = [-12, -12, 12, 0, -12, 12];
 const MUZZLE = 10;
 
@@ -94,7 +88,6 @@ const STALLED = 20;
 const CONE = Math.PI / 6;
 const SIGHT = Math.PI / 12;
 
-// No volume is set on any of them, so all six are at sfxr's default.
 sound.voice("shot", laser(1008));
 sound.voice("enemyshot", laser(1006));
 sound.voice("pop", explosion(1002));
@@ -110,7 +103,6 @@ let wave = 1;
 // would read a board that just filled as empty and fill it again.
 let alive = 0;
 let dying = 0;
-// The labels are rebuilt rather than edited, because that is all `Text` offers.
 let flip = false;
 let flipTime = 0;
 let flipped = [];
@@ -347,8 +339,7 @@ class Enemy extends Target {
   }
 }
 
-// Nose at (24, 12), notch in the tail. Gfx centres it on its own 24x24 box,
-// which is where SHIP's numbers come from.
+// Gfx centres it on its own 24x24 box, which is where SHIP's numbers come from.
 function dart(e, color) {
   e.gfx.fill(color).mt(24, 12).lt(0, 24).lt(6, 12).lt(0, 0).lt(24, 12);
 }
@@ -400,8 +391,7 @@ function explode(p) {
   flipTime = 0;
 }
 
-// `Text` has no way to move or retext one, so the labels are removed and remade
-// every second.
+// `Text` has no way to move or retext one, so the labels are remade a second.
 function turnOver() {
   for (const t of flipped) t.remove();
   flip = !flip;

@@ -1,31 +1,9 @@
 /*
  * blob - a merge game in a pool. After Sobosuba's bar mode.
  *
- * A blob is a pressurised ring of circles solved by alma's SoftBodies. Two
- * touching blobs of a tier become one of the next tier up, and the run ends
- * when the pile seals the pool. The rail across the mouth deals what there is
- * to throw and the drag aims it.
- *
- * Everything here is in the 1024 board, so lib/camera.js's camera is the one
- * that moves it and render() sets no scale of its own. The pool is laid out
- * against the height, which binds: the band the rail needs above the mouth is
- * a margin the floor gets too, so the shape reaches 845 of the 1024 and the
- * width is whatever that leaves.
- *
- * On lib/entity.js, but the solver is what owns the blobs. `sim.bodies` holds
- * the physics and is the list the solve walks; a Blob entity holds the game's
- * half of one body, `tier`, `bar` and the cooldowns, and draws it. `body.ent`
- * is the way back. So an entity here uses `age`, `remove()`, update(), render()
- * and its layer, and leaves `pos`, `vel`, `acc`, `art` and `gfx` untouched:
- * the solver integrates, the centroid is `body.cx`, and the silhouette it hands
- * over is a path in board coordinates, so the drawing is not relative to
- * anything. The reason the loops below walk `sim.bodies` and not `ent.get()` is
- * that they run inside the fixed step, where a blob merged this step has not
- * begun yet and get() allocates an array a call.
- *
- * ent.update() runs inside that fixed step, so blob has one clock at 60Hz: a
- * shock's front advances and kicks the points in the same step that solves
- * them, and a blob's flash fades on the step rather than the frame.
+ * alma's SoftBodies owns the positions: `sim.bodies` is the list every loop
+ * here walks and `body.ent` is the way back to the Blob. Everything is in the
+ * 1024 board, and ent.update() runs inside the 60Hz fixed step.
  */
 
 import {
@@ -55,8 +33,7 @@ two of a kind make the next one up
   date: "2026-09-10",
 };
 
-// One ring point's radius: two blobs touch when two of their points are 2R
-// apart, so it is also how far outside the ring a blob's edge reaches.
+// One ring point's radius: how far outside the ring a blob's edge reaches.
 const R = 7;
 
 const TIER_COUNT = 16;
@@ -236,29 +213,17 @@ const sim = new SoftBodies({
 // The sim mutates this array in place, so the alias cannot go stale.
 const blobs = sim.bodies;
 
-// The lamp, a point off the corner of the board. Everything lit here is lit
-// from it: the pool's walls and every blob in it.
 const LIGHT_X = -180;
 const LIGHT_Y = -180;
 
-// The silhouette grown, dropped away from the light, stepped and not blurred.
 // Eight fills at 0.0724 compound to 1 - (1 - a)^8 = 0.45 at the core.
 const SHADOW_STEPS = 8;
 
-// How long a merge's white flash lasts.
 const FLASH = 0.3;
 
-/*
- * One of the solver's bodies, and the game's half of it: `body` holds the
- * physics and `body.ent` comes back here.
- *
- * The two cooldowns are read off `age` rather than counted down, so a blob born
- * of a merge sets `coolFor` and `flashes` once and nothing ticks them. A blob
- * that was dealt onto the rail sets neither.
- *
- * `body.scale` is the rail's squeeze, the solver's own number, and not
- * Entity's `scale`, which stays at 1 here with the rest of the kinematics.
- */
+// Both cooldowns are read off `age` rather than counted down, so a merge sets
+// them once and nothing ticks them. `body.scale` is the rail's squeeze, the
+// solver's own number, not Entity's `scale`, which stays at 1 here.
 class Blob extends ent.Entity {
   constructor(index, cx, cy) {
     super();
@@ -276,32 +241,29 @@ class Blob extends ent.Entity {
     this.flashes = false;
   }
 
-  // The outer radius it has right now, which the rail's squeeze shrinks.
   get radius() {
     return this.tier.outer * this.body.scale;
   }
 
-  // Too young to merge, which is what keeps a cascade to one tier a step.
+  // Too young to merge, which keeps a cascade to one tier a step.
   get cooling() {
     return this.age < this.coolFor;
   }
 
-  // 1 down to 0 over FLASH, and 0 for a blob that was dealt rather than made.
   get flash() {
     if (!this.flashes) return 0;
     const u = this.age / FLASH;
     return u >= 1 ? 0 : 1 - u * u;
   }
 
-  // The body goes with it: one left in the arrays keeps falling and colliding.
+  // The body goes with it: one left in the arrays keeps falling.
   remove() {
     sim.remove(this.body);
     super.remove();
   }
 
-  // The rail carries a queued blob, so it takes over the wall and keeps plain
-  // gravity. `setScale` takes the point radius with it, or the ring's points
-  // crowd and its edge thickens.
+  // `setScale` takes the point radius with it, or the ring's points crowd and
+  // its edge thickens.
   setBar(on) {
     this.bar = on;
     this.body.wall = on ? clampMouth : null;
@@ -319,14 +281,13 @@ class Blob extends ent.Entity {
     }
   }
 
-  // Off the rail and still squeezed, it grows back.
   update() {
     const b = this.body;
     if (this.bar || b.scale >= 1) return;
     sim.setScale(b, Math.min(1, b.scale + GROW_RATE * ent.game.time));
   }
 
-  // The body path scaled about the centroid, then set out onto the lit face.
+  // The body path scaled about the centroid, set out onto the lit face.
   spec(ctx, path, L, along, across, sl, sa, alpha) {
     const { cx, cy } = this.body;
     ctx.save();
@@ -343,18 +304,14 @@ class Blob extends ent.Entity {
   render(ctx) {
     const t = this.tier;
     const b = this.body;
-    // alma's own: the ring pushed out by its point radius, splined and closed.
     const path = sim.outline(b);
 
-    // Centroid toward the lamp, and that as an angle for the highlight
-    // transform.
     const ldx = LIGHT_X - b.cx;
     const ldy = LIGHT_Y - b.cy;
     const llen = Math.hypot(ldx, ldy) || 1;
     const L = { x: ldx / llen, y: ldy / llen, a: Math.atan2(ldy, ldx) };
 
-    // Extent along the light axis and across it; the bands lay out on that
-    // span.
+    // Extent along the light axis and across it.
     const { px, py } = sim;
     let lo = Infinity;
     let hi = -Infinity;
@@ -376,8 +333,7 @@ class Blob extends ent.Entity {
     ctx.lineJoin = "round";
     ctx.lineCap = "round";
 
-    // `t.blur` is what `shadowBlur` was given, in device pixels, so scale it
-    // out.
+    // `t.blur` is what `shadowBlur` was given, in device pixels.
     const spread = t.blur / op.screen.scale;
     const dropX = b.cx - L.x * t.drop;
     const dropY = b.cy - L.y * t.drop;
@@ -421,8 +377,7 @@ class Blob extends ent.Entity {
       ctx.restore();
     }
 
-    // The outline squashed along the light axis; the smaller one sits inside
-    // it.
+    // The outline squashed along the light axis.
     this.spec(ctx, path, L, reach * 0.62, across * 0.20, 0.23, 0.32, 0.78);
     this.spec(ctx, path, L, reach * 0.78, across * -0.28, 0.095, 0.13, 0.52);
 
@@ -435,8 +390,6 @@ class Blob extends ent.Entity {
 
     ctx.save();
     ctx.translate(b.cx, b.cy);
-    // Upright like everything else, and sized off the tier, so the squeeze
-    // shows.
     const font = t.font * b.scale;
     ctx.font = `800 ${Math.round(font)}px system-ui, sans-serif`;
     ctx.textAlign = "center";
@@ -453,8 +406,7 @@ class Blob extends ent.Entity {
 
 const ready = new Uint8Array(TIER_COUNT);
 
-// One closure, hoisted, rather than one a particle a frame. `probe` is the
-// particle whose neighbours are being walked; `ka`/`kb` the best pair so far.
+// Hoisted rather than one closure a particle a frame.
 const D2 = (2 * R + 1) ** 2;
 let probe = -1;
 let wantTier = null;
@@ -548,9 +500,8 @@ function resample(b, path) {
   }
 }
 
-// Pull the new ring back toward a circle: two arcs joined at their ends start
-// with a waist, and this takes some of it out. Positions only, with `ox`
-// carried along, so this makes no velocity.
+// Two arcs joined at their ends start with a waist, and this takes some of it
+// out. Positions only, with `ox` carried along, so it makes no velocity.
 function round(b) {
   const { px, py, ox, oy } = sim;
   const s = b.start;
@@ -595,17 +546,15 @@ function merge(a, b, hitA, hitB) {
   const n = new Blob(a.tier.index + 1, cx, cy);
   resample(n.body, path);
   noteMerge(a, b, n);
-  // Paid by what came out, so a step up the tiers is worth every merge under
-  // it and a cascade is worth more than the same merges spread over a minute.
+  // Paid by what came out, so a cascade is worth more than the same merges
+  // spread over a minute.
   score.value += n.tier.value;
   // After noteMerge, whose squeeze sets the rest radius this rounds toward.
   round(n.body);
-  // Sized by the tier that merged, not the one that came out.
-  shocks.fire(hx, hy, shockLife(a.tier));
+  shocks.fire(hx, hy, shockLife(a.tier)); // the tier that merged, not the new
   const up = n.tier.index / (TIER_COUNT - 1);
   camera.shake(0.08 + (0.55 - 0.08) * up);
   playMerge(n.tier.index, hx);
-  // Both run off its age, so this is the whole of starting them.
   n.coolFor = n.tier.cool;
   n.flashes = true;
   n.body.grace = sim.refitCooldown;
@@ -624,8 +573,8 @@ const DEAL_UNLOCK = [0, 1, 3, 6, 10, 15, 21];
 // The rail's own gravity: the aim's lean is the free pool's alone.
 const RAIL_GRAVITY = { x: 0, y: GRAVITY };
 
-// The wall is off for a bar blob or the mouth shoves the queue out. Off, not
-// gone: nothing else bounds a bar blob's x.
+// Stands in for the wall, which is off for a bar blob or the mouth shoves the
+// queue out. Nothing else bounds a bar blob's x.
 function clampMouth(b, s) {
   const { l, r } = pool.mouth;
   for (let i = b.start; i < b.start + b.count; i++) {
@@ -633,12 +582,10 @@ function clampMouth(b, s) {
   }
 }
 
-// Bodies and not Blobs: every line of the solve reads the body, and the two
-// game numbers it wants come back through `ent`.
 const rail = [];
 
-// `sim.preSolve`, before the integrate, so `b.cx` and `b.mvx` are what the
-// last substep left. The pull is per blob and the damping per point.
+// `sim.preSolve`, before the integrate, so `b.cx` and `b.mvx` are what the last
+// substep left.
 function solveRail(h) {
   rail.length = 0;
   for (const b of blobs) if (b.ent.bar) rail.push(b);
@@ -782,7 +729,6 @@ function feed(f) {
   b.shove(dx / l * 190, dy / l * 190);
 }
 
-// The queue's own clock. Growing a squeezed blob back is Blob.update()'s.
 function updateLauncher(dt) {
   let queued = 0;
   for (const b of blobs) if (b.ent.bar) queued++;
@@ -800,7 +746,6 @@ function updateLauncher(dt) {
   feed(feeds[side]);
 }
 
-// Nearest bar blob centre within 150px.
 function hoverBar(wx, wy) {
   if (aim) return;
   hover = null;
@@ -833,7 +778,6 @@ function startAim(sx, sy) {
 function aimReach(b, dx, dy) {
   const l = Math.hypot(dx, dy);
   if (l < 1e-6) return AIM_MAX;
-  // A queued blob's centroid is inside the board, so the ray always leaves it.
   const { cx, cy } = b.body;
   const [, out] = line.rayBox(cx, cy, dx / l, dy / l, 0, 0, SIZE, SIZE);
   return Math.max(Math.min(AIM_MAX, out), 2 * b.radius);
@@ -854,7 +798,7 @@ function aimTilt() {
   return -sx * 180 / AIM_MAX;
 }
 
-// Both ends through toWorld in one frame. The vector is where the blob goes.
+// Both ends through toWorld in one frame.
 function aimAt(sx, sy, dt) {
   if (!aim) return;
   const a = camera.toWorld(pressX, pressY);
@@ -870,7 +814,6 @@ function aimAt(sx, sy, dt) {
   aimX = dx;
   aimY = dy;
 
-  // Leans back by mass and by the shot, about the blob's own position.
   const [fx, fy] = shot();
   const k = aim.body.mass * 215 * dt / AIM_MAX;
   camera.push(-fx * k, -fy * k, aim.body.cx, aim.body.cy);
@@ -915,8 +858,6 @@ function noteMerge(a, b, n) {
   if (hover === a || hover === b) hover = n;
 }
 
-// Between the feed points, the stretch the queue occupies. Under the blobs,
-// which sag below it.
 class Rail extends ent.Entity {
   render(ctx) {
     ctx.strokeStyle = "rgba(255, 255, 255, 0.10)";
@@ -928,9 +869,6 @@ class Rail extends ent.Entity {
   }
 }
 
-// The draw, on the blob it is pulling back: a line along it, a knob on the
-// centre, a head at the far end. Last of the layers, so the thing being aimed
-// with is never under anything.
 class Arrow extends ent.Entity {
   render(ctx) {
     if (!aim) return;
@@ -953,8 +891,7 @@ class Arrow extends ent.Entity {
     ctx.lineTo(tx, ty);
     ctx.stroke();
 
-    // Off the shot, not the draw: a full lob is a short arrow.
-    const [sx, sy] = shot();
+    const [sx, sy] = shot(); // the shot, not the draw: a lob is a short arrow
     const p = Math.min(1, Math.hypot(sx, sy) / AIM_MAX);
     const ang = (40 - (40 - 22) * p) * Math.PI / 180;
     // Fixed length back down the shaft, held to half of it so it cannot eat it.
@@ -979,36 +916,28 @@ function shockLife(tier) {
 
 // One copy of the frame, so the bands read it and not the canvas they draw
 // into: a blit that samples its own target breaks the render pass on a
-// tile-based GPU, eight times a frame per wave.
+// tile-based GPU.
 const scratch = new Layer({ attr: { alpha: false } });
 const SHOCK_BANDS = 8;
 
-/*
- * Every shock front there is, in one entity rather than one each. A front
- * displaces what is already on the canvas instead of drawing anything of its
- * own, and all of them read the single copy taken before any had moved it, so
- * two at once cost one copy and neither reads the other's displacement.
- *
- * update() is the kick, and ent.update() runs inside the fixed step ahead of
- * sim.step(), so a point the front passed is solved in the step that pushed it.
- */
+// Every shock front there is, in one entity rather than one each: a front
+// displaces what is on the canvas rather than drawing anything of its own, and
+// all of them read the single copy taken before any had moved it.
 class Shocks extends ent.Entity {
   constructor() {
     super();
     this.waves = [];
   }
 
-  // The camera takes its kick here and not over the wave's life.
   fire(x, y, life) {
     this.waves.push({ x, y, life, life0: life, r: 0 });
-    // Away from the blast, so the frame recoils. No position, so no lever arm.
+    // Away from the blast. No position, so no lever arm.
     const dx = SIZE / 2 - x;
     const dy = SIZE / 2 - y;
     const d = Math.hypot(dx, dy) || 1;
     camera.push(dx / d * life * 120, dy / d * life * 120);
   }
 
-  // Advance the fronts and kick what each reached.
   update() {
     const dt = ent.game.time;
     const { px, py, vx, vy, count } = sim;
@@ -1022,7 +951,6 @@ class Shocks extends ent.Entity {
       // A point between the two is one the front passed this step.
       const r0 = w.r;
       w.r += 2400 * dt;
-      // Decayed while the front travelled, so the kick falls off with distance.
       const dv = 120 * w.life;
       for (let i = 0; i < count; i++) {
         const dx = px[i] - w.x;
@@ -1042,12 +970,10 @@ class Shocks extends ent.Entity {
     if (this.waves.length === 0) return;
     const m = ctx.getTransform();
     const canvas = ctx.canvas;
-    // Taken on the first band that draws: most of a big wave's life is culled.
-    let src = null;
+    let src = null; // taken on the first band that draws
     for (const w of this.waves) {
       const p = m.transformPoint(new DOMPoint(w.x, w.y));
       const wide = w.r * 0.1;
-      // Fades over the wave's life, so it thins away instead of stopping.
       const amp = 7 * (w.life / w.life0);
       if (amp < 0.2) continue;
       // A clipped blit costs its clip's bounding box, which for a ring is the
@@ -1088,13 +1014,8 @@ const DANGER_HOLD = 1.0;
 
 const cover = new Uint8Array(Math.ceil(SIZE / DANGER_PITCH) + 2);
 
-/*
- * The line across the mouth of the pool, the coverage of it that decides the
- * loss, and the drawing of both.
- *
- * measure() is a call from step() and not update(): it reads the pile where
- * the solve left it, and ent.update() runs before sim.step().
- */
+// measure() is a call from step() and not update(): it reads the pile where the
+// solve left it, and ent.update() runs before sim.step().
 class Danger extends ent.Entity {
   constructor() {
     super();
@@ -1113,8 +1034,7 @@ class Danger extends ent.Entity {
     cover.fill(0, 0, n);
 
     for (const b of blobs) {
-      // The queue is not the pile.
-      if (b.ent.bar) continue;
+      if (b.ent.bar) continue; // the queue is not the pile
       if (b.y0 > y) continue;
       let x0 = Infinity;
       let x1 = -Infinity;
@@ -1164,12 +1084,9 @@ class Danger extends ent.Entity {
     if (this.held < DANGER_HOLD) return;
     this.over = true;
     camera.shake(0.7);
-    // The board freezes with the pile where it stands and one click starts the
-    // next run.
     gameOver({ score: true });
   }
 
-  // Over the pile, off the same coverage the loss is decided on.
   render(ctx) {
     const { fill, spans } = this;
     const held = this.held / DANGER_HOLD;
@@ -1188,7 +1105,7 @@ class Danger extends ent.Entity {
     }
     ctx.stroke();
 
-    // Sealed: the whole line blinks faster the nearer the loss is.
+    // Sealed: the blink runs faster the nearer the loss is.
     if (held > 0) {
       const hz = 2.5 + (10 - 2.5) * held;
       const t = performance.now() / 1000;
@@ -1204,7 +1121,6 @@ class Danger extends ent.Entity {
   }
 }
 
-// 8-bit unsigned PCM at 8 kHz: the game fetches no audio and decodes no codec.
 // `peak` is what each was normalised by, so it comes back at its own level.
 const MERGE_PCM =
   "dHSCiaCnrq23ydLl6caPXjgkGwUCAgIEHUNmiavF2OLg1L+igV4+IQwCAgwhQGaQttz5/v7+//HTr4hmSDYpKjZKaImtzub4/fnozauFXzwgDgYMHjldgqjI4O/v5M2qg1s0GwsIEidGaI+00+r29OXGnnBCGAIDAQ0wW4asydre18SqiGQ8IgoCDiRQgK/X6u7cv5p0VDspHyEsRWmWxOX27s6jckgtJSs7T2iDo8bi8unKll4wGh41WX6Yqr3P19S9jE8bAwQhWIivxs7R0seqfkYTARI+frfW39fHtZ5+USYPGEWIx+vt1bCNcFI0HBUtZqzm/eu/jGRINiotRHW37v7tuX1POTI3Smyd0O/nunxGKSc6WYCu2e7erGkxFxw7ZJXB3+HBhkojIDxrnsrk48GFRRkSLmSez+nkv4FBGRg7da7X4s6ZViAMJFyd0+rfr20wEBxPldHx5rZxMBAdUp3f+uiuYiMJIWKx6vfSiz4MCz2M2P7ytmQhBiBjs+rxyIE8FyJYn9jozI5OJCJKh7/YyZhfNi9Og7TNw5plPjdUhLPLwJlnRD9aiLDCtY5hRkdjjK23poJgTFNvk62xnn5hVF55mKyqlXddVGB7l6ejj3RgXGqBlZ6VgmtdYXKJmZqNeWdibH+Tm5WEcWRkcoWUmI9+bmdtfY2Wk4Z3bW54hpGSi31zb3aBjJCKgHVwdH6Jj4yEeXN1fIWLioR8dnZ7g4iJhH14eX2FiomDfnp6foSHh4J9eXl+g4eHhH97e3+DhYSCf3t8f4OEhIJ+fX6BgoSDgX99fX+BgoKBfn5+gIKDgoB/fn+AgICAf39/f4CBgYGAgIB/gICAf35+fn9/gYGAf4B/f4CAgH9+fn5/gICBgH9/f3+AgIB/fn5+";
@@ -1217,14 +1133,13 @@ sound.setVolume(0.72);
 // A cascade plays a knock a merge, and four of them stacked reach the ceiling.
 sound.setLimit(4);
 
-// The tiers read downward, so tier 0 is the top of them: a minor pentatonic
-// degree a tier, tier 0 at A5 and tier 15 at A2.
+// A minor pentatonic degree a tier, tier 0 at A5 down to tier 15 at A2.
 function tone(index) {
   const k = TIER_COUNT - 1 - Math.clamp(index, 0, TIER_COUNT - 1);
   return 110 * 2 ** (Math.floor(k / 5) + [0, 3, 5, 7, 10][k % 5] / 12);
 }
 
-// Across the pool and not the board: a merge hard left is a merge in one ear.
+// Across the pool and not the board.
 function panAt(x) {
   const { x0, x1 } = pool.bounds;
   return Math.clamp((2 * (x - x0) / (x1 - x0) - 1) * 0.7, -1, 1);
@@ -1240,7 +1155,6 @@ function playMerge(index, x) {
   });
 }
 
-// The quietest thing here, because it happens on its own.
 function playFeed(x) {
   sound.play("feed", { rate: 0.6, volume: 0.22, pan: panAt(x) });
 }
@@ -1260,7 +1174,6 @@ function litChain(ctx, d, width, tones) {
     const dx = pts[i + 1][0] - pts[i][0];
     const dy = pts[i + 1][1] - pts[i][1];
     const len = Math.hypot(dx, dy) || 1;
-    // Out of the pool is (dy, -dx) normalised, turned by which way `side` is.
     const ax = pts[i][0] + pool.side * dy / len * d;
     const ay = pts[i][1] - pool.side * dx / len * d;
     const bx = pts[i + 1][0] + pool.side * dy / len * d;
@@ -1279,17 +1192,14 @@ function litChain(ctx, d, width, tones) {
 
 // `scale` is the bake's own: a blur and an offset are in device pixels.
 function paintPool(ctx, scale) {
-  // The lamp as a direction from the middle of the pool.
   const { x0, x1, y1 } = pool.bounds;
   const mx = (x0 + x1) / 2;
   const my = y1 / 2;
   const lx = LIGHT_X - mx;
   const ly = LIGHT_Y - my;
   const ll = Math.hypot(lx, ly);
-  // Straight up if the lamp is on the middle, which has no direction.
   const L = ll > 0 ? { x: lx / ll, y: ly / ll } : { x: 0, y: -1 };
 
-  // The interior, brightest where it faces the lamp.
   const reach = Math.hypot(x1 - x0, y1) / 2;
   const back = ctx.createLinearGradient(
     mx + L.x * reach,
@@ -1338,8 +1248,7 @@ function paintPool(ctx, scale) {
   ctx.stroke(pool.line);
   ctx.restore();
 
-  // The flat face turns nowhere, so one tone; the light is in the two edges
-  // either side of it.
+  // The flat face turns nowhere, so one tone; the light is in the edges.
   ctx.strokeStyle = "#39414f";
   ctx.lineWidth = 12;
   ctx.stroke(pool.line);
@@ -1362,8 +1271,7 @@ function paintPool(ctx, scale) {
 
 const DANGER_TONES = ramp("#46536a", "#e0472c");
 
-// The vignette: the board darkened toward its corners. Baked at half
-// resolution, which is all a gradient this wide needs.
+// Baked at half resolution, which is all a gradient this wide needs.
 function paintVignette(ctx) {
   const cx = SIZE / 2;
   const cy = SIZE * 0.52;
@@ -1374,8 +1282,8 @@ function paintVignette(ctx) {
   ctx.fillRect(0, 0, SIZE, SIZE);
 }
 
-// Under the camera, the lean and the shock recoil would carry the dark corners
-// off the corners they darken.
+// Under the camera the lean and the recoil would carry the dark corners off the
+// corners they darken.
 class Vignette extends ent.Entity {
   static screen = true;
 
@@ -1391,14 +1299,11 @@ class Vignette extends ent.Entity {
   }
 }
 
-// Painted once and blitted after that: alma's `Layer` holds the pixels and the
-// key they were painted from. Both are keyed on the screen scale, the shape,
-// the lamp and the gradient all being fixed in board units.
+// Keyed on the screen scale alone: the shape, the lamp and the gradients are
+// all fixed in board units.
 const poolLayer = new Layer();
 const vigLayer = new Layer();
 
-// The board itself, under everything. It holds still, so what it draws is one
-// blit of a layer painted the first time the screen scale is seen.
 class Pool extends ent.Entity {
   render(ctx) {
     const scale = op.screen.scale;
@@ -1412,19 +1317,13 @@ class Pool extends ent.Entity {
   }
 }
 
-// one.js hands over the 1024 board with `meta.bg` already filled to it.
-// ent.render() puts the camera on and draws the pool, the rail, the blobs, the
-// danger line, the shock fronts and the arrow in that order, then the vignette
-// over all of it with the camera off.
 export function render(ctx) {
   ent.render(ctx);
 }
 
-// One physics step at 60Hz, and the entities step inside it.
 function step(dt) {
   if (danger.over) return; // a finished run is a still picture
-  // The feed first, so an arrival this step is solved from its first substep.
-  updateLauncher(dt);
+  updateLauncher(dt); // first, so an arrival is solved from its first substep
   detectMerges();
   sim.measure();
   sim.repair(dt);
@@ -1432,12 +1331,10 @@ function step(dt) {
   // Last before the substeps, so a point a shock kicked is solved this step.
   ent.update(dt);
 
-  // Read fresh off the aim, not carried as state. A bar blob keeps its own
-  // RAIL_GRAVITY and does not feel it.
+  // A bar blob keeps its own RAIL_GRAVITY and does not feel this.
   sim.gravity.x = aimTilt();
   sim.step(dt);
 
-  // On the pile as it now stands; a loss gives up the drag and the aim with it.
   danger.measure(dt);
   if (!danger.over) return;
   cancelAim();
@@ -1459,31 +1356,22 @@ function tryGrab(x, y) {
       hit = b;
     }
   }
-  // `grab` freezes the offset, so the blob is carried from where it was clicked.
   if (hit) sim.grab(hit, x, y);
 }
 
-// The speed a held blob travels at and leaves with, measured on the board: the
-// camera moving the world is not the pointer moving. Smoothed and capped by
-// alma's, one jittery sample not being a flick and a pointer that jumps not
-// being a speed.
+// Measured on the board: the camera moving the world is not the pointer moving.
 const pointerSpeed = new PointerSpeed({ rate: 30, cap: MAX_SPEED });
 
 function handleInput(dt) {
   pointerSpeed.sample(mouse.x, mouse.y, dt);
 
-  // Not where the cursor is, while the camera is off the origin.
   const p = camera.toWorld(mouse.x, mouse.y);
   sim.grabTo(p.x, p.y, pointerSpeed.x, pointerSpeed.y);
 
-  // Before the press, or the first frame of a touch has nothing to pick.
-  hoverBar(p.x, p.y);
-  // The board has no right click, so b2 is what gives up an aim.
+  hoverBar(p.x, p.y); // before the press: a touch's first frame picks nothing
   if (key.just.b2) cancelAim();
   if (mouse.click) {
-    // A touch lands where it lands; no motion before it to carry. Reset to the
-    // press, not to wherever the tracker last looked, so this does not depend
-    // on the sample above having run first.
+    // A touch lands where it lands; no motion before it to carry.
     pointerSpeed.reset(mouse.x, mouse.y);
     sim.grabTo(p.x, p.y, 0, 0);
     // The launcher gets first refusal: the rail aims, elsewhere drags.
@@ -1496,26 +1384,17 @@ function handleInput(dt) {
   if (!mouse.press) sim.release();
 }
 
-// The two singletons something else talks to. The other three are reached only
-// through their layer in the draw order.
 let danger = null;
 let shocks = null;
 
 export function init() {
-  // The rail's forces, run once per substep before the integrate.
   sim.preSolve = solveRail;
-
-  // An empty pool: the whole climb up the tiers is the player's.
   sim.clear();
-  // The draw order, bottom first, and the order they step in.
   ent.reset([Pool, Rail, Blob, Danger, Shocks, Arrow, Vignette]);
-  // The 1024 board, in place of the 480 box ent.reset() sets.
-  ent.world(SIZE);
+  ent.world(SIZE); // the 1024 board, in place of the 480 box reset() sets
   // After world(), which takes a shakeBase of its own off that box.
   camera.shakeBase = 3;
   camera.shakeRate = 15.5;
-  // The view leans into the round and the springs stop it. world() has just
-  // rested the camera on the whole board, so this is the only lean on it.
   camera.spin(Math.random() < 0.5 ? -1 : 1);
 
   new Pool();
@@ -1530,9 +1409,8 @@ export function init() {
 }
 
 export function update(dt) {
-  // one.js has already run the camera's update this frame, so a press lands on
-  // what was shown.
+  // one.js has already run the camera this frame, so a press lands on what was
+  // shown, and the earned steps run after the input.
   handleInput(dt);
-  // Where it is called is where the earned steps run: after the input.
   fixed(60, step);
 }

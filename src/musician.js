@@ -1,36 +1,23 @@
 /*
  * musician - "Street Musician".
  *
- * Two hands. One plays: notes march in from the right and you strike whichever
- * is on the mark. The other works the crowd: a clean note buys a coin thrown up
- * from the bottom, a dropped one buys a tomato, and both land on the busker's
- * line a second or two later. The busker swings on an arc, and that arc is the
- * only way across to a coin or out from under a tomato.
- *
  * The idea the whole game hangs off: `bpm` is both the tempo and the speed in
  * px a second. A grid step is a sixteenth, 60/(4*bpm) seconds, so a step is
  * 15px wide at every tempo and notes stay 75px apart however fast it gets. Only
  * the speed ramps.
  *
- * The lane is at the top, the arc at 250 to 290, and a throw is a lob arriving
- * at the top of its own arc rather than a straight shot up through the lane:
- * an arc is readable out of the corner of your eye where a straight line at
- * constant speed is not. The tick on the beat is what lets the lane sit 200px
- * from the busker at all.
+ * A throw is a lob arriving at the top of its own arc rather than a straight
+ * shot up through the lane: an arc is readable out of the corner of your eye
+ * where a straight line at constant speed is not.
  *
- * The tempo climbs on notes gone by, not on score and combo: a tempo off score
- * runs away and falls back on every drop, so failing makes it easier. PER_NOTE
- * doubles it every 22 seconds and nothing caps it, because the note rate beats
- * a hand long before the window does.
+ * The tempo climbs on notes gone by and not on score and combo: a tempo off
+ * score runs away and falls back on every drop, so failing makes it easier.
  *
- * The pointer places the busker and a click plays the note. The two are the
- * same gesture on purpose: from one pointer the press that begins a drag is the
- * same edge as the tap that strikes, and since the pointer names the position
- * outright, a tap lands where the busker already is. Splitting the screen in
- * two does not work, because alma's Input averages every pointer into one.
- *
- * A tomato hits the figure, not the sprite: 26x36 as a polygon, which turns,
- * instead of the sprite's 40x40 of mostly air.
+ * The pointer places the busker and a click plays the note, the same gesture on
+ * purpose: from one pointer the press that begins a drag is the same edge as
+ * the tap that strikes, and the pointer names the position outright, so a tap
+ * lands where the busker already is. Splitting the screen in two does not work,
+ * because alma's Input averages every pointer into one.
  */
 
 import * as ent from "./lib/entity.js";
@@ -58,8 +45,8 @@ const MARK = 240;
 const SPAWN = 510;
 const FIRST = 430;
 
-// The pivot is off the bottom of the screen, so the walk is a shallow curve.
-// LEAN is 36 degrees each way: 247 of the 480 across and 40 of it down.
+// The pivot is off the bottom of the screen, so the walk is a shallow curve:
+// 36 degrees each way, 247 of the 480 across and 40 of it down.
 const PIVX = 240;
 const PIVY = 460;
 const ARM = 210;
@@ -67,17 +54,16 @@ const LEAN = Math.PI / 5;
 // Radians a second: the keys, then an untouched lean unwinding.
 const TURN = 2 * Math.PI / 3;
 const RETURN = 1.2;
-// The fraction of the lean the figure is drawn and collides at. The whole of it
-// is 36 degrees, which is falling over, not leaning.
+// The fraction of the lean the figure is drawn and collides at; the whole 36
+// degrees is falling over, not leaning.
 const TILT = 0.5;
 
 // A throw starts off the bottom, arrives at the middle of the arc, and is gone
-// past FLOOR on the way back down.
+// past FLOOR on the way back down. Each arrives at the top of its own arc, so
+// the time sets its gravity, and that is the only difference between the two.
 const THROW = 520;
 const REACH = 265;
 const FLOOR = 560;
-// Each arrives at the top of its own arc, so the time sets its gravity. It is
-// also the only difference between the two: a tomato lobs, a coin flicks.
 const COIN_TIME = 1;
 const TOMATO_TIME = 1.6;
 // The launch window, which is most of the arc.
@@ -88,12 +74,11 @@ const AIM1 = 360;
 // PER_NOTE fixes the doubling time at 22 seconds.
 const BPM0 = 60;
 const PER_NOTE = 2.4;
-// Four sixteenths between ticks, so the tick is the beat.
 const DENSITY = 0.2;
-const TICK = 4;
-// WINDOW is the two 20-unit boxes overlapping. PAY is dead centre, falling to
-// nothing at the edge. COMBO_CAP: the run is the tempo too, so an uncapped
-// combo in the coin as well makes the score the square of the game.
+const TICK = 4; // four sixteenths between ticks, so the tick is the beat
+// WINDOW is the two 20-unit boxes overlapping and PAY is dead centre. The run
+// is the tempo too, so an uncapped combo in the coin as well makes the score
+// the square of the game.
 const WINDOW = 20;
 const PAY = 9;
 const COMBO_CAP = 9;
@@ -124,8 +109,7 @@ const BLACK = 0x000000;
 // The one colour outside that palette: it splits instrument from street.
 const LANE_BG = "#383838";
 
-// 0 body, 1 hat, 2 instrument, 3 face. The instrument is what makes the sprite
-// 4 across where the figure is 3.
+// 0 body, 1 hat, 2 instrument, 3 face.
 const BUSKER = `
 ..1..
 .111.
@@ -155,7 +139,6 @@ const HAT = `
 .00.
 `;
 
-// The first three seeds are the original game's.
 sound.voice("note", { ...blip(0), vol: 0.13 });
 sound.voice("tick", { ...blip(0), vol: 0.035 });
 sound.voice("coin", { ...coin(12), vol: 0.12 });
@@ -171,20 +154,16 @@ let step = 0;
 let steps = 0;
 let strike = false;
 let dying = 0;
-// Only a pointer that has moved takes over, so a parked mouse does not drag
-// the busker on frame one. A held key takes it back.
+// Only a pointer that has moved takes over, so a parked mouse does not drag the
+// busker on frame one. A held key takes it back.
 let aiming = false;
 let lastx = null;
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
-/*
- * The mark, and the note on it that can be played: the leftmost one still
- * unresolved. Notes are 15px apart and 20 wide, so three of them can cover the
- * mark at once and only the first of those is yours. Picked here rather than in
- * the notes themselves, ahead of the Note group, which is what the draw order
- * in init() is doing.
- */
+// Notes are 15px apart and 20 wide, so three can cover the mark at once and
+// only the leftmost unresolved one is yours. Picked here, ahead of the Note
+// group, which is what the draw order in init() is doing.
 class Mark extends ent.Entity {
   constructor() {
     super();
@@ -229,8 +208,7 @@ class Note extends ent.Entity {
 
     const off = Math.abs(this.pos.x - MARK);
     const over = off <= WINDOW;
-    // The note on the mark and next in line turns red. It covers the mark
-    // while it is there, so the colour is the only cue.
+    // The note on the mark covers it, so the colour is the only cue.
     this.paint(over && this.front);
 
     if (over) {
@@ -265,12 +243,9 @@ class Note extends ent.Entity {
   }
 }
 
-/*
- * A throw out of the crowd, from off the bottom of the screen. It reaches the
- * top of its own arc on the busker's line, so `time` is the whole shape of it:
- * the gravity that puts the apex there follows, and so does the speed it
- * arrives at, which is zero downward and whatever it needs sideways.
- */
+// It reaches the top of its own arc on the busker's line, so `time` is the
+// whole shape of it: the gravity that puts the apex there follows, and so does
+// the speed it arrives at.
 function lob(e, time) {
   e.pos.x = Math.random() * W;
   e.pos.y = THROW;
@@ -387,8 +362,7 @@ class Player extends ent.Entity {
     if (mx !== 0) {
       this.lean += mx * rate;
     } else if (aiming) {
-      // A point on the arc, not a direction: the busker stops under the
-      // finger.
+      // A point on the arc, not a direction: it stops under the finger.
       const want = Math.asin(clamp((mouse.x - PIVX) / ARM, -1, 1));
       const d = want - this.lean;
       this.lean += Math.abs(d) <= rate ? d : Math.sign(d) * rate;
@@ -400,8 +374,7 @@ class Player extends ent.Entity {
   }
 }
 
-// Scenery: 32x16 of black on the ground, touching nothing, and the only thing
-// on screen that says street.
+// Scenery, touching nothing, and the only thing on screen that says street.
 class Hat extends ent.Entity {
   constructor() {
     super();

@@ -1,27 +1,20 @@
 /*
  * wall.
  *
- * You see only what you can see: a lamp's worth of room is lit, the rest is a
- * flat grey plan, and the orange thing that wants you is drawn only inside the
- * light. It moves only while it is out of your sight, so the play is to back
- * away from what you are looking at towards a coin you are not. Every fourth
- * coin sends another hunter, up to five.
+ * A lamp's worth of room is lit, the rest is a flat grey plan, and the orange
+ * thing that wants you is drawn only inside the light. It moves only while it
+ * is out of your sight.
  *
  * `Sight` answers one polygon rather than a fan of triangles: as a clip a fan
  * shows a seam down every shared edge.
  *
- * Sight has a range, and that range is the clock. A hunter settles exactly at
- * the edge of the light, because a step inside freezes it, so only the edge
- * coming in brings one closer. Measured against a bot that walks the flood to
- * the nearest coin and routes two tiles clear of any hunter it can see: hunters
- * frozen 88% of the time, rounds of 54 seconds, 8 coins. Without the drain the
- * bot never died, and no hunter in 20 rounds came nearer than 109 units.
+ * The light's range is the clock. A hunter settles exactly at the edge, since a
+ * step inside freezes it, so only the edge coming in brings one closer. Without
+ * the drain a bot walking the flood to the nearest coin never died.
  *
  * The room is scattered rather than hand-drawn: BLOCKS straight segments, each
- * needing a clear tile all round, so no segment seals a pocket. Checked over
- * 400 rolls: every free tile reachable from the start, every time. A clipped
- * corner is slid off rather than stopped against, which on a scattered room is
- * the difference between a gap and a five-unit window.
+ * needing a clear tile all round, so no segment seals a pocket. Over 400 rolls
+ * every free tile was reachable from the start.
  */
 
 import * as ent from "./lib/entity.js";
@@ -45,8 +38,8 @@ the orange moves only while you cannot see it
 // The 480 box the game thinks in.
 const W = 480;
 
-// A 20-unit tile. Two screens across and one down, so the camera only moves
-// sideways. 23 rows is 460, so the room sits 10 off the top and bottom.
+// Two screens across and one down, so the camera only moves sideways. 23 rows
+// is 460, so the room sits 10 off the top and bottom.
 const TILE = 20;
 const GW = 48;
 const GH = 23;
@@ -67,8 +60,8 @@ const MARK = 0.45;
 const DOT = 6;
 const ARROW = 9;
 
-// The light is the clock: a hunter settles at its edge and closes only when the
-// edge comes in or a wall covers it, so a round ends when the coins stop.
+// A round ends when the coins stop: a hunter closes only when the edge of the
+// light comes in or a wall covers it.
 const LIGHT = 200;
 const LIGHT_MAX = 220;
 const LIGHT_MIN = 0;
@@ -76,11 +69,9 @@ const DRAIN = 5;
 const FEED = 28;
 const RAYS = 64;
 // A ray carries this far past the wall it stops on, so the light lands on the
-// wall's face. Without it the polygon's edge is the wall, and a lit wall is
-// indistinguishable from the edge of a shadow.
+// wall's face rather than stopping at it.
 const BLEED = 4;
-// A nudge either side of a corner: one ray becomes the two edges of the shadow
-// behind it.
+// A nudge either side of a corner: one ray becomes the two edges of its shadow.
 const NUDGE = 0.00001;
 // Always lit, whatever the walls say, so the sprite never draws half clipped.
 const NEAR = 11;
@@ -90,8 +81,8 @@ const WALK = 170;
 const HUNT = 205;
 const CAM = 200;
 
-// Half the collision box, well under the tile, and a clipped corner is slid off
-// rather than stopped against, so a one-tile gap is a gap.
+// Well under the tile, and a clipped corner is slid off rather than stopped
+// against, so a one-tile gap is a gap.
 const HALF = 6;
 const EDGE = 0.01;
 const TAKE = 12;
@@ -154,8 +145,7 @@ sound.voice("die", { ...explosion(4057), vol: 0.2 });
 sound.voice("more", { ...powerup(4093), vol: 0.14 });
 sound.voice("beat", { ...thud(), vol: 0.16 });
 
-// About 70Hz: sfxr's period is 100/(f*f + 0.001) eighths of a sample, so f of
-// 0.14 is 8*44100/5040 Hz.
+// About 70Hz: sfxr's period is 100/(f*f + 0.001) eighths of a sample.
 function thud() {
   return {
     waveType: 2,
@@ -192,10 +182,8 @@ const ty = (y) => Math.floor((y - LY) / TILE);
 const cx = (i) => (i % GW + 0.5) * TILE;
 const cy = (i) => (Math.floor(i / GW) + 0.5) * TILE + LY;
 
-/*
- * Walls are segments, corners are the points worth aiming a ray at, and cast()
- * answers the polygon you can see from a point.
- */
+// Walls are segments, corners the points worth aiming a ray at, and cast()
+// answers the polygon visible from a point.
 class Sight {
   constructor() {
     // Four numbers a wall: origin, then extent.
@@ -252,8 +240,8 @@ class Sight {
     return this.reach(fx, fy, dx / l, dy / l) >= l;
   }
 
-  // Points in order round the player. A corner inside the range gets a ray at
-  // it and one either side; RAYS close the rim.
+  // A corner inside the range gets a ray at it and one either side; RAYS close
+  // the rim.
   cast(fx, fy) {
     const dirs = [];
     for (let i = 0; i < this.pts.length; i += 2) {
@@ -281,11 +269,9 @@ class Sight {
   }
 }
 
-/*
- * The room. A one-tile border, then straight segments dropped at random, each
- * needing a clear tile all the way around it before it is laid: two segments
- * are then never adjacent, so nothing a segment does can close a way through.
- */
+// A one-tile border, then straight segments dropped at random, each needing a
+// clear tile all round before it is laid: two segments are then never adjacent,
+// so nothing a segment does can close a way through.
 function buildMap() {
   map.fill(0);
   for (let x = 0; x < GW; ++x) {
@@ -379,12 +365,8 @@ function flood(at, into, list = null) {
   }
 }
 
-/*
- * Moving a box of half-width HALF through the room. Each axis is resolved on
- * its own, so a diagonal into a wall still slides along it, and in steps no
- * longer than a tile, so nothing crosses a wall at speed. A step that lands in
- * a wall puts the box against the face of the tile it entered instead.
- */
+// Each axis on its own, so a diagonal into a wall still slides along it, and in
+// steps no longer than a tile, so nothing crosses a wall at speed.
 function slide(p, dx, dy) {
   const n = Math.max(1, Math.ceil(Math.max(Math.abs(dx), Math.abs(dy)) / TILE));
   for (let i = 0; i < n; ++i) {
@@ -409,13 +391,9 @@ function step(p, dx, dy) {
   else if (dy < 0) p.y = LY + (ty(y - HALF) + 1) * TILE + HALF + EDGE;
 }
 
-/*
- * A corner rather than a wall: the box straddles two tiles across the way it
- * is going and only one of the two is blocked, so this step is a clipped
- * corner. Move off the blocked one instead of stopping. Without it the box has
- * to be lined up inside a few units to walk through a gap one tile wide, and a
- * flat wall is untouched because both tiles ahead of it are blocked.
- */
+// The box straddles two tiles across the way it is going and only one is
+// blocked, so this step is a clipped corner: move off the blocked one instead
+// of stopping. A flat wall is untouched, both tiles ahead of it being blocked.
 function assist(p, x, y, dx, dy) {
   const d = Math.abs(dx) + Math.abs(dy);
   if (dx !== 0) {
@@ -482,8 +460,7 @@ class Player extends ent.Entity {
     if (key.right) mx += 1;
     if (key.up) my -= 1;
     if (key.down) my += 1;
-    // The camera trails rather than centres, so the pointer is a heading off
-    // wherever the player is on screen.
+    // The camera trails rather than centres, so the pointer is a heading.
     if (mx === 0 && my === 0 && mouse.press) {
       mx = mouse.x - this.pos.x;
       my = mouse.y - this.pos.y;
@@ -641,8 +618,7 @@ function die() {
 
 export function init() {
   ent.reset([Coin, Hunter, Player]);
-  // The room is two screens across and one down, so the camera only moves
-  // sideways: the bounds run the width of the room and pin y at the middle.
+  // The bounds run the width of the room and pin y at the middle.
   camera.bounds = { x: 0, y: 0, width: RW, height: W };
 
   buildMap();
@@ -688,8 +664,7 @@ export function update(dt) {
   if (hold <= 0 && dying <= 0) range = Math.max(LIGHT_MIN, range - DRAIN * t);
 
   // A constant-speed trail rather than approach(): it catches the player
-  // exactly, and standing still is the one thing that centres them. moveTo()
-  // holds it inside `bounds`, which is where the clamp on the room went.
+  // exactly, and standing still is the one thing that centres them.
   const d = player.pos.x - camera.x;
   const m = CAM * t;
   camera.moveTo({ x: camera.x + (Math.abs(d) <= m ? d : Math.sign(d) * m) });
@@ -746,9 +721,8 @@ export function render(ctx) {
   ctx.fillRect(0, LY, RW, RH);
   ctx.globalAlpha = 1;
 
-  // The same clip: a hunter out of the light is not drawn at all. A clip is
-  // in device space once it is set, so dropping back to `base` keeps it while
-  // ent.render() puts the camera on again itself.
+  // A clip is in device space once set, so dropping back to `base` keeps it
+  // while ent.render() puts the camera on again itself.
   ctx.setTransform(base);
   ent.render(ctx);
 
@@ -774,8 +748,8 @@ function drawRoom(ctx, floor, wall) {
   }
 }
 
-// A dot through the dark where a coin is, an arrow at the edge where it is off
-// screen. The room is two screens across and the light a fraction of one.
+// A dot through the dark where a coin is, an arrow at the edge when it is off
+// screen.
 function drawMarks(ctx) {
   ctx.globalAlpha = MARK;
   ctx.fillStyle = css(CYAN);
@@ -786,8 +760,8 @@ function drawMarks(ctx) {
       continue;
     }
 
-    // Held ARROW off the edge of the screen and read back into the world,
-    // since this draws under the camera.
+    // Held ARROW off the edge and read back into the world, since this draws
+    // under the camera.
     const m = camera.pixels(ARROW);
     const p = camera.toWorld(clamp(s.x, m, SIZE - m), clamp(s.y, m, SIZE - m));
     ctx.save();

@@ -2,12 +2,8 @@
  * tentacles - a chase on a grid you can rearrange.
  *
  * You move one cell a turn, and so does every tentacle, but a tentacle leaves
- * its body behind and its body is wall. Crates are the only thing you can move:
- * push one into a gap and a tentacle goes the long way round, or pulls back. A
- * cornered tentacle tears a crate apart to get through.
- *
- * Grown from an unfinished sketch: the grid, the rigid crates and the flood
- * fill are its, the tentacle movement and the losing are not.
+ * its body behind and its body is wall. Crates are the only thing you can move,
+ * and a cornered tentacle tears one apart to get through.
  */
 
 import { ease, extra } from "./alma/src/index.js";
@@ -210,8 +206,7 @@ function spawn() {
 
 // MOVEMENT ///
 
-// The player shoves whatever crate is directly in front of them. A crate
-// cannot shove another crate: doMove cancels the whole chain if it tries.
+// A crate cannot shove another crate: doMove cancels the chain if it tries.
 function doPush() {
   const c = cellOf(player);
   if (player.req === 0) return;
@@ -220,8 +215,8 @@ function doPush() {
   if (next.entity.crate) next.entity.req = player.req;
 }
 
-// Resolves every requested move at once. One that cannot happen clears its
-// request and restarts the pass, so whatever relied on it gives up too.
+// One that cannot happen clears its request and restarts the pass, so whatever
+// relied on it gives up too.
 function doMove() {
   const places = new Map();
   let repeat = true;
@@ -300,8 +295,7 @@ function breakThrough(t) {
   return false;
 }
 
-// Steps out from the player through open cells. The player is 0; a tentacle
-// body or a crate stays -1 and is not a route.
+// The player is 0; a tentacle body or a crate stays -1 and is not a route.
 function buildAStar() {
   for (const c of grid) c.astar = -1;
 
@@ -377,8 +371,7 @@ export function render(ctx) {
   renderPlayer(ctx);
 }
 
-// Cell by cell with no gap, so a crate reads as one slab, then a seam over
-// every inner edge to show its parts.
+// No gap, so a crate reads as one slab, then a seam over every inner edge.
 function renderCrates(ctx) {
   ctx.fillStyle = CRATE;
   for (const c of grid) {
@@ -414,8 +407,6 @@ function renderPlayer(ctx) {
   );
 }
 
-// One round-capped line down the body, tapering, head sliding out of the
-// segment behind it.
 function renderTentacle(ctx, t) {
   const pts = t.cells.map((c) => {
     const { x, y } = px(c);

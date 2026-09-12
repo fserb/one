@@ -1,21 +1,15 @@
 /*
  * record.js - records a game's gallery clip with nothing at the keyboard.
  *
- * It serves this directory, opens dev.html?game=<name> in headless Chrome,
- * and calls the rec.auto() that src/dev/rec.js exports: the same two second
- * countdown, ten second take and loop search the rec button runs. The zip it
- * hands back goes into ~/Downloads under the name the button would have
- * downloaded, so `./task media` is the other half of this exactly as it is of
- * a take recorded by hand.
+ * It serves this directory, opens dev.html?game=<name> in headless Chrome over
+ * CDP and calls src/dev/rec.js's rec.auto(). The zip comes back over the wire
+ * into ~/Downloads under the name the rec button would have downloaded, so
+ * `./task media` reads it without knowing the difference.
  *
- * What it cannot do is play: it sends no input, so it records the opening
- * seconds of whatever the round does with nobody in it. For a game that moves
- * by itself that is a card. For one that waits for a key it is a still board,
- * and motion() catches that: the take comes back frozen, the game is named at
- * the end as one to record by hand, and nothing is written for it.
- *
- * It talks CDP over a WebSocket, which needs no dependency: Chrome's HTTP
- * endpoint names the page's socket and Runtime.evaluate runs the call.
+ * It sends no input, so it records the round running on its own. For a game
+ * that waits for a player that is a still board, and motion() catches it: the
+ * take comes back frozen and the game is named at the end as one to record by
+ * hand.
  */
 
 const ROOT = new URL("..", import.meta.url).pathname.replace(/\/$/, "");
@@ -26,8 +20,8 @@ const CHROME = [
   "/usr/bin/google-chrome",
   "/usr/bin/chromium",
 ];
-// Big enough that the canvas is at least the 1024 box the games draw in, so
-// the 512 frames are a downscale and never an upscale.
+// Big enough that the canvas is at least the 1024 box the games draw in, so the
+// 512 frames are a downscale and never an upscale.
 const WINDOW = 1100;
 const TIMEOUT = 90; // seconds one game gets, countdown and take included
 
@@ -112,7 +106,7 @@ async function chrome() {
         proc.kill("SIGKILL");
       } catch { /* already gone */ }
       // Chrome is still writing its profile out as it dies, and a directory
-      // that stays behind in /tmp is not worth failing the sweep over.
+      // left in /tmp is not worth failing the sweep over.
       try {
         Deno.removeSync(dir, { recursive: true });
       } catch { /* it goes with the next reboot */ }
@@ -150,8 +144,7 @@ async function connect(port) {
   return { send, close: () => ws.close() };
 }
 
-// One game: navigate, wait for the module script to put rec on window, then
-// run the take. Any throw inside the page comes back as one here.
+// Any throw inside the page comes back as one here.
 async function record(cdp, url, game) {
   await cdp.send("Page.navigate", { url: `${url}/dev.html?game=${game}` });
 
@@ -177,8 +170,8 @@ async function evaluate(cdp, expression, timeout = 20000) {
     awaitPromise: true,
     returnByValue: true,
   });
-  // Cleared whichever way the race goes: a timer still pending is a minute of
-  // a sweep that has already finished, since Deno runs the loop out first.
+  // Cleared whichever way the race goes: a pending timer is a minute of a sweep
+  // that has already finished, since Deno runs the loop out first.
   let timer = null;
   const late = new Promise((_, rej) => {
     timer = setTimeout(
@@ -205,8 +198,8 @@ function write(take) {
   return path;
 }
 
-// With no game named: the ones with no card. A card recorded by hand is
-// better than anything this can take, so a sweep never goes over one.
+// A card recorded by hand beats anything this can take, so a sweep never goes
+// over one.
 function missing() {
   return [...Deno.readDirSync(`${ROOT}/src`)]
     .filter((e) => e.isFile && e.name.endsWith(".js") && !e.name.startsWith("_"))
@@ -239,10 +232,8 @@ for (const game of names) {
       console.log(`${label} nothing moved: it needs a player`);
       continue;
     }
-    // findLoop returns a clip shorter than MIN_LOOP only when the take ran
-    // out of game: the round ended with nobody playing, and what it dropped
-    // was the frozen finish screen. Under a second of that is the ending and
-    // not a clip, so it is not worth a card.
+    // findLoop goes under MIN_LOOP only when the take ran out of game: the
+    // round ended and what it dropped was the frozen finish screen.
     const secs = take.frames / take.fps;
     if (secs < 1) {
       short.push(game);

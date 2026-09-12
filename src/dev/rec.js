@@ -1,18 +1,14 @@
 /*
  * rec.js - records a looping clip of the running game, for the gallery card.
  *
- * dev.html loads this and nothing else does, so it is in no game's bundle. It
- * only reads screen.canvas, and the bar it draws is DOM, never in the footage.
- * dev.html's own style block styles that bar; nothing here is CSS.
+ * dev.html loads this and nothing else does, so it is in no game's bundle. The
+ * bar it draws is DOM, never in the footage, and dev.html's style block is what
+ * styles it.
  *
- * A take is a fixed ten seconds, counted down into so the hands are back on
- * the game before it starts, and there is no editor. The recorder searches
- * it for the two frames that match most closely, cuts there so the clip loops
- * without a jump, and plays the result back. A bad take is re-recorded.
- *
- * "keep" downloads a zip of PNG frames at a constant rate. `./task media
- * <game>` turns that into media/<game>/card.mp4, .gif and .png, which
- * tools/build.js copies into the gallery.
+ * A take is a fixed ten seconds counted down into, and there is no editor: it
+ * is searched for the cut that loops without a jump and played back. "keep"
+ * downloads a zip of PNG frames that `./task media <game>` turns into
+ * media/<game>/card.mp4, .gif and .png.
  */
 
 import { zipSync } from "../alma/src/3rdp/fflate.js";
@@ -70,14 +66,14 @@ function loop() {
       return;
     }
     state = "rec";
-    // The take runs from the end of the countdown and not from this frame, so
-    // a late frame here does not take a frame off it.
+    // From the end of the countdown and not from this frame, so a late frame
+    // here does not take a frame off the take.
     t0 += LEAD * 1000;
   }
   if (state !== "rec") return;
 
   const t = (performance.now() - t0) / 1000;
-  // Frame i belongs at i/FPS. Falling behind repeats the canvas into the
+  // Frame i belongs at i/FPS, and falling behind repeats the canvas into the
   // missed slots, so a stutter records as a stutter.
   const want = Math.min(Math.floor(t * FPS) + 1, TOTAL);
   while (count < want) grab(count++);
@@ -90,7 +86,7 @@ function grab(i) {
   bigCtx.drawImage(screen.canvas, 0, 0, OUT, OUT);
   tinyCtx.drawImage(big, 0, 0, TINY, TINY);
   sigs[i] = signature(tinyCtx.getImageData(0, 0, TINY, TINY).data);
-  // Encoding now, off the main thread, keeps a take at ~15MB instead of the
+  // Encoding now, off the main thread, keeps a take at ~15MB against the
   // ~300MB it would cost as ImageData.
   frames[i] = big.convertToBlob({ type: "image/png" });
 }
@@ -118,10 +114,8 @@ function dist(p, q) {
   return s;
 }
 
-// How much of the take changed, as a fraction of its frames. A take with no
-// input is ten seconds of an idle board, and findLoop cuts a perfect loop out
-// of it, because a still frame matches a still frame exactly. Nothing
-// downstream can tell that from a real clip, so it is caught here.
+// How much of the take changed, as a fraction of its frames. A still board
+// loops perfectly and nothing downstream can tell that from a real clip.
 export function motion(sig) {
   if (sig.length < 2) return 0;
   let moved = 0;
@@ -132,21 +126,19 @@ export function motion(sig) {
 }
 
 // The clip plays [in, out) and jumps back, so the cut disappears when frame
-// `out` looks like frame `in`. Scoring WINDOW frames from each stops one
+// `out` looks like frame `in`; scoring WINDOW frames from each stops one
 // coincidental match from winning.
 //
-// The seam is compared against the take's own median frame-to-frame step, not
-// minimised: minimising always returns the shortest clip, since anything that
-// drifts through the take (a score counting up, a board filling) separates two
-// frames in proportion to how far apart they are. Among the cuts that hold,
-// the longest wins.
-//
-// Exported and pure, so it runs on signatures that never saw a canvas.
+// The seam is scored against the take's own median frame-to-frame step rather
+// than minimised: anything that drifts through the take, a score counting up or
+// a board filling, separates two frames in proportion to how far apart they
+// are, so minimising always returns the shortest clip. The longest cut inside
+// the budget wins.
 export function findLoop(sig, lo, hi) {
-  // A round that ends early leaves the frozen game-over frame repeating to the
-  // end. It breaks the search twice over: it costs nothing to cut across at any
-  // length, so it wins, and its zero-cost steps drag the median down until the
-  // budget admits nothing else. Drop it first.
+  // A round that ends early leaves the frozen game-over frame repeating. It
+  // breaks the search twice over: it costs nothing to cut across at any length,
+  // and its zero-cost steps drag the median down until the budget admits
+  // nothing else.
   let n = sig.length;
   while (n > 1 && dist(sig[n - 2], sig[n - 1]) === 0) n--;
 
@@ -185,7 +177,6 @@ function record() {
   ui.bar.dataset.on = "1";
 }
 
-// Back to the bar with the rec button on it, from wherever the take got to.
 function idle() {
   state = "idle";
   ui.btn.textContent = "● rec";
@@ -207,7 +198,7 @@ async function finish() {
     Math.round(MAX_LOOP * FPS),
   );
 
-  // The cut, not the take: a round ending at 3s leaves seven frozen seconds
+  // The cut and not the take: a round ending at 3s leaves seven frozen seconds
   // the take as a whole still counts as movement.
   const moved = motion(sigs.slice(cut.in, cut.out));
   if (waiting) {
@@ -237,7 +228,7 @@ async function showPreview(cut, moved) {
     ? "nothing moved: ten seconds of an idle game"
     : `${secs}s · ${bmp.length} frames · from ${(cut.in / FPS).toFixed(1)}s` +
       (pct < 90 ? ` · ${pct}% moving` : "");
-  // A frozen take is never worth keeping. Anything above it is a judgement
+  // A frozen take is never worth keeping; anything above it is a judgement
   // call, so the number is shown and the button stays live.
   ui.keep.disabled = moved === 0;
   box.hidden = false;
@@ -261,7 +252,7 @@ async function showPreview(cut, moved) {
   ui.cut = cut;
 }
 
-// The chosen clip as the bytes of a zip of PNG frames. ./task media reads it.
+// The chosen clip as the bytes of a zip of PNG frames.
 async function zipCut({ in: a, out: b }) {
   const files = {};
   for (let i = a; i < b; i++) {
@@ -295,17 +286,14 @@ async function keep() {
   ui.note.textContent = `${file} · ./task media ${name}`;
 }
 
-// One take with nothing at the keyboard, for tools/record.js: the same
-// countdown, take and loop search the button runs, and the zip keep() would
-// have downloaded, handed back as base64 over CDP. A game that needs input to
-// move records an idle board, so a frozen cut comes back as zip: null and the
-// driver reports it rather than writing a still card.
+// One take with nothing at the keyboard, for tools/record.js, handed back as
+// base64 over CDP. A frozen cut comes back as zip: null, so the driver reports
+// it rather than writing a still card.
 export async function auto() {
   if (state !== "idle") throw new Error(`recorder is ${state}`);
-  // A hint panel is up for its first 3.6 seconds and nothing here will press
-  // it away, so wait it out rather than record the card with a panel across
-  // the bottom. hint() is the seconds it has left, and 0 for the games that
-  // raise none, which are most of them.
+  // A hint panel is up for its first 3.6 seconds and nothing here will press it
+  // away. hint() is the seconds it has left, and 0 for the games that raise
+  // none, which are most of them.
   while (hint() > 0) await new Promise((r) => requestAnimationFrame(r));
   const take = new Promise((r) => (waiting = r));
   record();
@@ -323,8 +311,7 @@ export async function auto() {
 }
 
 // Runtime.evaluate hands back JSON, so the zip travels as base64. FileReader
-// rather than btoa over the bytes: a String.fromCharCode of a few MB either
-// blows the stack or needs a chunking loop written here.
+// rather than btoa: a String.fromCharCode of a few MB blows the stack.
 function base64(bytes) {
   return new Promise((res, rej) => {
     const fr = new FileReader();

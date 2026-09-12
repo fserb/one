@@ -2,14 +2,11 @@
  * flap - a FlappyBird puzzle.
  *
  * No steering. The bird flies flat out sideways, turns only at a wall, and one
- * button pushes it up against gravity. Getting to the coin with that much
- * control is the puzzle.
+ * button pushes it up against gravity.
  *
- * The source is a sketch: neither bird nor coin ever got a hit box, so the coin
- * cannot be picked up, and there is no score and no way to lose. The physics,
- * the art and the coin are the port; the game is new. A coin lands a random
- * distance along the path the bird is already on, no further off its height
- * than it can climb on the way, so every coin is one the sweep could reach.
+ * A coin lands a random distance along the path the bird is already on, no
+ * further off its height than it can climb on the way, so every coin is one the
+ * sweep could reach.
  */
 
 import * as ent from "./lib/entity.js";
@@ -45,8 +42,7 @@ const RIGHT = 460;
 const TOP = 20;
 const BOTTOM = 460;
 
-// Sideways speed never changes, only a wall turns it. GRAVITY is 5 a frame at
-// 60fps.
+// Sideways speed never changes, only a wall turns it.
 const SPEED = 100;
 const FLAP = 200;
 const GRAVITY = 300;
@@ -92,8 +88,7 @@ class Coin extends ent.Entity {
 
   begin() {
     const bird = ent.one(Bird);
-    // Along the path the bird is already on, so never a round trip away. Miss
-    // the pass and it is gone: the height is the whole puzzle.
+    // Along the path the bird is already on, so never a round trip away.
     const d = 100 + Math.random() * 280;
     this.pos.x = along(bird.pos.x, bird.left ? -1 : 1, d);
 

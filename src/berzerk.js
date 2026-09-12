@@ -2,12 +2,9 @@
  * berzerk.
  *
  * You aim by walking: a shot leaves along your heading, and the reload freezes
- * you where you stand for a third of a second. Turrets lead their shots,
- * chasers home in. Every dead enemy drops a numbered box, and the number only
- * climbs if you collect the one before it, so the score comes from walking back
- * into the spot you just made dangerous.
- *
- * Difficulty is flat. Every number is set and argued at its own constant below.
+ * you where you stand for a third of a second. Every dead enemy drops a
+ * numbered box whose number only climbs if you collect the one before it, so
+ * the score comes from walking back into the spot you just made dangerous.
  *
  * A player standing still has no heading, so standing still fires nothing.
  */
@@ -51,7 +48,7 @@ const BR = 6;
 const BULLET_MIN = 100;
 const BULLET_MAX = 400;
 // Slower than the player's 400. This board has no cover, so a shot has to be
-// one you can step out of. It also makes the turret under-lead.
+// one you can step out of, and it makes the turret under-lead.
 const ENEMY_MAX = 220;
 const BULLET_ACC = 400;
 // Distance over this is how far ahead an enemy aims.
@@ -71,8 +68,8 @@ const CHASER_TURN = Math.PI;
 // A shot costs a third of a second still and a chaser closes 24 units in that
 // time, so three converging leave no gap wide enough to shoot from. Two do.
 const CHASERS_MAX = 2;
-// A dead enemy's replacement arrives a beat later, not on the same frame:
-// that beat is the window to collect the box it left.
+// A replacement arrives a beat later and not on the same frame: that beat is
+// the window to collect the box it left.
 const RESPAWN = 2;
 
 const BOX = 21;
@@ -81,8 +78,8 @@ const BOX = 21;
 // lying around all read and pay the same.
 let next = 1;
 
-// Live chasers, counted here and not off ent.get(): one made this frame has
-// not begun, and would go uncounted until it was on top of you.
+// Counted here and not off ent.get(): one made this frame has not begun, and
+// would go uncounted until it was on top of you.
 let chasers = 0;
 
 class Player extends ent.Entity {
@@ -96,8 +93,8 @@ class Player extends ent.Entity {
     const { key, time } = ent.game;
     this.reload = Math.max(0, this.reload - time);
 
-    // Solid when the gun is ready, hollow while it is not: a frozen player is
-    // a target.
+    // Solid when the gun is ready, hollow while it is not: a frozen player is a
+    // target.
     if (this.reload > 0) this.gfx.cache(1).line(3, WHITE).circle(0, 0, PR - 1.5);
     else this.gfx.cache(0).fill(WHITE).circle(0, 0, PR);
 
@@ -159,7 +156,6 @@ class Bullet extends ent.Entity {
     this.vel.x = Math.cos(this.angle) * this.speed;
     this.vel.y = Math.sin(this.angle) * this.speed;
 
-    // Off the board and gone, or every shot ever fired is still flying.
     const { width, height } = ent.game;
     const { x, y } = this.pos;
     if (x < -BW || x > width + BW || y < -BW || y > height + BW) this.remove();
@@ -241,7 +237,6 @@ class EnemyChaser extends ent.Entity {
   }
 
   postUpdate() {
-    // The board is the box, same as the player's.
     const h = CHASER / 2;
     this.pos.x = extra.clamp(this.pos.x, h, ent.game.size - h);
     this.pos.y = extra.clamp(this.pos.y, h, ent.game.size - h);
@@ -295,8 +290,8 @@ function aim(e, from, rate) {
   return from + extra.clamp(d, -step, step);
 }
 
-// The first bullet touching `e` that `e` did not fire: hitGroup() would hand
-// back its own, since an owner sits inside its shot for a few frames.
+// hitGroup() would hand back its own, since an owner sits inside its shot for a
+// few frames.
 function hitBullet(e) {
   for (const b of ent.get(Bullet)) {
     if (b.owner !== e && e.hit(b)) return b;

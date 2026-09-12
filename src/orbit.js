@@ -1,25 +1,18 @@
 /*
  * orbit, May 2014.
  *
- * You circle a turret at a fixed speed and your gun fires itself twice a second
- * at the middle. The only control is a click, which reverses the direction you
- * circle in. Rings of chunks stand between the gun and the turret; the turret
- * leads its shots, and the shield eats one hit.
- *
  * The score is inverted, and that is the design: destroying a chunk pays its
  * health once, while a chunk still standing when the turret dies pays its
- * health repeatedly as it drains, weighted by its ring. A five-health chunk in
- * the third ring is worth 5 destroyed and 45 left alone, so the game is to
- * punch one hole and thread it. `finishLevel`'s re-scoring of the same chunk
- * every tick is the mechanism, not a slip.
+ * health repeatedly as the level drains, weighted by its ring. A five-health
+ * chunk in the third ring is worth 5 destroyed and 45 left alone, so the game
+ * is to punch one hole and thread it. `finishLevel`'s re-scoring of the same
+ * chunk every tick is the mechanism, not a slip.
  *
  * A chunk is a slice of a ring, which is neither shape entity.js collides. In
- * polar coordinates the slice is two comparisons, which is `covers()`, rather
- * than an arc walked into a polygon. Both bullets collide as circles, since a
- * hit box does not turn with the drawing.
+ * polar coordinates the slice is two comparisons, which is `covers()`.
  *
- * Hitstop runs a frame at dt 0 rather than skipping the frame, so the two
- * places that divide by dt guard against it.
+ * Hitstop runs a frame at dt 0 rather than skipping it, so the two places that
+ * divide by dt guard against it.
  */
 
 import { extra, random } from "./alma/src/index.js";
@@ -75,17 +68,14 @@ const REPOINT = 12;
 
 const ENEMY_R = 17;
 const ENEMY_TURN = 10;
-// Seconds the turret holds before its first shot: 2.2s to the opening shot,
-// 3.3s to the one past the shield.
+// 2.2s to the opening shot, 3.3s to the one past the shield.
 const ENEMY_FIRST = 1.5;
 // Frames of player angle the turret averages to lead its shot.
 const HISTORY = 60;
 
 const SHIELD_BONUS = 50;
-// On top of the hitstop.
-const DEATH = 0.6;
+const DEATH = 0.6; // on top of the hitstop
 
-// 0.2 is the default these were made against; most are set below it.
 sound.voice("shot", { ...laser(1350), vol: 0.15 });
 sound.voice("pop", { ...explosion(1002), vol: 0.1 });
 sound.voice("chunk", { ...hit(95446), vol: 0.1 });
@@ -95,13 +85,9 @@ sound.voice("boom", { ...explosion(81796), vol: 0.2 });
 sound.voice("build", { ...powerup(31331), vol: 0.2 });
 sound.voice("die", { ...explosion(1032), vol: 0.2 });
 
-/*
- * A level is a list of rings, each a pattern and a weight read digit by digit.
- * A pattern digit is how many slots of the ring that chunk covers, so the
- * digits of a pattern sum to the number of slots; the weight digit at the same
- * index is that chunk's health. The first seven levels are drawn by hand and
- * everything after is rolled out of HARD.
- */
+// A ring is a pattern and a weight read digit by digit: a pattern digit is how
+// many slots that chunk covers, so the digits sum to the ring's slots, and the
+// weight digit at the same index is its health.
 const DATA = [
   [["11111111", "22222222"]],
 
@@ -459,11 +445,9 @@ class Level extends ent.Entity {
   }
 }
 
-/*
- * The turret. It watches the player's angle for a second and fires at where
- * that puts them when the round arrives, off by a normal deviate. The lead is
- * why the shield exists: the author's note says the aim came out too good.
- */
+// It watches the player's angle for a second and fires at where that puts them
+// when the round arrives, off by a normal deviate. The lead is why the shield
+// exists: the aim came out too good.
 class Enemy extends ent.Entity {
   constructor(first) {
     super();
@@ -524,8 +508,8 @@ class Enemy extends ent.Entity {
 
     this.bulletDelay = Math.max(0.1, this.bulletDelay - 0.1 * dt / 30);
 
-    // A damping that never quite settles, so the barrel hunts around the
-    // player rather than tracking them.
+    // Damping that never quite settles, so the barrel hunts around the player
+    // rather than tracking them.
     const t = turn(this.angle, aim);
     if (t !== 0) this.angvel += Math.sign(t) * ENEMY_TURN * dt;
     this.angvel *= Math.pow(0.9, dt * 60);
@@ -539,16 +523,9 @@ class Enemy extends ent.Entity {
   }
 }
 
-/*
- * The turret is dead. Wait, then drain the level a chunk at a time and score
- * what is standing.
- *
- * The drain scores the chunk it finds on every tick rather than once per
- * chunk, so a chunk left at health h pays h + (h-1) + ... + 1 times one plus
- * its ring index. That is the whole scoring: shooting the same chunk pays h
- * flat, which is what makes leaving a wall up worth nine times destroying it
- * out on the third ring.
- */
+// The drain scores the chunk it finds on every tick rather than once a chunk,
+// so one left at health h pays h + (h-1) + ... + 1 times one plus its ring
+// index, against the h flat that shooting it pays.
 function finishLevel() {
   ent.one(Enemy)?.explode();
   ent.delay(0.05);
@@ -640,7 +617,6 @@ function turn(a, b) {
   return mod(b - a + Math.PI, TAU) - Math.PI;
 }
 
-// Lerp two packed colours, per channel, in floats.
 function mix(a, b, t) {
   let out = 0;
   for (const s of [16, 8, 0]) {
@@ -663,7 +639,6 @@ export function init() {
 export function update(dt) {
   ent.update(dt);
   // Half a point a second alive, nothing while a level builds or drains.
-  // ent.game.time is already 0 on a held frame.
   if (!transition) score.value += ent.game.time / 2;
 }
 

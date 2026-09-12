@@ -1,10 +1,6 @@
 /*
  * cable - "Tin Can Internet". Ludum Dare 30, August 2014.
  *
- * You trail a cable out of the earth and it stays where you put it. Fly past a
- * planet and it catches and wraps; fly back and it unwraps. Wrap every planet
- * in the dashed quadrant, then leave the quadrant, before the bar fills.
- *
  * The cable is also the cost: drag grows with the square of the last free
  * stretch, so the far side of an empty gap is the slowest place in the level.
  *
@@ -14,19 +10,10 @@
  * it slides, starting a quarter turn in the black, and the wrap pops the moment
  * that total goes negative.
  *
- * There is no title crawl, so level one's clock is FIRST, "now get out of the
- * area" survives as a first-level prompt, and the quadrant's dashes are at
- * ZONE_ALPHA because they are the only thing that says where it is.
- *
- * `Pieces`, `TimerBar`, `PlanetShow`, `Fader` and `Flasher` are drawn by hand
- * rather than as entities: they are screen furniture, and everything that is an
+ * The furniture is drawn by hand rather than as entities: everything that is an
  * entity here is in the world, in absolute coordinates the camera never writes
- * back.
- *
- * The cable tests as a segment against a planet's circle, since a hit shape
- * does not turn with `angle`. `effect.glow` is `shadowBlur`, which is about
- * twice the Gaussian sigma it is asked for, hence GLOW; canvas does not clip
- * the blur to the sprite's box, so the halo reaches further than a sprite's.
+ * back. The cable tests as a segment against a planet's circle, since a hit
+ * shape does not turn with `angle`.
  */
 
 import * as ent from "./lib/entity.js";
@@ -63,11 +50,10 @@ const GLOW = 10;
 const LEVELS = [2, 3, 5, 8, 10, 15, 20, 30, 50];
 const EXTRA = 17;
 
-// Seconds on the clock: BASE, plus PER per planet.
+// Seconds on the clock: BASE, plus PER per planet. FIRST is long enough to read
+// the board; the level after it is 12.1 seconds.
 const BASE = 7;
 const PER = 1.7;
-// Long enough to read the board, short enough that the bar visibly moves. The
-// level after this one is 12.1 seconds.
 const FIRST = 40;
 // How often the bar flips colour over the last fifth of the clock.
 const FLIP = 0.1;
@@ -88,26 +74,22 @@ const EARTHY = 710;
 // Inside the earth, so the cable emerges from under the surface.
 const ROOTX = 240;
 const ROOTY = 480;
-// The cable is 3 across, so it catches 1.5 out from a rim.
-const HALF = 1.5;
+const HALF = 1.5; // the cable is 3 across, so it catches 1.5 out from a rim
 const SLACK = Math.PI / 4;
-// Drag is quadratic in the free stretch over this length.
-const REACH = W + W / 2;
+const REACH = W + W / 2; // drag is quadratic in the free stretch over this
 
-// A second of cyan closing, then the next level under a second of it opening.
 const WIPE = 1;
 const FADE = 1.5;
 const FLASH = 0.05;
 
-// The clock sits 15 off the bottom; the planets gauge hangs just under the
-// overlay's msg() chip, which owns the top of the board down to 36.
+// The planets gauge hangs just under the overlay's msg() chip, which owns the
+// top of the board down to 36.
 const PIECES_X = 60;
 const PIECES_Y = 55;
 const CLOCK_X = 60;
 const CLOCK_Y = 455;
 const ZONE_ALPHA = 0.25;
 
-// The vols are the original game's own volumes.
 sound.voice("hit", { ...explosion(1238), vol: 0.1 });
 sound.voice("connect", { ...powerup(1246), vol: 0.1 });
 sound.voice("leave", { ...hit(1259), vol: 0.1 });
@@ -118,17 +100,13 @@ let planets = [];
 let linked = 0;
 let transition = false;
 let player = null;
-// The free stretch: the one end still moving.
-let tip = null;
+let tip = null; // the free stretch: the one end still moving
 let clock = null;
-// Screen minus world. Holds the player at the middle of the screen.
-const cam = { x: 0, y: 0 };
+const cam = { x: 0, y: 0 }; // screen minus world, holding the player centred
 let wipe = 0;
 let fade = null;
-// The first level says the one rule two lines of hint cannot carry.
 let nudge = false;
-// World units to device pixels, which is what shadowBlur measures in.
-let scale = 1;
+let scale = 1; // world units to device pixels, which is what shadowBlur wants
 
 class Player extends ent.Entity {
   constructor() {
@@ -282,8 +260,8 @@ class Rope extends ent.Entity {
     ent.delay(0.01);
   }
 
-  // This stretch and the one that laid it go, and the one before is handed
-  // back exactly as it was left.
+  // This stretch and the one that laid it go, and the one before is handed back
+  // exactly as it was left.
   unwrap() {
     const q = this.prev;
     const r = new Rope(q.pos.x, q.pos.y);
@@ -358,10 +336,8 @@ class Earth extends ent.Entity {
   }
 }
 
-/*
- * The quadrant: the box the planets were scattered in, with half a screen of
- * margin on every side. Leaving it with every planet linked ends the level.
- */
+// The box the planets were scattered in, with half a screen of margin on every
+// side. Leaving it with every planet linked ends the level.
 class Zone extends ent.Entity {
   constructor(dimx, dimy) {
     super();
@@ -403,9 +379,8 @@ function angleOf(v) {
   return (2 * Math.PI + Math.atan2(v.y, v.x)) % (2 * Math.PI);
 }
 
-// The silhouette edges of `p` seen from `from`. Not true tangents: they are one
-// unit inside the rim, on the diameter square to the line of sight, which is
-// where a wrapped cable leaves the circle.
+// Not true tangents: one unit inside the rim, on the diameter square to the
+// line of sight, which is where a wrapped cable leaves the circle.
 function tangents(p, from) {
   const d = sub(p.pos, from);
   const a = angleOf(d);
@@ -445,12 +420,9 @@ const cubicOut = (t) => (t - 1) * (t - 1) * (t - 1) + 1;
 // It overshoots, which is the pop the link bar makes.
 const elasticOut = (t) => Math.sin(-13 * (t + 1) * Math.PI / 2) * 2 ** (-10 * t) + 1;
 
-/*
- * Scatter `total` planets over a grid of screens, five to a screen, keeping
- * them PGAP apart. It gives up on a placement after ten tries per planet, so a
- * level can come out with fewer planets than it asked for and the level is
- * counted on what it got.
- */
+// Five to a screen, PGAP apart. It gives up after ten tries a planet, so a
+// level can come out with fewer than it asked for and is counted on what it
+// got.
 function buildPlanets(total) {
   const dim = Math.ceil(total / 5);
   const dimx = Math.ceil(Math.sqrt(dim));

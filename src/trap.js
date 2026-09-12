@@ -87,13 +87,13 @@ sound.make("fall", 0.5, (track) => {
 
 const WIDTH = 10;
 const HEIGHT = 17;
-// Hex radius. Columns step 3/2 of it and rows half its height, so a cell only
-// exists where (c + r) is even.
+// Columns step 3/2 of it and rows half its height, so a cell only exists where
+// (c + r) is even.
 const HEX = 60;
 const H2 = SQRT3 / 2;
 
-// Hex culled per level, harder-to-reach hexes counting for more. Bottoms out
-// at 5 from level 24.
+// Hex culled a level, harder-to-reach hexes counting for more. Bottoms out at 5
+// from level 24.
 const PROG = [
   0,
   50,
@@ -303,9 +303,7 @@ async function cleanupLoose(audible = true) {
 // THE EYE ///
 
 // Legs first, then the head catches up and overshoots, then the trailing leg.
-// In pixels, not hex coordinates: the two are a linear map apart, so the tween
-// comes out the same either way, and escapeAlien can aim at a point off the
-// board.
+// In pixels and not hex coordinates, so escapeAlien can aim off the board.
 function actAlien(to) {
   alien.looking = 10;
   sound.play("move");
@@ -351,9 +349,8 @@ function moveAlien() {
   return actAlien(grid.toPixel(dec.pos)).then(escapeAlien);
 }
 
-// The eye leaves by the side of the board it is standing on, walking to a
-// point outside the camera. alien.pos stays on the hex it left, since there is
-// no hex to land on.
+// It walks to a point outside the camera; alien.pos stays on the hex it left,
+// since there is no hex to land on.
 function escapeAlien() {
   const v = grid.get(alien.pos);
   if (!v.border) return;

@@ -2,24 +2,17 @@
  * tower.
  *
  * A 7x10 board cut into regions, then shuffled. Every region held numbers 1..n
- * before the cut, so every number on the board is a clue about the size and
- * shape of the region it belongs to: a 7 means some region here is at least
- * seven cells across.
+ * before the cut, so every number is a clue about the size and shape of the
+ * region it belongs to.
  *
- * Drag out a region and commit it. It is legal when it is orthogonally
- * connected and its numbers are exactly 1..n with nothing missing and nothing
- * twice. The board is full when every cell is in a committed region, and the
- * score is how many of those match a region the generator actually cut, which
- * is not the same thing: a board usually admits partitions the generator never
- * chose, and they are all still wins.
- *
- * Clicking a committed region takes it apart into the working set, so a wrong
- * partition is walked back rather than restarted.
+ * A region is legal when it is orthogonally connected and its numbers are
+ * exactly 1..n. The score is how many committed regions match one the generator
+ * actually cut, which is not the same as filling the board: a board usually
+ * admits partitions the generator never chose, and they are all still wins.
  *
  * A region is drawn as one shape rather than a row of tiles: each cell fills
  * into the margin on the sides it has a neighbour on, and rounds off on the
- * sides it does not. Board colour goes over the corner first, so the rounding
- * cuts rather than covers.
+ * sides it does not.
  */
 
 import { registerSquircle } from "./alma/src/index.js";
@@ -46,8 +39,8 @@ const MARGIN = 12;
 const STATUS_H = 120;
 const PAD = 36;
 
-// The cell is whatever fits the board once the strip and the padding are off
-// it, which on a square is the height that binds: 7x10 is the taller way up.
+// Whatever fits once the strip and the padding are off, which on a square is
+// the height: 7x10 is the taller way up.
 const CELL = Math.min(
   (SIZE - 2 * PAD - (WIDTH - 1) * MARGIN) / WIDTH,
   (SIZE - 2 * PAD - STATUS_H - (HEIGHT - 1) * MARGIN) / HEIGHT,
@@ -94,12 +87,9 @@ const REGION = [
 const MIN_REGION = 4;
 const MAX_REGION = 9;
 
-/*
- * A region's fill is its colour a quarter of the way to the board, flattened
- * here rather than drawn as an alpha. The shape is filled in overlapping
- * passes, one per rounded corner, and a translucent fill would stack up darker
- * wherever two of them cross.
- */
+// Flattened here rather than drawn as an alpha: the shape is filled in
+// overlapping passes, one a rounded corner, and a translucent fill would stack
+// up darker wherever two of them cross.
 function wash(hex, amount) {
   const c = parseInt(hex.slice(1), 16);
   const b = parseInt(meta.bg.slice(1), 16);
@@ -124,8 +114,8 @@ let committed = [];
 let nextId = 0;
 
 let hovered = null;
-// "add" or "remove", fixed by the cell the drag started on, so one stroke does
-// one thing and crossing a cell twice does not undo it.
+// Fixed by the cell the drag started on, so one stroke does one thing and
+// crossing a cell twice does not undo it.
 let dragMode = null;
 let dragLast = null;
 
@@ -169,8 +159,7 @@ function build() {
         if (filler.grid[y][x] === id) cells.push({ x, y });
       }
     }
-    // 1..size, scattered over the region's cells: in order they would read as
-    // a path and give the shape away.
+    // Scattered: in order they would read as a path and give the shape away.
     const numbers = shuffle(Array.from({ length: size }, (_, i) => i + 1));
     solution.set(id, { cells, size, numbers });
   }
@@ -225,8 +214,7 @@ function isValid(group) {
   return seen.size === group.length;
 }
 
-// The generator's group id this region reproduces, or 0 for none. Sizes match
-// and every one of the generator's cells is in the region, so cell-for-cell.
+// The generator's group id this region reproduces, or 0 for none.
 function originalOf(group) {
   for (const [id, s] of solution) {
     if (s.size !== group.length) continue;
@@ -293,8 +281,8 @@ function toggle(cell) {
   if (cell.isCommitted) {
     const region = committed.find((r) => r.id === cell.committedId);
     if (!region) return;
-    // The working set is banked first when it is legal, and dropped when it is
-    // not: two half-built regions at once has no meaning.
+    // Banked first when it is legal and dropped when it is not: two half-built
+    // regions at once has no meaning.
     if (working.length > 0 && !commit()) clearWorking();
     decommit(region);
     return;
@@ -394,15 +382,11 @@ export function update() {
   }
 }
 
-/*
- * One cell of a region. It fills into half the margin on every side it has a
- * neighbour on, which is what joins the cells into one shape, and rounds the
- * corners where neither of the two sides meeting there is connected.
- *
- * A corner is cut, not covered: board colour goes down over the corner square
- * first, then a full-cell squircle is filled through it. The squircle covers
- * the rest of the cell again, which is why the fill has to be opaque.
- */
+// It fills into half the margin on every side it has a neighbour on, and rounds
+// the corners where neither of the two sides meeting there is connected. A
+// corner is cut and not covered: board colour goes over the corner square
+// first, then a full-cell squircle is filled through it, which is why the fill
+// has to be opaque.
 function regionCell(ctx, cell, set, fill) {
   const half = MARGIN / 2;
   const r = CELL * 0.5;
@@ -433,8 +417,8 @@ function regionCell(ctx, cell, set, fill) {
     ctx.fillStyle = meta.bg;
     ctx.fillRect(cx, cy, r, r);
     ctx.fillStyle = fill;
-    // The squircle is a whole cell, placed so the corner it rounds is the one
-    // just painted over.
+    // A whole cell, placed so the corner it rounds is the one just painted
+    // over.
     ctx.squircle(
       cx === x ? x : cx - r,
       cy === y ? y : cy - r,

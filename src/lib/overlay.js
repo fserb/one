@@ -1,24 +1,7 @@
 /*
- * overlay.js - the panels every game shares. Floating panels over the board,
- * and nothing else: no bar, no reserved strip, no mute button.
- *
- *   playing  msg() in a chip at the top-centre, and nothing else. A game that
- *            says nothing runs on a bare board, which is most of them.
- *   hint     hint("...") raises a panel at the bottom, which fades on the first
- *            input or a few seconds in. Opt-in: meta.desc no longer draws.
- *   finish   the frozen board, dimmed, and whatever gameOver() asked for. A
- *            click starts the next round.
- *
- * Every panel is drawn in one pair of colours, meta.overlay, which a game may
- * set and usually does not: the default fill is whichever of two off-neutrals
- * reads over the board, and the default text is whichever reads over that
- * fill. meta.fg never enters unasked, so rope and grab, whose fg and bg are
- * almost the same colour, still get a panel you can read.
- *
- * There is no running score. The score is kept, and it is on the finish screen,
- * but a number in the corner for the whole round is a HUD, and this is a board
- * with panels over it. A game that wants a number in play draws it itself, the
- * way asteroid draws its own on the way out.
+ * overlay.js - the panels every game shares: msg()'s chip at the top-centre,
+ * hint()'s panel at the bottom, and the finish screen over the frozen board.
+ * Nothing draws the score while the round runs.
  *
  * Nothing here consumes a click. one.js calls update() only between rounds and
  * render() after the game draws.
@@ -33,13 +16,10 @@ const MARGIN = 26;
 const RADIUS = 12;
 
 // Off black and off white: a panel over a black game still reads as a panel.
-// These two are only the defaults; a game naming meta.overlay is not held to
-// them.
 const DARK = "#17171b";
 const LIGHT = "#f5f4f0";
 
-// A hint holds, then fades. Input cuts it short with the quicker fade. A game
-// reads the sum off hint() rather than either number.
+// A hint holds, then fades; input cuts it short with the quicker fade.
 const HOLD = 3;
 const FADE = 0.6;
 const DISMISS = 0.2;
@@ -51,27 +31,24 @@ const AGAIN = "TAP TO PLAY AGAIN";
 // A click this soon after the round ends is the click that ended it.
 const DEAD = 0.4;
 
-// The two colours this round's panels are drawn in, from theme(meta).
 let panel = { bg: DARK, fg: LIGHT };
 
 const tip = {
   lines: [],
-  // Seconds until the panel is off the screen, zero the moment it is
-  // dismissed. What hint() answers.
+  // Seconds until the panel is gone, 0 the moment it is dismissed.
   left: 0,
   fade: FADE,
   alpha: 0,
 };
 
-// Text already raised this page load. A game calls hint() from init(), which
-// runs every round, and the second round should not re-explain the first.
+// Text already raised this page load: init() runs every round, and the second
+// round should not re-explain the first.
 const seen = new Set();
 
 const finish = {
   on: false,
   t: 0,
-  // The last frame of the board, taken before any panel went over it.
-  shot: null,
+  shot: null, // the board, taken before any panel went over it
   showPanel: false,
   title: null,
   score: false,
@@ -135,12 +112,7 @@ export function shoot(canvas) {
   finish.shot = shot;
 }
 
-/*
- * Raises the hint panel. A game calls it from init() for the opening lines, or
- * mid-round for a mechanic that just turned up. The same text twice is the
- * second call's problem, not the player's: each string shows once a page load,
- * so init() needs no round counter around it.
- */
+// Each string shows once a page load, so init() needs no round counter.
 export function show(text) {
   const lines = String(text).trim().split("\n").filter((l) => l.trim() !== "");
   if (lines.length === 0 || seen.has(text)) return;
@@ -207,11 +179,8 @@ function renderHint(ctx) {
   ctx.globalAlpha = 1;
 }
 
-/*
- * The frozen board, the dim, and the panel rising into it. On the frame the
- * round ends t is 0 and the shot has not been taken yet, so this draws nothing
- * and leaves the board one.js just drew alone on the canvas.
- */
+// On the frame the round ends t is 0 and the shot has not been taken, so this
+// draws nothing and leaves the board one.js just drew alone on the canvas.
 function renderFinish(ctx) {
   const e = fastOutSlowIn(Math.min(1, finish.t / RISE));
 
@@ -269,11 +238,8 @@ function renderFinish(ctx) {
   ctx.globalAlpha = 1;
 }
 
-/*
- * One floating rectangle, filled in the theme and left as the current fillStyle
- * for the text that follows. x,y is the anchor and ax,ay say which point of the
- * box that is: 0 left/top, 0.5 centre, 1 right/bottom.
- */
+// x,y is the anchor and ax,ay which point of the box that is: 0 left/top, 0.5
+// centre, 1 right/bottom. Leaves panel.fg as the fillStyle for the text.
 function box(ctx, x, y, w, h, ax, ay) {
   const bx = x - w * ax;
   const by = y - h * ay;
@@ -305,25 +271,14 @@ function width(ctx, txt, size) {
 }
 
 /*
- * The two colours every panel is drawn in, for a game's meta. `meta.overlay`
- * names either half and both are optional:
+ * The two colours every panel is drawn in. Each default is picked against what
+ * it will sit on, the fill against the board and the text against the fill, so
+ * a game that dislikes only the fill names only `meta.overlay.bg`.
  *
- *   overlay: { bg: "#3A2A1E", fg: "#F5E8D8" }   both named
- *   overlay: { bg: "#3A2A1E" }                  fg derived to read over it
- *   (absent)                                    both derived from meta.bg
- *
- * The chain composes because each default is picked against the colour it will
- * actually sit on: the fill against the board, the text against the fill. So a
- * game that dislikes only the fill names only the fill.
- *
- * meta.fg is never a default. rope's fg is #402F2E on a #000000 board and
- * grab's is nearly its own board too, so a panel drawn in fg is unreadable on
- * both; a game that does want its own colour there asks for it by name.
- *
- * tools/build.js calls this as well. The gallery card writes its title in the
- * fill colour rather than the text colour: the title sits straight on the
- * clip with no panel behind it, and the fill is the half picked to read over
- * the board.
+ * meta.fg is never a default: rope's is #402F2E on a #000000 board and grab's
+ * is nearly its own board too. tools/build.js calls this for the gallery card,
+ * whose title is the fill colour, that being the half picked to read over the
+ * board.
  */
 export function theme(m) {
   const bg = m.overlay?.bg ?? pick(m.bg);
@@ -331,16 +286,13 @@ export function theme(m) {
 }
 
 /*
- * WCAG relative luminance of a #rrggbb colour: each channel off its gamma
- * curve, then weighted. The curve is the step that matters. Weighting the raw
- * bytes calls #3DBF86 a 0.62 when it is a 0.40, which is most of the way to
- * the wrong panel.
+ * WCAG relative luminance of a #rrggbb colour. Linearising is the step that
+ * matters: weighting the raw bytes calls #3DBF86 a 0.62 when it is a 0.40,
+ * which is most of the way to the wrong panel.
  *
- * Six-digit hex only, which is what every meta.bg and meta.overlay is. This
- * used to be alma's color().contrast(), and that read any CSS colour; it also
- * cost 12 KB in every game's bundle, since the Color class carries OKLAB,
- * deltaE2000, gamut mapping and a CSS parser and class methods do not
- * tree-shake.
+ * Six-digit hex only, which is what every meta.bg and meta.overlay is. alma's
+ * color().contrast() reads any CSS colour and costs 12 KB a bundle, the Color
+ * class carrying OKLAB, deltaE2000, gamut mapping and a CSS parser.
  */
 function lum(hex) {
   const n = parseInt(hex.slice(1), 16);
@@ -358,11 +310,10 @@ const ratio = (a, b) => (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
 
 /*
  * Whichever of DARK and LIGHT reads better over `over`, by WCAG contrast ratio.
- * Not "is `over` itself light or dark": the crossover between the two sits at
- * luminance 0.19, not at the 0.5 midpoint, because a mid-tone field is much
- * closer to white than it looks. Splitting at the midpoint puts berzerk's red
- * on LIGHT at 3.3:1 where DARK gives 5.0:1. Over the 23 boards it comes out 12
- * DARK and 11 LIGHT.
+ * Not "is `over` light or dark": the crossover sits at luminance 0.19, not at
+ * the 0.5 midpoint, because a mid-tone field is much closer to white than it
+ * looks. Splitting at the midpoint puts berzerk's red on LIGHT at 3.3:1 where
+ * DARK gives 5.0:1.
  */
 function pick(over) {
   const y = lum(over);

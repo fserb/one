@@ -1,10 +1,6 @@
 /*
- * props.js - the props that come with the model: a label, a burst of
- * particles, and two clocks.
- *
- * Each is one expression. Text and Particle take an options object over the
- * defaults. Every Particle field takes either a number or a [base, spread]
- * pair, and begin() rolls one value out of the pair per particle.
+ * props.js - a label, a burst of particles, and two clocks. Each is built in
+ * one expression from an options object over the defaults.
  *
  * ```js
  * new ent.Text({ text: `+${n}`, x, y, size: 2, vel: [0, -20], duration: 1 });
@@ -17,20 +13,12 @@
 import { css, glyphs } from "./art.js";
 import { Entity, game } from "./core.js";
 
-// Where align() puts the label's box against its position: the fraction of the
-// box that sits before the point. Worked out once, so nothing re-decides the
-// anchor every frame.
+// The fraction of the box that sits before the point.
 const ALIGN = { left: 0, center: 0.5, right: 1 };
 const VALIGN = { top: 0, middle: 0.5, bottom: 1 };
 
-/*
- * A label, centred on its position until `align` says otherwise. Lives until
- * removed, or `duration` seconds if one is set. `vel` is what lets a score
- * label drift off the thing that scored it.
- *
- * align: "left"|"center"|"right" and "top"|"middle"|"bottom", in either order,
- * space separated. A word that is neither is ignored.
- */
+// `align` is "left"|"center"|"right" and "top"|"middle"|"bottom", in either
+// order, space separated; a word that is neither is ignored.
 export class Text extends Entity {
   static layer = 1000;
 
@@ -91,12 +79,12 @@ function roll(v) {
 }
 
 /*
- * A one-shot burst, centred on the board unless it is given a position. The
- * step scales velocity by the fraction of life left, so particles decelerate
- * as they age, and fade with the same number.
- *
- * `spread` is how far out each particle starts along its own heading, which is
- * what makes a ring hollow. `circle` draws discs instead of squares.
+ * A one-shot burst, centred on the board unless given a position. The step
+ * scales velocity by the fraction of life left, so particles decelerate as
+ * they age and fade with the same number. Every field takes a number or a
+ * [base, spread] pair, and begin() rolls one value out of the pair per
+ * particle. `spread` is how far out each starts along its own heading, which
+ * is what makes a ring hollow.
  */
 export class Particle extends Entity {
   constructor(opts = {}) {
@@ -118,8 +106,7 @@ export class Particle extends Entity {
 
     this.pos.x = o.x ?? game.size / 2;
     this.pos.y = o.y ?? game.size / 2;
-    // begin() fills these in, one frame after the constructor has run.
-    this.parts = [];
+    this.parts = []; // begin() fills these in, one frame later
   }
 
   begin() {
@@ -178,10 +165,7 @@ export class Particle extends Entity {
   }
 }
 
-/*
- * A callback on a clock. It is an entity like anything else, so reset() clears
- * it and delay()'s hitstop holds it.
- */
+// An entity like anything else, so reset() clears it and delay() holds it.
 class Clock extends Entity {
   constructor(t, fn, repeat) {
     super();

@@ -1,16 +1,14 @@
 /*
  * media.js - a recorder zip becomes media/<game>/card.{mp4,gif,png}.
  *
- * src/dev/rec.js downloads a zip of PNG frames and an fps.txt into
- * ~/Downloads, either from the rec button or through tools/record.js. This is
- * the other half of that: it takes the newest such zip for each game named
- * and runs ffmpeg over the frames. Commit what it writes; tools/build.js
- * copies it to www/<game>/card.*.
+ * src/dev/rec.js downloads a zip of PNG frames and an fps.txt into ~/Downloads.
+ * This takes the newest such zip for each game named and runs ffmpeg over the
+ * frames. Commit what it writes; tools/build.js copies it to www/<game>/card.*.
  *
  * With no game named it sweeps every game, taking the ones whose zip is newer
- * than the card they already have. Most games' zips are long out of
- * ~/Downloads and their cards are committed, so a missing zip is a skip there
- * and an error when the game was named.
+ * than the card they already have. Most games' zips are long out of ~/Downloads
+ * and their cards are committed, so a missing zip is a skip there and an error
+ * when the game was named.
  */
 
 import { unzipSync } from "../src/alma/src/3rdp/fflate.js";
@@ -59,8 +57,8 @@ function ffmpeg(args) {
   throw new Error(`ffmpeg: ${err.split("\n").pop() ?? out.code}`);
 }
 
-// One game's zip -> media/<game>/. The frames go to a temp dir first, since
-// ffmpeg reads a numbered sequence off the filesystem and not a stream.
+// The frames go to a temp dir first, since ffmpeg reads a numbered sequence off
+// the filesystem and not a stream.
 function card(game, zip) {
   const dir = Deno.makeTempDirSync({ prefix: `one-media-${game}-` });
   const out = `${ROOT}/media/${game}`;
@@ -70,9 +68,8 @@ function card(game, zip) {
       Deno.writeFileSync(`${dir}/${name}`, bytes);
     }
     const fps = new TextDecoder().decode(files["fps.txt"]).trim();
-    // The frames as ffmpeg reads them. Flags split out of one string so a
-    // group stays on one line; every path is its own argument, since a path
-    // can carry a space and a flag cannot.
+    // Flags split out of one string so a group stays on one line; every path is
+    // its own argument, since a path can carry a space and a flag cannot.
     const frames = [
       ...`-v error -y -framerate ${fps} -start_number 0`.split(" "),
       "-i",
@@ -81,8 +78,6 @@ function card(game, zip) {
 
     Deno.mkdirSync(out, { recursive: true });
 
-    // The card. h264 rather than the gif because the same clip costs a
-    // fraction of the bytes, and every browser that runs the games plays it.
     const h264 = "-c:v libx264 -crf 20 -pix_fmt yuv420p -movflags +faststart";
     ffmpeg([...frames, ...h264.split(" "), `${out}/card.mp4`]);
 
@@ -100,7 +95,6 @@ function card(game, zip) {
       `${out}/card.gif`,
     ]);
 
-    // The <video> poster, so a card shows something before the clip loads.
     Deno.copyFileSync(`${dir}/0000.png`, `${out}/card.png`);
   } finally {
     Deno.removeSync(dir, { recursive: true });
@@ -125,8 +119,8 @@ for (const game of names) {
     );
     Deno.exit(1);
   }
-  // A card already newer than the zip it would be made from is this same
-  // card: the sweep leaves it alone, a named game rebuilds it.
+  // A card newer than the zip it would be made from is this same card: the
+  // sweep leaves it alone, a named game rebuilds it.
   if (!named && mtime(`${ROOT}/media/${game}/card.mp4`) > zip.t) continue;
   console.log(game);
   console.log(`  ${zip.path}`);

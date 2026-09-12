@@ -3,13 +3,7 @@
  *
  * A bead runs round a closed loop. Hold the button and it climbs off the
  * surface along the outward normal, dragging a new stretch with it; let go and
- * it falls back, and what it drew replaces the stretch it left. The loop keeps
- * every pull, and the view backs off as it grows.
- *
- * The gold sits off the loop and comes past once a lap. What happens then is
- * settled by how high the bead is standing: level takes it, over it closes the
- * loop round it and it is gone, under leaves it for the next lap. So a pull has
- * to be started about a second early and let go of at the right height.
+ * what it drew replaces the stretch it left.
  *
  * The size of the loop sets the scale for everything else: thrust, travel, the
  * gap two nodes are kept apart. So the picture holds its size and pace as the
@@ -18,11 +12,6 @@
  * Every cut smooths a little. The curve the bead draws is the loop offset
  * outwards, and an outward offset inside a dip folds over itself, so a dip left
  * alone grows spikes that grow their own.
- *
- * A pull that has covered SPAN of the loop stops pushing, or it carries the
- * bead round to its own takeoff and the splice has nothing left to cut.
- *
- * No gfx.js: the loop is one stroked path and the rest is discs.
  */
 
 import * as ent from "./lib/entity.js";
@@ -53,8 +42,8 @@ const R0 = 100;
 const NODES = 28;
 const MINGAP = 10;
 
-// Three numbers for the climb: a push out along the normal, drag on the square
-// of the speed, and a spring back. They settle at REACH.
+// A push out along the normal, drag on the square of the speed, and a spring
+// back. They settle at REACH.
 const SPEED = 80;
 const THRUST = 500;
 const DRAG = 0.1;
@@ -67,8 +56,8 @@ const SPAN = 0.35;
 
 const SMOOTH = 0.2;
 
-// The two summed are the tolerance on a crossing, so gold is taken exactly
-// when the discs meet.
+// The two summed are the tolerance on a crossing, so gold is taken exactly when
+// the discs meet.
 const BEAD = 8;
 const GOLDR = 7;
 
@@ -77,7 +66,7 @@ const NEAR = 24;
 const FAR = REACH - 14;
 const RAMP = 12;
 
-// PULL_COST is on top of the second a second already costs, so holding the
+// HOLDCOST is on top of the second a second already costs, so holding the
 // button the whole round spends 1.75 seconds a second.
 const START = 12;
 const BONUS = 2;
@@ -98,13 +87,9 @@ let golds = [];
 let clock = 0;
 let version = -1;
 
-/*
- * The loop: a cycle of nodes, each carrying the outward normal at it and the
- * arc length up to it. `t` runs along it in world units and wraps at `len`.
- *
- * The geometry is built in the constructor rather than begin(), because init()
- * places the gold off the loop before the first frame has run.
- */
+// A cycle of nodes, each carrying the outward normal at it and the arc length
+// up to it; `t` runs along it in world units and wraps at `len`. Built in the
+// constructor because init() places the gold before the first frame has run.
 class Path extends ent.Entity {
   constructor() {
     super();
@@ -164,8 +149,7 @@ class Path extends ent.Entity {
   }
 
   // Laplacian, every cut. A node on a fifty-node circle moves three hundredths
-  // of a unit, and a spike loses a real bite: an outward offset inside a dip
-  // folds over itself, so a dip left alone digs itself in.
+  // of a unit, and a spike loses a real bite.
   smooth() {
     const p = this.pts;
     const n = p.length;
@@ -285,9 +269,8 @@ class Path extends ent.Entity {
     this.arc.push({ x, y });
   }
 
-  // The stretch from takeoff to landing is thrown away and the arc drawn
-  // stands in for it. The loop re-cuts to start under the bead, so this returns
-  // zero.
+  // The stretch from takeoff to landing is thrown away and the arc stands in
+  // for it. The loop re-cuts to start under the bead, so this returns zero.
   close(t) {
     const arc = this.arc;
     this.arc = null;
@@ -533,9 +516,8 @@ function place() {
   golds.push(new Gold(last.x, last.y));
 }
 
-// A camera framing that holds the loop, the gold, and PAD of air round the
-// lot. The box is square, so the diameter is one number and the scale one
-// division.
+// The loop, the gold, and PAD of air round the lot. The box is square, so the
+// diameter is one number and the scale one division.
 function frame() {
   let [x0, y0, x1, y1] = path.box;
   for (const g of golds) {
@@ -578,9 +560,8 @@ export function update(dt) {
     }
   }
 
-  // A 6%-a-frame lerp, 4% for the zoom, is a different chase at 120Hz.
-  // approach() is the same closing speed written as a rate: 0.06 a frame at
-  // 60Hz is -60 * ln(0.94) a second.
+  // approach() is a 6%-a-frame lerp written as a rate, which a 120Hz frame does
+  // not change: 0.06 a frame at 60Hz is -60 * ln(0.94) a second.
   camera.approach(frame(), dt, { x: 3.71, y: 3.71, scale: 2.45 });
 
   clock -= dt * (1 + (cursor.pushing ? HOLDCOST : 0));

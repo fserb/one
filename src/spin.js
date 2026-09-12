@@ -2,25 +2,16 @@
  * spin.
  *
  * A room that turns. Gravity always points down the screen, and every few
- * seconds the whole room rotates a quarter or a half turn under you: the floor
- * becomes a wall, the ceiling becomes a floor, and the orange mark is somewhere
- * else. The needle in the middle swings the way the room is about to go, holds
- * there, and then the room follows it round.
- *
- * The turn's timing is to the frame: 0.4 winding, 0.5 holding, 0.6 turning with
- * the player locked and swung round the centre. 1.5 seconds of warning for a
- * move that changes every route.
+ * seconds the whole room rotates a quarter or a half turn under you. The needle
+ * swings the way the room is about to go, holds, and then the room follows it:
+ * 0.4 winding, 0.5 holding, 0.6 turning with the player locked.
  *
  * The turn is on a clock and not on a button: a rotation you ask for and can
- * undo is a free look at four rooms. A mark buys FEED seconds and shortens the
- * wait between turns.
+ * undo is a free look at four rooms.
  *
  * A rotation moves nothing in the room's own frame. Room, player and marks draw
  * in one rotated transform, which leaves only the end-of-turn work: turn the
  * map array and put every position where the drawing had it.
- *
- * The room fills the box: 24 tiles of 20, square, because a room that turns
- * onto itself has to be.
  */
 
 import * as ent from "./lib/entity.js";
@@ -67,8 +58,8 @@ const T_RIGHT = 2;
 const T_DOWN = 4;
 const T_LEFT = 8;
 
-// Half the player's box, under the 20-unit tile on both axes so a one-tile
-// gap is a gap. EDGE is how far into a tile a stop lands.
+// Under the 20-unit tile on both axes, so a one-tile gap is a gap. EDGE is how
+// far into a tile a stop lands.
 const HW = 7;
 const HH = 8;
 const EDGE = 0.01;
@@ -92,8 +83,8 @@ const WIND = 0.4;
 const HELD = 0.5;
 const TURNS = 0.6;
 
-// A turn costs 1.5 seconds itself (2.1 for a half), 0.6 of it locked, so
-// EVERY_MIN is what leaves a stretch to play between two.
+// A turn costs 1.5 seconds itself, 2.1 for a half, so EVERY_MIN is what leaves
+// a stretch to play between two.
 const EVERY = 7;
 const EVERY_OFF = 0.3;
 const EVERY_MIN = 4;
@@ -117,8 +108,7 @@ const CLIMB = 4;
 const LOOK = 0.4;
 const LOST = 2;
 
-// The player, wall.js's facing the other way. `big` splices STRETCH in above
-// the feet.
+// `big` splices STRETCH in above the feet.
 const HEAD_L = "00000..000000.";
 const HEAD_R = "..00000.000000";
 const BODY = ".0.0.0..00000..00000...000..";
@@ -153,14 +143,13 @@ const MAP = `
 000000000000000000000000
 `;
 
-// The vols are the original game's own volumes.
 sound.voice("jump", { ...jump(2801), vol: 0.09 });
 sound.voice("mark", { ...coin(2833), vol: 0.13 });
 sound.voice("wind", { ...blip(2851), vol: 0.05 });
 sound.voice("turn", { ...rumble(), vol: 0.2 });
 
-// A sine sliding down under slow noise: the nearest sfxr's seven generators
-// get to something heavy moving.
+// A sine sliding down under slow noise: the nearest sfxr's seven generators get
+// to something heavy moving.
 function rumble() {
   return {
     waveType: 2,
@@ -220,10 +209,8 @@ function load() {
   }
 }
 
-/*
- * A quarter turn clockwise, in one array. The room is square, so it lands on
- * itself.
- */
+// A quarter turn clockwise, in one array. The room is square, so it lands on
+// itself.
 function spinMap() {
   for (let y = 0; y < GRID; ++y) {
     for (let x = 0; x < GRID; ++x) {
@@ -241,12 +228,8 @@ function spinPoint(p) {
   p.y = ROOMY + x;
 }
 
-/*
- * Is the tile solid to a box whose underside is at `bot`? A platform is solid
- * from above alone: `bot <= y*tilesize` on every type 2 tile, read off the
- * position the move started from so nothing pops up through one it was
- * standing on.
- */
+// A platform is solid from above alone, read off the position the move started
+// from so nothing pops up through one it was standing on.
 function blocked(i, j, bot) {
   if (i < 0 || j < 0 || i >= GRID || j >= GRID) return true;
   const t = map[j * GRID + i];
@@ -269,12 +252,8 @@ function open(x, y, bot) {
   return true;
 }
 
-/*
- * Move the box, each axis on its own so a diagonal into a wall still slides
- * along it, and in steps no longer than a tile so nothing crosses one at
- * speed. A step that lands in a wall puts the box against the face of the tile
- * it entered instead.
- */
+// Each axis on its own, so a diagonal into a wall still slides along it, and in
+// steps no longer than a tile, so nothing crosses one at speed.
 function move(p, dx, dy) {
   const bot = p.y + HH;
   const n = Math.max(1, Math.ceil(Math.max(Math.abs(dx), Math.abs(dy)) / TILE));
@@ -392,8 +371,7 @@ class Player extends ent.Entity {
     let mx = 0;
     if (key.left) mx -= 1;
     if (key.right) mx += 1;
-    // The pointer is a side to run to, not a place to stand: a tap on top of
-    // you is a jump alone.
+    // The pointer is a side to run to, not a place to stand.
     if (mx === 0 && mouse.press) {
       const d = mouse.x - this.pos.x;
       if (Math.abs(d) > DEAD) mx = Math.sign(d);
@@ -411,8 +389,7 @@ class Player extends ent.Entity {
   }
 
   // entity.js integrates with no idea there are walls, so this puts the box
-  // back and walks it through them. In postUpdate, so it resolves the frame's
-  // own move.
+  // back and walks it through them, after the frame's own move.
   postUpdate() {
     if (locked) return;
     const dx = this.pos.x - this.was.x;
@@ -464,16 +441,14 @@ function ground(i, j) {
 }
 
 /*
- * Where the player can get to from tile (i0, j0), which is not the same
- * question as which tiles are joined up: gravity only goes one way. A state is
- * a tile and how far it has climbed since it last had something under it.
- * Sideways is free, down is free and spends the whole climb, and up costs one
- * of CLIMB and is only paid back by landing on something.
+ * Where the player can get to from tile (i0, j0), which is not which tiles are
+ * joined up: gravity only goes one way. A state is a tile and how far it has
+ * climbed since it last had something under it. Sideways is free, down is free
+ * and spends the whole climb, and up costs one of CLIMB.
  *
- * It reads a jump as further than it is, since it lets the climb bend sideways
- * as far as it likes, which nothing in the air can do. In a room with a floor
- * under everything that hardly changes the answer: a tile it says you can
- * reach by flying at height, you reach by walking under it and jumping.
+ * It reads a jump as further than it is, letting the climb bend sideways as far
+ * as it likes, which nothing in the air can do. In a room with a floor under
+ * everything that hardly changes the answer.
  */
 function flood(i0, j0) {
   reach.fill(0);
@@ -508,12 +483,8 @@ function step(i, j, climbed) {
   queue.push(at, climbed);
 }
 
-/*
- * A tile with air in it and something under it that the player can actually
- * get to, as far off as a handful of tries can find. Taking the best of a
- * sample rather than the first that clears the gap means a turn that has left
- * the room tight still gets its mark, just a nearer one.
- */
+// The best of a sample rather than the first that clears the gap, so a turn
+// that left the room tight still gets its mark, just a nearer one.
 function addMark() {
   flood(tx(player.pos.x), ty(player.pos.y));
   const spots = [];
@@ -597,12 +568,8 @@ function turnClock(t) {
   moveStray();
 }
 
-/*
- * A mark with no route to it is not a mark. A turn is one way to end up with
- * one and walking into a part of the room the flood cannot climb out of
- * toward it is the other, so the same test runs on a slow clock as well.
- * Waiting three more turns for the room to come back round is not a round.
- */
+// A mark with no route to it is not a mark, and walking into a pocket the flood
+// cannot climb out of is as much a cause as a turn, so this runs on a clock.
 function checkMark(t) {
   looked += t;
   if (looked < LOOK) return;
@@ -678,8 +645,7 @@ export function render(ctx) {
   ctx.restore();
   ctx.restore();
 
-  // They stand still while the room goes over, which is what they are for, so
-  // they draw outside the turn and under everything standing in the room.
+  // They stand still while the room goes over, so they draw outside the turn.
   ctx.save();
   ctx.scale(k, k);
   drawNeedle(ctx);

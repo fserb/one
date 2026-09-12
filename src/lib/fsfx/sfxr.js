@@ -4,52 +4,40 @@
  * Down the line sfxr (2007) -> Mike Wiering (2009) -> as3fxr (2010). Seven
  * generators roll a parameter set, and render() turns one into samples.
  *
- * This is not a second general-purpose synth beside fsfx. It is one fixed
- * voice - an oscillator, an envelope, a slide, two filters and a phaser - with
- * randomisers tuned to land on arcade noises. What makes it sound like itself
- * is what fsfx has no module for: the noise is a 32-entry buffer refilled once
- * a period, so it is pitched rather than white; the period is a whole number of
- * samples, so the pitch crunches as it climbs; and eight sub-samples average
- * into every output sample.
+ * Not a second general-purpose synth beside fsfx: one fixed voice, an
+ * oscillator, an envelope, a slide, two filters and a phaser, with randomisers
+ * tuned to land on arcade noises. What makes it sound like itself is what fsfx
+ * has no module for: the noise is a 32-entry buffer refilled once a period, so
+ * it is pitched rather than white; the period is a whole number of samples, so
+ * the pitch crunches as it climbs; and eight sub-samples average into every
+ * output sample.
  *
- * One options object describes a sound everywhere. A generator returns a whole
- * one off its seed, and spreading it leaves every field open to override, so a
- * rolled sound and a hand-built sound are the same kind of thing. `vol` sets
- * masterVolume to 2v, and render() squares that. A key sfxr does not have
- * throws rather than going silently unheard.
- *
- * The game names the generators it wants, so the ones it never asks for stay out
- * of its bundle. Dispatching on a string instead read better and cost every game
- * all seven, about 1 KB.
+ * A generator returns a whole options set off its seed, and spreading it leaves
+ * every field open to override, so a rolled sound and a hand-built one are the
+ * same kind of thing. `vol` sets masterVolume to 2v, and render() squares that.
+ * A key sfxr does not have throws. The game names the generators it wants, so
+ * the rest stay out of its bundle.
  *
  * ```js
  * sound.voice("boom", { ...explosion(1238), vol: 0.2 });
- * sound.voice("slow", { ...explosion(1238), decayTime: 0.9, vol: 0.2 });
  * sound.voice("thud", { waveType: 2, startFrequency: 0.14, slide: -0.1 });
- * const block = render(laser()); // no seed, a new laser every call
- * ```
  *
- * `sfxr` is an fsfx stage as well, so a voice can go on through fsfx's filters
- * and delays. It renders at SAMPLE_RATE and does not resample, so the Track has
- * to run at that rate; it throws when the Track does not. sound.js has the one
- * call that just plays a voice as it comes out.
- *
- * ```js
  * sound.make("boom", 0.6, (track) => {
  *   track(sfxr, { ...explosion(1238), vol: 0.2 });
  *   track(multidelay, { delay: 0.03, M: 4, wet: 0.3 });
  * }, SAMPLE_RATE);
  * ```
  *
- * A set is all numbers, which is why the generator runs before the track rather
- * than riding in as a parameter: fsfx's State reads any function among its
- * parameters as a signal of time and would call the generator with one.
+ * `sfxr` is an fsfx stage as well, so a voice can go on through fsfx's filters
+ * and delays. It does not resample, so the Track has to run at SAMPLE_RATE and
+ * it throws when the Track does not. The generator runs before the track rather
+ * than riding in as a parameter, since fsfx's State reads any function among
+ * its parameters as a signal of time.
  *
- * Two things differ from as3fxr. It writes 16-bit shorts; this keeps floats,
- * which is what the Web Audio API wants anyway. And it filled the noise buffer
- * from an unseeded Math.random(), so a seeded explosion came out different every
- * render; here `seed` starts a second stream for the noise, and a seed fixes the
- * whole sound. Without one both streams are random, as that noise always was.
+ * Two things differ from as3fxr: it writes 16-bit shorts where this keeps the
+ * floats Web Audio wants, and it filled the noise buffer from an unseeded
+ * Math.random(), so a seeded explosion came out different every render. Here
+ * `seed` starts a second stream for the noise and fixes the whole sound.
  */
 
 // The constants below are tuned for this rate. alma's Audio.put() takes it, so
@@ -61,8 +49,7 @@ const MAX_SAMPLES = SAMPLE_RATE * 30;
 
 const MAX_INT = 2147483647;
 
-// The generators' own PRNG, so a seed reproduces a sound exactly. The original
-// recurrence, including its loss of precision above 2^53.
+// The original recurrence, including its loss of precision above 2^53.
 function rng(seed) {
   let state = seed ?? Math.floor(Math.random() * MAX_INT);
   return () => {
@@ -71,11 +58,10 @@ function rng(seed) {
   };
 }
 
-// Every field sfxr has, at its rest value. This is also the whole set of keys
-// an options object is allowed to override.
+// Every field sfxr has, at its rest value, and the whole set of keys an options
+// object is allowed to override.
 const DEFAULTS = {
-  // 0 square, 1 saw, 2 sine, 3 noise.
-  waveType: 0,
+  waveType: 0, // 0 square, 1 saw, 2 sine, 3 noise
   masterVolume: 0.5,
 
   attackTime: 0,
@@ -111,9 +97,7 @@ const DEFAULTS = {
   hpFilterCutoffSweep: 0,
 };
 
-// The seven generators. Each returns a whole set, so a roll and a hand-built
-// sound are the same kind of thing and spread the same way. `seed` rides along
-// for render() to start the noise from.
+// `seed` rides along for render() to start the noise from.
 export function coin(seed) {
   const p = { ...DEFAULTS, seed };
   const r = rng(seed);
@@ -305,12 +289,8 @@ export function fromString(s) {
   return p;
 }
 
-/*
- * Renders an options set to mono Float32 at SAMPLE_RATE.
- *
- * One outer step is one output sample, built from eight sub-samples of the
- * oscillator.
- */
+// To mono Float32 at SAMPLE_RATE. One outer step is one output sample, built
+// from eight sub-samples of the oscillator.
 export function render(opts = {}) {
   // Normalising the envelope times below writes to the set, and params() hands
   // back one nobody else holds.
@@ -516,9 +496,8 @@ export function render(opts = {}) {
         }
         case 3:
           // A repeat cuts the period short without touching the phase, so the
-          // index runs past the buffer for one period and reads undefined. The
-          // original read whatever sat after the array; this holds the last
-          // entry.
+          // index runs past the buffer for one period. The original read
+          // whatever sat after the array; this holds the last entry.
           sample = noiseBuffer[Math.min(31, Math.trunc(phase * 32 / periodTemp))];
           break;
       }
