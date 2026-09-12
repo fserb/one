@@ -33,10 +33,14 @@
       -webkit-tap-highlight-color: transparent;
     }
     /* The cards, when there is no ?game=: the front page's, plus what only dev
-       shows: the games the build skips, and a module that threw on import. */
+       shows: the games the build skips, and a module that threw on import.
+       The body is the scroller here, and border-box so that it is: at
+       content-box its 100% height plus the padding runs 52px past the window,
+       and html's overflow: hidden cuts that off the bottom of the last row. */
     body.index {
       display: block;
       overflow: auto;
+      box-sizing: border-box;
       padding: 26px;
       font: 14px/1.45 var(--sans);
       touch-action: auto;
