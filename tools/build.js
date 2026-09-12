@@ -1,6 +1,6 @@
 /*
- * build.js - turns src/<game>.js into www/<game>/index.html, bundle, CSS and
- * favicon inlined, so a built game is one file.
+ * build.js - turns src/<game>.js into www/<game>/index.html, bundle, CSS, font
+ * and favicon inlined, so a built game is one file.
  *
  * The HTML is tools/tpl/, plain files with {{name}} placeholders, out of
  * `deno fmt` because a placeholder is not valid in most of the places one
@@ -19,6 +19,7 @@ import { theme } from "../src/lib/overlay.js";
 const SRC = new URL("../src/", import.meta.url);
 const WWW = new URL("../www/", import.meta.url);
 const MEDIA = new URL("../media/", import.meta.url);
+const ASSETS = new URL("../assets/", import.meta.url);
 const BASE = "https://one.fserb.com";
 
 // The gallery's own colours, and what a game gets when meta leaves them out.
@@ -84,6 +85,15 @@ const TEMPLATE = {
   gallery: await squeeze(await tpl("gallery")),
   card: (await tpl("card")).trimEnd(), // joined with newlines, so no trailing
 };
+
+// assets/vera.css carries its own woff2 in the url(), so inlining it here is
+// the whole of it: a page has the font it is set in and fetches nothing. Its
+// own <style> block in the template, because a block that is nothing but a
+// placeholder is the one thing squeeze() leaves alone.
+const FONTS = await press(
+  await Deno.readTextFile(new URL("vera.css", ASSETS)),
+  "css",
+);
 
 // One pass, so a value containing {{...}} itself is left alone.
 function fill(template, vars) {
@@ -193,6 +203,7 @@ function page(game, m, js, s) {
     url: `${BASE}/${game}/`,
     bg: m.bg,
     icon: favicon(m),
+    fonts: FONTS,
     image,
     script: js,
   });
@@ -219,6 +230,7 @@ function gallery(entries) {
   return fill(TEMPLATE.gallery, {
     url: `${BASE}/`,
     icon: favicon(SITE),
+    fonts: FONTS,
     cards,
   });
 }

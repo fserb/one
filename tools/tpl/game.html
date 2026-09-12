@@ -17,6 +17,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="{{title}}">
 <link rel="icon" href="{{icon}}">
+<style>{{fonts}}</style>
 <style>
 /* This page is the game framed the way the card frames it, so opening this
    URL shows what pressing the card shows. */
@@ -32,7 +33,7 @@ body {
   padding: 26px;
   display: flex;
   flex-direction: column;
-  font: 14px/1.45 Verdana, sans-serif;
+  font: 14px/1.45 var(--sans);
   color: #212123;
   touch-action: none;
   user-select: none;
@@ -50,7 +51,7 @@ header {
   height: 28px;
   margin: 0 0 24px;
 }
-.site { margin: 0; font: bold 19px/1.45 Verdana, sans-serif; letter-spacing: -.02em; }
+.site { margin: 0; font: bold 19px/1.45 var(--sans); letter-spacing: -.02em; }
 .by { margin: 0; font-size: 11px; color: #21212399; }
 .game {
   position: absolute;
@@ -58,7 +59,7 @@ header {
   left: 50%;
   transform: translateX(-50%);
   margin: 0;
-  font: bold 19px/1.45 Verdana, sans-serif;
+  font: bold 19px/1.45 var(--sans);
   letter-spacing: -.02em;
 }
 header a { color: inherit; }

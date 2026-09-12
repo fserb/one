@@ -267,9 +267,10 @@ function label(ctx, txt, x, y, size, ax, ay) {
   ctx.text(txt, bx + w / 2, by + h / 2, size, { valign: "middle" });
 }
 
+// mtext() sets the same font text() draws with, so a panel is measured in the
+// face that ends up in it.
 function width(ctx, txt, size) {
-  ctx.font = `bold ${size}px Verdana`;
-  return ctx.measureText(txt).width;
+  return ctx.mtext(txt, size).width;
 }
 
 /*

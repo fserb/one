@@ -18,7 +18,7 @@ import {
 } from "./alma/src/index.js";
 import { camera } from "./lib/camera.js";
 import * as ent from "./lib/entity.js";
-import { fixed, gameOver, input, op, score, SIZE } from "./lib/one.js";
+import { fixed, FONT, gameOver, input, op, score, SIZE } from "./lib/one.js";
 import * as sound from "./lib/sound.js";
 
 export const meta = {
@@ -391,7 +391,7 @@ class Blob extends ent.Entity {
     ctx.save();
     ctx.translate(b.cx, b.cy);
     const font = t.font * b.scale;
-    ctx.font = `800 ${Math.round(font)}px system-ui, sans-serif`;
+    ctx.font = `bold ${Math.round(font)}px ${FONT}`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
 

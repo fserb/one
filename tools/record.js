@@ -28,6 +28,7 @@ const TIMEOUT = 90; // seconds one game gets, countdown and take included
 const TYPES = {
   html: "text/html",
   js: "text/javascript",
+  css: "text/css",
   json: "application/json",
   png: "image/png",
   mp4: "video/mp4",

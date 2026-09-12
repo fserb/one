@@ -22,6 +22,13 @@ export { input };
 // Every game draws into this square, whatever size the canvas ends up being.
 export const SIZE = 1024;
 
+// What every ctx.text() and every rule in the page templates draws in. "Vera"
+// is assets/vera.css, which the build writes into the page and dev.html links.
+// It has a 400 face and a 700 face and nothing else: ask a canvas for heavier
+// and it takes the 700 and emboldens it again, with no font-synthesis there to
+// turn that off.
+export const FONT = '"Vera", system-ui, sans-serif';
+
 // Filled in from the game module's `meta` export by run().
 export const meta = {
   title: "untitled",
@@ -60,6 +67,7 @@ let ctx = null;
 
 export function run(game, { target = null } = {}) {
   registerPlus2d();
+  overrideText();
   Object.assign(meta, game.meta ?? {});
   op.game = game;
 
@@ -73,6 +81,12 @@ export function run(game, { target = null } = {}) {
   // on the gallery's colour, and dev.html's canvas has the body for a parent.
   screen.canvas.parentElement.style.backgroundColor = meta.bg;
 
+  // Drawing with a @font-face does not load it, and a canvas is the only thing
+  // on a dev page set in this font. Both faces are data: URLs in the page, so
+  // at most the first frames are drawn in the fallback.
+  document.fonts?.load(`16px ${FONT}`);
+  document.fonts?.load(`bold 16px ${FONT}`);
+
   initInput(screen, { dpad: meta.dpad });
   op.sound?.arm(document); // only there if the game imported lib/sound.js
   overlay.init();
@@ -80,6 +94,51 @@ export function run(game, { target = null } = {}) {
 
   screen.start(frame);
   return screen;
+}
+
+/*
+ * alma's plus2d text() and mtext() are hard-coded to Verdana, and are otherwise
+ * what every game and the overlay want, so these two replace them: same
+ * arguments, same defaults, FONT for the family. The draw below 10px is alma's,
+ * where the text is laid out at 10 and the context scaled down to the size
+ * asked for.
+ */
+function font(ctx, size, { weight = "bold", align = "center", valign = "middle" }) {
+  ctx.font = `${weight} ${size}px ${FONT}`;
+  ctx.textAlign = align;
+  ctx.textBaseline = valign;
+}
+
+function text(txt, x, y, size, opts = {}) {
+  this.save();
+  if (size < 10) {
+    const r = size / 10;
+    size = 10;
+    this.scale(r, r);
+    x /= r;
+    y /= r;
+  }
+  font(this, size, opts);
+  this.fillText(txt, x, y);
+  this.restore();
+}
+
+function mtext(txt, size, opts = {}) {
+  font(this, size, opts);
+  return this.measureText(txt);
+}
+
+function overrideText() {
+  for (
+    const proto of [
+      globalThis.CanvasRenderingContext2D,
+      globalThis.OffscreenCanvasRenderingContext2D,
+    ]
+  ) {
+    if (!proto) continue;
+    proto.prototype.text = text;
+    proto.prototype.mtext = mtext;
+  }
 }
 
 export function start() {

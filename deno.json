@@ -2,6 +2,7 @@
   "fmt": {
     "lineWidth": 85,
     "exclude": [
+      "assets",
       "src/alma",
       "src/lib/fsfx",
       "tools/tpl",

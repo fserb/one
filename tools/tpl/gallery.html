@@ -12,6 +12,7 @@
 <meta property="og:url" content="{{url}}">
 <meta name="theme-color" content="#f2f0e5">
 <link rel="icon" href="{{icon}}">
+<style>{{fonts}}</style>
 <style>
 /* Pressing a card is a real navigation. Both documents opt in here, so the
    browser animates the card into that page's board instead of replacing one
@@ -24,7 +25,7 @@ html { background: #f2f0e5; scrollbar-gutter: stable; }
 body {
   margin: 0;
   padding: 26px;
-  font: 14px/1.45 Verdana, sans-serif;
+  font: 14px/1.45 var(--sans);
   color: #212123;
 }
 /* The same rules as a game's page, so the site's name does not move across
@@ -37,7 +38,7 @@ header {
   height: 28px;
   margin: 0 0 24px;
 }
-.site { margin: 0; font: bold 19px/1.45 Verdana, sans-serif; letter-spacing: -.02em; }
+.site { margin: 0; font: bold 19px/1.45 var(--sans); letter-spacing: -.02em; }
 .by { margin: 0; font-size: 11px; color: #21212399; }
 .game {
   position: absolute;
@@ -45,7 +46,7 @@ header {
   left: 50%;
   transform: translateX(-50%);
   margin: 0;
-  font: bold 19px/1.45 Verdana, sans-serif;
+  font: bold 19px/1.45 var(--sans);
   letter-spacing: -.02em;
 }
 header a { color: inherit; }
@@ -108,13 +109,13 @@ li video {
   bottom: 0;
   margin: 0;
   padding: 0 4.5cqw 4cqw;
-  font: bold 10cqw/1.1 Verdana;
+  font: bold 10cqw/1.1 var(--sans);
   letter-spacing: -.02em;
 }
 .title time {
   margin-left: 2.8cqw;
   letter-spacing: 0;
-  font: 4.5cqw Verdana, sans-serif;
+  font: 4.5cqw var(--sans);
   opacity: .55;
   font-variant-numeric: tabular-nums;
 }

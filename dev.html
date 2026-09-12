@@ -5,6 +5,9 @@
     <title>one · dev</title>
     <meta name="viewport"
       content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover">
+    <!-- Linked, since this page has no build step; a built page has the same
+         file written into it. -->
+    <link rel="stylesheet" href="./assets/vera.css">
     <style>
     html,
     body {
@@ -15,7 +18,7 @@
     body {
       background: #f2f0e5;
       color: #212123;
-      font-family: Verdana, sans-serif;
+      font-family: var(--sans);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -35,7 +38,7 @@
       display: block;
       overflow: auto;
       padding: 26px;
-      font: 14px/1.45 Verdana, sans-serif;
+      font: 14px/1.45 var(--sans);
       touch-action: auto;
     }
     .index header {
@@ -47,7 +50,7 @@
     }
     .index h1 {
       margin: 0;
-      font: bold 19px/1.45 Verdana, sans-serif;
+      font: bold 19px/1.45 var(--sans);
       letter-spacing: -.02em;
     }
     .index .by {
@@ -123,13 +126,13 @@
       bottom: 0;
       margin: 0;
       padding: 0 4.5cqw 4cqw;
-      font: bold 10cqw/1.1 Verdana;
+      font: bold 10cqw/1.1 var(--sans);
       letter-spacing: -.02em;
     }
     .title time {
       margin-left: 2.8cqw;
       letter-spacing: 0;
-      font: 4.5cqw Verdana, sans-serif;
+      font: 4.5cqw var(--sans);
       opacity: .55;
       font-variant-numeric: tabular-nums;
     }
@@ -141,7 +144,7 @@
       top: 0;
       margin: 0;
       padding: 3.5cqw 4.5cqw;
-      font: bold 4.5cqw Verdana, sans-serif;
+      font: bold 4.5cqw var(--sans);
       text-transform: uppercase;
       letter-spacing: .12em;
       color: #c22;
@@ -177,7 +180,7 @@
       display: flex;
       gap: 10px;
       align-items: center;
-      font: 12px ui-monospace, monospace;
+      font: 12px var(--sans);
       color: #0009;
     }
     #rec-bar[data-on] {
@@ -203,7 +206,7 @@
       align-items: center;
       justify-content: center;
       background: #000c;
-      font: 13px ui-monospace, monospace;
+      font: 13px var(--sans);
       color: #fff;
     }
     #rec-preview[hidden] {
