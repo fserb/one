@@ -30,6 +30,7 @@ up drives, left and right switch
   fg: "#1C140D",
   scoreMax: true,
   date: "2014-04-27",
+  dpad: true,
 };
 
 const BLACK = 0x1c140d;
@@ -339,7 +340,7 @@ class Train extends ent.Entity {
   }
 
   update() {
-    const { key, time } = ent.game;
+    const { input, time } = ent.game;
 
     if (this.dying > 0) {
       this.dying -= time;
@@ -352,18 +353,18 @@ class Train extends ent.Entity {
     const full = Math.hypot(dx, dy);
     const aligned = turn(this, dx, dy, TURN);
 
-    if (key.just.left) {
+    if (input.just.left) {
       sound.play("switch");
       this.select(this.selection - 1);
     }
-    if (key.just.right) {
+    if (input.just.right) {
       sound.play("switch");
       this.select(this.selection + 1);
     }
 
     if (!aligned) return;
 
-    if (key.up || key.b1) {
+    if (input.press.up || input.press.act) {
       const step = Math.min(full, ACC * time);
       if (step >= full) return this.arrive();
       this.pos.x += dx / full * step;
@@ -371,7 +372,7 @@ class Train extends ent.Entity {
       return;
     }
 
-    if (!key.down || full === 0) return;
+    if (!input.press.down || full === 0) return;
     // No further back than the station behind.
     const ux = dx / full;
     const uy = dy / full;

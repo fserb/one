@@ -213,7 +213,7 @@ class Player extends ent.Entity {
       return;
     }
     this.ride();
-    if (ent.game.key.just.b1) this.launch();
+    if (ent.game.input.just.act) this.launch();
   }
 
   // The face's outward normal is both where the blob stands and where it goes.

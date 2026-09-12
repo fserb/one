@@ -8,7 +8,7 @@
 
 import { ease, extra, vec } from "./alma/src/index.js";
 import { camera } from "./lib/camera.js";
-import { act, gameOver, hint, mouse, score, SIZE } from "./lib/one.js";
+import { act, gameOver, hint, input, score, SIZE } from "./lib/one.js";
 
 const { arrayRemove, promiseSleep, TAU } = extra;
 
@@ -475,9 +475,9 @@ function updateBelt(dt) {
 // UPDATE ///
 
 async function updateClick() {
-  if (!mouse.click) return;
+  if (!input.just.act) return;
 
-  const m = camera.toWorld(mouse.x, mouse.y);
+  const m = camera.toWorld(input.x, input.y);
   let hit = null;
   for (const b of [0, 1]) {
     const v = vec.floor(vec.div(vec.sub(m, BOARDPOS[b]), TILE));

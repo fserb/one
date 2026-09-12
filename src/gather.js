@@ -11,14 +11,10 @@
  *
  * The first round opens on a scripted board that resets the score. Dying inside
  * it replays it; finishing means it is not shown again.
- *
- * Undo waits for the pointer to lift, and a lift that turned out to be a swipe
- * undoes nothing: b1 is the click, so undoing on the press would remove the
- * chain before the swipe arrived.
  */
 
 import * as ent from "./lib/entity.js";
-import { gameOver, mouse, score } from "./lib/one.js";
+import { gameOver, score } from "./lib/one.js";
 import { coin, explosion, jump } from "./lib/fsfx/sfxr.js";
 import * as sound from "./lib/sound.js";
 
@@ -32,6 +28,7 @@ take an equal count of every colour you touch
   fg: "#000000",
   scoreMax: true,
   date: "2014-04-15",
+  dpad: true,
 };
 
 const BLACK = 0x000000;
@@ -145,8 +142,6 @@ let dying = 0;
 // Survives a round: the tutorial is once a page unless the player died in it.
 let introAt = INTRO.length;
 let noteAt = NOTES.length;
-
-let tapping = false;
 
 function cellX(x) {
   return X0 + CELL * x;
@@ -432,19 +427,6 @@ function advance(dt) {
   shift();
 }
 
-// A press cannot be the signal on a phone: b1 is the click, so every swipe
-// starts with one.
-function undoing() {
-  if (mouse.click) tapping = true;
-  if (mouse.swipe !== 0) tapping = false;
-  if (mouse.release) {
-    const tap = tapping;
-    tapping = false;
-    return tap;
-  }
-  return ent.game.key.just.b1 && !mouse.click;
-}
-
 function undo() {
   for (const c of chain.slice(1)) {
     at(c.px, c.py)?.untarget();
@@ -486,10 +468,10 @@ function check() {
 // An empty cell is a step only when the head is on one too, which keeps the
 // chain unbroken and the first cursor somewhere an undo can return to.
 function control() {
-  if (undoing()) undo();
+  const { input } = ent.game;
+  if (input.just.act) undo();
 
   const head = chain.at(-1);
-  const { key } = ent.game;
   const hx = cellX(head.px);
   const hy = cellY(head.py);
   at(head.px - 1, head.py)?.see(hx, hy);
@@ -499,10 +481,10 @@ function control() {
 
   let tx = head.px;
   let ty = head.py;
-  if (key.just.up) ty -= 1;
-  else if (key.just.down) ty += 1;
-  else if (key.just.left) tx -= 1;
-  else if (key.just.right) tx += 1;
+  if (input.just.up) ty -= 1;
+  else if (input.just.down) ty += 1;
+  else if (input.just.left) tx -= 1;
+  else if (input.just.right) tx += 1;
   if (tx === head.px && ty === head.py) return;
   if (tx < 0 || tx >= COLS || ty < 0 || ty >= ROWS) return;
 
@@ -537,7 +519,6 @@ export function init() {
   difficulty = 0;
   dying = 0;
   note = null;
-  tapping = false;
   introAt = introAt >= 0 ? INTRO.length : -1;
   noteAt = NOTES.length;
 

@@ -18,7 +18,7 @@ import {
 } from "./alma/src/index.js";
 import { camera } from "./lib/camera.js";
 import * as ent from "./lib/entity.js";
-import { fixed, gameOver, key, mouse, op, score, SIZE } from "./lib/one.js";
+import { fixed, gameOver, input, op, score, SIZE } from "./lib/one.js";
 import * as sound from "./lib/sound.js";
 
 export const meta = {
@@ -828,7 +828,8 @@ function launch() {
   cancelAim();
   if (!b) return;
 
-  // A draw still inside the silhouette is not a shot; b2 cancels.
+  // A draw still inside the silhouette is not a shot, which is how an aim is
+  // called off: drag back over the blob and let go.
   if (drawn < b.radius) return;
 
   noteLeft(b);
@@ -1369,25 +1370,24 @@ function tryGrab(x, y) {
 const pointerSpeed = new PointerSpeed({ rate: 30, cap: MAX_SPEED });
 
 function handleInput(dt) {
-  pointerSpeed.sample(mouse.x, mouse.y, dt);
+  pointerSpeed.sample(input.x, input.y, dt);
 
-  const p = camera.toWorld(mouse.x, mouse.y);
+  const p = camera.toWorld(input.x, input.y);
   sim.grabTo(p.x, p.y, pointerSpeed.x, pointerSpeed.y);
 
   hoverBar(p.x, p.y); // before the press: a touch's first frame picks nothing
-  if (key.just.b2) cancelAim();
-  if (mouse.click) {
+  if (input.just.act) {
     // A touch lands where it lands; no motion before it to carry.
-    pointerSpeed.reset(mouse.x, mouse.y);
+    pointerSpeed.reset(input.x, input.y);
     sim.grabTo(p.x, p.y, 0, 0);
     // The launcher gets first refusal: the rail aims, elsewhere drags.
-    if (!startAim(mouse.x, mouse.y)) tryGrab(p.x, p.y);
+    if (!startAim(input.x, input.y)) tryGrab(p.x, p.y);
   }
   if (aim) {
-    aimAt(mouse.x, mouse.y, dt);
-    if (!mouse.press) launch();
+    aimAt(input.x, input.y, dt);
+    if (!input.press.act) launch();
   }
-  if (!mouse.press) sim.release();
+  if (!input.press.act) sim.release();
 }
 
 let danger = null;

@@ -79,7 +79,7 @@ class Bird extends ent.Entity {
     this.vel.x = this.left ? -SPEED : SPEED;
     this.flipX = this.left;
 
-    if (ent.game.key.just.b1) this.vel.y = -FLAP;
+    if (ent.game.input.just.act) this.vel.y = -FLAP;
   }
 }
 

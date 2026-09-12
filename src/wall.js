@@ -33,6 +33,7 @@ the orange moves only while you cannot see it
   fg: "#1EBED8",
   scoreMax: true,
   date: "2015-10-10",
+  dpad: true,
 };
 
 // The 480 box the game is written in.
@@ -87,8 +88,6 @@ const HALF = 6;
 const EDGE = 0.01;
 const TAKE = 12;
 const GRAB = 11;
-// So a tap on top of the player is not a direction.
-const DEAD = 12;
 
 // Straight segments dropped into the room, each 2 to 6 tiles long.
 const BLOCKS = 26;
@@ -452,21 +451,14 @@ class Player extends ent.Entity {
 
   update() {
     if (dying > 0) return;
-    const { key, mouse } = ent.game;
+    const { input } = ent.game;
 
     let mx = 0;
     let my = 0;
-    if (key.left) mx -= 1;
-    if (key.right) mx += 1;
-    if (key.up) my -= 1;
-    if (key.down) my += 1;
-    // The camera follows behind rather than centring, so the pointer is a
-    // direction.
-    if (mx === 0 && my === 0 && mouse.press) {
-      mx = mouse.x - this.pos.x;
-      my = mouse.y - this.pos.y;
-      if (Math.hypot(mx, my) < DEAD) return;
-    }
+    if (input.press.left) mx -= 1;
+    if (input.press.right) mx += 1;
+    if (input.press.up) my -= 1;
+    if (input.press.down) my += 1;
 
     const l = Math.hypot(mx, my);
     if (l === 0) return;

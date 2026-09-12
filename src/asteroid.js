@@ -30,6 +30,7 @@ time crawls until you thrust or shoot
   fg: "#FFFFFF",
   scoreMax: true,
   date: "2014-04-03",
+  dpad: true,
 };
 
 const WHITE = 0xffffff;
@@ -117,15 +118,15 @@ class Player extends ent.Entity {
   }
 
   update() {
-    const { key, time } = ent.game;
+    const { input, time } = ent.game;
 
     // The one control that runs at real time: aiming is free.
-    if (key.left) this.angle -= TURN * realtime;
-    if (key.right) this.angle += TURN * realtime;
-    if (key.up) thrust(this, THRUST * time);
+    if (input.press.left) this.angle -= TURN * realtime;
+    if (input.press.right) this.angle += TURN * realtime;
+    if (input.press.up) thrust(this, THRUST * time);
 
     this.reload = Math.max(0, this.reload - time);
-    if (key.b1 && this.reload <= 0) {
+    if (input.press.act && this.reload <= 0) {
       fire(this, true, "shot");
       this.reload += RELOAD;
     }
@@ -503,8 +504,8 @@ export function update(dt) {
     return;
   }
 
-  const { key } = ent.game;
-  const time = key.up || key.b1 ? dt : dt / SLOW;
+  const { input } = ent.game;
+  const time = input.press.up || input.press.act ? dt : dt / SLOW;
 
   rockTime -= time;
   if (rockTime <= 0) {

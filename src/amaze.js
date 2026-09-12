@@ -16,7 +16,7 @@
 
 import * as ent from "./lib/entity.js";
 import { glyphs } from "./lib/art.js";
-import { gameOver, hint, mouse, score, SIZE } from "./lib/one.js";
+import { gameOver, hint, input, score, SIZE } from "./lib/one.js";
 import { coin, explosion, jump, powerup } from "./lib/fsfx/sfxr.js";
 import * as sound from "./lib/sound.js";
 
@@ -277,7 +277,7 @@ class Player extends ent.Entity {
   update() {
     if (dying > 0) return;
     const t = ent.game.time;
-    const { key, mouse } = ent.game;
+    const { input } = ent.game;
 
     this.mx = clamp(ci(this.pos.x), 0, N - 1);
     this.my = clamp(cj(this.pos.y), 0, N - 1);
@@ -285,14 +285,14 @@ class Player extends ent.Entity {
     if (this.leaving < 0) {
       if (tapped) this.jump();
       let d = 0;
-      if (key.left) d = W_W;
-      else if (key.right) d = E_W;
-      else if (key.up) d = N_W;
-      else if (key.down) d = S_W;
+      if (input.press.left) d = W_W;
+      else if (input.press.right) d = E_W;
+      else if (input.press.up) d = N_W;
+      else if (input.press.down) d = S_W;
       // A side, not a place: the bigger of the two offsets wins.
       if (d === 0 && pressed > TAP) {
-        const dx = mouse.x - this.pos.x;
-        const dy = mouse.y - this.pos.y;
+        const dx = input.x - this.pos.x;
+        const dy = input.y - this.pos.y;
         if (Math.max(Math.abs(dx), Math.abs(dy)) > YOU_R) {
           d = Math.abs(dx) > Math.abs(dy)
             ? (dx > 0 ? E_W : W_W)
@@ -617,10 +617,10 @@ export function init() {
 }
 
 export function update(dt) {
-  // Off input.js's mouse, not entity.js's copy, which the player would read a
+  // Off input.js directly, not entity.js's copy, which the player would read a
   // frame behind during ent.update().
-  tapped = mouse.release && pressed > 0 && pressed <= TAP;
-  pressed = mouse.press ? pressed + dt : 0;
+  tapped = input.release.act && pressed > 0 && pressed <= TAP;
+  pressed = input.press.act ? pressed + dt : 0;
 
   ent.update(phase === PLAY && hint() <= 0 ? dt : 0);
 

@@ -347,23 +347,23 @@ class Player extends ent.Entity {
 
   update() {
     if (dying > 0) return;
-    const { key, mouse } = ent.game;
+    const { input } = ent.game;
     const t = ent.game.time;
 
-    if (lastx !== null && (mouse.x !== lastx || mouse.press)) aiming = true;
-    if (key.left || key.right) aiming = false;
-    lastx = mouse.x;
+    if (lastx !== null && (input.x !== lastx || input.press.act)) aiming = true;
+    if (input.press.left || input.press.right) aiming = false;
+    lastx = input.x;
 
     let mx = 0;
-    if (key.left) mx -= 1;
-    if (key.right) mx += 1;
+    if (input.press.left) mx -= 1;
+    if (input.press.right) mx += 1;
 
     const rate = TURN * t;
     if (mx !== 0) {
       this.lean += mx * rate;
     } else if (aiming) {
       // A point on the arc, not a direction: it stops under the finger.
-      const want = Math.asin(clamp((mouse.x - PIVX) / ARM, -1, 1));
+      const want = Math.asin(clamp((input.x - PIVX) / ARM, -1, 1));
       const d = want - this.lean;
       this.lean += Math.abs(d) <= rate ? d : Math.sign(d) * rate;
     } else {
@@ -416,8 +416,8 @@ export function init() {
 export function update(dt) {
   // This frame's, not entity.js's copy, which only refreshes inside
   // ent.update(). Every note has to see the same answer.
-  const { key } = ent.game;
-  strike = dying <= 0 && (key.just.b1 || key.just.up);
+  const { input } = ent.game;
+  strike = dying <= 0 && (input.just.act || input.just.up);
 
   bpm = BPM0 + PER_NOTE * resolved;
   ent.update(dt);

@@ -30,6 +30,7 @@ the bar is the clock, and every shot spends it
   fg: "#024972",
   scoreMax: true,
   date: "2014-04-13",
+  dpad: true,
 };
 
 const WHITE = 0xffffff;
@@ -264,12 +265,12 @@ class Player extends ent.Entity {
   }
 
   update() {
-    const { key, time } = ent.game;
+    const { input, time } = ent.game;
     this.pos.y = Math.max(PY, this.pos.y - RISE * time);
 
     // Flown from here, not from itself: steer while it climbs and it follows.
     if (this.bullet === null) {
-      if (key.b1) {
+      if (input.press.act) {
         sound.play("shot");
         this.bullet = new Bullet(this.pos.x);
         new Light(this.pos.x, SHOTY, true);
@@ -282,8 +283,10 @@ class Player extends ent.Entity {
       if (this.bullet.pos.y < CEIL) this.bullet.explode(false);
     }
 
-    if (key.left) this.pos.x = Math.max(PX, this.pos.x - WALK * time);
-    else if (key.right) this.pos.x = Math.min(W - PX, this.pos.x + WALK * time);
+    if (input.press.left) this.pos.x = Math.max(PX, this.pos.x - WALK * time);
+    else if (input.press.right) {
+      this.pos.x = Math.min(W - PX, this.pos.x + WALK * time);
+    }
   }
 }
 

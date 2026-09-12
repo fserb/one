@@ -8,7 +8,7 @@
 
 import { ease, extra, HexGrid, vec } from "./alma/src/index.js";
 import { camera } from "./lib/camera.js";
-import { act, gameOver, mouse, msg, score, SIZE } from "./lib/one.js";
+import { act, gameOver, input, msg, score, SIZE } from "./lib/one.js";
 import {
   ADSR,
   biquad,
@@ -448,9 +448,9 @@ export function update(dt) {
 
   if (locked) return;
   if (pending > 2) return;
-  if (!mouse.click) return;
+  if (!input.just.act) return;
 
-  const v = grid.get(grid.fromPixel(camera.toWorld(mouse.x, mouse.y)));
+  const v = grid.get(grid.fromPixel(camera.toWorld(input.x, input.y)));
   if (!v?.v) return;
   if (v === grid.get(alien.pos)) return;
 

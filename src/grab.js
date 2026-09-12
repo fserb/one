@@ -26,6 +26,7 @@ grab a ghost, its colour becomes the floor
   fg: "#FAFAFA",
   scoreMax: true,
   date: "2015-04-18",
+  dpad: true,
 };
 
 const BLACK = 0x010101;
@@ -102,17 +103,17 @@ class Player extends ent.Entity {
   }
 
   update() {
-    const { key } = ent.game;
+    const { input } = ent.game;
 
     if (this.dying) return; // EndGame ends the round once the board is black
 
     if (hook.action === IDLE) {
       let mx = 0;
       let my = 0;
-      if (key.left) mx = -1;
-      if (key.right) mx = 1;
-      if (key.up) my = -1;
-      if (key.down) my = 1;
+      if (input.press.left) mx = -1;
+      if (input.press.right) mx = 1;
+      if (input.press.up) my = -1;
+      if (input.press.down) my = 1;
 
       const l = Math.hypot(mx, my);
       if (l > 0) this.accelerate(mx * PUSH / l, my * PUSH / l);
@@ -188,13 +189,13 @@ class Hook extends ent.Entity {
 
   update() {
     if (player.dying) return;
-    const { key, mouse, time } = ent.game;
+    const { input, time } = ent.game;
     const p = player.pos;
 
     if (this.action === IDLE) {
       // The drawing points along its own -y, so the aim is a quarter turn on.
-      this.angle = Math.atan2(mouse.y - p.y, mouse.x - p.x) + Math.PI / 2;
-      if (key.just.b1) {
+      this.angle = Math.atan2(input.y - p.y, input.x - p.x) + Math.PI / 2;
+      if (input.just.act) {
         sound.play("hook");
         this.action = OUT;
       }

@@ -31,6 +31,7 @@ loop every planet, then leave the quadrant
   fg: "#323431",
   scoreMax: true,
   date: "2014-08-24",
+  dpad: true,
 };
 
 // The palette.
@@ -122,19 +123,14 @@ class Player extends ent.Entity {
   }
 
   update() {
-    const { key, mouse } = ent.game;
+    const { input } = ent.game;
 
     let mx = 0;
     let my = 0;
-    if (key.left) mx -= 1;
-    if (key.right) mx += 1;
-    if (key.up) my -= 1;
-    if (key.down) my += 1;
-    // The player is at the middle of the screen, so the pointer is a heading.
-    if (mx === 0 && my === 0 && mouse.press) {
-      mx = mouse.x - W / 2;
-      my = mouse.y - W / 2;
-    }
+    if (input.press.left) mx -= 1;
+    if (input.press.right) mx += 1;
+    if (input.press.up) my -= 1;
+    if (input.press.down) my += 1;
     const l = Math.hypot(mx, my);
     if (l > 0) this.accelerate(mx * PUSH / l, my * PUSH / l);
 

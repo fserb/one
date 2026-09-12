@@ -8,17 +8,16 @@
  *
  * It also has the shared state: meta, score, act and op. overlay.js reads
  * them back out of here, and camera.js and sound.js write op.camera and
- * op.sound. input.js declares mouse and key, since it is what writes them.
+ * op.sound. input.js declares `input`, since it is what writes it.
  */
 
 import Act from "../alma/src/Act.js";
 import { register as registerPlus2d } from "../alma/src/gfx/plus2d.js";
 import { Screen } from "../alma/src/screen.js";
-import * as input from "./input.js";
-import { DOWN, key, LEFT, mouse, RIGHT, UP } from "./input.js";
+import { init as initInput, input, poll as pollInput, setDpad } from "./input.js";
 import * as overlay from "./overlay.js";
 
-export { DOWN, key, LEFT, mouse, RIGHT, UP };
+export { input };
 
 // Every game draws into this square, whatever size the canvas ends up being.
 export const SIZE = 1024;
@@ -33,6 +32,8 @@ export const meta = {
   overlay: null,
   scoreMax: true, // false when a low score is the good one
   date: null, // "YYYY-MM-DD", the gallery's order, newest first
+  // A touch steers rather than pointing: see the two mappings in input.js.
+  dpad: false,
 };
 
 export const act = new Act();
@@ -72,7 +73,7 @@ export function run(game, { target = null } = {}) {
   // on the gallery's colour, and dev.html's canvas has the body for a parent.
   screen.canvas.parentElement.style.backgroundColor = meta.bg;
 
-  input.init(screen);
+  initInput(screen, { dpad: meta.dpad });
   op.sound?.arm(document); // only there if the game imported lib/sound.js
   overlay.init();
   start();
@@ -83,6 +84,7 @@ export function run(game, { target = null } = {}) {
 
 export function start() {
   act.reset();
+  setDpad(meta.dpad);
   // Reset to the whole board, so init() changes only what it needs to.
   op.camera?.moveTo({ x: SIZE / 2, y: SIZE / 2, scale: 1, angle: 0 }).settle();
   flashColor = null;
@@ -98,6 +100,7 @@ export function gameOver(opts) {
   // Two collision paths can both end the same round; only the first call acts.
   if (!op.playing) return;
   op.playing = false;
+  setDpad(false);
   ending = true;
   overlay.gameOver(opts);
 }
@@ -136,7 +139,7 @@ export function flash(color, t = 0) {
 function frame(dt) {
   act._frame(dt);
   op.camera?.update(dt);
-  input.poll();
+  pollInput();
   overlay.poll(dt);
 
   if (op.playing) {
@@ -152,7 +155,6 @@ function frame(dt) {
     act.reset();
   }
   if (flashColor !== null && (flashTime -= dt) <= 0) flashColor = null;
-  input.flush();
 }
 
 function render() {

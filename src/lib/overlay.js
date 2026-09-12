@@ -9,7 +9,7 @@
 
 import { fastOutSlowIn } from "../alma/src/ease.js";
 import { newCanvas } from "../alma/src/utils/utils.js";
-import { mouse } from "./input.js";
+import { input } from "./input.js";
 import { meta, op, score, SIZE } from "./one.js";
 
 const MARGIN = 26;
@@ -135,7 +135,8 @@ export function poll(dt) {
   if (tip.left <= 0) return;
 
   tip.left = Math.max(0, tip.left - dt);
-  if ((mouse.click || mouse.swipe) && tip.left > DISMISS) {
+  const j = input.just;
+  if ((j.act || j.up || j.right || j.down || j.left) && tip.left > DISMISS) {
     tip.left = DISMISS;
     tip.fade = DISMISS;
   }
@@ -145,7 +146,7 @@ export function poll(dt) {
 // Only called between rounds.
 export function update(_dt, start) {
   if (finish.t < DEAD) return;
-  if (!mouse.click) return;
+  if (!input.just.act) return;
   finish.on = false;
   start();
 }

@@ -4,7 +4,7 @@
  */
 
 import { ease, utils } from "./alma/src/index.js";
-import { act, gameOver, mouse, score, SIZE } from "./lib/one.js";
+import { act, gameOver, input, score, SIZE } from "./lib/one.js";
 
 export const meta = {
   title: "wow",
@@ -110,10 +110,10 @@ function check() {
 }
 
 export function update() {
-  if (!mouse.click) return;
+  if (!input.just.act) return;
 
-  const px = Math.floor((mouse.x - ox) / TILE);
-  const py = Math.floor((mouse.y - oy) / TILE);
+  const px = Math.floor((input.x - ox) / TILE);
+  const py = Math.floor((input.y - oy) / TILE);
 
   // Only the four tiles orthogonally touching the hole can move.
   if (Math.abs(empty.x - px) + Math.abs(empty.y - py) !== 1) return;

@@ -234,21 +234,21 @@ class Cursor extends ent.Entity {
   }
 
   update() {
-    const { key, mouse } = ent.game;
+    const { input } = ent.game;
 
     // The pointer takes the cursor when it moves, the arrows when it is still.
-    this.moved = mouse.x !== this.px || mouse.y !== this.py;
-    this.px = mouse.x;
-    this.py = mouse.y;
-    this.over = cellAt(mouse.x, mouse.y);
+    this.moved = input.x !== this.px || input.y !== this.py;
+    this.px = input.x;
+    this.py = input.y;
+    this.over = cellAt(input.x, input.y);
     if (this.moved && this.over !== null) this.selected = this.over;
 
     let x = this.selected % COLS;
     let y = Math.floor(this.selected / COLS);
-    if (key.just.left) x = (x + COLS - 1) % COLS;
-    if (key.just.right) x = (x + 1) % COLS;
-    if (key.just.up) y = (y + COLS - 1) % COLS;
-    if (key.just.down) y = (y + 1) % COLS;
+    if (input.just.left) x = (x + COLS - 1) % COLS;
+    if (input.just.right) x = (x + 1) % COLS;
+    if (input.just.up) y = (y + COLS - 1) % COLS;
+    if (input.just.down) y = (y + 1) % COLS;
     this.selected = x + y * COLS;
     this.place();
   }
@@ -395,9 +395,9 @@ export function update(dt) {
   if (clock <= 0) return;
 
   const cursor = ent.one(Cursor);
-  if (cursor === null || !ent.game.key.just.b1) return;
-  // A tap off the board moves the pointer and presses b1 on the same frame. It
-  // asked for nothing, not for the cell the arrows left the cursor on.
+  if (cursor === null || !ent.game.input.just.act) return;
+  // A tap off the board moves the pointer and acts on the same frame. It asked
+  // for nothing, not for the cell the arrows left the cursor on.
   if (cursor.moved && cursor.over === null) return;
   mark(cursor.selected);
 }

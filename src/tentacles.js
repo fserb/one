@@ -7,17 +7,7 @@
  */
 
 import { ease, extra } from "./alma/src/index.js";
-import {
-  act,
-  DOWN,
-  gameOver,
-  LEFT,
-  mouse,
-  RIGHT,
-  score,
-  SIZE,
-  UP,
-} from "./lib/one.js";
+import { act, gameOver, input, score, SIZE } from "./lib/one.js";
 import {
   ADSR,
   biquad,
@@ -35,13 +25,14 @@ const { arrayShuffle, TAU } = extra;
 export const meta = {
   title: "tentacles",
   desc: `
-swipe to move
+tap a side to move
 they leave their bodies behind
 `,
   bg: "#9AAAB2",
   fg: "#2F3E46",
   scoreMax: true,
   date: "2022-01-02",
+  dpad: true,
 };
 
 const FLOOR = "rgba(47,62,70,0.10)";
@@ -62,12 +53,14 @@ const GROW = 6;
 const SPAWN = 40;
 const START_LEN = 4;
 
+// Keyed by input.js's button names, so a turn is whichever one just went down.
 const DIRS = {
-  [UP]: { x: 0, y: -1 },
-  [RIGHT]: { x: 1, y: 0 },
-  [DOWN]: { x: 0, y: 1 },
-  [LEFT]: { x: -1, y: 0 },
+  up: { x: 0, y: -1 },
+  right: { x: 1, y: 0 },
+  down: { x: 0, y: 1 },
+  left: { x: -1, y: 0 },
 };
+const TURNS = ["up", "right", "down", "left"];
 
 const CRATE_SHAPES = [
   [[0, 0]],
@@ -133,7 +126,7 @@ function relative(c, dir) {
 }
 
 function* neighbors(c) {
-  for (const dir of [UP, RIGHT, DOWN, LEFT]) {
+  for (const dir of TURNS) {
     const n = relative(c, dir);
     if (n !== null) yield n;
   }
@@ -159,7 +152,7 @@ export function init() {
   }
 
   // The player starts in the middle, with a clear ring around them.
-  player = { crate: false, req: 0, dx: 0, dy: 0 };
+  player = { crate: false, req: null, dx: 0, dy: 0 };
   const mid = get((W - 1) / 2, (H - 1) / 2);
   mid.entity = player;
 
@@ -185,7 +178,7 @@ function placeCrate(free) {
     // One object shared by every cell, so the shape moves as one: they share
     // the same `req`, and each cell's move is legal because the one in front of it
     // is the same object, moving too.
-    const crate = { crate: true, req: 0, dx: 0, dy: 0 };
+    const crate = { crate: true, req: null, dx: 0, dy: 0 };
     for (const v of cells) v.entity = crate;
     return;
   }
@@ -209,7 +202,7 @@ function spawn() {
 // A crate cannot push another crate: doMove cancels the chain if it tries.
 function doPush() {
   const c = cellOf(player);
-  if (player.req === 0) return;
+  if (player.req === null) return;
   const next = relative(c, player.req);
   if (next === null || next.entity === null || next.tent !== null) return;
   if (next.entity.crate) next.entity.req = player.req;
@@ -224,15 +217,15 @@ function doMove() {
     repeat = false;
     for (const c of grid) {
       if (c.entity === null) continue;
-      if (c.entity.req === 0) {
+      if (c.entity.req === null) {
         places.set(c.p, c.entity);
         continue;
       }
       const next = relative(c, c.entity.req);
       const stuck = next === null || next.tent !== null ||
-        (next.entity !== null && next.entity.req === 0);
+        (next.entity !== null && next.entity.req === null);
       if (stuck) {
-        c.entity.req = 0;
+        c.entity.req = null;
         repeat = true;
         places.clear();
         break;
@@ -243,13 +236,15 @@ function doMove() {
 
   const moved = new Map();
   for (const c of grid) {
-    if (c.entity !== null && c.entity.req !== 0) moved.set(c.entity, c.entity.req);
+    if (c.entity !== null && c.entity.req !== null) {
+      moved.set(c.entity, c.entity.req);
+    }
   }
 
   for (const c of grid) c.entity = places.get(c.p) ?? null;
 
   for (const [e, dir] of moved) {
-    e.req = 0;
+    e.req = null;
     e.dx = -DIRS[dir].x * CELL;
     e.dy = -DIRS[dir].y * CELL;
     act(e)
@@ -318,7 +313,7 @@ function buildAStar() {
   }
 }
 
-// A swipe into a wall still costs a turn: without a way to wait, a boxed-in
+// A turn into a wall still costs a turn: without a way to wait, a boxed-in
 // player freezes the game.
 function tick(dir) {
   player.req = dir;
@@ -348,8 +343,9 @@ function tick(dir) {
 
 export function update() {
   if (dead) return;
-  if (mouse.swipe === 0) return;
-  tick(mouse.swipe);
+  for (const dir of TURNS) {
+    if (input.just[dir]) return tick(dir);
+  }
 }
 
 // RENDER ///

@@ -137,8 +137,8 @@ class Player extends ent.Entity {
   }
 
   update() {
-    this.pos.x = ent.game.mouse.x;
-    this.pos.y = ent.game.mouse.y;
+    this.pos.x = ent.game.input.x;
+    this.pos.y = ent.game.input.y;
     this.size += ent.game.time;
     this.draw();
   }

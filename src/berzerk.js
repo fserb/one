@@ -23,6 +23,7 @@ each number taken raises the next
   fg: "#000000",
   scoreMax: true,
   date: "2015-09-20",
+  dpad: true,
 };
 
 const WHITE = 0xffffff;
@@ -90,7 +91,7 @@ class Player extends ent.Entity {
   }
 
   update() {
-    const { key, time } = ent.game;
+    const { input, time } = ent.game;
     this.reload = Math.max(0, this.reload - time);
 
     // Solid when the gun is ready, hollow while it is not: a frozen player is a
@@ -101,17 +102,17 @@ class Player extends ent.Entity {
     this.vel.x = this.vel.y = 0;
     if (this.reload > 0) return;
 
-    if (key.left) this.vel.x = -1;
-    if (key.right) this.vel.x = 1;
-    if (key.up) this.vel.y = -1;
-    if (key.down) this.vel.y = 1;
+    if (input.press.left) this.vel.x = -1;
+    if (input.press.right) this.vel.x = 1;
+    if (input.press.up) this.vel.y = -1;
+    if (input.press.down) this.vel.y = 1;
 
     const l = Math.hypot(this.vel.x, this.vel.y);
     if (l === 0) return;
 
     // Fire before the velocity is scaled, so the shooting frame moves at full
     // speed and the freeze starts on the next.
-    if (key.b1) {
+    if (input.press.act) {
       new Bullet(this, WHITE, Math.atan2(this.vel.y, this.vel.x), BULLET_MAX);
       this.reload = RELOAD;
     }

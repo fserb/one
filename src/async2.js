@@ -17,7 +17,7 @@ import { Collider } from "./alma/src/collider.js";
 import { Mat4 } from "./alma/src/geom/mat4.js";
 import { Quad } from "./alma/src/geom/Quad.js";
 import * as ease from "./alma/src/ease.js";
-import { act, mouse, score, SIZE } from "./lib/one.js";
+import { act, input, score, SIZE } from "./lib/one.js";
 
 export const meta = {
   title: "async2",
@@ -534,7 +534,7 @@ export function init() {
 
 export function update(dt) {
   // Not awaited: a click lands while an earlier one is still animating.
-  if (mouse.click) handleClick(mouse.x, mouse.y);
+  if (input.just.act) handleClick(input.x, input.y);
   updatePhysics(dt);
 }
 

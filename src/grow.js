@@ -357,7 +357,7 @@ class Cursor extends ent.Entity {
 
   update() {
     const dt = ent.game.time;
-    const hold = ent.game.key.b1;
+    const hold = ent.game.input.press.act;
     const push = hold && (!this.up || path.span(this.t) < SPAN * path.len);
 
     this.pushing = push;

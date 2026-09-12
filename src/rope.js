@@ -9,7 +9,7 @@
 import { ease, extra, vec } from "./alma/src/index.js";
 import { World } from "./alma/src/rigid.js";
 import { camera } from "./lib/camera.js";
-import { act, fixed, gameOver, mouse, score, SIZE } from "./lib/one.js";
+import { act, fixed, gameOver, input, score, SIZE } from "./lib/one.js";
 import { ADSR, biquad, envelope, karplus_strong } from "./lib/fsfx/fsfx.js";
 import * as sound from "./lib/sound.js";
 
@@ -560,8 +560,8 @@ function updateCamera(dt) {
 
 // The pull is backwards: dragging one way throws the hand the other.
 function updateShot() {
-  if (mouse.click) {
-    const p = camera.toWorld(mouse.x, mouse.y);
+  if (input.just.act) {
+    const p = camera.toWorld(input.x, input.y);
 
     let hand = null;
     let dist = Infinity;
@@ -586,14 +586,14 @@ function updateShot() {
   if (!shot) return;
   shot.offset += 1;
 
-  if (mouse.press) {
-    const p = camera.toWorld(mouse.x, mouse.y);
+  if (input.press.act) {
+    const p = camera.toWorld(input.x, input.y);
     const o = at(shot.hand);
     shot.target = vec.add(o, vec.clamp(vec.sub(p, o), 0, 3));
     return;
   }
 
-  if (!mouse.release) return;
+  if (!input.release.act) return;
 
   const p = at(shot.hand);
   const v = vec.sub(p, shot.target);

@@ -84,9 +84,6 @@ a .arrow { visibility: visible; }
   aspect-ratio: 1;
   view-transition-name: board;
 }
-/* alma's Input focuses the canvas at startup so the keys arrive without a click
-   first, and Chrome treats that as :focus-visible. */
-canvas:focus-visible { outline: none; }
 canvas { display: block; cursor: pointer; touch-action: none; }
 /* Both pages have these: the pseudo-elements belong to the document being
    navigated to, so each direction uses the destination's copy. */
@@ -117,8 +114,8 @@ back.addEventListener("click", (ev) => {
   history.back();
 });
 
-// alma's Input never stops the event, so Escape arrives here even while the
-// board has keyboard focus.
+// input.js listens on the window and stops only the keys that scroll, so
+// Escape arrives here whatever the board is doing.
 addEventListener("keydown", (ev) => {
   if (ev.key === "Escape") back.click();
 });

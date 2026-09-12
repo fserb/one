@@ -18,12 +18,13 @@ export const meta = {
   title: "up",
   desc: `
 arrows fire the thruster on that side
-which pushes you off it. x and c spin
+which pushes you off it. space levels you
 `,
   bg: "#464248",
   fg: "#E3C61E",
   scoreMax: true,
   date: "2014-03-30",
+  dpad: true,
 };
 
 const W = 480;
@@ -119,18 +120,22 @@ class Player extends ent.Entity {
   }
 
   update() {
-    const { key, time } = ent.game;
-    if (key.right) this.engines[0].fire();
-    if (key.up) this.engines[1].fire();
-    if (key.left) this.engines[2].fire();
-    if (key.down) this.engines[3].fire();
+    const { input, time } = ent.game;
+    if (input.press.right) this.engines[0].fire();
+    if (input.press.up) this.engines[1].fire();
+    if (input.press.left) this.engines[2].fire();
+    if (input.press.down) this.engines[3].fire();
 
-    if (key.b1) this.angle -= SPIN * time;
-    if (key.b2) this.angle += SPIN * time;
+    // One button rather than a key for each way round: what the pair was for
+    // was getting back upright, and this turns whichever way is shorter.
+    if (input.press.act) {
+      const off = Math.atan2(Math.sin(this.angle), Math.cos(this.angle));
+      this.angle -= Math.sign(off) * Math.min(SPIN * time, Math.abs(off));
+    }
 
     this.accelerate(-DRAG * this.vel.x, -DRAG * this.vel.y);
     // Sliding sideways rolls the ship and a rolled ship thrusts sideways, so a
-    // dodge left alone tips over within seconds. x and c spin it back.
+    // dodge left alone tips over within seconds. Levelling brings it back.
     this.angle += time * this.vel.x / 200;
 
     if (this.pos.y > OUT) this.kill();

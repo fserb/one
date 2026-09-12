@@ -170,7 +170,7 @@ class Player extends ent.Entity {
 
   update() {
     const dt = ent.game.time;
-    if (ent.game.key.just.b1) this.clockwise = !this.clockwise;
+    if (ent.game.input.just.act) this.clockwise = !this.clockwise;
 
     this.angle += (this.clockwise ? -ANGSPEED : ANGSPEED) * dt;
     this.angle = mod(this.angle, TAU);

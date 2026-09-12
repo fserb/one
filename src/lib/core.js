@@ -4,8 +4,8 @@
  *
  * The games are written in a 480x480 box. reset() sets it and render() maps it
  * onto one's 1024, so a game writes its constants once. With lib/camera.js that
- * box is the camera's opening framing and game.mouse is converted back through
- * it.
+ * box is the camera's opening framing and game.input's pointer is converted
+ * back through it.
  *
  * begin() cannot run from the constructor, since a subclass's field
  * initialisers run after super() returns and would overwrite it. It runs at the
@@ -17,15 +17,22 @@
 import { Collider } from "../alma/src/collider.js";
 import { Art } from "./art.js";
 import { Gfx } from "./gfx.js";
-import { key, mouse } from "./input.js";
+import { input } from "./input.js";
 import { op, SIZE } from "./one.js";
 
 export const game = {
   time: 0,
   totalTime: 0,
   size: 480, // the side of the square the game is written in
-  mouse: { x: 0, y: 0, click: false, press: false, release: false },
-  key, // input.js's own object: unlike the pointer there is nothing to convert
+  // The pointer in that box. The three button sets are input.js's own objects:
+  // unlike the pointer there is nothing to convert.
+  input: {
+    x: 0,
+    y: 0,
+    press: input.press,
+    just: input.just,
+    release: input.release,
+  },
 };
 
 // Class -> {layer, screen, list}, in construction order.
@@ -291,13 +298,10 @@ export function update(dt) {
   game.totalTime += dt;
 
   const m = op.camera
-    ? op.camera.toWorld(mouse.x, mouse.y)
-    : { x: mouse.x * game.size / SIZE, y: mouse.y * game.size / SIZE };
-  game.mouse.x = m.x;
-  game.mouse.y = m.y;
-  game.mouse.click = mouse.click;
-  game.mouse.press = mouse.press;
-  game.mouse.release = mouse.release;
+    ? op.camera.toWorld(input.x, input.y)
+    : { x: input.x * game.size / SIZE, y: input.y * game.size / SIZE };
+  game.input.x = m.x;
+  game.input.y = m.y;
 
   // Everything begins before anything steps, so no entity reads another that
   // is still uninitialised, whatever order the groups draw in.

@@ -205,17 +205,17 @@ class Ship extends ent.Entity {
   update() {
     if (dying > 0) return;
     const t = ent.game.time;
-    const { key, mouse } = ent.game;
+    const { input } = ent.game;
 
-    this.pressed = mouse.press ? this.pressed + t : 0;
-    const aiming = pointerMoved() || mouse.press;
+    this.pressed = input.press.act ? this.pressed + t : 0;
+    const aiming = pointerMoved() || input.press.act;
 
     let want = null;
-    if (key.left) this.angle -= TURN * t;
-    if (key.right) this.angle += TURN * t;
-    if (!key.left && !key.right && aiming) {
-      const dx = mouse.x - EYEX;
-      const dy = mouse.y - EYEY;
+    if (input.press.left) this.angle -= TURN * t;
+    if (input.press.right) this.angle += TURN * t;
+    if (!input.press.left && !input.press.right && aiming) {
+      const dx = input.x - EYEX;
+      const dy = input.y - EYEY;
       if (Math.hypot(dx, dy) > DEAD) want = Math.atan2(dy, dx) + Math.PI / 2;
     }
     if (want !== null) {
@@ -226,7 +226,7 @@ class Ship extends ent.Entity {
     this.angle = apart(this.angle, 0);
 
     this.burning = fuel > 0 &&
-      (key.up || (mouse.press && this.pressed > AIM_LAG));
+      (input.press.up || (input.press.act && this.pressed > AIM_LAG));
     if (this.burning) {
       // The nose is -y at angle 0, so the push is a quarter turn back.
       const a = this.angle - Math.PI / 2;
@@ -473,10 +473,10 @@ let lastx = null;
 let lasty = 0;
 
 function pointerMoved() {
-  const { mouse } = ent.game;
-  const moved = lastx !== null && (mouse.x !== lastx || mouse.y !== lasty);
-  lastx = mouse.x;
-  lasty = mouse.y;
+  const { input } = ent.game;
+  const moved = lastx !== null && (input.x !== lastx || input.y !== lasty);
+  lastx = input.x;
+  lasty = input.y;
   return moved;
 }
 

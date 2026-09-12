@@ -17,7 +17,7 @@
 
 import { registerSquircle } from "./alma/src/index.js";
 import { GridFiller } from "./lib/pgrid.js";
-import { gameOver, hint, mouse, score, SIZE } from "./lib/one.js";
+import { gameOver, hint, input, score, SIZE } from "./lib/one.js";
 
 export const meta = {
   title: "tower",
@@ -353,17 +353,17 @@ export function init() {
 }
 
 export function update() {
-  hovered = cellAt(mouse.x, mouse.y);
+  hovered = cellAt(input.x, input.y);
 
-  if (mouse.click) {
+  if (input.just.act) {
     if (hovered && !hovered.isCommitted) {
       dragMode = hovered.isSelected ? "remove" : "add";
     }
-    click(mouse.x, mouse.y);
+    click(input.x, input.y);
     dragLast = hovered;
   }
 
-  if (mouse.press && dragMode && hovered && hovered !== dragLast) {
+  if (input.press.act && dragMode && hovered && hovered !== dragLast) {
     dragLast = hovered;
     if (!hovered.isCommitted) {
       if (dragMode === "add" && !hovered.isSelected) {
@@ -376,7 +376,7 @@ export function update() {
     }
   }
 
-  if (!mouse.press) {
+  if (!input.press.act) {
     dragMode = null;
     dragLast = null;
   }

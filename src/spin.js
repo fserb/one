@@ -30,6 +30,7 @@ the needle says which way the room turns
   fg: "#FF6819",
   scoreMax: true,
   date: "2015-10-04",
+  dpad: true,
 };
 
 // The box the game is written in.
@@ -76,8 +77,6 @@ const SLIDE = 190;
 // Coyote time, and the rise speed the sprite stretches at.
 const COYOTE = 0.1;
 const BIG = 150;
-// How far off the pointer is a direction rather than a tap.
-const DEAD = 8;
 
 // TURNS doubles for a half turn.
 const WIND = 0.4;
@@ -334,9 +333,9 @@ class Player extends ent.Entity {
       return;
     }
     const t = ent.game.time;
-    const { key, mouse } = ent.game;
-    const held = key.up || key.b1;
-    const jump = key.just.up || key.just.b1;
+    const { input } = ent.game;
+    const held = input.press.up || input.press.act;
+    const jump = input.just.up || input.just.act;
     const touch = this.touch;
 
     if (touch & T_UP) this.vel.y = Math.max(0, this.vel.y);
@@ -371,13 +370,8 @@ class Player extends ent.Entity {
     }
 
     let mx = 0;
-    if (key.left) mx -= 1;
-    if (key.right) mx += 1;
-    // The pointer is a side to run to, not a place to stand.
-    if (mx === 0 && mouse.press) {
-      const d = mouse.x - this.pos.x;
-      if (Math.abs(d) > DEAD) mx = Math.sign(d);
-    }
+    if (input.press.left) mx -= 1;
+    if (input.press.right) mx += 1;
     if (mx !== 0) this.face = mx;
 
     this.kicked = Math.max(0, this.kicked - t);
