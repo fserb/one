@@ -2,12 +2,12 @@
  * rec.js - records a looping clip of the running game, for the gallery card.
  *
  * dev.html loads this and nothing else does, so it is in no game's bundle. The
- * bar it draws is DOM, never in the footage, and dev.html's style block is what
- * styles it.
+ * buttons it draws are DOM, never in the footage, and dev.html's style block is
+ * what styles them.
  *
- * A take is a fixed ten seconds counted down into, and there is no editor: it
- * is searched for the cut that loops without a jump and played back. "keep"
- * downloads a zip of PNG frames that `./task media <game>` turns into
+ * A recording is a fixed ten seconds after a countdown, and there is no editor:
+ * it is searched for the cut that loops without a visible jump and played back.
+ * "keep" downloads a zip of PNG frames that `./task media <game>` turns into
  * media/<game>/card.mp4, .gif and .png.
  */
 
@@ -53,7 +53,7 @@ export function init(scr, game) {
 
   buildBar();
   addEventListener("keydown", onKey);
-  // run() already called screen.start(), so this lands after the game's.
+  // run() already called screen.start(), so this runs after the game's.
   requestAnimationFrame(loop);
 }
 
@@ -67,7 +67,7 @@ function loop() {
     }
     state = "rec";
     // From the end of the countdown and not from this frame, so a late frame
-    // here does not take a frame off the take.
+    // here does not shorten the recording.
     t0 += LEAD * 1000;
   }
   if (state !== "rec") return;
@@ -86,7 +86,7 @@ function grab(i) {
   bigCtx.drawImage(screen.canvas, 0, 0, OUT, OUT);
   tinyCtx.drawImage(big, 0, 0, TINY, TINY);
   sigs[i] = signature(tinyCtx.getImageData(0, 0, TINY, TINY).data);
-  // Encoding now, off the main thread, keeps a take at ~15MB against the
+  // Encoding now, off the main thread, keeps a recording at ~15MB against the
   // ~300MB it would cost as ImageData.
   frames[i] = big.convertToBlob({ type: "image/png" });
 }
@@ -114,8 +114,8 @@ function dist(p, q) {
   return s;
 }
 
-// How much of the take changed, as a fraction of its frames. A still board
-// loops perfectly and nothing downstream can tell that from a real clip.
+// How much of the recording changed, as a fraction of its frames. A still
+// board loops perfectly and nothing later can tell that from a real clip.
 export function motion(sig) {
   if (sig.length < 2) return 0;
   let moved = 0;
@@ -125,31 +125,31 @@ export function motion(sig) {
   return moved / (sig.length - 1);
 }
 
-// The clip plays [in, out) and jumps back, so the cut disappears when frame
-// `out` looks like frame `in`; scoring WINDOW frames from each stops one
-// coincidental match from winning.
+// The clip plays [in, out) and jumps back, so the join is invisible when frame
+// `out` matches frame `in`; scoring WINDOW frames from each stops one
+// coincidental match from being chosen.
 //
-// The seam is scored against the take's own median frame-to-frame step rather
-// than minimised: anything that drifts through the take, a score counting up or
-// a board filling, separates two frames in proportion to how far apart they
-// are, so minimising always returns the shortest clip. The longest cut inside
-// the budget wins.
+// The join is scored against the recording's own median frame-to-frame
+// difference rather than minimised: anything that changes steadily through the
+// recording, a score counting up or a board filling, separates two frames in
+// proportion to how far apart they are in time, so minimising always returns
+// the shortest clip. The longest cut inside the budget is the one taken.
 export function findLoop(sig, lo, hi) {
   // A round that ends early leaves the frozen game-over frame repeating. It
-  // breaks the search twice over: it costs nothing to cut across at any length,
-  // and its zero-cost steps drag the median down until the budget admits
-  // nothing else.
+  // breaks the search twice: cutting anywhere inside it scores zero at any
+  // length, and its zero steps lower the median until the budget excludes
+  // everything else.
   let n = sig.length;
   while (n > 1 && dist(sig[n - 2], sig[n - 1]) === 0) n--;
 
   const steps = [];
   for (let i = 1; i < n; i++) steps.push(dist(sig[i - 1], sig[i]));
   steps.sort((a, b) => a - b);
-  // Median, not mean: one screen-clearing frame should not raise the bar.
+  // Median, not mean: one screen-clearing frame should not raise the budget.
   const budget = (steps[steps.length >> 1] ?? 0) * WINDOW * TOL;
 
   let best = null; // longest cut inside the budget
-  let least = null; // the least bad one, for when nothing is inside it
+  let least = null; // the lowest-scoring one, for when nothing is inside it
   for (let a = 0; a + lo + WINDOW <= n; a++) {
     for (let len = lo; len <= hi && a + len + WINDOW <= n; len++) {
       let d = 0;
@@ -162,7 +162,7 @@ export function findLoop(sig, lo, hi) {
       }
     }
   }
-  // Nothing long enough to loop: hand back the gameplay without the freeze.
+  // Nothing long enough to loop: return the play without the frozen end.
   return best ?? least ?? { d: 0, in: 0, out: n };
 }
 
@@ -190,7 +190,7 @@ async function finish() {
   frames = await Promise.all(frames);
 
   ui.note.textContent = "finding the loop";
-  // Yield once, so the text paints before the search blocks.
+  // Yield once, so the text is drawn before the search blocks.
   await new Promise((r) => setTimeout(r, 0));
   const cut = findLoop(
     sigs,
@@ -198,8 +198,8 @@ async function finish() {
     Math.round(MAX_LOOP * FPS),
   );
 
-  // The cut and not the take: a round ending at 3s leaves seven frozen seconds
-  // the take as a whole still counts as movement.
+  // The cut and not the whole recording: a round ending at 3s leaves seven
+  // frozen seconds the recording as a whole still counts as movement.
   const moved = motion(sigs.slice(cut.in, cut.out));
   if (waiting) {
     const hand = waiting;
@@ -228,8 +228,8 @@ async function showPreview(cut, moved) {
     ? "nothing moved: ten seconds of an idle game"
     : `${secs}s · ${bmp.length} frames · from ${(cut.in / FPS).toFixed(1)}s` +
       (pct < 90 ? ` · ${pct}% moving` : "");
-  // A frozen take is never worth keeping; anything above it is a judgement
-  // call, so the number is shown and the button stays live.
+  // A recording with no motion is never worth keeping; anything above that is a
+  // judgement call, so the number is shown and the button stays enabled.
   ui.keep.disabled = moved === 0;
   box.hidden = false;
   ui.note.textContent = "";
@@ -286,14 +286,14 @@ async function keep() {
   ui.note.textContent = `${file} · ./task media ${name}`;
 }
 
-// One take with nothing at the keyboard, for tools/record.js, handed back as
-// base64 over CDP. A frozen cut comes back as zip: null, so the driver reports
-// it rather than writing a still card.
+// One recording with nobody at the keyboard, for tools/record.js, returned as
+// base64 over CDP. A cut with no motion is returned as zip: null, so record.js
+// reports it rather than writing a still card.
 export async function auto() {
   if (state !== "idle") throw new Error(`recorder is ${state}`);
-  // A hint panel is up for its first 3.6 seconds and nothing here will press it
-  // away. hint() is the seconds it has left, and 0 for the games that raise
-  // none, which are most of them.
+  // A hint panel is up for its first 3.6 seconds and nothing here will dismiss
+  // it. hint() is the seconds it has left, and 0 for the games that show none,
+  // which are most of them.
   while (hint() > 0) await new Promise((r) => requestAnimationFrame(r));
   const take = new Promise((r) => (waiting = r));
   record();
@@ -310,8 +310,8 @@ export async function auto() {
   };
 }
 
-// Runtime.evaluate hands back JSON, so the zip travels as base64. FileReader
-// rather than btoa: a String.fromCharCode of a few MB blows the stack.
+// Runtime.evaluate returns JSON, so the zip is sent as base64. FileReader
+// rather than btoa: a String.fromCharCode of a few MB overflows the stack.
 function base64(bytes) {
   return new Promise((res, rej) => {
     const fr = new FileReader();
@@ -323,14 +323,14 @@ function base64(bytes) {
 
 function onKey(e) {
   if (e.key === "r" && state === "idle") record();
-  // Only from the countdown: once a take is running it runs out.
+  // Only during the countdown: once a recording starts it runs to the end.
   if (e.key === "Escape" && state === "lead") idle();
   if (e.key === "Escape" && state === "preview") ui.done();
 }
 
 function el(tag, props, parent) {
   const n = Object.assign(document.createElement(tag), props);
-  // Focus would hand a button the space and enter the game binds.
+  // Focus would give a button the space and enter keys the game binds.
   if (tag === "button") n.onpointerdown = (e) => e.preventDefault();
   parent?.append(n);
   return n;

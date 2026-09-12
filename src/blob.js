@@ -2,8 +2,8 @@
  * blob - a merge game in a pool. After Sobosuba's bar mode.
  *
  * alma's SoftBodies owns the positions: `sim.bodies` is the list every loop
- * here walks and `body.ent` is the way back to the Blob. Everything is in the
- * 1024 board, and ent.update() runs inside the 60Hz fixed step.
+ * here iterates and `body.ent` is the reference back to the Blob. Everything
+ * is in the 1024 board, and ent.update() runs inside the 60Hz fixed step.
  */
 
 import {
@@ -117,7 +117,7 @@ function buildPool(shape) {
   const chain = shape.chain.map(([x, y]) => [x + ox, y + oy]);
   const bounds = { x0: x0 + ox, x1: x1 + ox, y1: y1 + oy };
 
-  // Collision closes the chain with a lid above everything.
+  // Collision closes the chain along the top, above everything.
   const head = chain[0];
   const tail = chain[chain.length - 1];
   const poly = [[head[0], -480], ...chain, [tail[0], -480]];
@@ -222,8 +222,8 @@ const SHADOW_STEPS = 8;
 const FLASH = 0.3;
 
 // Both cooldowns are read off `age` rather than counted down, so a merge sets
-// them once and nothing ticks them. `body.scale` is the rail's squeeze, the
-// solver's own number, not Entity's `scale`, which stays at 1 here.
+// them once and nothing decrements them. `body.scale` is the rail's squeeze,
+// the solver's own number, not Entity's `scale`, which stays at 1 here.
 class Blob extends ent.Entity {
   constructor(index, cx, cy) {
     super();
@@ -287,7 +287,7 @@ class Blob extends ent.Entity {
     sim.setScale(b, Math.min(1, b.scale + GROW_RATE * ent.game.time));
   }
 
-  // The body path scaled about the centroid, set out onto the lit face.
+  // The body path scaled about the centroid, offset onto the lit face.
   spec(ctx, path, L, along, across, sl, sa, alpha) {
     const { cx, cy } = this.body;
     ctx.save();
@@ -363,7 +363,7 @@ class Blob extends ent.Entity {
     ctx.save();
     ctx.clip(path);
 
-    // Darkest first, scaled toward the lamp, so the flanks pinch in with range.
+    // Darkest first, scaled toward the lamp, so the sides narrow with distance.
     const far = llen - lo + rad; // lamp to the blob's far edge, along the axis
     const steps = [0, Math.max(3.5, 0.020 * span), 0.28 * span];
     for (let i = 0; i < steps.length; i++) {
@@ -500,8 +500,9 @@ function resample(b, path) {
   }
 }
 
-// Two arcs joined at their ends start with a waist, and this takes some of it
-// out. Positions only, with `ox` carried along, so it makes no velocity.
+// Two arcs joined at their ends start narrow in the middle, and this takes some
+// of that out. Positions only, with `ox` carried along, so it makes no
+// velocity.
 function round(b) {
   const { px, py, ox, oy } = sim;
   const s = b.start;
@@ -546,7 +547,7 @@ function merge(a, b, hitA, hitB) {
   const n = new Blob(a.tier.index + 1, cx, cy);
   resample(n.body, path);
   noteMerge(a, b, n);
-  // Paid by what came out, so a cascade is worth more than the same merges
+  // Scored by what came out, so a cascade is worth more than the same merges
   // spread over a minute.
   score.value += n.tier.value;
   // After noteMerge, whose squeeze sets the rest radius this rounds toward.
@@ -570,10 +571,10 @@ const FEED_COOL = 0.7;
 // Merges needed before a tier joins the deal, permanently.
 const DEAL_UNLOCK = [0, 1, 3, 6, 10, 15, 21];
 
-// The rail's own gravity: the aim's lean is the free pool's alone.
+// The rail's own gravity: the tilt from aiming applies to the free pool only.
 const RAIL_GRAVITY = { x: 0, y: GRAVITY };
 
-// Stands in for the wall, which is off for a bar blob or the mouth shoves the
+// Stands in for the wall, which is off for a bar blob or the mouth pushes the
 // queue out. Nothing else bounds a bar blob's x.
 function clampMouth(b, s) {
   const { l, r } = pool.mouth;
@@ -608,13 +609,14 @@ function solveRail(h) {
     const ba = rail[a];
     for (let c = a + 1; c < rail.length; c++) {
       const bc = rail[c];
-      // Two of a tier merge where they sit, and this gap would hold them apart.
+      // Two of a tier merge where they are, and this gap would hold them apart.
       if (ba.ent.tier === bc.ent.tier) continue;
       const dx = bc.cx - ba.cx;
       const d = Math.abs(dx);
       const want = ba.ent.radius + bc.ent.radius + 12;
       if (d >= want) continue;
-      // On the pair's approach, so a queue sliding inward as one is not fought.
+      // On the pair's approach, so a queue sliding inward as one is not
+      // resisted.
       const s = dx < 0 ? -1 : 1;
       const rate = (bc.mvx - ba.mvx) * s;
       const push = (600 * (want - d) - 18 * rate) * h * s;
@@ -826,7 +828,7 @@ function launch() {
   cancelAim();
   if (!b) return;
 
-  // A draw still inside the silhouette is not a shot; b2 gives up.
+  // A draw still inside the silhouette is not a shot; b2 cancels.
   if (drawn < b.radius) return;
 
   noteLeft(b);
@@ -894,7 +896,8 @@ class Arrow extends ent.Entity {
     const [sx, sy] = shot(); // the shot, not the draw: a lob is a short arrow
     const p = Math.min(1, Math.hypot(sx, sy) / AIM_MAX);
     const ang = (40 - (40 - 22) * p) * Math.PI / 180;
-    // Fixed length back down the shaft, held to half of it so it cannot eat it.
+    // Fixed length back down the shaft, limited to half of it so it cannot
+    // exceed it.
     const h = -Math.min(31, len / 2) / len;
     const hx = aimX * h;
     const hy = aimY * h;
@@ -977,7 +980,8 @@ class Shocks extends ent.Entity {
       const amp = 7 * (w.life / w.life0);
       if (amp < 0.2) continue;
       // A clipped blit costs its clip's bounding box, which for a ring is the
-      // whole disc, so a wave past the furthest corner is a full copy for none.
+      // whole disc, so a wave past the furthest corner is a full copy for
+      // nothing.
       const far = 1.4 * Math.max(
         Math.hypot(w.x, w.y),
         Math.hypot(SIZE - w.x, w.y),
@@ -1077,7 +1081,8 @@ class Danger extends ent.Entity {
     if (start >= 0) spans.push(l + start * DANGER_PITCH, r);
     this.fill = covered / n;
 
-    // Drains rather than resetting, or a jitter holds the loss off for ever.
+    // Drains rather than resetting, or a small fluctuation delays the loss
+    // indefinitely.
     this.held = gap * DANGER_PITCH < 2 * TIER_RADIUS
       ? Math.min(DANGER_HOLD, this.held + dt)
       : Math.max(0, this.held - dt * 2);
@@ -1130,7 +1135,7 @@ const FEED_PCM =
 sound.putPCM8("merge", MERGE_PCM, { rate: 8000, peak: 0.4641 });
 sound.putPCM8("feed", FEED_PCM, { rate: 8000, peak: 0.9327 });
 sound.setVolume(0.72);
-// A cascade plays a knock a merge, and four of them stacked reach the ceiling.
+// A cascade plays one knock a merge, and four at once reach the limiter.
 sound.setLimit(4);
 
 // A minor pentatonic degree a tier, tier 0 at A5 down to tier 15 at A2.
@@ -1145,7 +1150,8 @@ function panAt(x) {
   return Math.clamp((2 * (x - x0) / (x1 - x0) - 1) * 0.7, -1, 1);
 }
 
-// 840Hz is the band the knock reads at; volume rises 3 dB an octave downward.
+// 840Hz is the band the knock is heard in; volume rises 3 dB an octave
+// downward.
 function playMerge(index, x) {
   const f = tone(index);
   sound.play("merge", {
@@ -1248,7 +1254,7 @@ function paintPool(ctx, scale) {
   ctx.stroke(pool.line);
   ctx.restore();
 
-  // The flat face turns nowhere, so one tone; the light is in the edges.
+  // The flat face has no curvature, so one tone; the light is in the edges.
   ctx.strokeStyle = "#39414f";
   ctx.lineWidth = 12;
   ctx.stroke(pool.line);
@@ -1282,7 +1288,7 @@ function paintVignette(ctx) {
   ctx.fillRect(0, 0, SIZE, SIZE);
 }
 
-// Under the camera the lean and the recoil would carry the dark corners off the
+// Under the camera the lean and the recoil would move the dark corners off the
 // corners they darken.
 class Vignette extends ent.Entity {
   static screen = true;
@@ -1328,10 +1334,10 @@ function step(dt) {
   sim.measure();
   sim.repair(dt);
 
-  // Last before the substeps, so a point a shock kicked is solved this step.
+  // Last before the substeps, so a point a shock moved is solved this step.
   ent.update(dt);
 
-  // A bar blob keeps its own RAIL_GRAVITY and does not feel this.
+  // A bar blob keeps its own RAIL_GRAVITY and is not affected by this.
   sim.gravity.x = aimTilt();
   sim.step(dt);
 

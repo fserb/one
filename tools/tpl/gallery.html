@@ -14,11 +14,12 @@
 <link rel="icon" href="{{icon}}">
 <style>
 /* Pressing a card is a real navigation. Both documents opt in here, so the
-   browser morphs the card into that page's board instead of cutting. */
+   browser animates the card into that page's board instead of replacing one
+   page with the other. */
 @view-transition { navigation: auto; }
 * { box-sizing: border-box; }
 /* Reserved on the game's page too, so the viewport is the same width on both
-   sides of the transition and nothing slides sideways. */
+   sides of the transition and nothing shifts sideways. */
 html { background: #f2f0e5; scrollbar-gutter: stable; }
 body {
   margin: 0;
@@ -26,8 +27,8 @@ body {
   font: 14px/1.45 Verdana, sans-serif;
   color: #212123;
 }
-/* The same rules as a game's page, so the site's name holds still across the
-   transition. */
+/* The same rules as a game's page, so the site's name does not move across
+   the transition. */
 header {
   position: relative;
   display: flex;
@@ -76,15 +77,15 @@ a .arrow { visibility: visible; }
 @media (min-width: 1080px) { #cards { --n: 5; } }
 @media (min-width: 1340px) { #cards { --n: 6; } }
 
-/* A card is a picture, not a paragraph: dragging across the wall should not
-   leave half the titles highlighted. */
+/* A card is a picture, not a paragraph: dragging across the page should not
+   select half the titles. */
 li {
   flex: 0 0 var(--card);
   position: relative;
   aspect-ratio: 1;
   overflow: hidden;
   background: var(--bg);
-  color: var(--ink);
+  color: var(--fg);
   user-select: none;
   -webkit-user-select: none;
   -webkit-tap-highlight-color: transparent;
@@ -92,7 +93,7 @@ li {
 }
 li > a { position: absolute; inset: 0; color: inherit; text-decoration: none; }
 /* A game with no clip is flat --bg, which is the clip's own background too, so
-   the title reads either way. */
+   the title is readable either way. */
 li video {
   position: absolute;
   inset: 0;
@@ -100,8 +101,8 @@ li video {
   height: 100%;
   object-fit: cover;
 }
-/* Bottom left, since the board's own action tends to sit high and centred. */
-.tag {
+/* Bottom left, since what a game draws is usually higher up and centred. */
+.title {
   position: absolute;
   left: 0;
   bottom: 0;
@@ -110,7 +111,7 @@ li video {
   font: bold 10cqw/1.1 Verdana;
   letter-spacing: -.02em;
 }
-.tag time {
+.title time {
   margin-left: 2.8cqw;
   letter-spacing: 0;
   font: 4.5cqw Verdana, sans-serif;
@@ -118,8 +119,8 @@ li video {
   font-variant-numeric: tabular-nums;
 }
 
-/* Both pages carry these: the pseudo-elements belong to whichever document is
-   arriving, so each direction reads the destination's copy. */
+/* Both pages have these: the pseudo-elements belong to the document being
+   navigated to, so each direction uses the destination's copy. */
 ::view-transition-group(board) {
   animation-duration: 420ms;
   animation-timing-function: cubic-bezier(.4,0,.15,1);
@@ -139,30 +140,30 @@ li video {
 <script type="module">
 /*
  * The cards are plain links, so this page needs no script to work. What the
- * script adds is which card the browser hands to the game's page: the one being
- * left through takes `view-transition-name: board`, the name that page's board
- * carries. It has to be that card and no other, because a name has to be unique
- * in the document at the moment the snapshot is taken.
+ * script adds is which card the browser animates into the game's page: the one
+ * being navigated from gets `view-transition-name: board`, the name that page's
+ * board uses. It has to be that card and no other, because a name has to be
+ * unique in the document at the moment the snapshot is taken.
  */
 const list = document.getElementById("cards");
 
-// The one card under the pointer runs; the rest hold the frame they stopped on,
-// and one never pointed at holds its poster. A screen with no pointer has no
-// way to ask, so there the clips play while they are on screen.
+// The one card under the pointer plays; the rest stay on the frame they stopped
+// on, and one the pointer has never been over shows its poster. A screen with
+// no pointer cannot report hover, so there the clips play while on screen.
 const videos = [...list.querySelectorAll("video")];
 
 if (matchMedia("(hover: hover)").matches) {
   for (const v of videos) {
     const li = v.closest("li");
     // pointermove and not pointerenter: coming back from a game restores this
-    // page under a pointer that crossed no card's edge, so no enter is owed.
+    // page under a pointer that moved over no card's edge, so no enter fires.
     li.addEventListener("pointermove", () => {
       if (v.paused) v.play().catch(() => {});
     });
     li.addEventListener("pointerleave", () => v.pause());
   }
-  // A clip restored from the back/forward cache picks up where it was paused,
-  // which is playing if the card was pressed through.
+  // A clip restored from the back/forward cache resumes where it was, which is
+  // playing if that card was the one pressed.
   addEventListener("pageshow", () => videos.forEach((v) => v.pause()));
 } else {
   const onscreen = new IntersectionObserver((es) => {
@@ -191,7 +192,7 @@ addEventListener("pageswap", (e) => {
 });
 
 // A fresh load of this page has the card scrolled off the top, and the board
-// would fly to somewhere nobody can see.
+// would animate to a position off screen.
 addEventListener("pagereveal", (e) => {
   if (!e.viewTransition) return;
   const li = mark(globalThis.navigation?.activation?.from?.url);

@@ -5,7 +5,7 @@
  * is only allowed when it leaves some block able to grow.
  *
  * The boards are quads under a perspective divide rather than flat rects, each
- * holding a rotation about its vertical axis sprung towards a small resting
+ * with a rotation about its vertical axis, sprung towards a small resting
  * tilt. Every block position comes from interpolating the board's quad, so the
  * perspective is applied once, to the board, and the blocks inherit it.
  *
@@ -150,7 +150,7 @@ function isValidResize(block, boardIndex, dx, dy) {
 }
 
 // The largest growth this block has, down and right, or zeroes for none. One
-// cell wide or tall is not a merge, so the area has to beat 4.
+// cell wide or tall is not a merge, so the area has to be more than 4.
 function getMaxSquare(block) {
   let expand = { x: 0, y: 0 };
   let bestArea = 4;

@@ -4,7 +4,7 @@
  * Four thrusters, one an arrow key, each pushing the ship away from itself: the
  * one on top drives you down.
  *
- * No camera: the scene moves the world and not the view, so the ship sits at a
+ * No camera: the scene moves the world and not the view, so the ship stays at a
  * fixed 240 across and never above 200 down.
  *
  * The ship collides as two polygons, which turn: entity.js only turns a
@@ -28,11 +28,11 @@ which pushes you off it. x and c spin
 
 const W = 480;
 
-// Climbing faster than the slide only buys the pin at HOLD.
+// Climbing faster than the slide only moves the ship up to the pin at HOLD.
 const SCROLL = 50;
 const HOLD = 200;
 
-// Below this and the ship is gone. Obstacles cash out crossing it too.
+// Below this and the ship is gone. Obstacles score when they cross it too.
 const OUT = 500;
 
 // Pieces the scene keeps stocked, counting those still above the screen, and
@@ -61,7 +61,7 @@ const FLAME = 0xaa9936;
 const FLAME_DARK = 0x988946;
 
 let player = null;
-// Earned but not yet paid out.
+// Earned but not yet added to the score.
 let adds = 0;
 let dying = 0;
 
@@ -228,7 +228,7 @@ export function init() {
 
 export function update(dt) {
   // The slide is the only thing that moves a piece, so holding it also stops an
-  // obstacle cashing out.
+  // obstacle scoring.
   if (dying > 0) {
     dying -= dt;
     ent.update(dt);

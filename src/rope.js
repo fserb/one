@@ -3,7 +3,7 @@
  *
  * Each rope is a chain of rigid bodies and the cave generates itself ahead
  * along a wandering path. The only game that needs a physics engine, so the
- * only one paying for alma's rigid.js and the Box2D under it.
+ * only one that includes alma's rigid.js and the Box2D behind it.
  */
 
 import { ease, extra, vec } from "./alma/src/index.js";
@@ -77,7 +77,7 @@ const at = (b) => ({ x: b.x, y: b.y });
 
 export function init() {
   // The engine holds 32 worlds for the life of the page, so the round that
-  // just ended has to hand its slot back.
+  // just ended has to release its slot.
   world?.destroy();
   world = new World({ gravity: { x: 0, y: 9.8 } });
   world.presolve = presolve;
@@ -158,19 +158,19 @@ function createPlayer() {
   const density = 1 / 10;
 
   player.head = world.body({ x: 0, y: 0, type: "dynamic", data: "head" });
-  // A category of its own, which only the saw carries and only the saw's mask
-  // takes. box2d asks the broadphase for the sensor's mask against the shape's
-  // category before it asks whether the two collide, and a category of 0
-  // answers no to every query, so the saw would run straight over the head.
+  // A category of its own, which only the saw has and only the saw's mask
+  // includes. box2d asks the broadphase for the sensor's mask against the
+  // shape's category before it asks whether the two collide, and a category of
+  // 0 fails every query, so the saw would pass straight over the head.
   player.head.circle({ r: 0.6, density, filter: { category: 8, mask: 8 } });
 
   let last = player.head;
   for (let i = 0; i < 2; ++i) {
-    // box2d solves the length limit softly and hands the energy back, so
-    // undamped the tail keeps every jump and winds round the head at 5.2 turns
-    // a second. Nothing on the joint reaches that, since a tail spinning round
-    // the head is not changing its length; damping is what is left. At 3 it
-    // winds 1.48 turns a second and sits 1.30 metres off the head.
+    // box2d solves the length limit softly and returns the energy, so undamped
+    // the tail keeps every jump and winds round the head at 5.2 turns a second.
+    // Nothing on the joint constrains that, since a tail spinning round the
+    // head is not changing its length; damping is what is left. At 3 it winds
+    // 1.48 turns a second and stays 1.30 metres off the head.
     const o = world.body({ x: 0, y: i, type: "dynamic", damping: 3 });
     o.radius = 0.4 - i * 0.2;
     o.circle({
@@ -199,7 +199,7 @@ function createPlayer() {
       data: "hand",
     });
     // A small solid one that meets rope, a wide sensor for a click near the
-    // hand, and a tiny one for the pointer query. Only the solid one carries
+    // hand, and a tiny one for the pointer query. Only the solid one has
     // mass: a sensor weighs what its density says like any other shape, and the
     // 1.2 metre one at density 1 would make the hand 4.8 kg against 0.28. The
     // dense shape is built first, since box2d asserts on a massless body.
@@ -222,7 +222,7 @@ function createPlayer() {
 }
 
 // The hard limit and the give in one joint: below `max` a spring at `hertz`
-// pulls toward `length`, and `max` is where it stops paying out. At the default
+// pulls toward `length`, and `max` is where it stops extending. At the default
 // 0 hertz the spring is off and the joint is a rope, which is the tail.
 function link(a, b, { max, length = max, hertz, damping, localB }) {
   return world.distance(a, b, {
@@ -265,7 +265,7 @@ function addRopeTwo(a, b, close = true) {
   const ha = world.body(a);
   obj.push(ha);
 
-  // A hanging rope starts kicked to one side, so it does not balance upright.
+  // A hanging rope starts pushed to one side, so it does not balance upright.
   const dir = close ? 1 : Math.sign(2 * Math.random() - 1);
   for (let i = 0; i < parts; ++i) {
     const p = world.body({
@@ -361,7 +361,7 @@ function stepPath() {
     space[i] = opts[Math.floor(opts.length * Math.random())];
   }
 
-  // Never three horizontal in a row, then punch holes so the band is climbable.
+  // Never three horizontal in a row, then remove some so the band is climbable.
   let cut = Math.max(1, divs - 4);
   for (let i = 0; i < divs - 2; ++i) {
     if (space[i] === true && space[i + 1] === true && space[i + 2] === true) {
@@ -459,7 +459,7 @@ function armOf(hand) {
 
 // A hand holding something passes through rope, and so does one that just let
 // go: 300ms for the rope it left, 50ms for any other. Dropping the contact here
-// is also what holds the grab off, since it never reaches begin().
+// is also what prevents the grab, since it never reaches begin().
 function presolve(fa, fb) {
   const hit = pair(fa.body, fb.body, "hand", "rope");
   if (!hit) return true;
@@ -514,7 +514,7 @@ function updatePlayer(dt) {
   player.eye.x = lerp(player.eye.x, player.eyelook.x, 0.15);
   player.eye.y = lerp(player.eye.y, player.eyelook.y, 0.15);
 
-  // Holding nothing: stare straight ahead and start the fall clock.
+  // Holding nothing: look straight ahead and start the fall timer.
   if (player.arms[0].hold === null && player.arms[1].hold === null) {
     player.eyelook.x = player.eyelook.y = 0;
     player.looking = 5 + Math.random();
@@ -558,7 +558,7 @@ function updateCamera(dt) {
   camera.approach({ x: p.x, y: p.y, angle }, dt, { angle: 2.45 });
 }
 
-// The pull is backwards: the hand flies away from the drag, like a slingshot.
+// The pull is backwards: dragging one way throws the hand the other.
 function updateShot() {
   if (mouse.click) {
     const p = camera.toWorld(mouse.x, mouse.y);
@@ -578,8 +578,8 @@ function updateShot() {
     }
 
     // Metres, like every other point here: a click and a release inside one
-    // frame skips the press branch below, and a target in 1024-space would read
-    // as a 600 metre drag.
+    // frame skips the press branch below, and a target in 1024-space would be
+    // a 600 metre drag.
     if (hand !== null) shot = { hand, offset: 0, target: at(hand) };
   }
 
@@ -911,7 +911,7 @@ function renderEnemy(ctx) {
 
   const size = b * 2 / (TEETH - 1);
   const h = 1;
-  // Anchored to the world, so the teeth do not swim as the view moves.
+  // Anchored to the world, so the teeth do not drift as the view moves.
   const dd = size * (-enemyPhase / TEETH_PHASE) - (adv % size);
   const a0 = vec.add(vec.add(p0, vec.mul(other, h / 3)), vec.mul(dir, dd));
   const b0 = vec.add(p1, vec.mul(other, h / 3));

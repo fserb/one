@@ -1,22 +1,23 @@
 /*
- * sfxr.js - Tomas Pettersson's sfxr, the synth behind the entity games.
+ * sfxr.js - Tomas Pettersson's sfxr, the synth twelve of the games use.
  *
- * Down the line sfxr (2007) -> Mike Wiering (2009) -> as3fxr (2010). Seven
- * generators roll a parameter set, and render() turns one into samples.
+ * Derived from sfxr (2007) -> Mike Wiering (2009) -> as3fxr (2010). Seven
+ * generators produce a parameter set at random, and render() turns one into
+ * samples.
  *
  * Not a second general-purpose synth beside fsfx: one fixed voice, an
  * oscillator, an envelope, a slide, two filters and a phaser, with randomisers
- * tuned to land on arcade noises. What makes it sound like itself is what fsfx
- * has no module for: the noise is a 32-entry buffer refilled once a period, so
- * it is pitched rather than white; the period is a whole number of samples, so
- * the pitch crunches as it climbs; and eight sub-samples average into every
- * output sample.
+ * tuned to produce arcade sounds. What gives it its own sound is what fsfx has
+ * no module for: the noise is a 32-entry buffer refilled once a period, so it
+ * is pitched rather than white; the period is a whole number of samples, so the
+ * pitch steps as it rises; and eight sub-samples are averaged into every output
+ * sample.
  *
- * A generator returns a whole options set off its seed, and spreading it leaves
- * every field open to override, so a rolled sound and a hand-built one are the
- * same kind of thing. `vol` sets masterVolume to 2v, and render() squares that.
- * A key sfxr does not have throws. The game names the generators it wants, so
- * the rest stay out of its bundle.
+ * A generator returns a whole options set from its seed, and spreading it
+ * leaves every field open to override, so a generated sound and a hand-built
+ * one are the same kind of thing. `vol` sets masterVolume to 2v, and render()
+ * squares that. A key sfxr does not have throws. The game names the generators
+ * it uses, so the rest stay out of its bundle.
  *
  * ```js
  * sound.voice("boom", { ...explosion(1238), vol: 0.2 });
@@ -28,23 +29,23 @@
  * }, SAMPLE_RATE);
  * ```
  *
- * `sfxr` is an fsfx stage as well, so a voice can go on through fsfx's filters
- * and delays. It does not resample, so the Track has to run at SAMPLE_RATE and
- * it throws when the Track does not. The generator runs before the track rather
- * than riding in as a parameter, since fsfx's State reads any function among
- * its parameters as a signal of time.
+ * `sfxr` is an fsfx stage as well, so a voice can be processed further by
+ * fsfx's filters and delays. It does not resample, so the Track has to run at
+ * SAMPLE_RATE and it throws when the Track does not. The generator runs before
+ * the track rather than being passed in as a parameter, since fsfx's State
+ * treats any function among its parameters as a time-varying signal.
  *
  * Two things differ from as3fxr: it writes 16-bit shorts where this keeps the
- * floats Web Audio wants, and it filled the noise buffer from an unseeded
+ * floats Web Audio uses, and it filled the noise buffer from an unseeded
  * Math.random(), so a seeded explosion came out different every render. Here
- * `seed` starts a second stream for the noise and fixes the whole sound.
+ * `seed` starts a second stream for the noise, so the whole sound repeats.
  */
 
 // The constants below are tuned for this rate. alma's Audio.put() takes it, so
 // the samples resample into whatever the AudioContext is running at.
 export const SAMPLE_RATE = 44100;
 
-// Anything this long is a runaway parameter set, not a sound effect.
+// Anything this long is a broken parameter set, not a sound effect.
 const MAX_SAMPLES = SAMPLE_RATE * 30;
 
 const MAX_INT = 2147483647;
@@ -58,8 +59,8 @@ function rng(seed) {
   };
 }
 
-// Every field sfxr has, at its rest value, and the whole set of keys an options
-// object is allowed to override.
+// Every field sfxr has, at its default value, and the whole set of keys an
+// options object is allowed to override.
 const DEFAULTS = {
   waveType: 0, // 0 square, 1 saw, 2 sine, 3 noise
   masterVolume: 0.5,
@@ -97,7 +98,7 @@ const DEFAULTS = {
   hpFilterCutoffSweep: 0,
 };
 
-// `seed` rides along for render() to start the noise from.
+// `seed` is kept for render() to start the noise from.
 export function coin(seed) {
   const p = { ...DEFAULTS, seed };
   const r = rng(seed);
@@ -292,8 +293,8 @@ export function fromString(s) {
 // To mono Float32 at SAMPLE_RATE. One outer step is one output sample, built
 // from eight sub-samples of the oscillator.
 export function render(opts = {}) {
-  // Normalising the envelope times below writes to the set, and params() hands
-  // back one nobody else holds.
+  // Normalising the envelope times below writes to the set, and params()
+  // returns a copy nothing else references.
   const p = params(opts);
   const seed = opts.seed;
 
@@ -301,7 +302,7 @@ export function render(opts = {}) {
   let squareDuty = 0, dutySweep = 0;
   let changeAmount, changeTime, changeLimit;
 
-  // Everything reset(false) touches, which a repeat re-rolls.
+  // Everything reset(false) changes, which a repeat generates again.
   const partial = () => {
     period = 100 / (p.startFrequency * p.startFrequency + 0.001);
     maxPeriod = 100 / (p.minFrequency * p.minFrequency + 0.001);
@@ -376,7 +377,7 @@ export function render(opts = {}) {
   let phaserInt = 0;
   const phaserBuffer = new Float32Array(1024);
 
-  // A second stream off the same seed. The generator above drew from the first.
+  // A second stream from the same seed. The generator above used the first.
   const noise = rng(seed);
   const noiseBuffer = new Float32Array(32);
   for (let i = 0; i < 32; ++i) noiseBuffer[i] = noise() * 2 - 1;
@@ -483,7 +484,7 @@ export function render(opts = {}) {
           sample = 1 - (phase / periodTemp) * 2;
           break;
         case 2: {
-          // A cheap sine: parabola, then one correction pass.
+          // An approximate sine: parabola, then one correction pass.
           let pos = phase / periodTemp;
           pos = pos > 0.5 ? (pos - 1) * 6.28318531 : pos * 6.28318531;
           sample = pos < 0
@@ -495,9 +496,9 @@ export function render(opts = {}) {
           break;
         }
         case 3:
-          // A repeat cuts the period short without touching the phase, so the
-          // index runs past the buffer for one period. The original read
-          // whatever sat after the array; this holds the last entry.
+          // A repeat cuts the period short without changing the phase, so the
+          // index goes past the end of the buffer for one period. The original
+          // read whatever was after the array; this repeats the last entry.
           sample = noiseBuffer[Math.min(31, Math.trunc(phase * 32 / periodTemp))];
           break;
       }
@@ -545,8 +546,8 @@ export function render(opts = {}) {
  *
  * sfxr counts a period in whole samples rather than in Hz, so the same
  * parameters at another rate are another pitch and another length. Rather than
- * resample, which would put the stage and voice() on different sounds, it asks
- * the Track to run at 44100.
+ * resample, which would make the stage and voice() produce different sounds, it
+ * requires the Track to run at 44100.
  */
 export function sfxr(block, state) {
   state.param("amp", 1);
@@ -554,9 +555,9 @@ export function sfxr(block, state) {
     throw new Error(`sfxr: track runs at ${state.SR}, not ${SAMPLE_RATE}`);
   }
 
-  // What to pick out of the State, which carries the Track's own keys as well.
-  // Built here rather than at module scope: an Object.keys() call up there is
-  // one esbuild will not drop, and it holds DEFAULTS in every fsfx bundle.
+  // What to read out of the State, which has the Track's own keys as well.
+  // Built here rather than at module scope: an Object.keys() call there is one
+  // esbuild will not remove, and it keeps DEFAULTS in every fsfx bundle.
   const opts = {};
   for (const k of [...Object.keys(DEFAULTS), "seed", "vol"]) {
     if (state.out[k] !== undefined) opts[k] = state.out[k];

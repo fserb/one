@@ -13,7 +13,7 @@ function build {
 }
 
 # Where a bundle's bytes went. With no game named, every game and then every
-# module multiplied by the games carrying it.
+# module multiplied by the number of games that include it.
 function size {
   deno run -A tools/size.js "$@"
 }
@@ -25,10 +25,10 @@ function media {
   deno run -A tools/media.js "$@"
 }
 
-# Record a take of each game with nothing at the keyboard, and turn the takes
-# into cards. With no name: every game that has no card yet, since a card
-# recorded by hand beats one nobody played. A game that only moves when it is
-# played comes back named as one to record by hand.
+# Record each game with nobody at the keyboard, and turn the recordings into
+# cards. With no name: every game that has no card yet, since a card recorded by
+# hand is better than one nobody played. A game that only moves when it is
+# played is listed at the end as one to record by hand.
 function record {
   deno run -A tools/record.js "$@"
   media

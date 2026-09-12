@@ -1,22 +1,22 @@
 /*
  * musician - "Street Musician".
  *
- * The idea the whole game hangs off: `bpm` is both the tempo and the speed in
+ * The idea the whole game is built on: `bpm` is both the tempo and the speed in
  * px a second. A grid step is a sixteenth, 60/(4*bpm) seconds, so a step is
  * 15px wide at every tempo and notes stay 75px apart however fast it gets. Only
  * the speed ramps.
  *
- * A throw is a lob arriving at the top of its own arc rather than a straight
- * shot up through the lane: an arc is readable out of the corner of your eye
- * where a straight line at constant speed is not.
+ * A throw is an arc arriving at its own apex rather than a straight shot up
+ * through the lane: an arc is easier to see in peripheral vision than a
+ * straight line at constant speed.
  *
- * The tempo climbs on notes gone by and not on score and combo: a tempo off
- * score runs away and falls back on every drop, so failing makes it easier.
+ * The tempo rises with notes played and not with score and combo: a tempo from
+ * score accelerates and drops back on every miss, so failing makes it easier.
  *
  * The pointer places the busker and a click plays the note, the same gesture on
  * purpose: from one pointer the press that begins a drag is the same edge as
- * the tap that strikes, and the pointer names the position outright, so a tap
- * lands where the busker already is. Splitting the screen in two does not work,
+ * the tap that strikes, and the pointer gives the position directly, so a tap
+ * plays where the busker already is. Splitting the screen in two does not work,
  * because alma's Input averages every pointer into one.
  */
 
@@ -76,9 +76,9 @@ const BPM0 = 60;
 const PER_NOTE = 2.4;
 const DENSITY = 0.2;
 const TICK = 4; // four sixteenths between ticks, so the tick is the beat
-// WINDOW is the two 20-unit boxes overlapping and PAY is dead centre. The run
-// is the tempo too, so an uncapped combo in the coin as well makes the score
-// the square of the game.
+// WINDOW is the two 20-unit boxes overlapping and PAY is exactly centred. The
+// run is the tempo too, so an uncapped combo in the coin as well would make the
+// score the square of the game.
 const WINDOW = 20;
 const PAY = 9;
 const COMBO_CAP = 9;
@@ -106,7 +106,7 @@ const PINK = 0xde65e2;
 const YELLOW = 0xf7e26b;
 const GREEN = 0x44891a;
 const BLACK = 0x000000;
-// The one colour outside that palette: it splits instrument from street.
+// The one colour outside that palette: it separates instrument from street.
 const LANE_BG = "#383838";
 
 // 0 body, 1 hat, 2 instrument, 3 face.
@@ -154,8 +154,8 @@ let step = 0;
 let steps = 0;
 let strike = false;
 let dying = 0;
-// Only a pointer that has moved takes over, so a parked mouse does not drag the
-// busker on frame one. A held key takes it back.
+// Only a pointer that has moved takes over, so a stationary mouse does not move
+// the busker on frame one. A held key takes it back.
 let aiming = false;
 let lastx = null;
 
@@ -374,7 +374,8 @@ class Player extends ent.Entity {
   }
 }
 
-// Scenery, touching nothing, and the only thing on screen that says street.
+// Scenery, colliding with nothing, and the only thing on screen that shows
+// this is a street.
 class Hat extends ent.Entity {
   constructor() {
     super();

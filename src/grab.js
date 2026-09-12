@@ -2,7 +2,8 @@
  * grab - "the name of the game is grab". Ludum Dare 32, April 2015; the weapon
  * is Blitzcrank's hook.
  *
- * The floor is one of four colours and the ghost wearing it is off the board.
+ * The floor is one of four colours and the ghost of that colour is off the
+ * board.
  * Hook one of the other three and reel it in: its colour becomes the floor, it
  * leaves, and the old floor colour walks back on.
  *
@@ -30,15 +31,15 @@ grab a ghost, its colour becomes the floor
 const BLACK = 0x010101;
 const WHITE = 0xfafafa;
 
-// Named as the write-up named them, which is not what the eye calls two of
-// them: its `cyan` is this purple and its `purple` this pink.
+// Named as the write-up named them, which is not what two of them look like:
+// its `cyan` is this purple and its `purple` this pink.
 const YELLOW = 0xffdc3b;
 const PINK = 0xff54b1;
 const PURPLE = 0xaa00ff;
 const BLUE = 0x00aaff;
 const FLOORS = [YELLOW, PURPLE, BLUE, PINK];
 
-// The 480 box the game thinks in.
+// The 480 box the game is written in.
 const W = 480;
 // How far off each wall the ghosts start, and where the player's wall is.
 const EDGE = 10;
@@ -46,7 +47,7 @@ const EDGE = 10;
 const PR = 16;
 const PUSH = 1700;
 const DRAG = 5;
-// The hitstop the death holds for, and how fast the black quad's corners fly.
+// The hitstop the death holds for, and how fast the black quad's corners move.
 const HITSTOP = 0.2;
 const FLY = 5000;
 
@@ -117,11 +118,11 @@ class Player extends ent.Entity {
       if (l > 0) this.accelerate(mx * PUSH / l, my * PUSH / l);
       this.accelerate(-this.vel.x * DRAG, -this.vel.y * DRAG);
     } else {
-      // Throwing roots you: the hook is your whole defence while it is out.
+      // Throwing holds you still: the hook is your whole defence while out.
       this.vel.x = this.vel.y = 0;
     }
 
-    // The walls take the speed you carried into them and hand it back.
+    // The walls return the speed you hit them with.
     if (this.pos.x <= EDGE) {
       this.pos.x = EDGE;
       this.vel.x = Math.abs(this.vel.x);
@@ -139,7 +140,7 @@ class Player extends ent.Entity {
       this.vel.y = -Math.abs(this.vel.y);
     }
 
-    // Reeling a ghost in drags you through everything else untouched.
+    // Reeling a ghost in moves you through everything else without collision.
     if (hook.action === REEL) return;
     if (this.hitGroup(Bullet) !== null) return this.die();
     for (const g of ent.get(Ghost)) {
@@ -166,14 +167,14 @@ class Hook extends ent.Entity {
     this.arm = 0;
     this.action = IDLE;
     this.target = null;
-    // A hit shape does not turn with `angle`, so the circle sits on the
-    // entity's origin and draw() puts the claw there.
+    // A hit shape does not turn with `angle`, so the circle is on the entity's
+    // origin and draw() puts the claw there.
     this.hitCircle(CLAW);
     this.draw();
   }
 
-  // The claw is the origin and the arm hangs back off it, so size() holds the
-  // drawing's centre still as the arm changes length.
+  // The claw is the origin and the arm extends back from it, so size() keeps
+  // the drawing's centre fixed as the arm changes length.
   draw() {
     this.gfx.clear()
       .size(2 * CLAW, 2 * Math.max(10, this.arm))
@@ -237,7 +238,7 @@ class Hook extends ent.Entity {
       }
     }
 
-    // The claw rides 11 out plus the arm's length, so the arm's far end stays
+    // The claw is 11 out plus the arm's length, so the arm's far end stays
     // 11 out whatever the arm does.
     this.pos.x = p.x + (11 + this.arm) * Math.cos(this.angle - Math.PI / 2);
     this.pos.y = p.y + (11 + this.arm) * Math.sin(this.angle - Math.PI / 2);
@@ -257,8 +258,8 @@ class Bullet extends ent.Entity {
   }
 
   update() {
-    // Pink's and purple's are steered by hand; only the fire-and-forget ones
-    // leave the board.
+    // Pink's and purple's are steered directly; only the ones fired and left
+    // alone leave the board.
     if (this.color === PINK || this.color === PURPLE) return;
     const { x, y } = this.pos;
     if (x < 0 || x > W || y < 0 || y > W) this.remove();
@@ -310,7 +311,7 @@ class Ghost extends ent.Entity {
     wrap(this.pos);
   }
 
-  // Pink holds KEEP away, either side, and swings its bullet around itself on
+  // Pink stays KEEP away, either side, and swings its bullet around itself on
   // an arm the same length.
   orbit() {
     const { time } = ent.game;
@@ -381,7 +382,7 @@ class Ghost extends ent.Entity {
   }
 
   // Blue watches the hook: every throw makes it step DODGE sideways and shoot
-  // back, and it does not sit out its grace period first.
+  // back, and it does not wait out its grace period first.
   answer() {
     if (this.seen !== hook.action) {
       this.seen = hook.action;
@@ -403,10 +404,10 @@ class Ghost extends ent.Entity {
 }
 
 /*
- * A black 20x20 square on the spot where you died, whose four corners then fly
+ * A black 20x20 square on the spot where you died, whose four corners then move
  * to the four corners of the board. One at a time and each waiting for the one
  * before it: all four at once would expand the square, where one at a time
- * drags the black out of the body.
+ * stretches the black out of the shape.
  */
 // [corner, x, y]: top-left, bottom-left, top-right, bottom-right.
 const SWEEP = [[0, 0, 0], [3, 0, W], [1, W, 0], [2, W, W]];
@@ -437,8 +438,8 @@ class EndGame extends ent.Entity {
     if (this.stage === SWEEP.length) gameOver({ score: true });
   }
 
-  // size() pins the box to the whole board, so the corners moving inside it do
-  // not drag the drawing's own centre with them.
+  // size() fixes the box to the whole board, so the corners moving inside it do
+  // not move the drawing's own centre with them.
   draw() {
     const [a, b, c, d] = this.p;
     this.gfx.clear().size(W, W, W / 2, W / 2).fill(BLACK)
@@ -446,7 +447,7 @@ class EndGame extends ent.Entity {
   }
 }
 
-// A bar 5 across and 10 long out of the hook's hub at `a`.
+// A bar 5 across and 10 long out of the hook's centre at `a`.
 function prong(gfx, a) {
   const vx = Math.cos(a);
   const vy = Math.sin(a);
@@ -508,7 +509,7 @@ export function init() {
   player = new Player();
   hook = new Hook();
 
-  // One per corner; the one wearing the floor's colour leaves on frame one.
+  // One per corner; the one with the floor's colour leaves on frame one.
   const corners = [
     [YELLOW, EDGE, EDGE],
     [PURPLE, W - EDGE, EDGE],

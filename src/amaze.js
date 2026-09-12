@@ -5,12 +5,12 @@
  * wall, so the maze is two mazes at once and the game is choosing which wall.
  *
  * The maze is a randomised Prim's from the middle, where the four ways out of a
- * new cell are tried in an order set by which way the cell lies from the
- * centre. That is what makes the corridors run around the centre rather than at
- * it.
+ * new cell are tried in an order set by which direction the cell is from the
+ * centre. That is what makes the corridors run around the centre rather than
+ * towards it.
  *
- * The level change is on a clock rather than a key press, because a modal
- * mid-round is a place where input does nothing. The jump is the tap and
+ * The level change is on a timer rather than a key press, because a modal
+ * mid-round is a moment where input does nothing. The jump is the tap and
  * walking is the hold, since one pointer has to do both.
  */
 
@@ -32,7 +32,7 @@ tap to jump one wall, hold to walk
   date: "2014-04-02",
 };
 
-// The 480 box the game thinks in.
+// The 480 box the game is written in.
 const W = 480;
 
 // 15 cells of 30 is 450, leaving a margin either side.
@@ -129,10 +129,10 @@ const cj = (y) => Math.round((y - MY) / CELL - 0.5);
  * up, has not been reached; the frontier is every unreached cell next to a
  * reached one.
  *
- * The order is the interesting part. It depends on which way the cell lies from
- * the centre: the two perpendicular directions first, then away, then back
+ * The order is the part that matters. It depends on which direction the cell is
+ * from the centre: the two perpendicular directions first, then away, then back
  * toward the middle, which runs the corridors around the centre rather than
- * spoking out of it.
+ * radiating out of it.
  */
 function generate() {
   map.fill(15);
@@ -302,7 +302,7 @@ class Player extends ent.Entity {
       if (d !== 0) this.moveTo(d);
 
       // Per axis, in two separate tests: without that, turning into a wall
-      // mid-step leaves the old target carrying you sideways for ever.
+      // mid-step leaves the old target moving you sideways indefinitely.
       const across = d === E_W || d === W_W;
       const along = d === N_W || d === S_W;
       if (

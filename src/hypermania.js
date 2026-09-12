@@ -1,17 +1,17 @@
 /*
  * hypermania.
  *
- * Megamania on a fuse. The orange bar is both clock and magazine: it drains on
- * its own, every shot takes half a point off it, and at zero the ship goes up.
- * Clearing a wave spends what is left for score, two points per energy point
- * per wave already cleared, then refills it. The score is what you did not
- * spend clearing.
+ * Megamania on a time limit. The orange bar is both the timer and the
+ * ammunition: it drains on its own, every shot takes half a point off it, and
+ * at zero the ship is destroyed. Clearing a wave spends what is left for score,
+ * two points per energy point per wave already cleared, then refills it. The
+ * score is what you did not spend clearing.
  *
  * Eight formations rotate, four crossing and four falling, and every eight
  * waves a timing pattern runs the formation in bursts of up to three times
  * speed. Hits chain: a kill is worth (waves + 1) times the length of its chain.
  *
- * The shooter is drawn at random from the enemies on screen: if each bullet
+ * The shooter is chosen at random from the enemies on screen: if each bullet
  * came down your own column there would be nothing to do but dodge.
  */
 
@@ -95,8 +95,8 @@ sound.voice("dead", { ...explosion(1344), vol: 0.2 });
 sound.voice("enemyshot", { ...laser(1403), vol: 0.2 });
 sound.voice("boom", { ...explosion(1345), vol: 0.2 });
 
-// `across` spawns w by h off the left edge and walks them right; the other
-// spawns a column every dx and walks them down. At t == 0, `xmove(row, t)` is
+// `across` spawns w by h off the left edge and moves them right; the other
+// spawns a column every dx and moves them down. At t == 0, `xmove(row, t)` is
 // not a speed but that row's spawn offset, which is what spawn() reads it for.
 const STRATS = [
   {
@@ -156,7 +156,7 @@ const STRATS = [
 
 // Extra substeps the formation takes this frame, on top of its ten. A wave runs
 // a tenth of a step a substep, so 20 is three times speed and -2 is four fifths
-// of it, and the formation's own clock runs at the same rate.
+// of it, and the formation's own timer runs at the same rate.
 const TICKERS = [
   () => 0,
   (t) => Math.trunc(t) % 2 === 0 ? 0 : 10,
@@ -174,7 +174,7 @@ let energy = 0;
 let wave = null;
 let waves = 0;
 let player = null;
-// Earned but not yet shown: the bar hands it over a pop at a time.
+// Earned but not yet shown: the bar releases it a pop at a time.
 let buffer = 0;
 let dying = 0;
 
@@ -425,7 +425,7 @@ class Enemy extends ent.Entity {
 // it moves them itself: an enemy has no velocity, only a place in the pattern.
 class Wave extends ent.Entity {
   // Not begin(): the wave is built and pushed off its entry edge in the same
-  // breath, and begin() runs a frame later.
+  // call, and begin() runs a frame later.
   constructor() {
     super();
     this.strat = STRATS[waves % STRATS.length];
@@ -456,7 +456,7 @@ class Wave extends ent.Entity {
       }
     }
 
-    // Walked back off the entry edge, so the wave arrives rather than appears.
+    // Moved back off the entry edge, so the wave arrives rather than appears.
     if (across) {
       const max = Math.max(...this.all.map((e) => e.pos.x));
       if (max > 0) { for (const e of this.all) e.pos.x -= max + 100; }
@@ -510,8 +510,8 @@ class Wave extends ent.Entity {
   }
 }
 
-// Mirrored left to right, rerolled until it has enough lit pixels to read at 30
-// units across. The count is how many particles it comes apart into.
+// Mirrored left to right, generated again until it has enough set pixels to be
+// legible at 30 units across. The count is how many particles it comes apart into.
 function pattern() {
   for (;;) {
     const pat = new Array(COLS * ROWS);

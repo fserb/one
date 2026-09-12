@@ -3,7 +3,7 @@
  *
  * You move one cell a turn, and so does every tentacle, but a tentacle leaves
  * its body behind and its body is wall. Crates are the only thing you can move,
- * and a cornered tentacle tears one apart to get through.
+ * and a cornered tentacle destroys one to get through.
  */
 
 import { ease, extra } from "./alma/src/index.js";
@@ -182,8 +182,8 @@ function placeCrate(free) {
   for (const c of free) {
     const cells = shape.map(([dx, dy]) => get(c.x + dx, c.y + dy));
     if (cells.some((v) => v === null || v.entity !== null)) continue;
-    // One object shared by every cell, so the shape moves as one: they read the
-    // same `req`, and each cell's move is legal because the one in front of it
+    // One object shared by every cell, so the shape moves as one: they share
+    // the same `req`, and each cell's move is legal because the one in front of it
     // is the same object, moving too.
     const crate = { crate: true, req: 0, dx: 0, dy: 0 };
     for (const v of cells) v.entity = crate;
@@ -206,7 +206,7 @@ function spawn() {
 
 // MOVEMENT ///
 
-// A crate cannot shove another crate: doMove cancels the chain if it tries.
+// A crate cannot push another crate: doMove cancels the chain if it tries.
 function doPush() {
   const c = cellOf(player);
   if (player.req === 0) return;
@@ -371,7 +371,7 @@ export function render(ctx) {
   renderPlayer(ctx);
 }
 
-// No gap, so a crate reads as one slab, then a seam over every inner edge.
+// No gap, so crates are drawn as one shape, then a line over every inner edge.
 function renderCrates(ctx) {
   ctx.fillStyle = CRATE;
   for (const c of grid) {

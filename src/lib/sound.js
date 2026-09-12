@@ -1,14 +1,14 @@
 /*
- * sound.js - sound effects, synthesised at load time or carried as samples.
+ * sound.js - sound effects, synthesised at load time or given as samples.
  *
  * A game imports this itself and defines its sounds at module scope. Nothing
- * here touches the DOM until arm() catches the first gesture, so the build can
+ * here uses the DOM until arm() gets the first gesture, so the build can
  * import a game to read its `meta`. A silent game leaves op.sound null and the
  * bundler drops fsfx and alma's Audio.
  *
- * A Track is callable: one call per stage, each processing what the last left.
- * Import the stages by name; handing the callback the whole `fsfx` namespace
- * would pin every module in the directory.
+ * A Track is callable: one call per stage, each processing what the last one
+ * produced. Import the stages by name; passing the callback the whole `fsfx`
+ * namespace would keep every module in the directory in the bundle.
  *
  * ```js
  * import { ADSR, biquad, envelope, linear, oscillator } from "./lib/fsfx/fsfx.js";
@@ -35,12 +35,12 @@ const SAMPLE_RATE = 48000;
 let audio = null;
 let muted = true; // nothing rendered yet, so play() has nothing to play
 let hasSound = false;
-// Asked for before there is an Audio to ask, so they are held until unlock().
+// Set before there is an Audio to set them on, so they are kept until unlock().
 let volume = 1;
 let limit = 0;
 
 // Each entry is the call that will put a sound into the Audio once there is
-// one. A closure rather than the samples, so putPCM8() hands over the base64
+// one. A closure rather than the samples, so putPCM8() passes on the base64
 // that alma already decodes rather than restating that decode.
 const pending = new Map();
 
@@ -66,8 +66,8 @@ function unlock() {
   flush();
 }
 
-// An AudioContext starts only under a gesture, and Safari wants the resume()
-// inside the handler, so this cannot ride the frame loop.
+// An AudioContext starts only under a gesture, and Safari needs the resume()
+// inside the handler, so this cannot run from the frame loop.
 export function arm(target) {
   const stop = new AbortController();
   const opts = { capture: true, signal: stop.signal };
@@ -80,15 +80,15 @@ export function arm(target) {
 }
 
 // `rate` is here for sfxr, which counts a period in whole samples and so only
-// renders right on a track at its own 44100.
+// renders correctly on a track at its own 44100.
 export function make(name, duration, func, rate = SAMPLE_RATE) {
   const track = new Track(duration, rate, 1);
   func(track);
   put(name, track.build(), rate);
 }
 
-// One sfxr voice, played as it comes out; alma resamples its 44100. A voice
-// that wants an fsfx stage after it goes through make() at that rate instead.
+// One sfxr voice, played as rendered; alma resamples its 44100. A voice that
+// needs an fsfx stage after it goes through make() at that rate instead.
 export function voice(name, opts) {
   put(name, sfxrRender(opts), SFXR_RATE);
 }
@@ -99,14 +99,14 @@ export function put(name, samples, rate = SAMPLE_RATE) {
 }
 
 // 8-bit unsigned PCM in base64, one byte a frame and 128 for silence. `peak` is
-// what it was normalised by, so it comes back at its own level.
+// what it was normalised by, so it is restored to its original level.
 export function putPCM8(name, base64, { rate = SAMPLE_RATE, peak = 1 } = {}) {
   add(name, () => audio.putPCM8(name, base64, { rate, peak }));
 }
 
 // `opts` goes straight to alma's Playback: detune, delay, rate, volume, pan.
 // `ready` and not merely built: a suspended context has a stopped clock, and a
-// frame of sounds scheduled into one all land together the moment it starts.
+// frame of sounds scheduled into one all play together the moment it starts.
 export function play(name, opts) {
   if (muted || !audio?.ready) return;
   audio.play(name, opts);
@@ -117,8 +117,8 @@ export function setVolume(v) {
   if (audio) audio.volume = v;
 }
 
-// A soft ceiling on the sum of what is playing: below it the output is the
-// input, above it bends to 1.0. 0 is a straight wire.
+// A limit on the sum of what is playing: below it the output is the input,
+// above it the output curves to 1.0. 0 turns the limiter off.
 export function setLimit(v) {
   limit = v;
   if (audio) audio.limit = v;

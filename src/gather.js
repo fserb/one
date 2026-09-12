@@ -1,20 +1,20 @@
 /*
  * gather - the sketch the full Gather (fserb.com/vault/gather) grew out of.
  *
- * The cursor walks onto a box and drags a chain behind it, one box per press,
- * and the chain cashes in the moment it holds two or more colours in equal
+ * The cursor moves onto a box and extends a chain behind it, one box per press,
+ * and the chain scores the moment it holds two or more colours in equal
  * numbers, for `colours * each * (each - 1) * (colours - 1)`.
  *
- * The clock is where you stand: the scroll crawls while your lowest cursor is
- * in the bottom half and multiplies by up to 23 as it climbs, and again by up
+ * The scroll speed is set by where you are: it is slow while your lowest cursor
+ * is in the bottom half and multiplies by up to 23 as it rises, and again by up
  * to 6 once the top of the chain passes the second line.
  *
  * The first round opens on a scripted board that resets the score. Dying inside
- * it replays it; finishing retires it.
+ * it replays it; finishing means it is not shown again.
  *
  * Undo waits for the pointer to lift, and a lift that turned out to be a swipe
- * undoes nothing: b1 carries the click, so undoing on the press would unravel
- * the chain before the swipe arrived.
+ * undoes nothing: b1 is the click, so undoing on the press would remove the
+ * chain before the swipe arrived.
  */
 
 import * as ent from "./lib/entity.js";
@@ -46,13 +46,13 @@ const CELL = 38;
 const X0 = 88;
 const Y0 = 73;
 
-// The lines the board hangs from and ends on, and the depth a cursor dies at.
+// The lines the board starts from and ends on, and the depth a cursor dies at.
 const HEAD = 54;
 const FOOT = 472;
 const DIE = 454;
 
 // TRAY_Y is a centre and not a top edge, so a tray of one row and a tray of
-// five sit on the same middle rather than hanging from the same ceiling.
+// five are centred on the same line rather than aligned to the same top edge.
 const TRAY_R = 420;
 const TRAY_Y = HEAD / 2;
 const FLY = 0.3;
@@ -203,7 +203,7 @@ class Piece extends ent.Entity {
   draw() {
     this.art.size(4, 9, 9).obj([COLORS[this.color], BLACK, SHADE, WHITE], BODY);
 
-    // size() holds the pupils on the art's own 36x36 box.
+    // size() keeps the pupils on the art's own 36x36 box.
     const dx = this.eye.x - this.pos.x;
     const dy = this.eye.y - this.pos.y;
     const d = Math.hypot(dx, dy);
@@ -385,7 +385,7 @@ function nextRow() {
   }
   if (row !== undefined) return row;
 
-  // None of the script counted: it hands out points a real round would not.
+  // None of the script counted: it gives points a real round would not.
   difficulty = 0;
   score.value = 0;
   return null;
@@ -432,7 +432,7 @@ function advance(dt) {
   shift();
 }
 
-// A press cannot be the signal on a phone: b1 carries the click, so every swipe
+// A press cannot be the signal on a phone: b1 is the click, so every swipe
 // starts with one.
 function undoing() {
   if (mouse.click) tapping = true;

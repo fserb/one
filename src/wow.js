@@ -87,7 +87,7 @@ export function init() {
         goal: true,
       };
 
-      // The two W tiles read the same either way round.
+      // The two W tiles look the same either way round.
       if (y === 0 && x !== 1) piece.goal = false;
       // The small circle has to travel down into the big one.
       if (x === 1 && y === 0) piece.gy = 2;

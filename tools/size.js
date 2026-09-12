@@ -13,8 +13,8 @@
  *
  * What the table is for, since all three keep coming back:
  *   - a namespace import (`import * as x`, or `export * as x` off alma's
- *     index) ships the whole module, however little is named off it
- *   - a class ships whole, so one method pulls the other forty in
+ *     index) includes the whole module, however little is named off it
+ *   - a class is included whole, so one method brings the other forty with it
  *   - a side-effect import never tree-shakes, and takes its own imports with
  *     it: alma's index.js is `import "./extend.js"` on line 11
  */
@@ -59,12 +59,12 @@ const bytes = (s) => encoder.encode(s).length;
 
 /*
  * Minified output bytes per source file. A mapping is a point and not a range,
- * so a segment owns the output from its own column to the next segment's, or to
- * the end of the line; the newline and anything before the first segment are
- * esbuild's own and belong to nobody.
+ * so a segment accounts for the output from its own column to the next
+ * segment's, or to the end of the line; the newline and anything before the
+ * first segment are esbuild's own and are attributed to nothing.
  *
- * The source index is a delta carried across the whole file, and a segment of
- * one field carries no source at all.
+ * The source index is a delta accumulated across the whole file, and a segment
+ * of one field has no source at all.
  */
 function attribute(code, map) {
   const lines = code.split("\n");
@@ -79,7 +79,7 @@ function attribute(code, map) {
       if (!field) continue;
       const [dcol, dsrc] = [...vlq(field)];
       column += dcol;
-      // One field is a column with no source behind it.
+      // One field is a column with no source attached.
       if (dsrc !== undefined) source += dsrc;
       segments.push([column, dsrc === undefined ? -1 : source]);
     }
@@ -107,7 +107,7 @@ async function gzip(js) {
   return (await new Response(stream).arrayBuffer()).byteLength;
 }
 
-// The same entry build.js writes, so the number is the one that ships.
+// The same entry build.js writes, so the number is the one in the built page.
 async function measure(game) {
   const dir = await Deno.makeTempDir();
   const src = (name) => new URL(name, SRC).href;
@@ -144,7 +144,7 @@ async function measure(game) {
     const { out, unmapped } = attribute(js, map);
 
     // The map's sources are relative to the temp directory. Named from src/, so
-    // alma's files keep their alma/src/ and never read as lib's.
+    // alma's files keep their alma/src/ and are never taken for lib's.
     const base = new URL("out.js", `file://${dir}/`);
     const per = new Map();
     map.sources.forEach((source, i) => {
@@ -176,8 +176,8 @@ for (const [game, m] of measured) {
   console.log(`  ${game.padEnd(12)}${kb(m.total)}   gz${kb(m.gz)}`);
 }
 
-// What a module costs is its size times the games carrying it, which is the
-// column to read before touching anything.
+// What a module costs is its size times the number of games that include it,
+// which is the column to read before changing anything.
 if (Deno.args.length === 0) {
   const all = new Map();
   for (const [, m] of measured) {

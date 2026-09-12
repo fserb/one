@@ -2,8 +2,8 @@
  * trap - break the hex floor out from under a wandering eye.
  *
  * Every click drops one hex, then the eye steps towards the nearest edge;
- * reaching one ends the run. Strand it on an island and the next, denser level
- * builds. Based on Isola.
+ * reaching one ends the run. Strand it with no route out and the next, denser
+ * level starts. Based on Isola.
  */
 
 import { ease, extra, HexGrid, vec } from "./alma/src/index.js";
@@ -92,8 +92,8 @@ const HEIGHT = 17;
 const HEX = 60;
 const H2 = SQRT3 / 2;
 
-// Hex culled a level, harder-to-reach hexes counting for more. Bottoms out at 5
-// from level 24.
+// Hex culled a level, harder-to-reach hexes counting for more. Reaches its
+// minimum of 5 at level 24.
 const PROG = [
   0,
   50,
@@ -145,7 +145,7 @@ export function init() {
       grid.set(pos, { pos, v: true, s: 1, border: false, astar: -1, rstar: -1 });
     }
   }
-  // A hex with fewer than six neighbours is on the rim: that is the way out.
+  // A hex with fewer than six neighbours is on the edge: that is the way out.
   for (const v of all()) v.border = connections(v) !== 6;
 
   const start = grid.fromDoubled(4, 8);
@@ -208,7 +208,7 @@ function build(number) {
     avail.push(v);
   }
 
-  // Nowhere safe to stand. Roll the level again.
+  // Nowhere safe to stand. Generate the level again.
   if (avail.length === 0) return build(number);
 
   for (const v of all(true)) {
@@ -407,7 +407,7 @@ function recenter() {
     }),
     { duration: dur, ease: ease.quadOut },
   );
-  // The glide is the camera's, so hand back a clock of the same length.
+  // The glide is the camera's, so return a timer of the same length.
   return act(camera).delay(dur);
 }
 
@@ -612,7 +612,7 @@ function renderHex(ctx, p, size, delta = 0) {
   ctx.translate(x + delta, y + delta);
   ctx.scale(size, size);
   ctx.fill(hexPath);
-  // The scale hits the stroke too, so undo it to keep the width where it was.
+  // The scale applies to the stroke too, so undo it to keep the width as it was.
   const w = ctx.lineWidth;
   ctx.lineWidth = w / size;
   ctx.stroke(hexPath);

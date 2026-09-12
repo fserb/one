@@ -3,13 +3,13 @@
  * per-size quota. tower's board.
  *
  * solve() is a backtracking search that always fills from the emptiest cell,
- * which is what keeps a single orphaned square from being left behind: a cell
- * with one free neighbour has to be claimed now or never. growSmartRegion()
- * then prefers the candidate with the most neighbours, so a region wraps a
- * pocket rather than snaking past it.
+ * which is what keeps a single cell from being left unassigned: a cell with one
+ * free neighbour has to be taken now or never. growSmartRegion() then prefers
+ * the candidate with the most neighbours, so a region encloses a gap rather
+ * than going around it.
  *
- * A region in one row or one column is rejected: a bar reads as a ruler rather
- * than a shape, and the puzzle is read by shape.
+ * A region one row or one column wide is rejected: it looks like a line rather
+ * than a shape, and the puzzle is played by shape.
  */
 
 export class GridFiller {
@@ -40,8 +40,8 @@ export class GridFiller {
     }
   }
 
-  // -1 marks the region being grown, so a candidate can tell the cells it has
-  // already taken from the cells still free.
+  // -1 marks the region being grown, so a candidate can separate the cells it
+  // has already taken from the cells still free.
   growSmartRegion(startX, startY, targetSize) {
     if (!this.isInBounds(startX, startY)) return null;
 
@@ -89,7 +89,7 @@ export class GridFiller {
     return region;
   }
 
-  // A list of cells, or the id of every cell already carrying one.
+  // A list of cells, or the id that every cell to set already holds.
   setRegion(region, value) {
     if (Array.isArray(region)) {
       for (const [x, y] of region) {

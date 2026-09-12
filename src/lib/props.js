@@ -1,6 +1,6 @@
 /*
- * props.js - a label, a burst of particles, and two clocks. Each is built in
- * one expression from an options object over the defaults.
+ * props.js - a label, a one-shot particle emitter, and two timers. Each is
+ * built in one expression from an options object over the defaults.
  *
  * ```js
  * new ent.Text({ text: `+${n}`, x, y, size: 2, vel: [0, -20], duration: 1 });
@@ -13,7 +13,7 @@
 import { css, glyphs } from "./art.js";
 import { Entity, game } from "./core.js";
 
-// The fraction of the box that sits before the point.
+// The fraction of the box that is before the anchor point.
 const ALIGN = { left: 0, center: 0.5, right: 1 };
 const VALIGN = { top: 0, middle: 0.5, bottom: 1 };
 
@@ -73,18 +73,18 @@ export class Text extends Entity {
   }
 }
 
-// A number, or a [base, spread] pair to roll one out of.
-function roll(v) {
+// A number, or a [base, spread] pair to choose one value from.
+function choose(v) {
   return Array.isArray(v) ? v[0] + v[1] * Math.random() : v;
 }
 
 /*
- * A one-shot burst, centred on the board unless given a position. The step
- * scales velocity by the fraction of life left, so particles decelerate as
- * they age and fade with the same number. Every field takes a number or a
- * [base, spread] pair, and begin() rolls one value out of the pair per
- * particle. `spread` is how far out each starts along its own heading, which
- * is what makes a ring hollow.
+ * A one-shot emission, centred on the board unless given a position. The step
+ * scales velocity by the fraction of the lifetime left, so particles slow down
+ * as they age and fade on the same number. Every field takes a number or a
+ * [base, spread] pair, and begin() chooses one value from the pair per
+ * particle. `spread` is how far out each starts along its own direction, which
+ * is what leaves the middle of a ring empty.
  */
 export class Particle extends Entity {
   constructor(opts = {}) {
@@ -111,18 +111,18 @@ export class Particle extends Entity {
 
   begin() {
     const o = this.opts;
-    for (let i = 0, n = Math.round(roll(o.count)); i < n; ++i) {
-      const a = roll(o.direction);
-      const speed = roll(o.speed);
-      const spread = roll(o.spread);
+    for (let i = 0, n = Math.round(choose(o.count)); i < n; ++i) {
+      const a = choose(o.direction);
+      const speed = choose(o.speed);
+      const spread = choose(o.spread);
       this.parts.push({
         x: this.pos.x + Math.cos(a) * spread,
         y: this.pos.y + Math.sin(a) * spread,
         vx: Math.cos(a) * speed,
         vy: Math.sin(a) * speed,
-        size: roll(o.size),
-        delay: roll(o.delay),
-        time: roll(o.duration),
+        size: choose(o.size),
+        delay: choose(o.delay),
+        time: choose(o.duration),
         alpha: 1,
         done: false,
       });
@@ -146,7 +146,7 @@ export class Particle extends Entity {
     if (this.parts.length === 0) this.remove();
   }
 
-  // Particles carry world positions, so undo the entity translate.
+  // Particles store world positions, so undo the entity translate.
   render(ctx) {
     ctx.translate(-this.pos.x, -this.pos.y);
     ctx.fillStyle = css(this.opts.color);
@@ -165,8 +165,8 @@ export class Particle extends Entity {
   }
 }
 
-// An entity like anything else, so reset() clears it and delay() holds it.
-class Clock extends Entity {
+// An entity like anything else, so reset() removes it and delay() pauses it.
+class Timer extends Entity {
   constructor(t, fn, repeat) {
     super();
     this.t = t;
@@ -188,10 +188,10 @@ class Clock extends Entity {
 
 // Once, t seconds from now.
 export function after(t, fn) {
-  return new Clock(t, fn, false);
+  return new Timer(t, fn, false);
 }
 
 // Every t seconds until fn returns false, and at t 0 that is every frame.
 export function every(t, fn) {
-  return new Clock(t, fn, true);
+  return new Timer(t, fn, true);
 }

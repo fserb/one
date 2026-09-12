@@ -1,12 +1,12 @@
 /*
  * flap - a FlappyBird puzzle.
  *
- * No steering. The bird flies flat out sideways, turns only at a wall, and one
- * button pushes it up against gravity.
+ * No steering. The bird flies at full speed sideways, turns only at a wall, and
+ * one button pushes it up against gravity.
  *
  * A coin lands a random distance along the path the bird is already on, no
- * further off its height than it can climb on the way, so every coin is one the
- * sweep could reach.
+ * further off its height than it can climb on the way, so every coin is one
+ * this pass can reach.
  */
 
 import * as ent from "./lib/entity.js";

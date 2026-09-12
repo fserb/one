@@ -29,9 +29,8 @@
       -webkit-user-select: none;
       -webkit-tap-highlight-color: transparent;
     }
-    /* The wall of games, when there is no ?game=. The front page's wall, plus
-       what only dev shows: the games the build skips, and a module that threw
-       on import. */
+    /* The cards, when there is no ?game=: the front page's, plus what only dev
+       shows: the games the build skips, and a module that threw on import. */
     body.index {
       display: block;
       overflow: auto;
@@ -89,7 +88,7 @@
         --n: 6;
       }
     }
-    /* A container, so the title and the badge are the same fraction of the
+    /* A container, so the title and the label are the same fraction of the
        square at every card count. */
     #cards li {
       flex: 0 0 var(--card);
@@ -97,7 +96,7 @@
       aspect-ratio: 1;
       overflow: hidden;
       background: var(--bg);
-      color: var(--ink);
+      color: var(--fg);
       user-select: none;
       -webkit-user-select: none;
       -webkit-tap-highlight-color: transparent;
@@ -110,7 +109,7 @@
       text-decoration: none;
     }
     /* A game with no clip is flat --bg, which is the clip's own background too,
-       so the title reads either way. */
+       so the title is readable either way. */
     #cards video {
       position: absolute;
       inset: 0;
@@ -118,7 +117,7 @@
       height: 100%;
       object-fit: cover;
     }
-    .tag {
+    .title {
       position: absolute;
       left: 0;
       bottom: 0;
@@ -127,16 +126,16 @@
       font: bold 10cqw/1.1 Verdana;
       letter-spacing: -.02em;
     }
-    .tag time {
+    .title time {
       margin-left: 2.8cqw;
       letter-spacing: 0;
       font: 4.5cqw Verdana, sans-serif;
       opacity: .55;
       font-variant-numeric: tabular-nums;
     }
-    /* draft, or a module that threw on import. In the red the card's edge is
-       drawn in and not the card's own ink, which is the title's colour. */
-    .flag {
+    /* draft, or a module that threw on import. Red here and on the card's edge
+       below, rather than the card's own text colour, which the title uses. */
+    .state {
       position: absolute;
       right: 0;
       top: 0;
@@ -147,10 +146,10 @@
       letter-spacing: .12em;
       color: #c22;
     }
-    /* The flag again at the card's edge, so it reads from across the wall.
+    /* The same red at the card's edge, so it is visible from across the page.
        Inside the square and not around it: a border would take 4px off every
-       card, flagged or not. A pseudo-element and not an outline, because the
-       clip is positioned and paints over an outline. */
+       card, labelled or not. A pseudo-element and not an outline, because the
+       clip is positioned and draws over an outline. */
     #cards li.draft::after,
     #cards li.error::after {
       content: "";
@@ -168,8 +167,8 @@
       background: #0001;
       padding: 2px 6px;
     }
-    /* The recorder's bar and preview, which src/dev/rec.js builds and only a
-       ?game= page loads. */
+    /* The recorder's buttons and preview, which src/dev/rec.js builds and only
+       a ?game= page loads. */
     #rec-bar {
       position: fixed;
       left: 8px;
@@ -241,12 +240,12 @@
       Runs a game straight from src/, with no build step: the browser loads the
       same ES modules the bundler does. Needs ~/web served, not a file:// open.
 
-        dev.html               every game in src/, as the front page's wall
+        dev.html               every game in src/, as the front page shows them
         dev.html?game=wow      that game, running, like the built page
         &rec=0                 without the recorder, for an embedded iframe
 
-      A game page also loads src/dev/rec.js, the recorder behind the "rec"
-      button. `./task build` makes the pages under www/ that actually ship.
+      A game page also loads src/dev/rec.js, the recorder the "rec" button
+      runs. `./task build` makes the pages under www/ that are deployed.
     -->
     <script type="module">
     const params = new URLSearchParams(location.search);
@@ -261,12 +260,12 @@
       const { run } = await import("./src/lib/one.js");
       const screen = run(game);
 
-      // After run(), so the recorder's frame callback lands after the game's.
+      // After run(), so the recorder's frame callback runs after the game's.
       if (params.get("rec") !== "0") {
         const rec = await import("./src/dev/rec.js");
         rec.init(screen, name);
-        // tools/record.js drives rec.auto() over CDP, which reaches a module's
-        // exports from nowhere else.
+        // tools/record.js calls rec.auto() over CDP, which has no other way to
+        // reach a module's exports.
         window.rec = rec;
       }
     } else {
@@ -274,11 +273,11 @@
     }
 
     /*
-     * The wall, with no build step behind it. Caddy's `file_server browse`
-     * answers a directory with JSON when the request asks for it, so src/ names
-     * the games and media/ says which have a card, and meta comes from
-     * importing each module the way build.js does. So it shows what the front
-     * page will show, one commit early.
+     * The front page, with no build step: Caddy's `file_server browse` answers
+     * a directory with JSON when the request asks for it, so src/ names the
+     * games and media/ says which have a card, and meta comes from importing
+     * each module the way build.js does. So it shows what the front page will
+     * show, one commit early.
      */
     async function index() {
       document.body.className = "index";
@@ -335,34 +334,35 @@
 
     function card(g, theme) {
       const m = { bg: "#f2f0e5", fg: "#212123", ...g };
-      // The panel fill and not the panel text: the title sits straight on the
-      // clip with no panel behind it, which is what the built card does.
-      const ink = theme(m).bg;
+      // The panel fill and not the panel text: the title is drawn directly on
+      // the clip with no panel behind it, which is what the built card does.
+      const fg = theme(m).bg;
       const clip = g.shot
         ? `<video src="./media/${g.name}/card.mp4" ` +
           `poster="./media/${g.name}/card.png" loop muted playsinline ` +
           `preload=none></video>`
         : "";
-      // Hover text, which the front page's cards deliberately have not got.
+      // Hover text, which the front page's cards deliberately do not have.
       const tip = g.error ?? (g.desc ?? "").trim();
-      // One word, and it is both the badge and the class the red edge hangs off.
-      const flag = g.error ? "error" : g.draft ? "draft" : "";
-      return `<li${flag ? ` class=${flag}` : ""} ` +
-        `style="--bg:${esc(m.bg)};--ink:${esc(ink)}">
+      // One word, used both as the label and as the class the red edge is
+      // drawn from.
+      const state = g.error ? "error" : g.draft ? "draft" : "";
+      return `<li${state ? ` class=${state}` : ""} ` +
+        `style="--bg:${esc(m.bg)};--fg:${esc(fg)}">
         <a href="?game=${encodeURIComponent(g.name)}"${
           tip ? ` title="${esc(tip)}"` : ""
         }>
           ${clip}
-          <p class="tag"><b>${esc(g.name)}</b><time>${
+          <p class="title"><b>${esc(g.name)}</b><time>${
           esc((g.date ?? "").slice(0, 4))
         }</time></p>
-          ${flag ? `<p class="flag ${flag}">${flag}</p>` : ""}
+          ${state ? `<p class="state ${state}">${state}</p>` : ""}
         </a>
       </li>`;
     }
 
-    // The gallery's rule, so the wall moves here the way it moves there: the
-    // card under the pointer runs and the rest hold the frame they stopped on.
+    // The gallery's rule, so this page behaves the way that one does: the card
+    // under the pointer plays and the rest stay on the frame they stopped on.
     function play(videos) {
       if (!matchMedia("(hover: hover)").matches) {
         const onscreen = new IntersectionObserver((es) => {
@@ -377,14 +377,14 @@
       for (const v of videos) {
         const li = v.closest("li");
         // pointermove and not pointerenter: coming back from a game restores
-        // this page under a pointer that crossed no card's edge.
+        // this page under a pointer that moved over no card's edge.
         li.addEventListener("pointermove", () => {
           if (v.paused) v.play().catch(() => {});
         });
         li.addEventListener("pointerleave", () => v.pause());
       }
-      // A clip out of the back/forward cache is playing if that card was the
-      // one pressed through.
+      // A clip restored from the back/forward cache is playing if that card was
+      // the one pressed.
       addEventListener("pageshow", () => videos.forEach((v) => v.pause()));
     }
 

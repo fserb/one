@@ -8,18 +8,18 @@
  *
  * fill() and line() set what every shape after them uses, and null turns
  * either off. mt()/lt() draw a path where the four shape calls will not.
- * text() carries its own colour and paints art.js's bitmap font.
+ * text() has its own colour and draws art.js's bitmap font.
  *
  * Each shape is a list of commands, recorded when the call is made and replayed
- * into a Path2D the first time it is drawn. A command list holds no DOM, so the
- * build can still import a game under Deno.
+ * into a Path2D the first time it is drawn. A command list has no DOM object in
+ * it, so the build can still import a game under Deno.
  *
  *   ["M", x, y]  ["L", x, y]  ["A", cx, cy, r, a0, a1, ccw]  ["Z"]
  *
- * An arc stays an arc: Path2D takes one as it comes and pathBox() measures one
- * in closed form, so both are exact. alma's Path converts to beziers on the way
- * in and flattens them back to a polyline to measure, which costs 9.7 KB
- * minified in 19 bundles and costs the edge as well: Chrome antialiases a
+ * An arc stays an arc: Path2D takes one directly and pathBox() measures one in
+ * closed form, so both are exact. alma's Path converts to beziers on the way in
+ * and flattens them back to a polyline to measure, which costs 9.7 KB minified
+ * in 19 bundles and changes the edge as well: Chrome antialiases a
  * bezier with three partial coverage values and an arc with 23, so a disc of
  * four cubics covers 0.6% less than the disc ctx.arc draws.
  *
@@ -31,8 +31,8 @@ import { css, glyphs } from "./art.js";
 
 const TAU = 2 * Math.PI;
 
-// Where an arc's x or y turns around, as unit vectors, so a quarter arc's box
-// is right to the last bit rather than to Math.cos's idea of cos(PI / 2).
+// Where an arc's x or y reverses, as unit vectors, so a quarter arc's box is
+// exact instead of carrying the error in Math.cos(PI / 2).
 const CARDINAL = [[1, 0], [0, 1], [-1, 0], [0, -1]];
 
 export class Gfx {
@@ -81,7 +81,7 @@ export class Gfx {
     return this;
   }
 
-  // One shape under the standing fill() and line(), which ends any open poly.
+  // One shape under the current fill() and line(), which ends any open poly.
   push(path) {
     this.cmds.push({ path, fill: this._fill, line: this._line });
     this.poly = null;
@@ -106,8 +106,8 @@ export class Gfx {
     ]);
   }
 
-  // An empty box that fixes what the drawing centres in, so a shape lopsided
-  // about the entity does not drag the whole entity with it.
+  // An empty box that sets what the drawing centres in, so a shape that is
+  // off-centre about the entity does not move the whole drawing with it.
   size(w, h = w, x = 0, y = 0) {
     if (this.disabled) return this;
     const path = rectPath(x - w / 2, y - h / 2, w, h);
@@ -124,7 +124,7 @@ export class Gfx {
 
   // Out along r1 from b to e, back along r2, so r1 == r2 is a plain arc and
   // r1 != r2 a ring segment. A sweep past a full turn is one turn: Path2D cuts
-  // it back and so does arcBox(), so the angles go through as they came in.
+  // it back and so does arcBox(), so the angles are passed on unchanged.
   arc(x, y, r1, r2, b, e) {
     if (this.disabled) return this;
     return this.push([
@@ -148,14 +148,14 @@ export class Gfx {
     if (this.disabled) return this;
     if (this.poly === null) return this.mt(x, y);
     this.poly.path.push(["L", x, y]);
-    // The Path2D held from the last frame is a shape short now.
+    // The Path2D kept from the last frame is missing a shape now.
     this.poly.p2d = undefined;
     this.dirty = true;
     return this;
   }
 
   // One line of the bitmap font, centred on (x, y) in screen units, in its own
-  // colour rather than the standing fill().
+  // colour rather than the current fill().
   text(x, y, s, color, size = 1) {
     if (this.disabled) return this;
     this.cmds.push({
@@ -177,7 +177,7 @@ export class Gfx {
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
     for (const c of this.cmds) {
       const b = c.text === undefined ? pathBox(c.path) : textBox(c);
-      // A stroke sits half its width outside the path it follows.
+      // A stroke extends half its width outside the path it follows.
       const p = c.line === null ? 0 : c.line.width / 2;
       x0 = Math.min(x0, b.x - p);
       y0 = Math.min(y0, b.y - p);
@@ -209,7 +209,7 @@ export class Gfx {
         write(ctx, c);
         continue;
       }
-      // Kept on the command, so a drawing left alone replays the same Path2D.
+      // Kept on the command, so an unchanged drawing replays the same Path2D.
       c.p2d ??= replay(c.path);
       if (c.fill !== null) {
         ctx.globalAlpha = c.fill.alpha;
@@ -298,8 +298,8 @@ function arcBox([, cx, cy, r, a0, a1, ccw], at) {
   at(cx + r * Math.cos(a0), cy + r * Math.sin(a0));
   at(cx + r * Math.cos(a1), cy + r * Math.sin(a1));
 
-  // How far it winds the way canvas reads it: from a0 in the direction asked
-  // until it meets a1, and a full turn at most.
+  // How far it sweeps the way canvas measures it: from a0 in the direction
+  // asked until it reaches a1, and a full turn at most.
   const d = ccw ? a0 - a1 : a1 - a0;
   const sweep = d >= TAU ? TAU : ((d % TAU) + TAU) % TAU;
 
@@ -311,7 +311,7 @@ function arcBox([, cx, cy, r, a0, a1, ccw], at) {
   }
 }
 
-// The one command with no path behind it: the font is dots.
+// The one command with no path: the font is drawn as dots.
 function textBox(c) {
   const [x, y] = c.args;
   const g = glyphs(c.text);

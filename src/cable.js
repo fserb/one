@@ -4,16 +4,16 @@
  * The cable is also the cost: drag grows with the square of the last free
  * stretch, so the far side of an empty gap is the slowest place in the level.
  *
- * The wrap is two tangent points on a rim. The free stretch hangs off the
+ * The wrap is two tangent points on a circle. The free stretch starts at the
  * silhouette edge of the planet it last caught on, recomputed every frame, so
- * the anchor slides around the rim as you circle. A signed angle accumulates as
- * it slides, starting a quarter turn in the black, and the wrap pops the moment
- * that total goes negative.
+ * the anchor slides around the edge as you circle. A signed angle accumulates
+ * as it slides, starting a quarter turn positive, and the wrap releases the
+ * moment that total goes negative.
  *
- * The furniture is drawn by hand rather than as entities: everything that is an
- * entity here is in the world, in absolute coordinates the camera never writes
- * back. The cable tests as a segment against a planet's circle, since a hit
- * shape does not turn with `angle`.
+ * The fixed parts are drawn by hand rather than as entities: everything that is
+ * an entity here is in the world, in absolute coordinates the camera never
+ * writes back. The cable tests as a segment against a planet's circle, since a
+ * hit shape does not turn with `angle`.
  */
 
 import * as ent from "./lib/entity.js";
@@ -41,7 +41,7 @@ const YELLOW = 0xffe0a5;
 const DARKYELLOW = 0xe4b455;
 const DARKRED = 0xe25458;
 
-// The 480 box the game thinks in.
+// The 480 box the game is written in.
 const W = 480;
 
 // A sigma of 5, and a canvas shadow's sigma is half its blur.
@@ -82,7 +82,7 @@ const WIPE = 1;
 const FADE = 1.5;
 const FLASH = 0.05;
 
-// The planets gauge hangs just under the overlay's msg() chip, which owns the
+// The planets gauge sits just under the overlay's msg() label, which takes the
 // top of the board down to 36.
 const PIECES_X = 60;
 const PIECES_Y = 55;
@@ -150,7 +150,7 @@ class Player extends ent.Entity {
 
   bumpOut(c, r) {
     const d = Math.hypot(this.pos.x - c.x, this.pos.y - c.y);
-    // Dead centre has no way out, so it leaves along +x.
+    // Exactly at the centre there is no direction, so it leaves along +x.
     const ux = d === 0 ? 1 : (this.pos.x - c.x) / d;
     const uy = d === 0 ? 0 : (this.pos.y - c.y) / d;
     if (d < r) {
@@ -177,9 +177,9 @@ class Player extends ent.Entity {
 }
 
 /*
- * One straight stretch of cable, from `pos` to `pos + tp`. Every one of them is
- * born as the free stretch, running from wherever the cable last caught to the
- * player; a wrap freezes it where it is and hands the player a new one.
+ * One straight stretch of cable, from `pos` to `pos + tp`. Every one of them
+ * starts as the free stretch, running from wherever the cable last caught to
+ * the player; a wrap fixes it in place and gives the player a new one.
  *
  * They form a chain back to the earth through `prev`, and only the free
  * stretch updates.
@@ -219,8 +219,8 @@ class Rope extends ent.Entity {
     }
   }
 
-  // Walk the anchor to the silhouette edge the player sees now, banking the
-  // angle it moved through. False once it has unwound.
+  // Move the anchor to the silhouette edge the player sees now, accumulating
+  // the angle it moved through. False once it has unwound.
   slide() {
     const [t1, t2] = tangents(this.root, player.pos);
     const was = this.rootpos;
@@ -239,7 +239,7 @@ class Rope extends ent.Entity {
     return false;
   }
 
-  // This stretch stops at the rim and a new one carries on to the player.
+  // This stretch stops at the edge and a new one continues to the player.
   wrap(p) {
     const tg = nearTangent(p, this.pos, player.pos);
 
@@ -260,8 +260,8 @@ class Rope extends ent.Entity {
     ent.delay(0.01);
   }
 
-  // This stretch and the one that laid it go, and the one before is handed back
-  // exactly as it was left.
+  // This stretch and the one that laid it are removed, and the one before is
+  // restored exactly as it was.
   unwrap() {
     const q = this.prev;
     const r = new Rope(q.pos.x, q.pos.y);
@@ -379,7 +379,7 @@ function angleOf(v) {
   return (2 * Math.PI + Math.atan2(v.y, v.x)) % (2 * Math.PI);
 }
 
-// Not true tangents: one unit inside the rim, on the diameter square to the
+// Not true tangents: one unit inside the edge, on the diameter square to the
 // line of sight, which is where a wrapped cable leaves the circle.
 function tangents(p, from) {
   const d = sub(p.pos, from);
@@ -401,7 +401,7 @@ function nearTangent(p, from, to) {
   return d1 <= d2 ? t1 : t2;
 }
 
-// The segment's nearest point to the centre, inside the rim plus HALF.
+// The segment's nearest point to the centre, inside the edge plus HALF.
 function crosses(rope, p) {
   const dx = rope.tp.x;
   const dy = rope.tp.y;
@@ -501,7 +501,7 @@ export function update(dt) {
 
   ent.update(dt);
 
-  // The entities' own clock, so a hitstop holds the furniture too.
+  // The entities' own timer, so a hitstop pauses the hand-drawn parts too.
   const t = ent.game.time;
   if (fade !== null && (fade.t += t) >= FADE) fade = null;
 

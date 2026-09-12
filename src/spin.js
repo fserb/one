@@ -3,10 +3,11 @@
  *
  * A room that turns. Gravity always points down the screen, and every few
  * seconds the whole room rotates a quarter or a half turn under you. The needle
- * swings the way the room is about to go, holds, and then the room follows it:
- * 0.4 winding, 0.5 holding, 0.6 turning with the player locked.
+ * turns the way the room is about to turn, stops, and then the room follows it:
+ * 0.4 turning the needle, 0.5 holding, 0.6 turning the room with the player
+ * locked.
  *
- * The turn is on a clock and not on a button: a rotation you ask for and can
+ * The turn is on a timer and not on a button: a rotation you ask for and can
  * undo is a free look at four rooms.
  *
  * A rotation moves nothing in the room's own frame. Room, player and marks draw
@@ -31,7 +32,7 @@ the needle says which way the room turns
   date: "2015-10-04",
 };
 
-// The box the game thinks in.
+// The box the game is written in.
 const W = 480;
 
 // Square, so it turns onto itself: 24 tiles of 20, the whole box.
@@ -64,7 +65,7 @@ const HW = 7;
 const HH = 8;
 const EDGE = 0.01;
 
-// Per second, but KICKED is seconds: how long the kick owns the controls.
+// Per second, but KICKED is seconds: how long the kick overrides the controls.
 const GRAV = 1000;
 const WALK = 166;
 const JUMP = 430;
@@ -89,8 +90,9 @@ const EVERY = 7;
 const EVERY_OFF = 0.3;
 const EVERY_MIN = 4;
 
-// DRAIN_UP is the late game: turns stop closing up at EVERY_MIN and a mark
-// keeps buying FEED, so without it one mark every four seconds never loses.
+// DRAIN_UP is the late game: turns stop getting closer together at EVERY_MIN
+// and a mark keeps adding FEED, so without it one mark every four seconds never
+// loses.
 const TIME = 25;
 const TIME_MAX = 30;
 const FEED = 6;
@@ -388,8 +390,8 @@ class Player extends ent.Entity {
     }
   }
 
-  // entity.js integrates with no idea there are walls, so this puts the box
-  // back and walks it through them, after the frame's own move.
+  // entity.js integrates without knowing about walls, so this puts the box
+  // back and steps it through them, after the frame's own move.
   postUpdate() {
     if (locked) return;
     const dx = this.pos.x - this.was.x;
@@ -441,14 +443,14 @@ function ground(i, j) {
 }
 
 /*
- * Where the player can get to from tile (i0, j0), which is not which tiles are
- * joined up: gravity only goes one way. A state is a tile and how far it has
- * climbed since it last had something under it. Sideways is free, down is free
- * and spends the whole climb, and up costs one of CLIMB.
+ * Where the player can get to from tile (i0, j0), which is not the same as
+ * which tiles are connected: gravity only goes one way. A state is a tile and
+ * how far it has climbed since it last had something under it. Sideways is
+ * free, down is free and spends the whole climb, and up costs one of CLIMB.
  *
- * It reads a jump as further than it is, letting the climb bend sideways as far
- * as it likes, which nothing in the air can do. In a room with a floor under
- * everything that hardly changes the answer.
+ * It treats a jump as reaching further than it does, letting the climb move
+ * sideways without limit, which nothing in the air can do. In a room with a
+ * floor under everything that hardly changes the answer.
  */
 function flood(i0, j0) {
   reach.fill(0);
@@ -569,7 +571,7 @@ function turnClock(t) {
 }
 
 // A mark with no route to it is not a mark, and walking into a pocket the flood
-// cannot climb out of is as much a cause as a turn, so this runs on a clock.
+// cannot climb out of is as much a cause as a turn, so this runs on a timer.
 function checkMark(t) {
   looked += t;
   if (looked < LOOK) return;

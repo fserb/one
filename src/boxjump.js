@@ -4,13 +4,13 @@
  *
  * The number falls on the launch and not on the landing, so the last shape goes
  * while the blob is still in the air and the level ends mid-flight. `clearing`
- * is the board holding before the next one, and also what stops that flight
- * counting as leaving the board.
+ * is the pause before the next board, and also what stops that flight counting
+ * as leaving the board.
  *
  * A contact is a segment test and not an overlap: the step from last frame's
  * position to this one, against the outline in the piece's own unturned
  * coordinates. That gives the point and the face in one pass and nothing
- * tunnels at 520 a second. Both ends of the step read this frame's angle, which
+ * tunnels at 520 a second. Both ends of the step use this frame's angle, which
  * is a frame of error in the shape's turn and none in the blob's line.
  */
 
@@ -54,20 +54,20 @@ const GAP = 22;
 const EDGE = 22;
 
 // The size a piece is drawn at, before FAT. The range is cut into `n` bands and
-// each piece rolled inside its own: independent rolls come out all-medium often
-// enough to notice. The top falls with the count, which is what keeps six of
-// them fitting.
+// each piece chosen inside its own: independent choices come out all-medium
+// often enough to notice. The top of the range falls with the count, which is
+// what keeps six of them fitting.
 const SMIN = 22;
 const SMAX = 86;
 const PER = 6;
 
-// A triangle of the same circumradius reads much smaller, hence FAT.
+// A triangle of the same circumradius looks much smaller, hence FAT.
 const SHAPES = [3, 4, 6];
 const FAT = { 3: 1.32, 4: 1.12, 6: 1.02 };
 
 // Radians a second, before the level's ramp. The spread is the point: a slow
 // shape is a longer wait for the face and a wider press when it comes, a fast
-// one the other way about. The floor is five seconds for a full turn.
+// one the opposite. The slowest is five seconds for a full turn.
 const SPIN = 1.2;
 const SPIN_VAR = 1.4;
 
@@ -96,7 +96,7 @@ class Piece extends ent.Entity {
     this.angle = TAU * Math.random();
     this.pop = 0; // fades from 1 on the launch that took a number off
 
-    // size() is the circumcircle's square, and it is load-bearing: Gfx centres
+    // size() is the circumcircle's square, and it is required: Gfx centres
     // on its own bounding box, and a triangle's box is not centred on its
     // circumcentre, so without it the outline sits a quarter of a radius off
     // the geometry the blob lands against.
@@ -169,7 +169,7 @@ class Piece extends ent.Entity {
     return { x: this.pos.x + t.x, y: this.pos.y + t.y };
   }
 
-  // The same turn without the move, which is what a normal wants.
+  // The same turn without the move, which is what a normal needs.
   turn(x, y) {
     const c = Math.cos(this.angle);
     const s = Math.sin(this.angle);
@@ -318,7 +318,7 @@ class Player extends ent.Entity {
   }
 
   // Local y is the normal, so a landing flattens the blob against the face and
-  // a launch draws it out along the line it leaves on.
+  // a launch stretches it along the line it leaves on.
   render(ctx) {
     ctx.scale(1 + this.squash, 1 - this.squash);
     this.gfx.render(ctx);
@@ -413,7 +413,7 @@ function dist(a, b) {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
-// It gives the piece up rather than shrink one, since a shape's size is the
+// It drops the piece rather than shrink one, since a shape's size is the
 // shape of the jump off it; over 3000 boards of six it never had to.
 function place(pieces, r) {
   const m = r + EDGE;

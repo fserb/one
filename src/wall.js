@@ -2,19 +2,19 @@
  * wall.
  *
  * A lamp's worth of room is lit, the rest is a flat grey plan, and the orange
- * thing that wants you is drawn only inside the light. It moves only while it
- * is out of your sight.
+ * hunter is drawn only inside the light. It moves only while it is out of your
+ * sight.
  *
- * `Sight` answers one polygon rather than a fan of triangles: as a clip a fan
- * shows a seam down every shared edge.
+ * `Sight` returns one polygon rather than a fan of triangles: as a clip a fan
+ * shows a visible line down every shared edge.
  *
- * The light's range is the clock. A hunter settles exactly at the edge, since a
- * step inside freezes it, so only the edge coming in brings one closer. Without
- * the drain a bot walking the flood to the nearest coin never died.
+ * The light's range is the timer. A hunter stops exactly at the edge, since a
+ * step inside freezes it, so only the edge moving in brings one closer. Without
+ * the drain a bot following the flood fill to the nearest coin never died.
  *
- * The room is scattered rather than hand-drawn: BLOCKS straight segments, each
- * needing a clear tile all round, so no segment seals a pocket. Over 400 rolls
- * every free tile was reachable from the start.
+ * The room is generated rather than hand-drawn: BLOCKS straight segments, each
+ * needing a clear tile all round, so no segment closes off an area. Over 400
+ * generated rooms every free tile was reachable from the start.
  */
 
 import * as ent from "./lib/entity.js";
@@ -35,7 +35,7 @@ the orange moves only while you cannot see it
   date: "2015-10-10",
 };
 
-// The 480 box the game thinks in.
+// The 480 box the game is written in.
 const W = 480;
 
 // Two screens across and one down, so the camera only moves sideways. 23 rows
@@ -51,7 +51,7 @@ const WALL = 0x606060;
 const FLOOR = 0xfafafa;
 const CYAN = 0x1ebed8;
 const ORANGE = 0xff6819;
-// Outside the light, where the room is a plan rather than a place.
+// Outside the light, where the room is drawn as a flat plan.
 const DIMFLOOR = 0x3c3c3c;
 const DIMWALL = 0x252528;
 const TINT = 0.12;
@@ -60,15 +60,15 @@ const MARK = 0.45;
 const DOT = 6;
 const ARROW = 9;
 
-// A round ends when the coins stop: a hunter closes only when the edge of the
-// light comes in or a wall covers it.
+// A round ends when the coins stop: a hunter moves closer only when the edge of
+// the light comes in or a wall covers it.
 const LIGHT = 200;
 const LIGHT_MAX = 220;
 const LIGHT_MIN = 0;
 const DRAIN = 5;
 const FEED = 28;
 const RAYS = 64;
-// A ray carries this far past the wall it stops on, so the light lands on the
+// A ray continues this far past the wall it stops on, so the light falls on the
 // wall's face rather than stopping at it.
 const BLEED = 4;
 // A nudge either side of a corner: one ray becomes the two edges of its shadow.
@@ -105,7 +105,7 @@ const GRACE = 2.5;
 // On top of the hitstop.
 const DEATH = 0.7;
 
-// The nearest hunter, seen or not: the only thing the dark tells you.
+// The nearest hunter, seen or not: the only information the dark gives you.
 const BEAT_NEAR = 300;
 const BEAT_FAST = 0.22;
 const BEAT_SLOW = 1;
@@ -183,7 +183,7 @@ const cx = (i) => (i % GW + 0.5) * TILE;
 const cy = (i) => (Math.floor(i / GW) + 0.5) * TILE + LY;
 
 // Walls are segments, corners the points worth aiming a ray at, and cast()
-// answers the polygon visible from a point.
+// returns the polygon visible from a point.
 class Sight {
   constructor() {
     // Four numbers a wall: origin, then extent.
@@ -241,7 +241,7 @@ class Sight {
   }
 
   // A corner inside the range gets a ray at it and one either side; RAYS close
-  // the rim.
+  // the outer circle.
   cast(fx, fy) {
     const dirs = [];
     for (let i = 0; i < this.pts.length; i += 2) {
@@ -460,7 +460,8 @@ class Player extends ent.Entity {
     if (key.right) mx += 1;
     if (key.up) my -= 1;
     if (key.down) my += 1;
-    // The camera trails rather than centres, so the pointer is a heading.
+    // The camera follows behind rather than centring, so the pointer is a
+    // direction.
     if (mx === 0 && my === 0 && mouse.press) {
       mx = mouse.x - this.pos.x;
       my = mouse.y - this.pos.y;
@@ -618,7 +619,7 @@ function die() {
 
 export function init() {
   ent.reset([Coin, Hunter, Player]);
-  // The bounds run the width of the room and pin y at the middle.
+  // The bounds run the width of the room and fix y at the middle.
   camera.bounds = { x: 0, y: 0, width: RW, height: W };
 
   buildMap();
@@ -658,12 +659,12 @@ export function update(dt) {
 
   ent.update(dt);
 
-  // The entities' own clock, so a hitstop holds it too.
+  // The entities' own timer, so a hitstop pauses it too.
   const t = ent.game.time;
   hold = Math.max(0, hold - t);
   if (hold <= 0 && dying <= 0) range = Math.max(LIGHT_MIN, range - DRAIN * t);
 
-  // A constant-speed trail rather than approach(): it catches the player
+  // A constant-speed follow rather than approach(): it catches the player
   // exactly, and standing still is the one thing that centres them.
   const d = player.pos.x - camera.x;
   const m = CAM * t;

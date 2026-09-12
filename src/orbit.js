@@ -1,12 +1,12 @@
 /*
  * orbit, May 2014.
  *
- * The score is inverted, and that is the design: destroying a chunk pays its
- * health once, while a chunk still standing when the turret dies pays its
+ * The score is inverted, and that is the design: destroying a chunk scores its
+ * health once, while a chunk still standing when the turret dies scores its
  * health repeatedly as the level drains, weighted by its ring. A five-health
  * chunk in the third ring is worth 5 destroyed and 45 left alone, so the game
- * is to punch one hole and thread it. `finishLevel`'s re-scoring of the same
- * chunk every tick is the mechanism, not a slip.
+ * is to cut one hole and shoot through it. `finishLevel`'s re-scoring of the
+ * same chunk every tick is deliberate, not a bug.
  *
  * A chunk is a slice of a ring, which is neither shape entity.js collides. In
  * polar coordinates the slice is two comparisons, which is `covers()`.
@@ -37,13 +37,13 @@ shoot the core; what you leave standing scores
 const WHITE = 0xecebec;
 const BLACK = 0x222222;
 const COLOR = 0x8232cd;
-// Three quarters of the way to the background, so both read as barely there.
+// Three quarters of the way to the background, so both are nearly invisible.
 const HALFWHITE = mix(WHITE, COLOR, 0.75);
 const HALFBLACK = mix(BLACK, COLOR, 0.75);
 
 const TAU = 2 * Math.PI;
 
-// The 480 box the game thinks in, and the point it all turns about.
+// The 480 box the game is written in, and the point it all turns about.
 const W = 480;
 const CX = W / 2;
 const CY = W / 2;
@@ -130,7 +130,7 @@ const HARD = [
 ];
 
 // `transition` holds while a level builds or drains: nothing fires, and the
-// clock pays nothing.
+// timer scores nothing.
 let level = 0;
 let transition = false;
 let player = null;
@@ -147,7 +147,7 @@ class Player extends ent.Entity {
     this.draw();
   }
 
-  // size() pins the drawing on the shield's centre, so losing the shield does
+  // size() centres the drawing on the shield, so losing the shield does
   // not move the ship.
   draw() {
     this.gfx.clear().size(2 * SHIELD)
@@ -266,7 +266,8 @@ class EnemyBullet extends ent.Entity {
       return;
     }
 
-    // Free: the gun aims itself, so this only pays where the lines cross.
+    // Not aimed for: the gun aims itself, so this only happens where the two
+    // paths cross.
     const b = this.hitGroup(Bullet);
     if (b === null) return;
     sound.play("pop");
@@ -278,7 +279,7 @@ class EnemyBullet extends ent.Entity {
 /*
  * One slice of one ring. `health` is what it has left, `want` where it is
  * heading, and -1 there means it is not moving. The drawing thickens and
- * darkens with the health, so a wall reads as a wall.
+ * darkens with the health, so a stronger chunk looks stronger.
  */
 class Chunk extends ent.Entity {
   constructor(radius, begin, size, slots, maxHealth) {
@@ -298,7 +299,7 @@ class Chunk extends ent.Entity {
 
   draw() {
     const r = (3 + 9 * this.health / 5) / 2;
-    // size() holds the centre of the ring on the entity, which is what `angle`
+    // size() keeps the centre of the ring on the entity, which is what `angle`
     // turns about; the arc's own box is off to one side.
     this.gfx.clear().size(2 * (this.radius + THICK))
       .fill(mix(COLOR, BLACK, this.health / 5))
@@ -391,7 +392,7 @@ class Chunk extends ent.Entity {
 
 /*
  * The rings, and the one thing they do on their own: every so often a ring is
- * handed a new angle to turn to. That is what closes the hole you cut.
+ * given a new angle to turn to. That is what closes the hole you cut.
  */
 class Level extends ent.Entity {
   constructor(n) {
@@ -411,7 +412,7 @@ class Level extends ent.Entity {
         ring.push(new Chunk(radius, at, size, slots, Number(weight[i])));
         at += size;
       }
-      // The build and the drain walk this array in order.
+      // The build and the drain iterate this array in order.
       random.shuffle(ring);
 
       this.layers.push(ring);
@@ -434,8 +435,8 @@ class Level extends ent.Entity {
     }
 
     for (let i = 0; i < this.layers.length; ++i) {
-      // Shot-away chunks stay in the array to hold the count, and every chunk
-      // of a ring carries the same angle.
+      // Shot-away chunks stay in the array to keep the count, and every chunk
+      // of a ring has the same angle.
       const a = this.layers[i][0].angle;
       if (a === this.want[i]) continue;
       const max = SPIN * dt;
@@ -447,7 +448,7 @@ class Level extends ent.Entity {
 
 // It watches the player's angle for a second and fires at where that puts them
 // when the round arrives, off by a normal deviate. The lead is why the shield
-// exists: the aim came out too good.
+// exists: the aim was too accurate.
 class Enemy extends ent.Entity {
   constructor(first) {
     super();
@@ -460,7 +461,7 @@ class Enemy extends ent.Entity {
     // Facing away, so the barrel has half a turn to swing before it can fire.
     this.angle = (player?.angle ?? 0) + Math.PI;
     this.hitCircle(ENEMY_R);
-    // Background colour, painting nothing: it holds the bounding box on the
+    // Background colour, drawing nothing: it keeps the bounding box on the
     // middle of the body, the way size() does.
     this.gfx.fill(COLOR).rect(-20, -20, 40, 40)
       .fill(BLACK).circle(0, 0, 10)
@@ -508,8 +509,8 @@ class Enemy extends ent.Entity {
 
     this.bulletDelay = Math.max(0.1, this.bulletDelay - 0.1 * dt / 30);
 
-    // Damping that never quite settles, so the barrel hunts around the player
-    // rather than tracking them.
+    // Damping that never quite settles, so the barrel oscillates around the
+    // player rather than tracking them.
     const t = turn(this.angle, aim);
     if (t !== 0) this.angvel += Math.sign(t) * ENEMY_TURN * dt;
     this.angvel *= Math.pow(0.9, dt * 60);
@@ -524,8 +525,8 @@ class Enemy extends ent.Entity {
 }
 
 // The drain scores the chunk it finds on every tick rather than once a chunk,
-// so one left at health h pays h + (h-1) + ... + 1 times one plus its ring
-// index, against the h flat that shooting it pays.
+// so one left at health h scores h + (h-1) + ... + 1 times one plus its ring
+// index, against the flat h that shooting it scores.
 function finishLevel() {
   ent.one(Enemy)?.explode();
   ent.delay(0.05);

@@ -4,8 +4,8 @@
  * The card game. Sixteen cards, four traits with three values each, and three
  * cards are a set when every trait is all the same or all different.
  *
- * The clock is what makes a wrong guess cost anything: the board holds 560
- * triples and about five sets, so with a free guess the game is 560 button
+ * The timer is what makes a wrong guess cost anything: the board holds 560
+ * triples and about five sets, so with no penalty the game is 560 button
  * presses rather than looking.
  *
  * The cursor follows the pointer when it moves and the arrows when it is still,
@@ -48,7 +48,7 @@ const MARK = CELL - 8;
 const X0 = 90;
 const Y0 = 75;
 // The clock spans these and the last set is right aligned to them, so the three
-// read as one column.
+// line up as one column.
 const LEFT = X0 - CELL / 2;
 const RIGHT = X0 + PITCH * (COLS - 1) + CELL / 2;
 const MID = (LEFT + RIGHT) / 2;
@@ -61,7 +61,7 @@ const GRAVE_PITCH = 27;
 const GRAVE_X = RIGHT - GRAVE / 2 - GRAVE_PITCH * 2;
 const GRAVE_Y = 460;
 
-// One ceiling, so a set tops the bar up rather than pushing past the end of it.
+// One maximum, so a set refills the bar rather than extending past its end.
 // Ten seconds a set is the pace a player who can read the board holds.
 const CLOCK_MAX = 45;
 const SET_TIME = 10;
@@ -174,7 +174,7 @@ function symbol(gfx, x, y, color, fill, type) {
 }
 
 // Built in the constructor so it is on screen the frame it replaces one.
-// gfx.size(100) pins the box, so every coordinate below runs -50..50.
+// gfx.size(100) fixes the box, so every coordinate below runs -50..50.
 class Card extends ent.Entity {
   constructor(code, x, y) {
     super();
@@ -267,11 +267,11 @@ class Clock extends ent.Entity {
   }
 
   update() {
-    // The clock holds while the hint is up: here the hint is the rule.
+    // The timer holds while the hint is up: here the hint is the rule.
     if (hint() === 0) clock = Math.max(0, clock - ent.game.time);
 
     const w = RIGHT - LEFT;
-    // The empty track pins the bounding box, so the bar shortens from the right
+    // The empty track fixes the bounding box, so the bar shortens from the right
     // instead of recentring as it goes.
     this.gfx.clear()
       .fill(INK, 0.12).rect(-w / 2, -CLOCK_H / 2, w, CLOCK_H)
@@ -361,8 +361,8 @@ function mark(cell) {
   marks.push(new Mark(cell));
   if (marks.length < 3) return;
 
-  // Board order and not click order, so the last set reads across the corner
-  // the way it read across the board.
+  // Board order and not click order, so the last set is laid out across the
+  // corner the way it was across the board.
   const cells = marks.map((m) => m.cell).sort((a, b) => a - b);
   for (const m of marks) m.remove();
   marks = [];

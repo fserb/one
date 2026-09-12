@@ -4,19 +4,19 @@
  * The green line out of the nose is where you go if you do nothing, drawn AHEAD
  * seconds ahead through the same gravity.
  *
- * The landing rule is the whole of it: over CRASH is scrap, more than a quarter
- * turn off the upright of where you touched down is scrap, otherwise the ship
- * stops dead and snaps to the vertical. The second is the one that catches you,
- * because rotating is slow.
+ * The landing rule is the whole of it: over CRASH is a crash, more than a
+ * quarter turn off the upright of where you touched down is a crash, otherwise
+ * the ship stops and snaps to the vertical. The second is the one that gets
+ * you, because rotating is slow.
  *
  * That rule runs on arrival and not on every frame of contact: re-snapping the
  * angle every frame leaves no way to point the nose before lifting off. A
- * landed ship is put back on the surface, except while it is burning away, or a
- * frame of thrust moves it less than the resting rule puts back.
+ * landed ship is put back on the surface, except while it is being destroyed,
+ * or a frame of thrust moves it less than the resting rule puts back.
  *
- * Gravity is every planet at once, so the pull does not jump when the nearest
+ * Gravity is every planet at once, so the force does not jump when the nearest
  * changes. MU is per unit of radius squared, so every planet has the same
- * gravity underfoot, and THRUST is picked against that.
+ * gravity at its surface, and THRUST is chosen against that.
  */
 
 import * as ent from "./lib/entity.js";
@@ -36,13 +36,13 @@ drag to aim the nose, hold to burn
   date: "2014-03-30",
 };
 
-// The 480 box, and where the ship is pinned.
+// The 480 box, and where the ship is fixed.
 const W = 480;
 const EYEX = W / 2;
 const EYEY = W / 2;
 
-// A planet is drawn as a chunky circle PX units to the pixel, so its radius is
-// PX times its own cell count.
+// A planet is drawn as a large-pixel circle PX units to the pixel, so its
+// radius is PX times its own cell count.
 const WORLD = 1100;
 const EDGE = 130;
 const PLANETS = 6;
@@ -66,7 +66,7 @@ const SHIP_R = 8;
 const DEAD = 10;
 const AIM_LAG = 0.18;
 
-// REFILL_OFF is the whole of the ramp: the drain and the burn stay put, and a
+// REFILL_OFF is the whole of the ramp: the drain and the burn stay fixed, and a
 // run ends when a tankful stops covering the trip.
 const TANK = 100;
 const START = 90;
@@ -82,7 +82,7 @@ const AHEAD = 7;
 const STEP = 1 / 30;
 
 // The patch tiles, so there are stars wherever the ship goes. Nothing stops you
-// leaving the system, and out there the stars and the arrow are all that says
+// leaving the system, and out there the stars and the arrow are all that shows
 // which way is back.
 const PATCH = 700;
 const STARS = 150;
@@ -136,8 +136,8 @@ const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const css = (c) => `#${c.toString(16).padStart(6, "0")}`;
 
 // Signed, in [-PI, PI). JS's % keeps the sign of its left side, so the usual
-// one-liner reads a quarter turn as three quarters once enough left turns have
-// taken `angle` below -3*PI.
+// one-liner gives three quarters of a turn for a quarter turn once enough left
+// turns have taken `angle` below -3*PI.
 function apart(a, b) {
   const d = (a - b) % (2 * Math.PI);
   if (d < -Math.PI) return d + 2 * Math.PI;
@@ -146,7 +146,7 @@ function apart(a, b) {
 }
 
 // Its mass is its radius squared, so a big planet is a bigger target with a
-// longer reach and never a heavier surface to leave.
+// longer range and never a heavier surface to leave.
 class Planet extends ent.Entity {
   constructor(x, y, cells) {
     super();
@@ -280,7 +280,7 @@ class Ship extends ent.Entity {
     this.landed = null;
   }
 
-  // On arrival only: running it every frame of contact pins a resting ship
+  // On arrival only: running it every frame of contact holds a resting ship
   // upright and leaves no way to point the nose before lifting off.
   touch(p, nx, ny) {
     const up = Math.atan2(ny, nx) + Math.PI / 2;
@@ -467,7 +467,7 @@ function expire() {
   });
 }
 
-// What says a mouse is in play: on a mouse the nose aims without firing, and on
+// What shows a mouse is in use: on a mouse the nose aims without firing, and on
 // a finger there is no pointer except while it is down.
 let lastx = null;
 let lasty = 0;

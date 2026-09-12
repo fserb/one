@@ -61,7 +61,7 @@ class Enemy extends ent.Entity {
     this.vel.x *= 0.95;
     this.vel.y *= 0.95;
 
-    // Points accrue while close without touching, so a near miss pays.
+    // Points accrue while close without touching, so a near miss scores.
     const gap = d - this.size - player.size;
     const ads = Math.trunc((this.size + player.size) * 2 / (gap + 0.1));
     if (ads > 0) this.tads += ads;
@@ -85,7 +85,7 @@ class Enemy extends ent.Entity {
       return;
     }
 
-    // The bigger of two touching enemies eats the smaller and its points.
+    // The bigger of two touching enemies absorbs the smaller and its points.
     for (const e of ent.get(Enemy)) {
       if (e === this || e.dead) continue;
       if (

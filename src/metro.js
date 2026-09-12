@@ -5,11 +5,11 @@
  * The map is a Voronoi diagram of a few hundred stations and every tunnel an
  * edge between two cells. Those pairs are the Delaunay dual, so `tunnels()`
  * computes the dual directly and never builds the diagram: Bowyer-Watson, a
- * couple of milliseconds, against a Fortune sweep for a picture nothing draws.
+ * couple of milliseconds, against a Fortune sweep for a diagram nothing draws.
  *
  * Tunnels longer than LONG are dropped and only the largest connected piece is
  * kept: Delaunay joins two points whenever some empty circle passes through
- * both, and out past the edge of the cloud that circle can be enormous.
+ * both, and out past the edge of the point set that circle can be very large.
  *
  * Stations are data and not one entity each: 380 entities are 380 draws whether
  * on screen or not.
@@ -50,11 +50,11 @@ const RINGS = [[8, DOT], [6, HOLE], [4, DOT]];
 
 const TAU = 2 * Math.PI;
 
-// The 480 box the game thinks in.
+// The 480 box the game is written in.
 const W = 480;
 
-// Four screens a side. Stations land no closer than GAP, and TRIES throws fill
-// it with about 375.
+// Four screens a side. Stations land no closer than GAP, and TRIES attempts
+// fill it with about 375.
 const DIM = W * 4;
 const GAP = 75;
 const TRIES = 3000;
@@ -89,7 +89,7 @@ let train = null;
 let mission = null;
 let enemies = 0;
 
-// Stations are thrown down at random and kept when nothing else is within GAP;
+// Stations are placed at random and kept when nothing else is within GAP;
 // tunnels() joins the pairs whose Voronoi cells share a wall.
 function build() {
   // A cell is GAP across the diagonal, so it holds one station at most and
@@ -135,8 +135,8 @@ function build() {
   stations = largest(pts);
   edges = [];
   for (const s of stations) {
-    // By heading, so left and right walk the exits round the station rather
-    // than in the order Delaunay found them.
+    // By heading, so left and right step around the station's exits rather
+    // than through them in the order Delaunay found them.
     s.conn.sort((a, b) =>
       Math.atan2(a.y - s.y, a.x - s.x) - Math.atan2(b.y - s.y, b.x - s.x)
     );
@@ -147,7 +147,7 @@ function build() {
 }
 
 // Bowyer-Watson: hold a triangulation, and for each new point drop the
-// triangles whose circumcircle swallows it and fill the hole from its edges.
+// triangles whose circumcircle contains it and fill the hole from its edges.
 function tunnels(pts) {
   const n = pts.length;
   const far = DIM * 10;
@@ -246,8 +246,8 @@ function largest(pts) {
   return best;
 }
 
-// A marker you can already see is no mission, and a car appearing in front of
-// you is no fun.
+// A marker you can already see is not a mission, and a car appearing in front
+// of you leaves no time to react.
 function offscreen() {
   let pick = null;
   let n = 1;
@@ -277,7 +277,7 @@ function follow() {
   }
 }
 
-// One entity, parked at the origin and never moved, so its own coordinates are
+// One entity, placed at the origin and never moved, so its own coordinates are
 // the screen's.
 class Grid extends ent.Entity {
   render(ctx) {
@@ -437,8 +437,8 @@ class Train extends ent.Entity {
 }
 
 /*
- * Another car, driving the same map with nobody in it. At a station it takes
- * any tunnel but the one it came in by, and it never stops.
+ * Another car, driving the same map with no player. At a station it takes any
+ * tunnel but the one it came in by, and it never stops.
  */
 class Enemy extends ent.Entity {
   constructor(at) {
@@ -482,8 +482,8 @@ class Enemy extends ent.Entity {
 }
 
 /*
- * The red bar along the bottom: a station to reach, a pie counting down, and
- * the running commentary. Reaching one adds to the same clock and raises the
+ * The red bar along the bottom: a station to reach, a pie chart counting down,
+ * and the status text. Reaching one adds to the same timer and raises the
  * combo, and the next one is worth more and allowed a good deal less time, so
  * a chain ends by itself.
  */
@@ -558,8 +558,8 @@ class Mission extends ent.Entity {
 }
 
 /*
- * What marks the station a mission wants: a bullseye while it is on screen, an
- * arrow pinned to the edge pointing at it while it is not.
+ * What marks the station a mission needs: a target ring while it is on screen,
+ * an arrow at the edge pointing at it while it is not.
  */
 class Target extends ent.Entity {
   constructor(station) {
@@ -587,9 +587,9 @@ class Target extends ent.Entity {
   }
 }
 
-// Turn `e` towards (dx, dy) at most `rate` half-turns a second, answering
-// whether it now points there. A car drives on the frames where the turn came
-// to nothing, which is how it pivots at a junction first.
+// Turn `e` towards (dx, dy) at most `rate` half-turns a second, returning
+// whether it now points there. A car drives on the frames where the turn
+// changed nothing, which is why it turns at a junction before moving.
 function turn(e, dx, dy, rate) {
   const d = wrap(Math.atan2(dy, dx) - e.angle);
   const step = Math.PI * rate * ent.game.time;

@@ -1,10 +1,10 @@
 /*
- * overlay.js - the panels every game shares: msg()'s chip at the top-centre,
- * hint()'s panel at the bottom, and the finish screen over the frozen board.
- * Nothing draws the score while the round runs.
+ * overlay.js - the panels every game shares: msg()'s small label at the top
+ * centre, hint()'s panel at the bottom, and the finish screen over the frozen
+ * board. Nothing draws the score while the round runs.
  *
- * Nothing here consumes a click. one.js calls update() only between rounds and
- * render() after the game draws.
+ * Nothing here clears a click flag. one.js calls update() only between rounds
+ * and render() after the game draws.
  */
 
 import { fastOutSlowIn } from "../alma/src/ease.js";
@@ -15,16 +15,17 @@ import { meta, op, score, SIZE } from "./one.js";
 const MARGIN = 26;
 const RADIUS = 12;
 
-// Off black and off white: a panel over a black game still reads as a panel.
+// Off black and off white, so a panel over a black game is still separable
+// from it.
 const DARK = "#17171b";
 const LIGHT = "#f5f4f0";
 
-// A hint holds, then fades; input cuts it short with the quicker fade.
+// A hint stays up, then fades; input ends it early with the quicker fade.
 const HOLD = 3;
 const FADE = 0.6;
 const DISMISS = 0.2;
 
-// How far the finish screen dims the board, and how long it takes to arrive.
+// How far the finish screen dims the board, and how long it takes to appear.
 const DIM = 0.8;
 const RISE = 0.26;
 const AGAIN = "TAP TO PLAY AGAIN";
@@ -41,14 +42,14 @@ const tip = {
   alpha: 0,
 };
 
-// Text already raised this page load: init() runs every round, and the second
+// Text already shown this page load: init() runs every round, and the second
 // round should not re-explain the first.
 const seen = new Set();
 
 const finish = {
   on: false,
   t: 0,
-  shot: null, // the board, taken before any panel went over it
+  shot: null, // the board, captured before any panel was drawn over it
   showPanel: false,
   title: null,
   score: false,
@@ -75,12 +76,12 @@ function clear() {
 }
 
 /*
- * opts says what the finish screen holds, and an empty one says nothing: the
+ * opts says what the finish screen shows, and an empty one shows nothing: the
  * board freezes and a click plays again.
  *
  *   msg    the title line. "" leaves the title out and keeps the rest.
  *   score  true adds the SCORE and BEST rows.
- *   win    picks WELL DONE over GAME OVER when msg is absent.
+ *   win    uses WELL DONE instead of GAME OVER when msg is absent.
  */
 export function gameOver(
   { msg = null, score: wantScore = false, win = false } = {},
@@ -104,8 +105,8 @@ export function gameOver(
   finish.title = !finish.showPanel ? null : msg ?? (win ? "WELL DONE" : "GAME OVER");
 }
 
-// one.js draws the board once more after the round ends and hands the canvas
-// here, so the frozen shot holds the game and none of the panels.
+// one.js draws the board once more after the round ends and passes the canvas
+// here, so the frozen shot has the game and none of the panels.
 export function shoot(canvas) {
   const [shot, sctx] = newCanvas(canvas.width, canvas.height);
   sctx.drawImage(canvas, 0, 0);
@@ -128,7 +129,7 @@ export function hint() {
   return tip.left;
 }
 
-// Every frame, in game or not: the hint listens for the round's first input.
+// Every frame, in game or not: the round's first input dismisses the hint.
 export function poll(dt) {
   if (finish.on) finish.t += dt;
   if (tip.left <= 0) return;
@@ -158,7 +159,7 @@ export function render(ctx) {
 }
 
 function renderMsg(ctx) {
-  if (op.topmsg) chip(ctx, op.topmsg, SIZE / 2, MARGIN, 28, 0.5, 0);
+  if (op.topmsg) label(ctx, op.topmsg, SIZE / 2, MARGIN, 28, 0.5, 0);
 }
 
 function renderHint(ctx) {
@@ -180,7 +181,7 @@ function renderHint(ctx) {
 }
 
 // On the frame the round ends t is 0 and the shot has not been taken, so this
-// draws nothing and leaves the board one.js just drew alone on the canvas.
+// draws nothing and leaves the canvas as one.js just drew it.
 function renderFinish(ctx) {
   const e = fastOutSlowIn(Math.min(1, finish.t / RISE));
 
@@ -256,7 +257,7 @@ function box(ctx, x, y, w, h, ax, ay) {
   return [bx, by];
 }
 
-function chip(ctx, txt, x, y, size, ax, ay) {
+function label(ctx, txt, x, y, size, ax, ay) {
   const px = size * 0.7;
   const py = size * 0.42;
   const w = width(ctx, txt, size) + px * 2;
@@ -271,14 +272,14 @@ function width(ctx, txt, size) {
 }
 
 /*
- * The two colours every panel is drawn in. Each default is picked against what
- * it will sit on, the fill against the board and the text against the fill, so
- * a game that dislikes only the fill names only `meta.overlay.bg`.
+ * The two colours every panel is drawn in. Each default is chosen against what
+ * it will be drawn over, the fill against the board and the text against the
+ * fill, so a game that needs a different fill sets only `meta.overlay.bg`.
  *
  * meta.fg is never a default: rope's is #402F2E on a #000000 board and grab's
  * is nearly its own board too. tools/build.js calls this for the gallery card,
- * whose title is the fill colour, that being the half picked to read over the
- * board.
+ * whose title is the fill colour, that being the half chosen to be readable
+ * over the board.
  */
 export function theme(m) {
   const bg = m.overlay?.bg ?? pick(m.bg);
@@ -288,11 +289,11 @@ export function theme(m) {
 /*
  * WCAG relative luminance of a #rrggbb colour. Linearising is the step that
  * matters: weighting the raw bytes calls #3DBF86 a 0.62 when it is a 0.40,
- * which is most of the way to the wrong panel.
+ * which is most of the distance to the wrong pair.
  *
  * Six-digit hex only, which is what every meta.bg and meta.overlay is. alma's
  * color().contrast() reads any CSS colour and costs 12 KB a bundle, the Color
- * class carrying OKLAB, deltaE2000, gamut mapping and a CSS parser.
+ * class including OKLAB, deltaE2000, gamut mapping and a CSS parser.
  */
 function lum(hex) {
   const n = parseInt(hex.slice(1), 16);
@@ -309,9 +310,9 @@ const L_LIGHT = lum(LIGHT);
 const ratio = (a, b) => (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
 
 /*
- * Whichever of DARK and LIGHT reads better over `over`, by WCAG contrast ratio.
- * Not "is `over` light or dark": the crossover sits at luminance 0.19, not at
- * the 0.5 midpoint, because a mid-tone field is much closer to white than it
+ * Whichever of DARK and LIGHT has the higher WCAG contrast ratio over `over`.
+ * Not "is `over` light or dark": the crossover is at luminance 0.19, not at the
+ * 0.5 midpoint, because a mid-tone colour is much closer to white than it
  * looks. Splitting at the midpoint puts berzerk's red on LIGHT at 3.3:1 where
  * DARK gives 5.0:1.
  */

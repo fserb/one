@@ -1,14 +1,14 @@
 /*
- * one.js - the code every game runs inside. run() owns the canvas, the frame
+ * one.js - the code every game runs inside. run() sets up the canvas, the frame
  * loop, input, the score and the game-over screen.
  *
  * A game is a module exporting meta, init(), update(dt) and render(ctx) and
  * doing nothing at module scope: the build reads `meta` by importing it under
- * Deno, so nothing may touch the DOM there.
+ * Deno, so nothing may use the DOM there.
  *
- * It also holds the shared state: meta, score, act and op. overlay.js reads
+ * It also has the shared state: meta, score, act and op. overlay.js reads
  * them back out of here, and camera.js and sound.js write op.camera and
- * op.sound. input.js owns mouse and key, since it is what writes them.
+ * op.sound. input.js declares mouse and key, since it is what writes them.
  */
 
 import Act from "../alma/src/Act.js";
@@ -20,7 +20,7 @@ import * as overlay from "./overlay.js";
 
 export { DOWN, key, LEFT, mouse, RIGHT, UP };
 
-// Every game draws into this box, whatever the canvas ends up being.
+// Every game draws into this square, whatever size the canvas ends up being.
 export const SIZE = 1024;
 
 // Filled in from the game module's `meta` export by run().
@@ -44,7 +44,7 @@ export const score = {
 
 // One mutable object rather than exported `let`s, because overlay.js imports it
 // back out of one.js: the two are a cycle, and a binding read at module scope
-// would still be in its dead zone.
+// would still be in its temporal dead zone.
 export const op = {
   game: null,
   screen: null,
@@ -68,7 +68,7 @@ export function run(game, { target = null } = {}) {
   ctx = screen.canvas.getContext("2d");
 
   document.title = meta.title;
-  // The board and not the document: the built page hangs the canvas in a square
+  // The board and not the document: the built page puts the canvas in a square
   // on the gallery's colour, and dev.html's canvas has the body for a parent.
   screen.canvas.parentElement.style.backgroundColor = meta.bg;
 
@@ -83,7 +83,7 @@ export function run(game, { target = null } = {}) {
 
 export function start() {
   act.reset();
-  // Back on the whole board, so init() sets only what it wants different.
+  // Reset to the whole board, so init() changes only what it needs to.
   op.camera?.moveTo({ x: SIZE / 2, y: SIZE / 2, scale: 1, angle: 0 }).settle();
   flashColor = null;
   overlay.startGame();
@@ -91,11 +91,11 @@ export function start() {
   op.game.init?.();
 }
 
-// opts says what the finish screen holds and an empty one says nothing; see
+// opts says what the finish screen shows and an empty one shows nothing; see
 // overlay.gameOver(). The board is drawn one more time after this frame's
 // update, so the frozen shot is the game at the moment it ended.
 export function gameOver(opts) {
-  // Two collision paths can both end the same round; the first one wins.
+  // Two collision paths can both end the same round; only the first call acts.
   if (!op.playing) return;
   op.playing = false;
   ending = true;
@@ -103,13 +103,13 @@ export function gameOver(opts) {
 }
 
 // Runs `func` `rate` times a second in whole steps. Call it from update(), so
-// the steps see this frame's input.
+// the steps use this frame's input.
 export function fixed(rate, func) {
   return op.screen.fixed(rate, func);
 }
 
-// hint() with no text answers the seconds left, 0 once dismissed or gone, so an
-// opening move can wait out a player who is still reading.
+// hint() with no text returns the seconds left, 0 once dismissed or faded, so a
+// game can delay an opening move while the player is still reading.
 export function hint(text) {
   if (text === undefined) return overlay.hint();
   overlay.show(text);
@@ -121,11 +121,11 @@ export function msg(m) {
 }
 
 // The whole board one CSS colour, over the game and under the overlay. The
-// clock runs after the draw, so t = 0 is one frame and never none.
+// timer runs after the draw, so t = 0 lasts one frame rather than none.
 let flashColor = null;
 let flashTime = 0;
 
-// The round ended this frame: draw the board once more, then keep it.
+// The round ended this frame: draw the board once more, then store it.
 let ending = false;
 
 export function flash(color, t = 0) {

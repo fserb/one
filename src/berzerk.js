@@ -3,7 +3,7 @@
  *
  * You aim by walking: a shot leaves along your heading, and the reload freezes
  * you where you stand for a third of a second. Every dead enemy drops a
- * numbered box whose number only climbs if you collect the one before it, so
+ * numbered box whose number only increases if you collect the one before it, so
  * the score comes from walking back into the spot you just made dangerous.
  *
  * A player standing still has no heading, so standing still fires nothing.
@@ -68,14 +68,14 @@ const CHASER_TURN = Math.PI;
 // A shot costs a third of a second still and a chaser closes 24 units in that
 // time, so three converging leave no gap wide enough to shoot from. Two do.
 const CHASERS_MAX = 2;
-// A replacement arrives a beat later and not on the same frame: that beat is
-// the window to collect the box it left.
+// A replacement arrives a moment later and not on the same frame: that moment
+// is the window to collect the box it left.
 const RESPAWN = 2;
 
 const BOX = 21;
 
 // What the next box collected is worth. Boxes take it when they drop, so three
-// lying around all read and pay the same.
+// lying around are all worth the same.
 let next = 1;
 
 // Counted here and not off ent.get(): one made this frame has not begun, and
@@ -166,7 +166,7 @@ class EnemyTurret extends ent.Entity {
   begin() {
     this.bullettime = TURRET_FIRST + Math.random() * TURRET_EVERY;
     this.hitCircle(TR);
-    // size() holds the centre on the body while the barrel hangs off one side.
+    // size() keeps the centre on the body while the barrel is to one side.
     this.gfx.size(2 * BARREL, 2 * TR).fill(BLACK)
       .circle(0, 0, TR)
       .rect(0, -BH / 2 - 1, BARREL, BH + 2);
@@ -290,7 +290,7 @@ function aim(e, from, rate) {
   return from + extra.clamp(d, -step, step);
 }
 
-// hitGroup() would hand back its own, since an owner sits inside its shot for a
+// hitGroup() would return its own, since an owner sits inside its shot for a
 // few frames.
 function hitBullet(e) {
   for (const b of ent.get(Bullet)) {

@@ -5,10 +5,10 @@
  * This takes the newest such zip for each game named and runs ffmpeg over the
  * frames. Commit what it writes; tools/build.js copies it to www/<game>/card.*.
  *
- * With no game named it sweeps every game, taking the ones whose zip is newer
- * than the card they already have. Most games' zips are long out of ~/Downloads
- * and their cards are committed, so a missing zip is a skip there and an error
- * when the game was named.
+ * With no game named it processes every game, taking the ones whose zip is
+ * newer than the card they already have. Most games' zips are long gone from
+ * ~/Downloads and their cards are committed, so a missing zip is skipped there
+ * and an error when the game was named.
  */
 
 import { unzipSync } from "../src/alma/src/3rdp/fflate.js";
@@ -25,7 +25,7 @@ function mtime(path) {
   }
 }
 
-// The newest one-<game>-<stamp>.zip in ~/Downloads, by mtime as `ls -t` reads it.
+// The newest one-<game>-<stamp>.zip in ~/Downloads, by mtime, as `ls -t` sorts.
 function newestZip(game) {
   let best = null;
   for (const e of Deno.readDirSync(DOWNLOADS)) {
@@ -69,7 +69,7 @@ function card(game, zip) {
     }
     const fps = new TextDecoder().decode(files["fps.txt"]).trim();
     // Flags split out of one string so a group stays on one line; every path is
-    // its own argument, since a path can carry a space and a flag cannot.
+    // its own argument, since a path can contain a space and a flag cannot.
     const frames = [
       ...`-v error -y -framerate ${fps} -start_number 0`.split(" "),
       "-i",
@@ -81,8 +81,8 @@ function card(game, zip) {
     const h264 = "-c:v libx264 -crf 20 -pix_fmt yuv420p -movflags +faststart";
     ffmpeg([...frames, ...h264.split(" "), `${out}/card.mp4`]);
 
-    // Two passes: the palette has to see the whole clip before any frame is
-    // quantised against it.
+    // Two passes: the palette has to be built from the whole clip before any
+    // frame is quantised against it.
     const scale = `scale=${GIF}:${GIF}:flags=lanczos`;
     const pal = `${dir}/pal.png`;
     ffmpeg([...frames, "-vf", `${scale},palettegen=stats_mode=diff`, pal]);
@@ -119,8 +119,8 @@ for (const game of names) {
     );
     Deno.exit(1);
   }
-  // A card newer than the zip it would be made from is this same card: the
-  // sweep leaves it alone, a named game rebuilds it.
+  // A card newer than the zip it would be made from is this same card: with no
+  // game named it is skipped, a named game rebuilds it.
   if (!named && mtime(`${ROOT}/media/${game}/card.mp4`) > zip.t) continue;
   console.log(game);
   console.log(`  ${zip.path}`);

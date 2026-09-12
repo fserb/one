@@ -2,9 +2,10 @@
  * build.js - turns src/<game>.js into www/<game>/index.html, bundle, CSS and
  * favicon inlined, so a built game is one file.
  *
- * The HTML is tools/tpl/, plain files with {{name}} holes, out of `deno fmt`
- * because a hole is not valid in most of the places one sits. Their <style> and
- * <script> are minified on the way in, so their comments do not ship.
+ * The HTML is tools/tpl/, plain files with {{name}} placeholders, out of
+ * `deno fmt` because a placeholder is not valid in most of the places one
+ * appears. Their <style> and <script> are minified on the way in, so their
+ * comments are not in the output.
  *
  * Each game's `meta` comes from importing the module under Deno, which works
  * only while game modules have no side effects. Keep it that way.
@@ -28,7 +29,7 @@ const src = (name) => new URL(name, SRC).href;
 const tpl = (name) =>
   Deno.readTextFile(new URL(`tpl/${name}.html`, import.meta.url));
 
-// It reads a file and writes one, so both callers hand it a temp directory.
+// It reads a file and writes one, so both callers give it a temp directory.
 async function esbuild(entry, out) {
   const cmd = new Deno.Command("deno", {
     args: [
@@ -61,8 +62,9 @@ async function press(code, ext) {
 
 const BLOCK = /(<(style|script)\b[^>]*>)([\s\S]*?)(<\/\2>)/g;
 
-// A block that is nothing but a hole is left alone: {{script}} is not
-// JavaScript until the bundle fills it, and that comes out of esbuild already.
+// A block that is nothing but a placeholder is left alone: {{script}} is not
+// JavaScript until the bundle fills it, and that is minified by esbuild
+// already.
 async function squeeze(html) {
   const out = [];
   let at = 0;
@@ -142,7 +144,7 @@ async function exists(url) {
   }
 }
 
-// What `./task media <game>` left, keyed by extension.
+// What `./task media <game>` wrote, keyed by extension.
 async function shot(game) {
   const out = {};
   for (const ext of ["mp4", "gif", "png"]) {
@@ -152,8 +154,8 @@ async function shot(game) {
   return out;
 }
 
-// Copied, not inlined: a base64 video in the gallery HTML would be read whole
-// before anything drew.
+// Copied, not inlined: a base64 video in the gallery HTML would have to be
+// downloaded whole before anything was drawn.
 async function copyShot(game, s) {
   if (Object.keys(s).length === 0) return;
   await Deno.mkdir(new URL(`${game}/`, WWW), { recursive: true });
@@ -168,7 +170,7 @@ const esc = (s) =>
 
 const kb = (bytes) => `${(bytes / 1024).toFixed(1)} KB`;
 
-// A disc with a round-capped bar cut out of the bottom, reading as an "n".
+// A disc with a round-capped bar cut out of the bottom, which forms an "n".
 // Measured off icon.png and normalised from its 512 box to 32.
 function favicon(m) {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">` +
@@ -180,7 +182,8 @@ function favicon(m) {
 }
 
 function page(game, m, js, s) {
-  // The templates have no conditionals, so an absent image is an empty hole.
+  // The templates have no conditionals, so an absent image is an empty
+  // placeholder.
   const image = s.png
     ? `<meta property="og:image" content="${BASE}/${game}/card.png">`
     : "";
@@ -202,9 +205,9 @@ function gallery(entries) {
       title: esc(m.title),
       year: esc((m.date ?? "").slice(0, 4)),
       bg: m.bg,
-      // The panel fill and not the panel text: the title sits straight on the
-      // clip with no panel behind it.
-      ink: theme(m).bg,
+      // The panel fill and not the panel text: the title is drawn directly on
+      // the clip with no panel behind it.
+      fg: theme(m).bg,
       media: s.mp4
         ? `<video src="./${game}/card.mp4"${
           s.png ? ` poster="./${game}/card.png"` : ""
@@ -222,8 +225,8 @@ function gallery(entries) {
 
 async function build(game) {
   const m = await meta(game);
-  // A draft builds for its size and nothing else: the page is never written,
-  // and a game that became a draft after shipping loses the old one.
+  // A draft is built for its size and nothing else: the page is never written,
+  // and a game marked draft after it was built has its old directory removed.
   const js = await bundle(game);
   const html = page(game, m, js, await shot(game));
   if (m.draft) {
@@ -255,7 +258,7 @@ for (const game of await games()) {
   await copyShot(game, s);
   all.push([...entry, s]);
 }
-// Newest first; undated games fall to the end, alphabetically.
+// Newest first; undated games go to the end, alphabetically.
 all.sort(([ga, a], [gb, b]) =>
   (b.date ?? "").localeCompare(a.date ?? "") || ga.localeCompare(gb)
 );

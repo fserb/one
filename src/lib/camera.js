@@ -12,4 +12,4 @@ export const camera = new Camera2D({
   y: SIZE / 2,
 });
 
-op.camera = camera; // how one.js drives it without importing this module
+op.camera = camera; // how one.js updates it without importing this module

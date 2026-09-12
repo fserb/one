@@ -1,18 +1,18 @@
 /*
- * asteroid - "Super Hot Asteroid", April 2014. Atari's Asteroids crossed with
+ * asteroid - "Super Hot Asteroid", April 2014. Atari's Asteroids combined with
  * SUPERHOT.
  *
  * Time runs at a fiftieth of its speed unless you are thrusting or shooting.
- * Turning always runs on the wall clock, so a frozen board is a place to aim
- * from, and the score is seconds of running clock plus 2 a rock and 10 a ship.
+ * Turning always runs at real time, so a frozen board is a place to aim from,
+ * and the score is seconds of running clock plus 2 a rock and 10 a ship.
  *
  * The enemy AI is one rule: pick a wandering target weighted towards the player
  * by age, and steer by mirroring the heading about the line to it, which
  * overshoots and is why they weave.
  *
- * Both ships collide as their own triangle: a circle over this dart is wrong
+ * Both ships collide as their own triangle: a circle over this shape is wrong
  * either way round, and at a fiftieth speed you watch the bullet arrive and can
- * see which. entity.js grew hitPoly() for this game.
+ * see which. entity.js gained hitPoly() for this game.
  */
 
 import * as ent from "./lib/entity.js";
@@ -37,7 +37,7 @@ const BLACK = 0x000000;
 
 const TAU = 2 * Math.PI;
 
-// The 480 box the game thinks in.
+// The 480 box the game is written in.
 const W = 480;
 
 const SLOW = 50;
@@ -119,7 +119,7 @@ class Player extends ent.Entity {
   update() {
     const { key, time } = ent.game;
 
-    // The one control on the wall clock: aiming is free.
+    // The one control that runs at real time: aiming is free.
     if (key.left) this.angle -= TURN * realtime;
     if (key.right) this.angle += TURN * realtime;
     if (key.up) thrust(this, THRUST * time);
@@ -162,7 +162,7 @@ class Bullet extends ent.Entity {
 
     wrap(this, 0);
 
-    // The only answer to a bullet on its way that does not cost the clock.
+    // The only response to a bullet on its way that does not cost clock time.
     for (const b of ent.get(Bullet)) {
       if (b.fromPlayer === this.fromPlayer || !this.hit(b)) continue;
       sound.play("pop");
@@ -360,7 +360,7 @@ function fire(e, fromPlayer, name) {
   sound.play(name);
 }
 
-// Turns `e` towards `to`, answering how far off it was before the turn, which
+// Turns `e` towards `to`, returning how far off it was before the turn, which
 // is what the enemy reads to decide whether to thrust.
 function steer(e, to, rate) {
   const off = fold(to - e.angle);
@@ -370,7 +370,7 @@ function steer(e, to, rate) {
 }
 
 // A ship sits inside its own shot for its first frames, so only the other
-// side's count.
+// side's bullets count.
 function incoming(e, fromPlayer) {
   for (const b of ent.get(Bullet)) {
     if (b.fromPlayer === fromPlayer && e.hit(b)) return b;
@@ -464,7 +464,7 @@ function fold(a) {
   return x;
 }
 
-// 0 to PI. A standing ship has no heading, and PI is the answer that sends it
+// 0 to PI. A standing ship has no heading, and PI is the value that sends it
 // to the steering branch.
 function between(ax, ay, bx, by) {
   const l = Math.hypot(ax, ay) * Math.hypot(bx, by);

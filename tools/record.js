@@ -1,14 +1,14 @@
 /*
- * record.js - records a game's gallery clip with nothing at the keyboard.
+ * record.js - records a game's gallery clip with nobody at the keyboard.
  *
  * It serves this directory, opens dev.html?game=<name> in headless Chrome over
- * CDP and calls src/dev/rec.js's rec.auto(). The zip comes back over the wire
- * into ~/Downloads under the name the rec button would have downloaded, so
+ * CDP and calls src/dev/rec.js's rec.auto(). The zip is sent back over CDP and
+ * written into ~/Downloads under the name the rec button would have used, so
  * `./task media` reads it without knowing the difference.
  *
  * It sends no input, so it records the round running on its own. For a game
- * that waits for a player that is a still board, and motion() catches it: the
- * take comes back frozen and the game is named at the end as one to record by
+ * that waits for a player that is a still board, and motion() detects it: the
+ * recording has no motion and the game is listed at the end as one to record by
  * hand.
  */
 
@@ -38,7 +38,7 @@ const TYPES = {
 const MIME = (path) => TYPES[path.split(".").pop()] ?? "application/octet-stream";
 
 // dev.html needs a server: it loads the games as ES modules, which file://
-// refuses. Files only, and no listing, since ?game= asks for none.
+// does not allow. Files only, and no listing, since ?game= needs none.
 function serve() {
   const server = Deno.serve(
     { port: 0, hostname: "127.0.0.1", onListen: () => {} },
@@ -105,8 +105,8 @@ async function chrome() {
       try {
         proc.kill("SIGKILL");
       } catch { /* already gone */ }
-      // Chrome is still writing its profile out as it dies, and a directory
-      // left in /tmp is not worth failing the sweep over.
+      // Chrome is still writing its profile out as it exits, and a directory
+      // left in /tmp is not worth failing the run over.
       try {
         Deno.removeSync(dir, { recursive: true });
       } catch { /* it goes with the next reboot */ }
@@ -114,7 +114,7 @@ async function chrome() {
   };
 }
 
-// The page's CDP socket: send() answers one command's result.
+// The page's CDP socket: send() returns one command's result.
 async function connect(port) {
   const list = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
   const target = list.find((t) => t.type === "page");
@@ -170,8 +170,8 @@ async function evaluate(cdp, expression, timeout = 20000) {
     awaitPromise: true,
     returnByValue: true,
   });
-  // Cleared whichever way the race goes: a pending timer is a minute of a sweep
-  // that has already finished, since Deno runs the loop out first.
+  // Cleared whichever way the race goes: a pending timer is a minute added to a
+  // run that has already finished, since Deno drains the event loop first.
   let timer = null;
   const late = new Promise((_, rej) => {
     timer = setTimeout(
@@ -198,8 +198,8 @@ function write(take) {
   return path;
 }
 
-// A card recorded by hand beats anything this can take, so a sweep never goes
-// over one.
+// A card recorded by hand is better than anything this can record, so with no
+// game named it never replaces one.
 function missing() {
   return [...Deno.readDirSync(`${ROOT}/src`)]
     .filter((e) => e.isFile && e.name.endsWith(".js") && !e.name.startsWith("_"))
@@ -232,8 +232,8 @@ for (const game of names) {
       console.log(`${label} nothing moved: it needs a player`);
       continue;
     }
-    // findLoop goes under MIN_LOOP only when the take ran out of game: the
-    // round ended and what it dropped was the frozen finish screen.
+    // findLoop goes under MIN_LOOP only when the recording ran past the end of
+    // the round, and what it discarded was the frozen finish screen.
     const secs = take.frames / take.fps;
     if (secs < 1) {
       short.push(game);

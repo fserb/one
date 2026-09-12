@@ -39,7 +39,7 @@ const BOARDPOS = [
 // Belt units draw in a unit square, scaled up by this.
 const SZ = 100;
 const STRIDE = 1.2;
-// The belt rides the strip above the boards, clear of the overlay's panels.
+// The belt is in the strip above the boards, clear of the overlay's panels.
 const BELT_Y = 117;
 
 const board = [];
@@ -49,7 +49,7 @@ const belt = [];
 // Reused, flipped per board by the reader. Board 0 falls right, board 1 left.
 const gravity = { x: 1, y: 0 };
 
-// Per board, since the last check. A "sync" order wants one of each.
+// Per board, since the last check. A "sync" order needs one of each.
 const merges = [0, 0];
 
 let needsMerge;
@@ -251,7 +251,7 @@ function canGrow(b) {
   return exp.x > 0 || exp.y > 0;
 }
 
-// Grows one block, swallowing what it covers, then starts over: a merge opens
+// Grows one block, absorbing what it covers, then starts over: a merge opens
 // up the next.
 function tryMergeBlocks() {
   for (const b of board) {
@@ -273,7 +273,7 @@ function tryMergeBlocks() {
   }
 }
 
-// A swap is allowed only if it leaves someone able to merge, which is what
+// A swap is allowed only if it leaves some block able to merge, which is what
 // stops the board deadlocking. A useless swap silently does nothing.
 function isValidSwitch() {
   return board.some(canGrow);
@@ -513,7 +513,7 @@ async function updateClick() {
       [s0.v, s1.v] = [s1.v, s0.v];
     } else {
       // Only the colours moved, so animate each from where the other is back
-      // to zero and the swap reads as two things crossing.
+      // to zero and the swap looks like two things crossing.
       const p0 = toScreen(s0);
       const p1 = toScreen(s1);
       s0.d = vec.sub(p1, p0);
@@ -575,7 +575,7 @@ export function update(dt) {
 export function render(ctx) {
   camera.apply(ctx);
 
-  // Shrinking blocks go under, growing ones on top, so a swap reads correctly.
+  // Shrinking blocks go under, growing ones on top, so a swap is drawn right.
   for (const p of board) {
     if (p.scale < 1) renderPiece(ctx, p);
   }

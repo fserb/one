@@ -1,9 +1,9 @@
 /*
- * input.js - every device collapsed into `mouse` and `key`. poll() runs before
+ * input.js - every device mapped onto `mouse` and `key`. poll() runs before
  * the game's update and flush() after the frame, because alma's Input keeps an
- * edge alive for exactly one update() call.
+ * edge set for exactly one update() call.
  *
- * It owns `mouse` and `key` rather than one.js, so nothing here imports the
+ * It declares `mouse` and `key` rather than one.js, so nothing here imports the
  * rest of src/lib and the one.js <-> input.js cycle never exists.
  */
 
@@ -24,8 +24,8 @@ export const mouse = {
   swipe: 0, // one of UP/RIGHT/DOWN/LEFT this frame, or 0
 };
 
-// Held now, plus what went down this frame. b1 doubles as the pointer, so
-// every game plays with a mouse or a finger alone.
+// Held now, plus what went down this frame. b1 is the pointer as well, so
+// every game can be played with a mouse or a finger alone.
 export const key = {
   up: false,
   right: false,
@@ -47,8 +47,8 @@ const DIRS = [["up", UP], ["right", RIGHT], ["down", DOWN], ["left", LEFT]];
 const KEYS = ["up", "right", "down", "left", "b1", "b2"];
 
 let input = null;
-// alma's Screen, for toLogical(). Held rather than read off op, so input.js
-// imports nothing from the rest of src/lib.
+// alma's Screen, for toLogical(). Kept here rather than read off op, so
+// input.js imports nothing from the rest of src/lib.
 let screen = null;
 
 export function init(scr) {

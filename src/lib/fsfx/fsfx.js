@@ -1,8 +1,8 @@
 /*
 FSFX
 
-Track - a block of memory that has a sampleRate and duration. It's also able to
-deal with integer oversampling. And knows how to call modules to process itself.
+Track - a block of memory that has a sampleRate and duration. It also handles
+integer oversampling, and calls the modules that process it.
 Internally, it builds a State for each module, containing its parameters and
 signals.
 

@@ -18,13 +18,13 @@
 <meta name="apple-mobile-web-app-title" content="{{title}}">
 <link rel="icon" href="{{icon}}">
 <style>
-/* This page is the game framed the way the card frames it, so following this
-   URL lands where pressing the card lands. */
+/* This page is the game framed the way the card frames it, so opening this
+   URL shows what pressing the card shows. */
 @view-transition { navigation: auto; }
 * { box-sizing: border-box; }
 html, body { margin: 0; overflow: hidden; }
 /* Reserved here as well as on the gallery, so the viewport is the same width on
-   both sides of the transition and nothing slides sideways. */
+   both sides of the transition and nothing shifts sideways. */
 html { background: #f2f0e5; scrollbar-gutter: stable; }
 /* A drag across the board is the game being played, not a selection. */
 body {
@@ -40,7 +40,7 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
-/* The same rules as the gallery's, so the site's name holds still across the
+/* The same rules as the gallery's, so the site's name does not move across the
    transition. The height is fixed because the board below is sized off it. */
 header {
   position: relative;
@@ -64,19 +64,19 @@ header {
 header a { color: inherit; }
 .site a { text-decoration: none; }
 .site a:hover { text-decoration: underline; }
-/* The wall carries the same glyph and hides it, so the site's name starts at
-   the same x on both pages. */
+/* The gallery has the same character and hides it, so the site's name starts
+   at the same x on both pages. */
 .arrow { visibility: hidden; }
 a .arrow { visibility: visible; }
-/* Too narrow to centre the name without it landing on the byline. */
+/* Too narrow to centre the name without it overlapping the byline. */
 @media (max-width: 560px) {
   .game { position: static; transform: none; margin-left: auto; }
 }
 
-/* Centred in what the header leaves: 100dvh less this page's padding, the
+/* Centred in the space below the header: 100dvh less this page's padding, the
    header and its margin. meta.bg is on the element rather than here, because
-   this stylesheet is minified and a hole in a declaration does not survive a
-   CSS parser; the attribute is what colours the first frame drawn. */
+   this stylesheet is minified and the CSS parser drops a placeholder inside a
+   declaration; the attribute is what colours the first frame drawn. */
 .board {
   position: relative;
   margin: auto;
@@ -85,11 +85,11 @@ a .arrow { visibility: visible; }
   view-transition-name: board;
 }
 /* alma's Input focuses the canvas at startup so the keys arrive without a click
-   first, and Chrome reads that as :focus-visible. */
+   first, and Chrome treats that as :focus-visible. */
 canvas:focus-visible { outline: none; }
 canvas { display: block; cursor: pointer; touch-action: none; }
-/* Both pages carry these: the pseudo-elements belong to whichever document is
-   arriving, so each direction reads the destination's copy. */
+/* Both pages have these: the pseudo-elements belong to the document being
+   navigated to, so each direction uses the destination's copy. */
 ::view-transition-group(board) {
   animation-duration: 420ms;
   animation-timing-function: cubic-bezier(.4,0,.15,1);
@@ -106,8 +106,8 @@ canvas { display: block; cursor: pointer; touch-action: none; }
 </header>
 <main class="board" style="background:{{bg}}"><canvas id="canvas"></canvas></main>
 <script type="module">
-// Going back restores the wall from the back/forward cache, scroll and playing
-// clips and all. Anything else follows the link and loads it.
+// Going back restores the gallery from the back/forward cache, with its scroll
+// position and its playing clips. Anything else follows the link and loads it.
 const back = document.getElementById("back");
 const home = new URL("../", location.href).href;
 
@@ -117,8 +117,8 @@ back.addEventListener("click", (ev) => {
   history.back();
 });
 
-// alma's Input never stops the event, so Escape arrives here even with the
-// board holding the keyboard.
+// alma's Input never stops the event, so Escape arrives here even while the
+// board has keyboard focus.
 addEventListener("keydown", (ev) => {
   if (ev.key === "Escape") back.click();
 });

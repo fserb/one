@@ -1,17 +1,17 @@
 /*
  * grow, September 2015.
  *
- * A bead runs round a closed loop. Hold the button and it climbs off the
- * surface along the outward normal, dragging a new stretch with it; let go and
- * what it drew replaces the stretch it left.
+ * A bead moves around a closed loop. Hold the button and it moves off the curve
+ * along the outward normal, extending a new stretch behind it; release and what
+ * it drew replaces the stretch it left.
  *
  * The size of the loop sets the scale for everything else: thrust, travel, the
- * gap two nodes are kept apart. So the picture holds its size and pace as the
- * loop grows, rather than the bead crawling round a longer loop.
+ * gap two nodes are kept apart. So the drawing keeps its size and speed as the
+ * loop grows, rather than the bead moving slowly around a longer loop.
  *
  * Every cut smooths a little. The curve the bead draws is the loop offset
  * outwards, and an outward offset inside a dip folds over itself, so a dip left
- * alone grows spikes that grow their own.
+ * alone produces spikes that produce their own.
  */
 
 import * as ent from "./lib/entity.js";
@@ -51,7 +51,7 @@ const SPRING = 10;
 const REACH = THRUST / SPRING;
 
 // A pull is nowhere near this long. It is here so holding the button cannot
-// carry the bead round to its own takeoff, leaving the splice nothing to cut.
+// move the bead round to its own takeoff, leaving the splice nothing to cut.
 const SPAN = 0.35;
 
 const SMOOTH = 0.2;
@@ -87,7 +87,7 @@ let golds = [];
 let clock = 0;
 let version = -1;
 
-// A cycle of nodes, each carrying the outward normal at it and the arc length
+// A cycle of nodes, each with the outward normal at it and the arc length
 // up to it; `t` runs along it in world units and wraps at `len`. Built in the
 // constructor because init() places the gold before the first frame has run.
 class Path extends ent.Entity {
@@ -149,7 +149,7 @@ class Path extends ent.Entity {
   }
 
   // Laplacian, every cut. A node on a fifty-node circle moves three hundredths
-  // of a unit, and a spike loses a real bite.
+  // of a unit, and a spike loses a noticeable amount.
   smooth() {
     const p = this.pts;
     const n = p.length;
@@ -179,7 +179,7 @@ class Path extends ent.Entity {
     this.box = [x0, y0, x1, y1];
   }
 
-  // By halving: `at` climbs along the cycle, so the answer is the last node
+  // By halving: `at` increases along the cycle, so the answer is the last node
   // that has not passed t.
   seg(t) {
     let lo = 0;
@@ -269,8 +269,8 @@ class Path extends ent.Entity {
     this.arc.push({ x, y });
   }
 
-  // The stretch from takeoff to landing is thrown away and the arc stands in
-  // for it. The loop re-cuts to start under the bead, so this returns zero.
+  // The stretch from takeoff to landing is discarded and the arc replaces it.
+  // The loop re-cuts to start under the bead, so this returns zero.
   close(t) {
     const arc = this.arc;
     this.arc = null;
@@ -337,9 +337,9 @@ class Path extends ent.Entity {
 }
 
 /*
- * The bead. It rides the loop at a fixed speed whatever else it is doing:
- * `h` is how far it has climbed off the surface, and the button is the only
- * thing that pushes it up there.
+ * The bead. It moves along the loop at a fixed speed whatever else it is doing:
+ * `h` is how far it is off the curve, and the button is the only thing that
+ * moves it out.
  */
 class Cursor extends ent.Entity {
   constructor() {
@@ -368,7 +368,7 @@ class Cursor extends ent.Entity {
     }
 
     let ha = push ? THRUST * scale : 0;
-    // DRAG carries a length, so the scale divides it rather than multiplies.
+    // DRAG has a length in it, so the scale divides it rather than multiplies.
     ha -= Math.sign(this.hv) * this.hv * this.hv * DRAG / scale;
     ha -= this.h * SPRING;
     ha *= dt;
@@ -516,8 +516,8 @@ function place() {
   golds.push(new Gold(last.x, last.y));
 }
 
-// The loop, the gold, and PAD of air round the lot. The box is square, so the
-// diameter is one number and the scale one division.
+// The loop, the gold, and PAD of space around all of it. The box is square, so
+// the diameter is one number and the scale one division.
 function frame() {
   let [x0, y0, x1, y1] = path.box;
   for (const g of golds) {

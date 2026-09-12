@@ -1,5 +1,5 @@
 /*
- * art.js - a 6x8 bitmap font and a chunky-pixel renderer.
+ * art.js - a 6x8 bitmap font and a renderer of large square pixels.
  *
  * ```js
  * art.size(3).color(0xe1b81f, 0xa37d1d, 32).circle(8, 8, 8);
@@ -215,7 +215,7 @@ const FONTDATA = [
 const GLYPHS = new Map();
 
 // One unit per pixel, laid out proportionally: each glyph two pixels past the
-// rightmost lit column so far. Everything scales linearly, so callers multiply.
+// rightmost set column so far. Everything scales linearly, so callers multiply.
 export function glyphs(text) {
   const hit = GLYPHS.get(text);
   if (hit) return hit;
@@ -257,12 +257,12 @@ export function css(c) {
 }
 
 /*
- * The midpoint circle walk over the first octant, which circle() mirrors into
+ * The midpoint circle loop over the first octant, which circle() mirrors into
  * four spans and lcircle() into eight dots. Shared because the two have to
- * agree: an outline drawn by one variant and a fill by another sit a pixel
+ * agree: an outline drawn by one variant and a fill by another are a pixel
  * apart at half the radii. alma's bresenhamCircle() is the other variant, off
  * `3 - 2r` rather than `1 - x`, and picks different pixels at 29 of the first
- * 60 radii, so it stays out.
+ * 60 radii, so it is not used.
  */
 function octant(r, step) {
   let x = Math.round(r);
@@ -298,8 +298,7 @@ export class Art {
     this.dirty = true;
   }
 
-  // w and h fix the box the art centres in, which obj() reads as its row
-  // length.
+  // w and h fix the box the art centres in, which obj() uses as its row length.
   size(px = 1, w = 0, h = 0) {
     if (this.disabled) return this;
     this.px = px;
@@ -356,7 +355,7 @@ export class Art {
   dot(x, y) {
     if (this.disabled) return this;
 
-    // The dither reads the whole pixel the dot falls in and the run keeps the
+    // The dither uses the whole pixel the dot falls in and the run keeps the
     // coordinate given, so `rect(0, 1.5, 4, 1)` is a one-pixel bar centred on a
     // four-pixel box.
     let v = 0;
@@ -519,8 +518,8 @@ export class Art {
 
     // One path per run of the same colour. Filled separately, two rectangles
     // sharing an edge each antialias against it, and 40% coverage over 60% of
-    // the same colour is 76%, not 100%: a seam a quarter of a shade darker down
-    // every shared edge. Consecutive runs only, so draw order is kept.
+    // the same colour is 76%, not 100%, so every shared edge shows a darker
+    // line. Consecutive runs only, so draw order is kept.
     let last = -1;
     for (const [x, y, w, c] of this.runs) {
       if (c !== last) {

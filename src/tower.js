@@ -8,7 +8,7 @@
  * A region is legal when it is orthogonally connected and its numbers are
  * exactly 1..n. The score is how many committed regions match one the generator
  * actually cut, which is not the same as filling the board: a board usually
- * admits partitions the generator never chose, and they are all still wins.
+ * admits partitions the generator never chose, and those all still score.
  *
  * A region is drawn as one shape rather than a row of tiles: each cell fills
  * into the margin on the sides it has a neighbour on, and rounds off on the
@@ -35,7 +35,7 @@ const WIDTH = 7;
 const HEIGHT = 10;
 const MARGIN = 12;
 
-// The strip under the board, carrying the two buttons and the working set.
+// The strip under the board, with the two buttons and the working set.
 const STATUS_H = 120;
 const PAD = 36;
 
@@ -104,7 +104,7 @@ function wash(hex, amount) {
 
 const REGION_FILL = REGION.map((c) => wash(c, 0.25));
 
-// The generator's cut: group id -> the cells in it and the numbers they carry.
+// The generator's cut: group id -> the cells in it and their numbers.
 let solution = new Map();
 let grid = [];
 
@@ -159,7 +159,7 @@ function build() {
         if (filler.grid[y][x] === id) cells.push({ x, y });
       }
     }
-    // Scattered: in order they would read as a path and give the shape away.
+    // Scattered: in order they would look like a path and show the shape.
     const numbers = shuffle(Array.from({ length: size }, (_, i) => i + 1));
     solution.set(id, { cells, size, numbers });
   }
@@ -281,7 +281,7 @@ function toggle(cell) {
   if (cell.isCommitted) {
     const region = committed.find((r) => r.id === cell.committedId);
     if (!region) return;
-    // Banked first when it is legal and dropped when it is not: two half-built
+    // Committed first when it is legal and dropped when it is not: two half-built
     // regions at once has no meaning.
     if (working.length > 0 && !commit()) clearWorking();
     decommit(region);
