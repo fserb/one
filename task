@@ -4,14 +4,12 @@ IFS=$'\n\t'
 
 cd "$(dirname "$0")"
 
-# Build every game, or just the ones named, into www/.
+# Build every game, or just the ones named, into www/. With no name it starts
+# from an empty www/, so a game that was renamed, deleted or turned into a
+# draft leaves no page behind. With a name, the rest of www/ stays.
 function build {
+  if [[ $# -eq 0 ]]; then rm -rf www; fi
   deno run -A tools/build.js "$@"
-}
-
-function rebuild {
-  rm -rf www
-  build "$@"
 }
 
 # Where a bundle's bytes went. With no game named, every game and then every
@@ -38,14 +36,11 @@ function record {
 
 function fmt {
   deno fmt
-}
-
-function lint {
   deno lint
 }
 
 function deploy {
-  rebuild
+  build
   rsync -a --partial --progress www/ metaphora:one/
 }
 
