@@ -24,6 +24,14 @@
       justify-content: center;
       touch-action: none;
     }
+    /* The square the game draws in, min(100vw, 100vh). one.js paints meta.bg
+       on this element and the script below puts that colour a shade off on the
+       body, so the board's edge is visible; the built page has the gallery's
+       colour around its board. */
+    main {
+      width: 100vmin;
+      height: 100vmin;
+    }
     canvas {
       display: block;
       cursor: pointer;
@@ -259,22 +267,44 @@
     const name = params.get("game") ?? location.hash.slice(1);
 
     if (name) {
+      const board = document.createElement("main");
       const canvas = document.createElement("canvas");
       canvas.id = "canvas";
-      document.body.append(canvas);
+      board.append(canvas);
+      document.body.append(board);
 
       const game = await import(`./src/${name}.js`);
-      const { run } = await import("./src/lib/one.js");
+      const { run, meta } = await import("./src/lib/one.js");
       const screen = run(game);
+      // run() has painted meta.bg on the board, and meta is the merged one, so
+      // a game that names no colour has the default in both places.
+      document.body.style.backgroundColor = shade(meta.bg);
 
       // After run(), so the recorder's frame callback runs after the game's.
+      let rec = null;
       if (params.get("rec") !== "0") {
-        const rec = await import("./src/dev/rec.js");
+        rec = await import("./src/dev/rec.js");
         rec.init(screen, name);
         // tools/record.js calls rec.auto() over CDP, which has no other way to
         // reach a module's exports.
         window.rec = rec;
       }
+
+      // Escape leaves for the index here, the way it leaves a built page for
+      // the gallery. The recorder answers the key first while it is busy:
+      // there Escape cancels a countdown and closes the preview.
+      const home = new URL(location.pathname, location.href).href;
+      addEventListener("keydown", (ev) => {
+        if (ev.key !== "Escape" || rec?.busy()) return;
+        // Back, when the index is where this page came from, so its scroll
+        // position and its playing clips come back with it from the
+        // back/forward cache. Anything else loads it.
+        if (globalThis.navigation?.activation?.from?.url === home) {
+          history.back();
+        } else {
+          location.href = home;
+        }
+      });
     } else {
       await index();
     }
@@ -393,6 +423,16 @@
       // A clip restored from the back/forward cache is playing if that card was
       // the one pressed.
       addEventListener("pageshow", () => videos.forEach((v) => v.pause()));
+    }
+
+    // The colour of the page around the board: meta.bg, six-digit hex, each
+    // channel down by 26 of 255. A board already near black goes up instead,
+    // since darker than #000000 is #000000.
+    function shade(hex) {
+      const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+      const d = (c[0] + c[1] + c[2]) / 3 < 40 ? 26 : -26;
+      const v = c.map((x) => Math.max(0, Math.min(255, x + d)));
+      return `rgb(${v[0]} ${v[1]} ${v[2]})`;
     }
 
     function esc(s) {

@@ -321,6 +321,12 @@ function base64(bytes) {
   });
 }
 
+// dev.html's Escape leaves the page for the index, except while a take or a
+// preview is up: those are what the key means here.
+export function busy() {
+  return state !== "idle";
+}
+
 function onKey(e) {
   if (e.key === "r" && state === "idle") record();
   // Only during the countdown: once a recording starts it runs to the end.
