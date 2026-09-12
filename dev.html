@@ -135,8 +135,9 @@
       opacity: .55;
       font-variant-numeric: tabular-nums;
     }
-    /* draft, or a module that threw on import. Top right, in the card's own
-       ink, which is the half picked to read over that board. */
+    /* draft, or a module that threw on import. Top right, in the red the
+       card's edge is drawn in and not in the card's own ink: the two say the
+       same thing, and the ink is the colour the title reads the board in. */
     .flag {
       position: absolute;
       right: 0;
@@ -146,9 +147,23 @@
       font: bold 4.5cqw Verdana, sans-serif;
       text-transform: uppercase;
       letter-spacing: .12em;
-    }
-    .flag.broken {
       color: #c22;
+    }
+    /* The flag again at the card's edge, so it reads from across the wall. It
+       is inside the square and not around it: a border would take 4px off
+       every card, flagged or not, and every card is the square the front page
+       will show. Red on both, and never the card's own ink, which is a
+       different colour on every card and would read as part of the picture. A
+       pseudo-element and not an outline, because the clip is positioned and
+       paints over an outline; ::after is the last child, so it paints over the
+       clip. */
+    #cards li.draft::after,
+    #cards li.error::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border: 4px solid #c22;
+      pointer-events: none;
     }
     p.help {
       font-size: 14px;
@@ -349,26 +364,23 @@
       // Hover text, which the front page's cards deliberately have not got: a
       // card there is a picture of a game, and this is the tool.
       const tip = g.error ?? (g.desc ?? "").trim();
-      return `<li style="--bg:${esc(m.bg)};--ink:${esc(ink)}">
+      // What the build would do with this game: nothing, or skip it. draft
+      // keeps a game out of www/ and off the front page; an import that threw
+      // has no meta, so the build would stop on it. One word, and it is both
+      // the badge and the class the red edge hangs off.
+      const flag = g.error ? "error" : g.draft ? "draft" : "";
+      return `<li${flag ? ` class=${flag}` : ""} ` +
+        `style="--bg:${esc(m.bg)};--ink:${esc(ink)}">
         <a href="?game=${encodeURIComponent(g.name)}"${
-        tip ? ` title="${esc(tip)}"` : ""
-      }>
+          tip ? ` title="${esc(tip)}"` : ""
+        }>
           ${clip}
           <p class="tag"><b>${esc(g.name)}</b><time>${
-        esc((g.date ?? "").slice(0, 4))
-      }</time></p>
-          ${flag(g)}
+          esc((g.date ?? "").slice(0, 4))
+        }</time></p>
+          ${flag ? `<p class="flag ${flag}">${flag}</p>` : ""}
         </a>
       </li>`;
-    }
-
-    // What the build would do with this game: nothing, or skip it. draft keeps
-    // a game out of www/ and off the front page; an import that threw has no
-    // meta, so the build would stop on it.
-    function flag(g) {
-      if (g.error) return `<p class="flag broken">error</p>`;
-      if (g.draft) return `<p class="flag">draft</p>`;
-      return "";
     }
 
     // The card under the pointer is the one running, and the rest hold the
