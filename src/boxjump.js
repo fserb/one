@@ -2,33 +2,16 @@
  * boxjump. Based on a prototype by wombatstuff.
  * https://x.com/wombatstuff/status/1180176881708146688
  *
- * A board of turning shapes, each with a number on it, and a blob standing on
- * one of their faces. The blob turns with the shape it is on, and the one
- * button launches it straight out along that face's normal. Every launch takes
- * 1 off the shape it left; at 0 that shape goes, and the level is over when the
- * last one does. Miss every shape and the blob leaves the board, which is the
- * end of the run.
+ * The number falls on the launch and not on the landing, so the last shape goes
+ * while the blob is still in the air and the level ends mid-flight. `clearing`
+ * is the board holding before the next one, and also what stops that flight
+ * counting as leaving the board.
  *
- * The flight is a straight line at a constant speed. No gravity, no drag: the
- * only thing the player chooses is when to press, and the shape's own turn is
- * what aims the shot. The face the blob stands on is the whole aim, and the
- * blob goes exactly where that face points.
- *
- * The number falls on the launch and not on the landing, so the last shape
- * goes while the blob is still in the air, and the level ends mid-flight.
- * `clearing` is the board holding for a moment before the next one, and it is
- * also what stops that flight counting as leaving the board.
- *
- * A contact is a segment test, not an overlap: the step from last frame's
+ * A contact is a segment test and not an overlap: the step from last frame's
  * position to this one, against the outline in the piece's own unturned
- * coordinates. That gives the exact point and the exact face in one pass, which
- * an overlap test does not, and nothing tunnels through a shape at 520 a
- * second. The piece is read at this frame's angle for both ends of the step,
- * which is a frame of error in the shape's turn and nothing in the blob's line.
- *
- * The piece just launched from is held in `from` and ignored until the blob is
- * clear of its circumcircle; the blob leaves along the face it stood on, so
- * without that it lands straight back on it.
+ * coordinates. That gives the point and the face in one pass and nothing
+ * tunnels at 520 a second. Both ends of the step read this frame's angle, which
+ * is a frame of error in the shape's turn and none in the blob's line.
  */
 
 import { css } from "./lib/art.js";
@@ -47,58 +30,44 @@ off the face you are standing on
   fg: "#EDF2F4",
   scoreMax: true,
   date: "2026-09-12",
+  draft: true,
 };
 
 const W = 480;
 const TAU = 2 * Math.PI;
 
-// meta.bg and meta.fg as the numbers the drawing takes, and the blob.
 const BOARD = 0x2b2d42;
 const CHALK = 0xedf2f4;
 const BLOB = 0xef476f;
 
-// Units a second in flight, and how far the blob's middle floats off the face
-// it stands on.
 const SPEED = 520;
-const RIDE = 11;
+const RIDE = 11; // how far the blob's middle floats off the face it stands on
 
 // The blob, and how far past the board's edge it gets before the run ends.
 const BW = 15;
 const BH = 21;
 const OUT = 40;
 
-/*
- * A piece is placed with its middle at least its own circumradius plus EDGE
- * from the board's edge, and no two circumcircles come within GAP of each
- * other. EDGE is RIDE plus half the blob, so the blob standing on the face
- * nearest the edge is still on the board, and a small piece can sit much
- * closer in than a big one.
- */
+// No two circumcircles come within GAP. EDGE is RIDE plus half the blob, so the
+// blob standing on the face nearest the edge is still on the board.
 const GAP = 22;
 const EDGE = 22;
 
-/*
- * The size a piece is drawn at, before FAT. The range is cut into `n` bands and
- * each piece is rolled inside its own, biggest first, rather than each rolling
- * over the whole range: independent rolls come out all-medium often enough to
- * notice, and a band each puts a shape the blob can barely stand on next to one
- * a third of the board across, on every board. The top falls with the count,
- * which is the only thing that keeps six of them fitting.
- */
+// The size a piece is drawn at, before FAT. The range is cut into `n` bands and
+// each piece rolled inside its own: independent rolls come out all-medium often
+// enough to notice. The top falls with the count, which is what keeps six of
+// them fitting.
 const SMIN = 22;
 const SMAX = 86;
 const PER = 6;
 
-// A triangle, a square, a hexagon, and what each is drawn at against the
-// others: a triangle of the same circumradius reads much smaller.
+// A triangle of the same circumradius reads much smaller, hence FAT.
 const SHAPES = [3, 4, 6];
 const FAT = { 3: 1.32, 4: 1.12, 6: 1.02 };
 
-// Radians a second a piece turns, before the level's ramp. The spread is the
-// point: a slow shape is a longer wait for the face to come round and a wider
-// press when it does, a fast one the other way about, and a board wants some of
-// each. The floor is a wait of five seconds for a full turn, which is as long
-// as watching a shape go round stays interesting.
+// Radians a second, before the level's ramp. The spread is the point: a slow
+// shape is a longer wait for the face and a wider press when it comes, a fast
+// one the other way about. The floor is five seconds for a full turn.
 const SPIN = 1.2;
 const SPIN_VAR = 1.4;
 
@@ -113,14 +82,8 @@ sound.voice("clear", { ...powerup(3311), vol: 0.2 });
 sound.voice("die", { ...explosion(1032), vol: 0.2 });
 
 let level = 0;
-// Seconds left of the pause between one level and the next, 0 while playing.
-let clearing = 0;
+let clearing = 0; // seconds left of the pause between levels, 0 while playing
 
-/*
- * One turning shape: the regular polygon with `sides` corners, held as those
- * corners in local coordinates so the contact test walks them rather than
- * rebuilding them every frame.
- */
 class Piece extends ent.Entity {
   constructor(x, y, sides, r, spin, count) {
     super();
@@ -131,13 +94,12 @@ class Piece extends ent.Entity {
     this.count = count;
     this.pts = corners(sides, r);
     this.angle = TAU * Math.random();
-    // Fades from 1 on the launch that took a number off it.
-    this.pop = 0;
+    this.pop = 0; // fades from 1 on the launch that took a number off
 
     // size() is the circumcircle's square, and it is load-bearing: Gfx centres
-    // a drawing on its own bounding box, and a triangle's box is not centred on
-    // its circumcentre, so without it the outline sits a quarter of a radius
-    // off the geometry the blob lands against.
+    // on its own bounding box, and a triangle's box is not centred on its
+    // circumcentre, so without it the outline sits a quarter of a radius off
+    // the geometry the blob lands against.
     this.gfx.size(2 * this.r).fill(CHALK);
     this.gfx.mt(this.pts[0][0], this.pts[0][1]);
     for (const [x, y] of this.pts.slice(1)) this.gfx.lt(x, y);
@@ -145,7 +107,6 @@ class Piece extends ent.Entity {
     this.paint();
   }
 
-  // The number, which is the only part of a piece that changes.
   paint() {
     this.art.clear().color(BOARD).text(0, 0, `${this.count}`, this.r / 13);
   }
@@ -156,17 +117,15 @@ class Piece extends ent.Entity {
     this.scale = 1 + 0.16 * this.pop;
   }
 
-  // The outline turns and the number does not: a digit coming round upside
-  // down is a digit nobody reads at a glance, and the corners already say
-  // which way the piece is going.
+  // The outline turns and the number does not: a digit coming round upside down
+  // is a digit nobody reads at a glance.
   render(ctx) {
     this.gfx.render(ctx);
     ctx.rotate(-this.angle);
     this.art.render(ctx);
   }
 
-  // A launch off this piece. The number falls by one, and the piece goes at 0.
-  // The last one to go ends the level, with the blob still in the air.
+  // The last piece to go ends the level, with the blob still in the air.
   leave() {
     this.count -= 1;
     this.pop = 1;
@@ -191,9 +150,8 @@ class Piece extends ent.Entity {
     if (ent.get(Piece).length === 0) clear();
   }
 
-  // Where the step from a to b first crosses this outline, in the piece's own
-  // unturned coordinates: the point, and the outward normal of the face it
-  // crossed. null if the step misses.
+  // Where the step from a to b first crosses this outline, in local
+  // coordinates: the point and the face's outward normal, or null on a miss.
   cross(ax, ay, bx, by) {
     return crossPoly(this.toLocal(ax, ay), this.toLocal(bx, by), this.pts);
   }
@@ -219,15 +177,9 @@ class Piece extends ent.Entity {
   }
 }
 
-/*
- * The blob, in one of two states: riding a piece, where that piece owns its
- * position and its heading, or flying, where it moves in a straight line until
- * it meets a piece or leaves the board.
- *
- * Riding holds the contact in the piece's local coordinates, `ax, ay` on the
- * face and `nx, ny` out of it, so the turn of the piece is the only thing that
- * moves the blob and nothing accumulates.
- */
+// Riding holds the contact in the piece's local coordinates, `ax, ay` on the
+// face and `nx, ny` out of it, so the piece's turn is the only thing that moves
+// the blob and nothing accumulates.
 class Player extends ent.Entity {
   constructor(x, y, dx, dy) {
     super();
@@ -236,8 +188,7 @@ class Player extends ent.Entity {
     this.dir = { x: dx, y: dy };
     this.piece = null;
     this.from = null;
-    // The contact in that piece's own coordinates: a point on the face, and the
-    // normal out of it. Read only while `piece` is set.
+    // Read only while `piece` is set.
     this.ax =
       this.ay =
       this.nx =
@@ -253,8 +204,8 @@ class Player extends ent.Entity {
   }
 
   // The press is read here and not in ride(), which land() also calls: a press
-  // on the frame the blob touches down would otherwise launch it straight back
-  // out of a face it never stood on.
+  // on the frame the blob touches down would launch it straight back out of a
+  // face it never stood on.
   update() {
     this.squash *= Math.max(0, 1 - 11 * ent.game.time);
     if (this.piece === null) {
@@ -265,8 +216,7 @@ class Player extends ent.Entity {
     if (ent.game.key.just.b1) this.launch();
   }
 
-  // The piece owns the position. The face's outward normal is both where the
-  // blob stands and where it will go.
+  // The face's outward normal is both where the blob stands and where it goes.
   ride() {
     const p = this.piece;
     const n = p.turn(this.nx, this.ny);
@@ -321,8 +271,8 @@ class Player extends ent.Entity {
     this.die();
   }
 
-  // The piece the step crossed first, by the fraction of the step at which it
-  // crossed. Every outline is convex, so the first edge crossed is the face.
+  // The piece the step crossed earliest. Every outline is convex, so the first
+  // edge crossed is the face.
   land(x, y) {
     let best = null;
     let piece = null;
@@ -360,8 +310,6 @@ class Player extends ent.Entity {
     return true;
   }
 
-  // Off the board, so there is nothing on screen to burst. The board holds for
-  // a moment and the finish screen takes it.
   die() {
     this.remove();
     sound.play("die");
@@ -387,14 +335,9 @@ function corners(sides, r) {
   return out;
 }
 
-/*
- * The step against a convex polygon about the origin: the first edge it
- * crosses.
- *
- * A step that starts and ends inside crosses nothing, and a corner turning over
- * a blob that is passing close is exactly that. The nearest face is where it
- * lands, which is where the corner swept it to.
- */
+// The first edge the step crosses. A step that starts and ends inside crosses
+// nothing, and a corner turning over a blob passing close is exactly that: the
+// nearest face is where the corner swept it to.
 function crossPoly(a, b, pts) {
   const n = pts.length;
   const rx = b.x - a.x;
@@ -424,8 +367,7 @@ function crossPoly(a, b, pts) {
   return { t: best.t, x: best.x, y: best.y, nx: nrm.x, ny: nrm.y };
 }
 
-// The outward normal of edge i: the perpendicular pointing away from the
-// middle, which in local coordinates is the origin.
+// The perpendicular of edge i pointing away from the origin.
 function normal(pts, i) {
   const [px, py] = pts[i];
   const [qx, qy] = pts[(i + 1) % pts.length];
@@ -471,9 +413,8 @@ function dist(a, b) {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
-// Anywhere with room for this piece that clears every piece already down. It
-// gives the piece up rather than shrink one, since a shape's size is the shape
-// of the jump off it; over 3000 boards of six it never had to.
+// It gives the piece up rather than shrink one, since a shape's size is the
+// shape of the jump off it; over 3000 boards of six it never had to.
 function place(pieces, r) {
   const m = r + EDGE;
   for (let i = 0; i < 300; ++i) {
@@ -499,17 +440,9 @@ function clear() {
   flash(css(CHALK), 0.05);
 }
 
-/*
- * Three pieces of 1 to open with, then one more piece every other level and one
- * more on the numbers every other level, stopping at six pieces of up to 3.
- * Both caps are there because every death replays from level 1: seven pieces of
- * up to 4 averages 17 launches, and a run that reaches that level spends
- * minutes getting back to ground it has already covered.
- *
- * The turn keeps ramping past both, to 1.6 times the opening rate at level 15,
- * and it is the real difficulty anyway: it sets how long the blob waits for its
- * face to come round to something, and how narrow the press that takes it.
- */
+// Both caps are there because every death replays from level 1: seven pieces of
+// up to 4 averages 17 launches. The turn keeps ramping past them, and it is the
+// real difficulty anyway.
 function buildLevel() {
   ent.reset([Piece, Player, ent.Particle]);
 
@@ -521,7 +454,7 @@ function buildLevel() {
 
   for (let i = 0; i < n; ++i) {
     const sides = SHAPES[Math.floor(Math.random() * SHAPES.length)];
-    // This piece's size band, biggest first, which is the order that packs.
+    // Its size band, biggest first, which is the order that packs.
     const s = SMIN + (big - SMIN) * (n - 1 - i + Math.random()) / n;
     const r = s * FAT[sides];
     const at = place(pieces, r);
@@ -539,8 +472,7 @@ function buildLevel() {
     );
   }
 
-  // The level opens with the blob already in the air, shot in off the board at
-  // one of the pieces, so frame one is the game running.
+  // The level opens with the blob already in the air, so frame one is the game.
   const target = pieces[Math.floor(Math.random() * pieces.length)];
   const a = TAU * Math.random();
   const dx = Math.cos(a);
