@@ -21,71 +21,10 @@ function size {
 }
 
 # Turn the newest recorder zip into media/<game>/card.{mp4,gif,png}, for the
-# games named or, with no name, for every game.
+# games named or, with no name, for every game whose zip is newer than its card.
 # src/dev/rec.js downloads the zip; this is the other half of that.
 function media {
-  if [[ $# -gt 0 ]]; then
-    local game
-    for game in "$@"; do _media "$game"; done
-    return
-  fi
-  local f
-  for f in src/[!_]*.js; do _media "$(basename "$f" .js)" sweep; done
-}
-
-# One game. A second argument turns a missing zip, and a card already newer
-# than its zip, into a skip rather than an error. That is what the sweep over
-# every game wants: most games' zips are long out of ~/Downloads and their
-# cards are committed.
-function _media {
-  local game="$1"
-  local sweep="${2:-}"
-  local zip
-  zip=$(ls -t "$HOME"/Downloads/one-"$game"-*.zip 2>/dev/null | head -1 || true)
-  if [[ -z "$zip" ]]; then
-    if [[ -n "$sweep" ]]; then return 0; fi
-    echo "no ~/Downloads/one-$game-*.zip. record one: ./task record $game"
-    exit 1
-  fi
-  if [[ -n "$sweep" && "media/$game/card.mp4" -nt "$zip" ]]; then return 0; fi
-  echo "$game"
-  echo "  $zip"
-
-  local dir
-  dir=$(mktemp -d)
-  # Expanded now, not at exit: $dir is local and gone by the time this runs.
-  trap "rm -rf '$dir'" EXIT
-  unzip -q "$zip" -d "$dir"
-  local fps
-  fps=$(cat "$dir/fps.txt")
-  local in=(-framerate "$fps" -start_number 0 -i "$dir/%04d.png")
-
-  # Same names as www/<game>/, so the build is a plain copy.
-  local out="media/$game"
-  mkdir -p "$out"
-
-  # The card. h264 rather than the gif because the same clip costs a fraction
-  # of the bytes, and every browser that runs the games plays it.
-  ffmpeg -v error -y "${in[@]}" \
-    -c:v libx264 -crf 20 -pix_fmt yuv420p -movflags +faststart \
-    "$out/card.mp4"
-
-  # For anywhere a video will not go. Two passes: the palette has to see the
-  # whole clip before any frame is quantised against it.
-  ffmpeg -v error -y "${in[@]}" \
-    -vf "scale=240:240:flags=lanczos,palettegen=stats_mode=diff" "$dir/pal.png"
-  ffmpeg -v error -y "${in[@]}" -i "$dir/pal.png" -filter_complex \
-    "[0]scale=240:240:flags=lanczos[x];[x][1]paletteuse=dither=bayer:bayer_scale=3" \
-    "$out/card.gif"
-
-  # The <video> poster, so a card shows something before the clip loads.
-  cp "$dir/0000.png" "$out/card.png"
-
-  ls -l "$out" | awk 'NR>1{printf "  %-24s %8.1f KB\n", "'"$out"'/"$NF, $5/1024}'
-
-  # Not at exit: the trap above is reset by the next game, so each dir has to
-  # go while it is still the one the trap names.
-  rm -rf "$dir"
+  deno run -A tools/media.js "$@"
 }
 
 # Record a take of each game with nothing at the keyboard, and turn the takes
