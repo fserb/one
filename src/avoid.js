@@ -1,8 +1,9 @@
 /*
  * avoid. Based on Aba Games' Satellite Catch.
  *
- * An entity's art is cleared before it is redrawn, so a shrinking enemy does
- * not leave its old outline behind and the list does not grow without bound.
+ * Every disc is redrawn each frame, since both sizes change: clear() first, or
+ * a shrinking enemy keeps its old outline and the command list grows without
+ * bound.
  */
 
 import * as ent from "./lib/entity.js";
@@ -25,20 +26,26 @@ const GOLD_DARK = 0xa37d1d;
 const RED = 0xe11c57;
 const RED_DARK = 0x861034;
 
+// A disc is its colour flat with the darker tone over the bottom-right half:
+// one hard edge along the diameter, and the same light on every disc.
+function disc(gfx, r, color, dark) {
+  gfx.clear()
+    .fill(color).circle(0, 0, r)
+    .fill(dark).arc(0, 0, r, 0, -3 * Math.PI / 4, Math.PI / 4);
+}
+
 class Enemy extends ent.Entity {
   begin() {
     this.size = 15 + Math.random() * 32;
     this.tv = 0;
     this.tads = 0;
-    this.art.size(10).color(RED, RED_DARK, 23);
     this.draw();
     this.pos.x = 1024 * Math.random();
     this.pos.y = 1024 * Math.random();
   }
 
   draw() {
-    const r = this.size / 10;
-    this.art.clear().circle(r, r, r);
+    disc(this.gfx, this.size, RED, RED_DARK);
   }
 
   update() {
@@ -128,13 +135,11 @@ class Player extends ent.Entity {
   begin() {
     this.size = 53;
     this.pos.x = this.pos.y = 512;
-    this.art.size(6).color(GOLD, GOLD_DARK, 32);
     this.draw();
   }
 
   draw() {
-    const r = this.size / 6;
-    this.art.clear().circle(r, r, r);
+    disc(this.gfx, this.size, GOLD, GOLD_DARK);
   }
 
   update() {
