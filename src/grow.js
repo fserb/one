@@ -16,7 +16,7 @@
 
 import * as ent from "./lib/entity.js";
 import { camera } from "./lib/camera.js";
-import { gameOver, score, SIZE } from "./lib/one.js";
+import { gameOver, score } from "./lib/one.js";
 
 export const meta = {
   title: "grow",
@@ -521,7 +521,7 @@ function frame() {
     y1 = Math.max(y1, g.pos.y + r);
   }
   const d = Math.max(x1 - x0, y1 - y0) + 2 * PAD * scale;
-  return { x: (x0 + x1) / 2, y: (y0 + y1) / 2, scale: SIZE / d };
+  return { x: (x0 + x1) / 2, y: (y0 + y1) / 2, scale: 1024 / d };
 }
 
 export function init() {

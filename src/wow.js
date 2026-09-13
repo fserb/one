@@ -4,7 +4,7 @@
  */
 
 import { ease, utils } from "./alma/src/index.js";
-import { act, gameOver, input, score, SIZE } from "./lib/one.js";
+import { act, gameOver, input, score } from "./lib/one.js";
 
 export const meta = {
   title: "wow",
@@ -97,8 +97,8 @@ export function init() {
   }
 
   tiles = drawTiles();
-  ox = (SIZE - COLS * TILE - SHADOW_OFF) / 2;
-  oy = (SIZE - ROWS * TILE - SHADOW_OFF) / 2;
+  ox = (1024 - COLS * TILE - SHADOW_OFF) / 2;
+  oy = (1024 - ROWS * TILE - SHADOW_OFF) / 2;
 }
 
 function check() {

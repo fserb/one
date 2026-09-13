@@ -8,7 +8,7 @@
 
 import { ease, extra, vec } from "./alma/src/index.js";
 import { camera } from "./lib/camera.js";
-import { act, gameOver, hint, input, score, SIZE } from "./lib/one.js";
+import { act, gameOver, hint, input, score } from "./lib/one.js";
 
 const { arrayRemove, promiseSleep, TAU } = extra;
 
@@ -33,7 +33,7 @@ const HEIGHT = 6;
 const TILE = 120;
 const BOARDPOS = [
   { x: 10, y: 290 },
-  { x: SIZE - TILE * WIDTH - 10, y: 290 },
+  { x: 1024 - TILE * WIDTH - 10, y: 290 },
 ];
 
 // Belt units draw in a unit square, scaled up by this.
@@ -421,13 +421,13 @@ function actBeltMerge() {
 
 // Where the front of the belt is, in screen x. Zero is the left edge.
 function beltFront() {
-  return SIZE - STRIDE * SZ * (belt.length + beltPos - 1 - 0.3);
+  return 1024 - STRIDE * SZ * (belt.length + beltPos - 1 - 0.3);
 }
 
 function updateBelt(dt) {
   const lp = beltFront();
   // While the belt is short it runs in fast, then settles to its real speed.
-  beltPos += lp > SIZE - SZ * 0.9 ? dt : dt * beltSpeed / 100;
+  beltPos += lp > 1024 - SZ * 0.9 ? dt : dt * beltSpeed / 100;
 
   if (beltPos >= 1) {
     beltPos -= 1;

@@ -12,7 +12,6 @@
 
 import { css } from "./gfx.js";
 import { Entity, game } from "./core.js";
-import { SIZE } from "./one.js";
 
 // The words ctx.text() takes for textAlign and textBaseline.
 const ALIGN = ["left", "center", "right"];
@@ -99,8 +98,8 @@ export class Particle extends Entity {
       ...opts,
     };
 
-    this.pos.x = o.x ?? SIZE / 2;
-    this.pos.y = o.y ?? SIZE / 2;
+    this.pos.x = o.x ?? 512;
+    this.pos.y = o.y ?? 512;
     this.parts = []; // begin() fills these in, one frame later
   }
 

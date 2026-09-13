@@ -17,7 +17,7 @@
 
 import { registerSquircle } from "./alma/src/index.js";
 import { GridFiller } from "./lib/pgrid.js";
-import { gameOver, hint, input, score, SIZE } from "./lib/one.js";
+import { gameOver, hint, input, score } from "./lib/one.js";
 
 export const meta = {
   title: "tower",
@@ -42,12 +42,12 @@ const PAD = 36;
 // Whatever fits once the strip and the padding are off, which on a square is
 // the height: 7x10 is the taller way up.
 const CELL = Math.min(
-  (SIZE - 2 * PAD - (WIDTH - 1) * MARGIN) / WIDTH,
-  (SIZE - 2 * PAD - STATUS_H - (HEIGHT - 1) * MARGIN) / HEIGHT,
+  (1024 - 2 * PAD - (WIDTH - 1) * MARGIN) / WIDTH,
+  (1024 - 2 * PAD - STATUS_H - (HEIGHT - 1) * MARGIN) / HEIGHT,
 );
 const GRID_W = WIDTH * CELL + (WIDTH - 1) * MARGIN;
 const GRID_H = HEIGHT * CELL + (HEIGHT - 1) * MARGIN;
-const X0 = (SIZE - GRID_W) / 2;
+const X0 = (1024 - GRID_W) / 2;
 const Y0 = PAD;
 
 const STATUS_Y = Y0 + GRID_H + STATUS_H / 2;
@@ -473,7 +473,7 @@ export function render(ctx) {
 
   if (working.length === 0) {
     ctx.fillStyle = DIM;
-    ctx.text("drag cells into a region", SIZE / 2, STATUS_Y, 22);
+    ctx.text("drag cells into a region", 512, STATUS_Y, 22);
     return;
   }
 
@@ -483,9 +483,9 @@ export function render(ctx) {
 
   const numbers = working.map((c) => c.number).sort((a, b) => a - b);
   ctx.fillStyle = valid ? GOOD : BAD;
-  ctx.text(`[${numbers.join(", ")}]`, SIZE / 2, STATUS_Y - 12, 24);
+  ctx.text(`[${numbers.join(", ")}]`, 512, STATUS_Y - 12, 24);
   if (valid) {
     ctx.fillStyle = GOOD;
-    ctx.text("a region", SIZE / 2, STATUS_Y + 18, 18);
+    ctx.text("a region", 512, STATUS_Y + 18, 18);
   }
 }

@@ -17,7 +17,7 @@ import { Collider } from "./alma/src/collider.js";
 import { Mat4 } from "./alma/src/geom/mat4.js";
 import { Quad } from "./alma/src/geom/Quad.js";
 import * as ease from "./alma/src/ease.js";
-import { act, input, score, SIZE } from "./lib/one.js";
+import { act, input, score } from "./lib/one.js";
 
 export const meta = {
   title: "async2",
@@ -54,13 +54,13 @@ const PERSPECTIVE = 1000;
 // Arithmetic rather than a layout solve: outer margin, board, gap, spine, gap,
 // board, outer margin across the width, the pair centred in what is left of the
 // height. The width binds, which is why 4x6 leaves board colour above and below.
-const MARGIN = SIZE * 0.04;
-const SPINE = SIZE * 0.025;
+const MARGIN = 1024 * 0.04;
+const SPINE = 1024 * 0.025;
 const BOARD_ASPECT = (BOARD_WIDTH + (BOARD_WIDTH - 1) * MARGIN_RATIO) /
   (BOARD_HEIGHT + (BOARD_HEIGHT - 1) * MARGIN_RATIO);
-const BOARD_W = (SIZE - 4 * MARGIN - SPINE) / 2;
+const BOARD_W = (1024 - 4 * MARGIN - SPINE) / 2;
 const BOARD_H = BOARD_W / BOARD_ASPECT;
-const BOARD_Y = (SIZE - BOARD_H) / 2;
+const BOARD_Y = (1024 - BOARD_H) / 2;
 
 const LAYOUT = [
   { x: MARGIN, y: BOARD_Y, width: BOARD_W, height: BOARD_H },

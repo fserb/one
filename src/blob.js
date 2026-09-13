@@ -18,7 +18,7 @@ import {
 } from "./alma/src/index.js";
 import { camera } from "./lib/camera.js";
 import * as ent from "./lib/entity.js";
-import { fixed, FONT, gameOver, input, op, score, SIZE } from "./lib/one.js";
+import { fixed, gameOver, input, op, score } from "./lib/one.js";
 import * as sound from "./lib/sound.js";
 
 export const meta = {
@@ -112,8 +112,8 @@ function buildPool(shape) {
     y0 = Math.min(y0, y);
     y1 = Math.max(y1, y);
   }
-  const ox = (SIZE - (x1 - x0)) / 2 - x0;
-  const oy = (SIZE - (y1 - y0)) / 2 - y0;
+  const ox = (1024 - (x1 - x0)) / 2 - x0;
+  const oy = (1024 - (y1 - y0)) / 2 - y0;
   const chain = shape.chain.map(([x, y]) => [x + ox, y + oy]);
   const bounds = { x0: x0 + ox, x1: x1 + ox, y1: y1 + oy };
 
@@ -131,7 +131,7 @@ function buildPool(shape) {
   const field = sdf.bake(
     sdf.polygon(poly.map(([x, y]) => ({ x, y }))),
     {
-      bounds: { x0: -70, y0: -310, x1: SIZE + 70, y1: SIZE + 70 },
+      bounds: { x0: -70, y0: -310, x1: 1024 + 70, y1: 1024 + 70 },
       cell: 3.5,
       band: TIER_RADIUS * TIER_GROWTH ** (TIER_COUNT - 1) + 2 * R,
     },
@@ -200,8 +200,8 @@ const GRAVITY = 1800;
 const MAX_SPEED = 4800;
 
 const sim = new SoftBodies({
-  width: SIZE,
-  height: SIZE,
+  width: 1024,
+  height: 1024,
   radius: R,
   field: pool.field,
   gravity: { x: 0, y: GRAVITY },
@@ -390,7 +390,7 @@ class Blob extends ent.Entity {
     ctx.save();
     ctx.translate(b.cx, b.cy);
     const font = t.font * b.scale;
-    ctx.font = `bold ${Math.round(font)}px ${FONT}`;
+    ctx.font = `bold ${Math.round(font)}px "Vera", system-ui, sans-serif`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
 
@@ -780,7 +780,7 @@ function aimReach(b, dx, dy) {
   const l = Math.hypot(dx, dy);
   if (l < 1e-6) return AIM_MAX;
   const { cx, cy } = b.body;
-  const [, out] = line.rayBox(cx, cy, dx / l, dy / l, 0, 0, SIZE, SIZE);
+  const [, out] = line.rayBox(cx, cy, dx / l, dy / l, 0, 0, 1024, 1024);
   return Math.max(Math.min(AIM_MAX, out), 2 * b.radius);
 }
 
@@ -935,8 +935,8 @@ class Shocks extends ent.Entity {
   fire(x, y, life) {
     this.waves.push({ x, y, life, life0: life, r: 0 });
     // Away from the blast. No position, so no lever arm.
-    const dx = SIZE / 2 - x;
-    const dy = SIZE / 2 - y;
+    const dx = 512 - x;
+    const dy = 512 - y;
     const d = Math.hypot(dx, dy) || 1;
     camera.push(dx / d * life * 120, dy / d * life * 120);
   }
@@ -984,9 +984,9 @@ class Shocks extends ent.Entity {
       // nothing.
       const far = 1.4 * Math.max(
         Math.hypot(w.x, w.y),
-        Math.hypot(SIZE - w.x, w.y),
-        Math.hypot(w.x, SIZE - w.y),
-        Math.hypot(SIZE - w.x, SIZE - w.y),
+        Math.hypot(1024 - w.x, w.y),
+        Math.hypot(w.x, 1024 - w.y),
+        Math.hypot(1024 - w.x, 1024 - w.y),
       );
       if (w.r - wide > far) continue;
       for (let i = 0; i < SHOCK_BANDS; i++) {
@@ -1016,7 +1016,7 @@ class Shocks extends ent.Entity {
 const DANGER_PITCH = 2.5;
 const DANGER_HOLD = 1.0;
 
-const cover = new Uint8Array(Math.ceil(SIZE / DANGER_PITCH) + 2);
+const cover = new Uint8Array(Math.ceil(1024 / DANGER_PITCH) + 2);
 
 // measure() is a call from step() and not update(): it reads the pile where the
 // solve left it, and ent.update() runs before sim.step().
@@ -1223,7 +1223,7 @@ function paintPool(ctx, scale) {
   // Laid on the background rather than cut out of it.
   ctx.save();
   const outside = new Path2D();
-  outside.rect(0, 0, SIZE, SIZE);
+  outside.rect(0, 0, 1024, 1024);
   outside.addPath(pool.fill);
   ctx.clip(outside, "evenodd");
   ctx.strokeStyle = "#000";
@@ -1277,13 +1277,13 @@ const DANGER_TONES = ramp("#46536a", "#e0472c");
 
 // Baked at half resolution, which is all a gradient this wide needs.
 function paintVignette(ctx) {
-  const cx = SIZE / 2;
-  const cy = SIZE * 0.52;
-  const v = ctx.createRadialGradient(cx, cy, SIZE * 0.36, cx, cy, SIZE * 0.92);
+  const cx = 512;
+  const cy = 1024 * 0.52;
+  const v = ctx.createRadialGradient(cx, cy, 1024 * 0.36, cx, cy, 1024 * 0.92);
   v.addColorStop(0, "rgba(0, 0, 0, 0)");
   v.addColorStop(1, "rgba(0, 0, 0, 0.34)");
   ctx.fillStyle = v;
-  ctx.fillRect(0, 0, SIZE, SIZE);
+  ctx.fillRect(0, 0, 1024, 1024);
 }
 
 // Under the camera the lean and the recoil would move the dark corners off the
@@ -1294,11 +1294,11 @@ class Vignette extends ent.Entity {
   render(ctx) {
     const scale = op.screen.scale;
     ctx.drawImage(
-      vigLayer.bake(scale, SIZE, SIZE, paintVignette, scale * 0.5),
+      vigLayer.bake(scale, 1024, 1024, paintVignette, scale * 0.5),
       0,
       0,
-      SIZE,
-      SIZE,
+      1024,
+      1024,
     );
   }
 }
@@ -1312,11 +1312,11 @@ class Pool extends ent.Entity {
   render(ctx) {
     const scale = op.screen.scale;
     ctx.drawImage(
-      poolLayer.bake(scale, SIZE, SIZE, paintPool, scale),
+      poolLayer.bake(scale, 1024, 1024, paintPool, scale),
       0,
       0,
-      SIZE,
-      SIZE,
+      1024,
+      1024,
     );
   }
 }

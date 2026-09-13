@@ -3,13 +3,13 @@
 // reference for moveTo/glide/approach/fit/toWorld/apply.
 
 import { Camera2D } from "../alma/src/camera.js";
-import { op, SIZE } from "./one.js";
+import { op } from "./one.js";
 
 export const camera = new Camera2D({
-  width: SIZE,
-  height: SIZE,
-  x: SIZE / 2,
-  y: SIZE / 2,
+  width: 1024,
+  height: 1024,
+  x: 512,
+  y: 512,
 });
 
 op.camera = camera; // how one.js updates it without importing this module

@@ -8,7 +8,7 @@
 
 import { ease, extra, HexGrid, vec } from "./alma/src/index.js";
 import { camera } from "./lib/camera.js";
-import { act, gameOver, input, msg, score, SIZE } from "./lib/one.js";
+import { act, gameOver, input, msg, score } from "./lib/one.js";
 import {
   ADSR,
   biquad,
@@ -271,7 +271,7 @@ async function finishGame() {
   sound.play("fall");
   await act(alien).attr("s", 0, 0.5, ease.backIn(3));
 
-  camera.moveTo({ x: SIZE / 2, y: SIZE / 2, angle: 0, scale: 1 / 100 });
+  camera.moveTo({ x: 512, y: 512, angle: 0, scale: 1 / 100 });
   await promiseSleep(0.3);
 
   nextLevel();
@@ -360,7 +360,7 @@ function escapeAlien() {
   const { x: c, y: r } = grid.toDoubled(v.pos);
   const b = 1.1 * HEX;
   const near = camera.toWorld(-b, -b);
-  const far = camera.toWorld(SIZE + b, SIZE + b);
+  const far = camera.toWorld(1024 + b, 1024 + b);
   if (c === 0) target.x = near.x;
   else if (c === WIDTH - 1) target.x = far.x;
   else if (r <= 1) target.y = near.y;
@@ -382,7 +382,7 @@ function blinkAlien() {
 }
 
 function recenter() {
-  const rect = { minx: SIZE, miny: SIZE, maxx: 0, maxy: 0 };
+  const rect = { minx: 1024, miny: 1024, maxx: 0, maxy: 0 };
   for (const v of all()) {
     const { x, y } = grid.toPixel(v.pos);
     rect.minx = Math.min(rect.minx, x - HEX);

@@ -7,7 +7,7 @@
  */
 
 import { ease, extra } from "./alma/src/index.js";
-import { act, gameOver, input, score, SIZE } from "./lib/one.js";
+import { act, gameOver, input, score } from "./lib/one.js";
 import {
   ADSR,
   biquad,
@@ -45,8 +45,8 @@ const TENT_HEAD = "#82CED5";
 const W = 13;
 const H = 13;
 const CELL = 72;
-const OX = (SIZE - W * CELL) / 2;
-const OY = (SIZE - H * CELL) / 2;
+const OX = (1024 - W * CELL) / 2;
+const OY = (1024 - H * CELL) / 2;
 
 // Every tentacle gains a segment this often, and a new one arrives this often.
 const GROW = 6;

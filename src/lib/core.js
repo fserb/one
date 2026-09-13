@@ -16,7 +16,7 @@
 import { Collider } from "../alma/src/collider.js";
 import { Gfx } from "./gfx.js";
 import { input } from "./input.js";
-import { op, SIZE } from "./one.js";
+import { op } from "./one.js";
 
 export const game = {
   time: 0,
@@ -74,9 +74,8 @@ export function reset(classes = []) {
   // The bounds belong to a round, and a round starts here. settle() is where
   // the camera clears its own copy of the shake it was running.
   if (op.camera) {
-    const half = SIZE / 2;
     op.camera.bounds = null;
-    op.camera.moveTo({ x: half, y: half, scale: 1, angle: 0 }).settle();
+    op.camera.moveTo({ x: 512, y: 512, scale: 1, angle: 0 }).settle();
     op.camera.shakeBase = SHAKE_BASE;
     op.camera.shakeHz = SHAKE_HZ;
   }

@@ -10,7 +10,7 @@
 import { fastOutSlowIn } from "../alma/src/ease.js";
 import { newCanvas } from "../alma/src/utils/utils.js";
 import { input } from "./input.js";
-import { meta, op, score, SIZE } from "./one.js";
+import { meta, op, score } from "./one.js";
 
 const MARGIN = 26;
 const RADIUS = 12;
@@ -156,7 +156,7 @@ export function render(ctx) {
 }
 
 function renderMsg(ctx) {
-  if (op.topmsg) label(ctx, op.topmsg, SIZE / 2, MARGIN, 28, 0.5, 0);
+  if (op.topmsg) label(ctx, op.topmsg, 512, MARGIN, 28, 0.5, 0);
 }
 
 function renderHint(ctx) {
@@ -168,7 +168,7 @@ function renderHint(ctx) {
   const h = (tip.lines.length - 1) * lead + size + py * 2;
 
   ctx.globalAlpha = tip.alpha;
-  const [bx, by] = box(ctx, SIZE / 2, SIZE - MARGIN * 3, w, h, 0.5, 1);
+  const [bx, by] = box(ctx, 512, 1024 - MARGIN * 3, w, h, 0.5, 1);
   let y = by + py + size / 2;
   for (const line of tip.lines) {
     ctx.text(line, bx + w / 2, y, size, { valign: "middle" });
@@ -182,10 +182,10 @@ function renderHint(ctx) {
 function renderFinish(ctx) {
   const e = fastOutSlowIn(Math.min(1, finish.t / RISE));
 
-  if (finish.shot) ctx.drawImage(finish.shot, 0, 0, SIZE, SIZE);
+  if (finish.shot) ctx.drawImage(finish.shot, 0, 0, 1024, 1024);
   ctx.globalAlpha = DIM * e;
   ctx.fillStyle = meta.bg;
-  ctx.fillRect(0, 0, SIZE, SIZE);
+  ctx.fillRect(0, 0, 1024, 1024);
   ctx.globalAlpha = 1;
   if (!finish.showPanel || e === 0) return;
 
@@ -211,7 +211,7 @@ function renderFinish(ctx) {
 
   ctx.globalAlpha = e;
   ctx.translate(0, (1 - e) * 24);
-  const [bx, by] = box(ctx, SIZE / 2, SIZE / 2, w, h, 0.5, 0.5);
+  const [bx, by] = box(ctx, 512, 512, w, h, 0.5, 0.5);
 
   let y = by + py;
   if (finish.title) {

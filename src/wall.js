@@ -19,7 +19,7 @@
 
 import * as ent from "./lib/entity.js";
 import { camera } from "./lib/camera.js";
-import { gameOver, msg, score, SIZE } from "./lib/one.js";
+import { gameOver, msg, score } from "./lib/one.js";
 import { coin, explosion, powerup } from "./lib/fsfx/sfxr.js";
 import * as sound from "./lib/sound.js";
 
@@ -724,7 +724,7 @@ function drawMarks(ctx) {
   ctx.fillStyle = ent.css(CYAN);
   for (const c of ent.get(Coin)) {
     const s = camera.toScreen(c.pos.x, c.pos.y);
-    if (s.x >= 0 && s.y >= 0 && s.x < SIZE && s.y < SIZE) {
+    if (s.x >= 0 && s.y >= 0 && s.x < 1024 && s.y < 1024) {
       ctx.fillRect(c.pos.x - DOT / 2, c.pos.y - DOT / 2, DOT, DOT);
       continue;
     }
@@ -732,10 +732,10 @@ function drawMarks(ctx) {
     // Held ARROW off the edge and read back into the world, since this draws
     // under the camera.
     const m = camera.pixels(ARROW);
-    const p = camera.toWorld(clamp(s.x, m, SIZE - m), clamp(s.y, m, SIZE - m));
+    const p = camera.toWorld(clamp(s.x, m, 1024 - m), clamp(s.y, m, 1024 - m));
     ctx.save();
     ctx.translate(p.x, p.y);
-    ctx.rotate(Math.atan2(s.y - SIZE / 2, s.x - SIZE / 2));
+    ctx.rotate(Math.atan2(s.y - 512, s.x - 512));
     ctx.beginPath();
     ctx.moveTo(-ARROW / 2, -ARROW / 2);
     ctx.lineTo(ARROW / 2, 0);

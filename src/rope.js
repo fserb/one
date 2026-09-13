@@ -9,7 +9,7 @@
 import { ease, extra, vec } from "./alma/src/index.js";
 import { World } from "./alma/src/rigid.js";
 import { camera } from "./lib/camera.js";
-import { act, fixed, gameOver, input, score, SIZE } from "./lib/one.js";
+import { act, fixed, gameOver, input, score } from "./lib/one.js";
 import { ADSR, biquad, envelope, karplus_strong } from "./lib/fsfx/fsfx.js";
 import * as sound from "./lib/sound.js";
 
@@ -102,7 +102,7 @@ export function init() {
 
   createEnemy();
 
-  camera.moveTo({ x: 0, y: 0, scale: SIZE / (VIEW * ZOOM) });
+  camera.moveTo({ x: 0, y: 0, scale: 1024 / (VIEW * ZOOM) });
 }
 
 // BODIES ///
@@ -676,12 +676,12 @@ export function update(dt) {
 
 export function render(ctx) {
   ctx.fillStyle = CAVE;
-  ctx.fillRect(0, 0, SIZE, SIZE);
+  ctx.fillRect(0, 0, 1024, 1024);
 
   camera.apply(ctx);
 
   // The camera rotates, so clip to the square it covers: outside is cave wall.
-  const d = SIZE / camera.scale;
+  const d = 1024 / camera.scale;
   const x = camera.x - d / 2;
   const y = camera.y - d / 2;
   ctx.fillStyle = meta.bg;
@@ -897,7 +897,7 @@ function renderEnemy(ctx) {
   const dir = vec.rotate({ x: 1, y: 0 }, enemy.angle);
   const centre = { x: camera.x, y: camera.y };
 
-  const half = SIZE / camera.scale / 2;
+  const half = 1024 / camera.scale / 2;
   const b = half * Math.SQRT2;
   if (distanceLinePoint(pos, dir, centre) > b) return;
 
