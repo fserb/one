@@ -1,14 +1,13 @@
 /*
  * overlay.js - the panels every game shares: msg()'s small label at the top
- * centre, hint()'s panel at the bottom, and the finish screen over the frozen
- * board. Nothing draws the score while the round runs.
+ * centre, hint()'s panel at the bottom, and the finish screen over the board the
+ * round ended on. Nothing draws the score while the round runs.
  *
  * Nothing here clears a click flag. one.js calls update() only between rounds
  * and render() after the game draws.
  */
 
 import { fastOutSlowIn } from "../alma/src/ease.js";
-import { newCanvas } from "../alma/src/utils/utils.js";
 import { input } from "./input.js";
 import { meta, op, score } from "./one.js";
 
@@ -47,7 +46,6 @@ const seen = new Set();
 const finish = {
   on: false,
   t: 0,
-  shot: null, // the board, captured before any panel was drawn over it
   showPanel: false,
   title: null,
   score: false,
@@ -70,7 +68,6 @@ function clear() {
   tip.left = 0;
   tip.alpha = 0;
   finish.on = false;
-  finish.shot = null;
 }
 
 /*
@@ -97,18 +94,9 @@ export function gameOver(
 
   finish.on = true;
   finish.t = 0;
-  finish.shot = null;
   finish.score = wantScore;
   finish.showPanel = msg !== null || wantScore || win;
   finish.title = !finish.showPanel ? null : msg ?? (win ? "WELL DONE" : "GAME OVER");
-}
-
-// one.js draws the board once more after the round ends and passes the canvas
-// here, so the frozen shot has the game and none of the panels.
-export function shoot(canvas) {
-  const [shot, sctx] = newCanvas(canvas.width, canvas.height);
-  sctx.drawImage(canvas, 0, 0);
-  finish.shot = shot;
 }
 
 export function show(text) {
@@ -177,12 +165,11 @@ function renderHint(ctx) {
   ctx.globalAlpha = 1;
 }
 
-// On the frame the round ends t is 0 and the shot has not been taken, so this
-// draws nothing and leaves the canvas as one.js just drew it.
+// On the frame the round ends t is 0, so the dim and the panel are both at
+// nothing and this leaves the board as the game just drew it.
 function renderFinish(ctx) {
   const e = fastOutSlowIn(Math.min(1, finish.t / RISE));
 
-  if (finish.shot) ctx.drawImage(finish.shot, 0, 0, 1024, 1024);
   ctx.globalAlpha = DIM * e;
   ctx.fillStyle = meta.bg;
   ctx.fillRect(0, 0, 1024, 1024);
@@ -211,7 +198,12 @@ function renderFinish(ctx) {
 
   ctx.globalAlpha = e;
   ctx.translate(0, (1 - e) * 24);
-  const [bx, by] = box(ctx, 512, 512, w, h, 0.5, 0.5);
+  const bx = 512 - w / 2;
+  const by = 512 - h / 2;
+  // Nothing is filled behind this text, so it takes the colour picked against
+  // the board and not the one picked against a fill: the dim over it is
+  // meta.bg, which is what theme()'s fill was chosen against.
+  ctx.fillStyle = panel.bg;
 
   let y = by + py;
   if (finish.title) {

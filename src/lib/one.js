@@ -104,14 +104,15 @@ export function start() {
   op.game.init?.();
 }
 
-// See overlay.gameOver() for opts. The board is drawn once more after this
-// frame's update, so the frozen shot is the game at the moment it ended.
+// See overlay.gameOver() for opts. The board keeps drawing after this, off the
+// state the round ended in, since update() is what stops.
 export function gameOver(opts) {
   // Two collision paths can both end the same round; only the first call acts.
   if (!op.playing) return;
   op.playing = false;
   setDpad(false);
-  ending = true;
+  // The tweens in flight end with the round rather than running under the panel.
+  act.reset();
   overlay.gameOver(opts);
 }
 
@@ -133,9 +134,6 @@ export function msg(m) {
   op.topmsg = m;
 }
 
-// The round ended this frame: draw the board once more, then store it.
-let ending = false;
-
 function frame(dt) {
   act._frame(dt);
   op.camera?.update(dt);
@@ -156,20 +154,13 @@ function frame(dt) {
   ctx.fillStyle = meta.bg;
   ctx.fillRect(0, 0, 1024, 1024);
 
-  // `ending` draws the last board, without the flash: a game that flashes on
-  // death would otherwise freeze the whole screen one colour.
-  if (op.playing || ending) {
-    ctx.save();
-    op.game.render?.(ctx);
-    ctx.restore();
-    if (op.playing) effects.render(ctx);
-  }
+  ctx.save();
+  op.game.render?.(ctx);
+  ctx.restore();
+
+  // The flash belongs to the round: a game that flashes on death would
+  // otherwise hold the board one colour under the finish panel.
+  if (op.playing) effects.render(ctx);
 
   overlay.render(ctx);
-
-  if (ending) {
-    ending = false;
-    overlay.shoot(op.screen.canvas);
-    act.reset();
-  }
 }
