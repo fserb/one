@@ -16,6 +16,8 @@
  */
 
 import * as ent from "./lib/entity.js";
+import { delay } from "./lib/effects.js";
+import { shake } from "./lib/camera.js";
 import { gameOver, score } from "./lib/one.js";
 import { coin, explosion, hit } from "./lib/fsfx/sfxr.js";
 import * as sound from "./lib/sound.js";
@@ -418,8 +420,8 @@ class Train extends ent.Entity {
     this.clearHits();
     this.gfx.clear();
     this.dying = DEATH;
-    ent.shake(1);
-    ent.delay(0.15);
+    shake(1);
+    delay(0.15);
     new ent.Particle({
       x: this.pos.x,
       y: this.pos.y,
@@ -506,7 +508,7 @@ class Mission extends ent.Entity {
   reach(s) {
     if (s !== this.station) return;
     sound.play("reach");
-    ent.shake(0.1);
+    shake(0.1);
     this.combo += 1;
     score.value += 10 * this.combo * Math.sqrt(enemies) / 5;
     this.msg = this.combo === 1

@@ -20,6 +20,7 @@
  */
 
 import * as ent from "./lib/entity.js";
+import { shake } from "./lib/camera.js";
 import { gameOver, score } from "./lib/one.js";
 import { blip, explosion, powerup } from "./lib/fsfx/sfxr.js";
 import * as sound from "./lib/sound.js";
@@ -300,7 +301,7 @@ class Ship extends ent.Entity {
 function wreck() {
   if (dying > 0) return;
   dying = DEATH;
-  ent.shake(0.5);
+  shake(0.5);
   sound.play("crash");
   new ent.Particle({
     x: ship.pos.x,

@@ -12,6 +12,8 @@
  */
 
 import * as ent from "./lib/entity.js";
+import { delay } from "./lib/effects.js";
+import { shake } from "./lib/camera.js";
 import { gameOver, score } from "./lib/one.js";
 import { explosion, hit, laser } from "./lib/fsfx/sfxr.js";
 import * as sound from "./lib/sound.js";
@@ -152,8 +154,8 @@ class Player extends ent.Entity {
     this.clearHits();
     this.vel.x = this.vel.y = 0;
     this.dying = true;
-    ent.delay(HITSTOP);
-    ent.shake(0.5);
+    delay(HITSTOP);
+    shake(0.5);
     new EndGame(this.pos.x, this.pos.y);
   }
 }
@@ -207,7 +209,7 @@ class Hook extends ent.Entity {
         this.target = g;
         g.grabbed = true;
         this.action = REEL;
-        ent.delay(0.05);
+        delay(0.05);
         // Everything gets a moment off, so the two you did not catch are not
         // on top of you when the reel lands.
         for (const o of ent.get(Ghost)) o.wait = GRACE / speed;
@@ -489,7 +491,7 @@ function shoot(g) {
 // replaces walks back on.
 function eat(color) {
   new Ghost(floor);
-  ent.shake(0.2);
+  shake(0.2);
   floor = color;
   speed *= 1.06;
   score.value += 1;

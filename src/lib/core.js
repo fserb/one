@@ -3,8 +3,8 @@
  * imports entity.js, which re-exports this and props.js.
  *
  * The games are written in one's 1024 board, and render() draws in it directly.
- * With lib/camera.js that board is the camera's opening framing and
- * game.input's pointer is read back through it.
+ * With a camera that board is its opening framing, game.input's pointer is read
+ * back through it, and apply() is what puts a shake on the world.
  *
  * begin() cannot run from the constructor, since a subclass's field
  * initialisers run after super() returns and would overwrite it. It runs at the
@@ -14,6 +14,7 @@
  */
 
 import { Collider } from "../alma/src/collider.js";
+import * as effects from "./effects.js";
 import { Gfx } from "./gfx.js";
 import { input } from "./input.js";
 import { op } from "./one.js";
@@ -69,64 +70,14 @@ export function reset(classes = []) {
   groups.clear();
   game.time = 0;
   game.totalTime = 0;
-  shaking = held = 0;
-  shakeHold = shakeX = shakeY = 0;
-  // The bounds belong to a round, and a round starts here. settle() is where
-  // the camera clears its own copy of the shake it was running.
+  effects.reset();
+  // The bounds belong to a round, and a round starts here. settle() is what
+  // ends a shake still running, so one cannot outlive the board it was shaking.
   if (op.camera) {
     op.camera.bounds = null;
     op.camera.moveTo({ x: 512, y: 512, scale: 1, angle: 0 }).settle();
-    op.camera.shakeBase = SHAKE_BASE;
-    op.camera.shakeHz = SHAKE_HZ;
   }
   order(classes);
-}
-
-/*
- * Each takes the longer of what is asked and what is already running. The
- * offset is BASE + FALL times the seconds it has left, a fresh one HZ times a
- * second and reused in between, or it moves twice as fast at 120Hz as at 60.
- * Camera2D shakes on those same three numbers, so with a camera shake() passes
- * them over rather than offsetting a frame that is already offset.
- */
-const SHAKE_BASE = 10;
-const SHAKE_FALL = 20;
-const SHAKE_HZ = 30;
-
-let shaking = 0;
-let shakeHold = 0;
-let shakeX = 0;
-let shakeY = 0;
-let held = 0;
-
-export function shake(t = 0.4) {
-  if (op.camera) {
-    op.camera.shake(t, SHAKE_FALL);
-    return;
-  }
-  shaking = Math.max(shaking, t);
-}
-
-export function delay(t) {
-  held = Math.max(held, t);
-}
-
-// Math.random and not a seeded stream: how often the screen is drawn must not
-// advance the game's own sequence.
-function stepShake(dt) {
-  shaking = Math.max(0, shaking - dt);
-  if (shaking <= 0) {
-    shakeHold = shakeX = shakeY = 0;
-    return;
-  }
-  shakeHold -= dt;
-  if (shakeHold > 0) return;
-  shakeHold = 1 / SHAKE_HZ;
-  // Square, not circle: a constant radius puts every offset on one circle, and
-  // that looks like rotation rather than shaking.
-  const amp = SHAKE_BASE + SHAKE_FALL * shaking;
-  shakeX = amp * (2 * Math.random() - 1);
-  shakeY = amp * (2 * Math.random() - 1);
 }
 
 function anyHit(as, bs) {
@@ -266,12 +217,8 @@ function ordered() {
 }
 
 export function update(dt) {
-  stepShake(dt);
   // A held frame still runs at dt 0: entities read input, nothing moves.
-  if (held > 0) {
-    held -= dt;
-    dt = 0;
-  }
+  if (effects.frozen) dt = 0;
 
   game.time = dt;
   game.totalTime += dt;
@@ -315,9 +262,9 @@ function draw(ctx, layers, screen) {
 export function render(ctx) {
   const layers = ordered();
   ctx.save();
+  // apply() carries the shake, which is why it moves the world and not the
+  // screen-space entities below or the panels over them.
   if (op.camera) op.camera.apply(ctx);
-  // With a camera there is nothing to add: apply() included its own.
-  if (shaking > 0) ctx.translate(shakeX, shakeY);
   draw(ctx, layers, false);
   ctx.restore();
 

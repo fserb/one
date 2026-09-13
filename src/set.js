@@ -16,6 +16,7 @@
  */
 
 import * as ent from "./lib/entity.js";
+import { shake } from "./lib/camera.js";
 import { gameOver, hint, score } from "./lib/one.js";
 
 export const meta = {
@@ -348,7 +349,7 @@ function take(cells) {
 function miss() {
   clock = Math.max(0, clock - MISS_TIME);
   pop(`-${MISS_TIME}s`);
-  ent.shake(0.25);
+  shake(0.25);
 }
 
 function mark(cell) {

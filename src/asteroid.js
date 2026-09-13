@@ -21,6 +21,7 @@
  */
 
 import * as ent from "./lib/entity.js";
+import { shake } from "./lib/camera.js";
 import { gameOver, ramp, score } from "./lib/one.js";
 import { explosion, laser } from "./lib/fsfx/sfxr.js";
 import * as sound from "./lib/sound.js";
@@ -210,7 +211,7 @@ class Rock extends Target {
     if (b !== null) {
       b.remove();
       this.remove();
-      ent.shake();
+      shake();
       sound.play("rock");
       score.value += 2;
       pop(this.pos, "+2");
@@ -329,7 +330,7 @@ class Enemy extends Target {
     if (b !== null) {
       b.remove();
       this.remove();
-      ent.shake();
+      shake();
       sound.play("enemy");
       score.value += 10;
       pop(this.pos, "+10");
@@ -387,7 +388,7 @@ function incoming(e, fromPlayer) {
 function explode(p) {
   if (p.dead) return;
   debris(p.pos, WHITE, 70, 2);
-  ent.shake(0.5);
+  shake(0.5);
   sound.play("player");
   p.remove();
   dying = DYING;

@@ -15,6 +15,7 @@
  */
 
 import * as ent from "./lib/entity.js";
+import { shake } from "./lib/camera.js";
 import { gameOver, hint, input, score } from "./lib/one.js";
 import { coin, explosion, jump, powerup } from "./lib/fsfx/sfxr.js";
 import * as sound from "./lib/sound.js";
@@ -553,7 +554,7 @@ class Gate extends ent.Entity {
 function die() {
   if (dying > 0) return;
   dying = DEATH;
-  ent.shake(0.4);
+  shake(0.4);
   sound.play("dead");
   new ent.Particle({
     x: player.pos.x,

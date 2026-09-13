@@ -16,6 +16,8 @@
  */
 
 import * as ent from "./lib/entity.js";
+import { delay } from "./lib/effects.js";
+import { shake } from "./lib/camera.js";
 import { gameOver, score } from "./lib/one.js";
 import { explosion, laser, powerup } from "./lib/fsfx/sfxr.js";
 import * as sound from "./lib/sound.js";
@@ -248,7 +250,7 @@ class Player extends ent.Entity {
       speed: [43, 107],
       duration: 1.5,
     });
-    ent.shake(1);
+    shake(1);
     dying = DEATH;
   }
 
@@ -317,7 +319,7 @@ class EnemyBullet extends ent.Entity {
 
   update() {
     if (this.hit(player.bullet)) {
-      ent.shake(0.1);
+      shake(0.1);
       player.bullet.explode(true);
       // Shot down: white, held, and harmless on the way.
       this.clearHits();
@@ -400,8 +402,8 @@ class Enemy extends ent.Entity {
     this.exploding = true;
     this.draw(WHITE);
     sound.play("boom");
-    ent.shake(0.2);
-    ent.delay(0.01);
+    shake(0.2);
+    delay(0.01);
     player.bullet.explode(true);
     addScore((waves + 1) * player.combo);
     ent.after(WHITEOUT, () => {

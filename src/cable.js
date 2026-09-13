@@ -17,7 +17,9 @@
  */
 
 import * as ent from "./lib/entity.js";
-import { flash, gameOver, msg, score } from "./lib/one.js";
+import { delay, flash } from "./lib/effects.js";
+import { shake } from "./lib/camera.js";
+import { gameOver, msg, score } from "./lib/one.js";
 import { explosion, hit, powerup } from "./lib/fsfx/sfxr.js";
 import * as sound from "./lib/sound.js";
 
@@ -151,7 +153,7 @@ class Player extends ent.Entity {
     }
 
     this.accelerate(ux * BUMP, uy * BUMP);
-    ent.shake(0.2);
+    shake(0.2);
     flash(ent.css(WHITE), FLASH);
     sound.play("hit");
   }
@@ -245,7 +247,7 @@ class Rope extends ent.Entity {
     p.draw();
     score.value += 1;
     sound.play("connect");
-    ent.delay(0.01);
+    delay(0.01);
   }
 
   // This stretch and the one that laid it are removed, and the one before is

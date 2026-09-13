@@ -18,7 +18,7 @@
  */
 
 import * as ent from "./lib/entity.js";
-import { camera } from "./lib/camera.js";
+import { camera, shake } from "./lib/camera.js";
 import { gameOver, msg, score } from "./lib/one.js";
 import { coin, explosion, powerup } from "./lib/fsfx/sfxr.js";
 import * as sound from "./lib/sound.js";
@@ -574,7 +574,7 @@ function addHunter() {
 function die() {
   if (dying > 0) return;
   dying = DEATH;
-  ent.shake(0.5);
+  shake(0.5);
   sound.play("die");
   new ent.Particle({
     x: player.pos.x,

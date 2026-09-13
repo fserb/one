@@ -15,7 +15,9 @@
  */
 
 import * as ent from "./lib/entity.js";
-import { flash, gameOver, msg, score } from "./lib/one.js";
+import { flash } from "./lib/effects.js";
+import { shake } from "./lib/camera.js";
+import { gameOver, msg, score } from "./lib/one.js";
 import { explosion, hit, jump, powerup } from "./lib/fsfx/sfxr.js";
 import * as sound from "./lib/sound.js";
 
@@ -138,7 +140,7 @@ class Piece extends ent.Entity {
     });
     this.remove();
     sound.play("pop");
-    ent.shake(0.25);
+    shake(0.25);
     if (ent.get(Piece).length === 0) clear();
   }
 
@@ -298,14 +300,14 @@ class Player extends ent.Entity {
       duration: [0.3, 0.2],
     });
     sound.play("land");
-    ent.shake(0.1);
+    shake(0.1);
     return true;
   }
 
   die() {
     this.remove();
     sound.play("die");
-    ent.shake(0.3);
+    shake(0.3);
     ent.after(DEATH, () => gameOver({ score: true }));
   }
 

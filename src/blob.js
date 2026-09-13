@@ -16,7 +16,7 @@ import {
   SoftBodies,
   spline,
 } from "./alma/src/index.js";
-import { camera } from "./lib/camera.js";
+import { camera } from "./lib/camera2d.js";
 import * as ent from "./lib/entity.js";
 import { fixed, gameOver, input, op, score } from "./lib/one.js";
 import * as sound from "./lib/sound.js";

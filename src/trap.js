@@ -7,7 +7,7 @@
  */
 
 import { ease, extra, HexGrid, vec } from "./alma/src/index.js";
-import { camera } from "./lib/camera.js";
+import { camera } from "./lib/camera2d.js";
 import { act, gameOver, input, msg, score } from "./lib/one.js";
 import {
   ADSR,

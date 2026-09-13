@@ -17,7 +17,9 @@
 
 import { extra, random } from "./alma/src/index.js";
 import * as ent from "./lib/entity.js";
-import { flash, gameOver, msg, score } from "./lib/one.js";
+import { delay, flash } from "./lib/effects.js";
+import { shake } from "./lib/camera.js";
+import { gameOver, msg, score } from "./lib/one.js";
 import { explosion, hit, laser, powerup } from "./lib/fsfx/sfxr.js";
 import * as sound from "./lib/sound.js";
 
@@ -362,7 +364,7 @@ class Chunk extends ent.Entity {
       if (this.health > 0.2) {
         this.pos.x += Math.cos(a) * 17 / this.health;
         this.pos.y += Math.sin(a) * 17 / this.health;
-        ent.shake(0.05);
+        shake(0.05);
         continue;
       }
 
@@ -379,7 +381,7 @@ class Chunk extends ent.Entity {
         direction: [a - wide, 2 * wide],
         duration: 0.2,
       });
-      ent.shake(0.2);
+      shake(0.2);
       return;
     }
   }
@@ -522,7 +524,7 @@ class Enemy extends ent.Entity {
 // index, against the flat h that shooting it scores.
 function finishLevel() {
   ent.one(Enemy)?.explode();
-  ent.delay(0.05);
+  delay(0.05);
   transition = true;
 
   const dying = rings;
@@ -588,8 +590,8 @@ function die() {
     speed: [11, 53],
     duration: [2, 0.5],
   });
-  ent.delay(0.05);
-  ent.shake(0.5);
+  delay(0.05);
+  shake(0.5);
   ent.after(DEATH, () => gameOver({ score: true }));
 }
 

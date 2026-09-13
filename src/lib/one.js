@@ -13,6 +13,7 @@
 import Act from "../alma/src/Act.js";
 import { register as registerPlus2d } from "../alma/src/gfx/plus2d.js";
 import { Screen } from "../alma/src/screen.js";
+import * as effects from "./effects.js";
 import { init as initInput, input, poll as pollInput, setDpad } from "./input.js";
 import * as overlay from "./overlay.js";
 
@@ -57,7 +58,7 @@ export const op = {
   screen: null,
   playing: false,
   topmsg: null,
-  // Null keeps fsfx, alma's Audio and Camera2D out of the bundle.
+  // Null keeps fsfx, alma's Audio and the camera out of the bundle.
   sound: null,
   camera: null,
 };
@@ -96,7 +97,7 @@ export function start() {
   setDpad(meta.dpad);
   // Reset to the whole board, so init() changes only what it needs to.
   op.camera?.moveTo({ x: 512, y: 512, scale: 1, angle: 0 }).settle();
-  flashColor = null;
+  effects.reset();
   time = 0;
   overlay.startGame();
   op.playing = true;
@@ -132,22 +133,15 @@ export function msg(m) {
   op.topmsg = m;
 }
 
-let flashColor = null;
-let flashTime = 0;
-
 // The round ended this frame: draw the board once more, then store it.
 let ending = false;
-
-export function flash(color, t = 0) {
-  flashColor = color;
-  flashTime = t;
-}
 
 function frame(dt) {
   act._frame(dt);
   op.camera?.update(dt);
   pollInput();
   overlay.poll(dt);
+  effects.step(dt);
 
   if (op.playing) {
     time += dt;
@@ -168,10 +162,7 @@ function frame(dt) {
     ctx.save();
     op.game.render?.(ctx);
     ctx.restore();
-    if (op.playing && flashColor !== null) {
-      ctx.fillStyle = flashColor;
-      ctx.fillRect(0, 0, 1024, 1024);
-    }
+    if (op.playing) effects.render(ctx);
   }
 
   overlay.render(ctx);
@@ -181,5 +172,4 @@ function frame(dt) {
     overlay.shoot(op.screen.canvas);
     act.reset();
   }
-  if (flashColor !== null && (flashTime -= dt) <= 0) flashColor = null;
 }
