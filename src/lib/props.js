@@ -12,17 +12,12 @@
  * ```
  */
 
-import { css } from "./gfx.js";
+import { anchor, css } from "./gfx.js";
 import { Entity, game } from "./core.js";
 import { meta, score } from "./one.js";
 
-// The words ctx.text() takes for textAlign and textBaseline.
-const ALIGN = ["left", "center", "right"];
-const VALIGN = ["top", "middle", "bottom"];
-
-// `size` is the font's height in board units. `align` is one word from each of
-// those two lists, in either order and space separated; anything else in it is
-// ignored.
+// `size` is the font's height in board units, and `align` is gfx.js's anchor
+// string.
 export class Text extends Entity {
   static layer = 1000;
 
@@ -49,12 +44,7 @@ export class Text extends Entity {
     this.color = o.color;
     this.duration = o.duration;
 
-    this.align = "center";
-    this.valign = "middle";
-    for (const w of o.align.toLowerCase().split(/[\s_]+/)) {
-      if (ALIGN.includes(w)) this.align = w;
-      if (VALIGN.includes(w)) this.valign = w;
-    }
+    [this.align, this.valign] = anchor(o.align);
   }
 
   update() {

@@ -1,28 +1,40 @@
 /*
- * overlay.js - the panels every game shares: msg()'s small label at the top
- * centre, hint()'s panel at the bottom, and the finish screen over the board the
- * round ended on. Nothing draws the score while the round runs.
+ * overlay.js - what a game writes over the board: msg()'s one line of text, and
+ * the finish screen over the board the round ended on. Nothing is filled behind
+ * either, so both draw in theme()'s colour, and nothing draws the score while
+ * the round runs.
  *
  * Nothing here clears a click flag. one.js calls update() only between rounds
  * and render() after the game draws.
  */
 
 import { fastOutSlowIn } from "../alma/src/ease.js";
+import { anchor, css } from "./gfx.js";
 import { input } from "./input.js";
-import { meta, op, score } from "./one.js";
+import { meta, score } from "./one.js";
 
 const MARGIN = 26;
-const RADIUS = 12;
 
-// Off black and off white, so a panel over a black game is still separable
-// from it.
+// Off black and off white, so text over a black game is still separable from
+// it.
 const DARK = "#17171b";
 const LIGHT = "#f5f4f0";
 
-// A hint stays up, then fades; input ends it early with the quicker fade.
-const HOLD = 3;
+// A line given a `hold` stays that long, then fades; input ends it early with
+// the quicker fade. A line with no hold is not dismissible: it is a label the
+// game is keeping up, not a rule the player has finished reading.
 const FADE = 0.6;
 const DISMISS = 0.2;
+
+// The two places a line goes, and what it looks like there. Each field is a
+// default the opts override, so `{ at: "bottom", size: 34 }` is that slot in a
+// size of its own.
+const AT = {
+  top: { x: 512, y: MARGIN, align: "center top", size: 28 },
+  // Four margins up, which clears the furniture a game puts along the bottom
+  // edge, like set's clock bar at 920.
+  bottom: { x: 512, y: 1024 - MARGIN * 4, align: "center bottom", size: 34 },
+};
 
 // How far the finish screen dims the board, and how long it takes to appear.
 const DIM = 0.8;
@@ -31,11 +43,17 @@ const AGAIN = "TAP TO PLAY AGAIN";
 // A click this soon after the round ends is the click that ended it.
 const DEAD = 0.4;
 
-let panel = { bg: DARK, fg: LIGHT };
+let ink = LIGHT;
 
-const tip = {
+// The one line over the board. `left` is Infinity while it has no hold, so
+// nothing counts down and left() reports it as going nowhere.
+const line = {
+  text: null,
   lines: [],
-  left: 0, // seconds until the panel is gone, 0 the moment it is dismissed
+  at: AT.top,
+  opts: {},
+  color: LIGHT,
+  left: 0,
   fade: FADE,
   alpha: 0,
 };
@@ -54,7 +72,7 @@ const finish = {
 export function init() {
   score.best = localStorage.getItem(`one#${meta.title}`);
   if (score.best !== null) score.best = Number(score.best);
-  panel = theme(meta);
+  ink = theme(meta);
   seen.clear();
   clear();
 }
@@ -64,9 +82,10 @@ export function startGame() {
   clear();
 }
 
+// Every overlay state, so a round opens with none of the last one's showing.
 function clear() {
-  tip.left = 0;
-  tip.alpha = 0;
+  line.text = null;
+  line.alpha = 0;
   finish.on = false;
 }
 
@@ -89,8 +108,8 @@ export function gameOver(
     : Math.min(best, score.value);
   localStorage.setItem(`one#${meta.title}`, score.best);
 
-  tip.left = 0;
-  tip.alpha = 0;
+  line.text = null;
+  line.alpha = 0;
 
   finish.on = true;
   finish.t = 0;
@@ -99,32 +118,52 @@ export function gameOver(
   finish.title = !finish.showPanel ? null : msg ?? (win ? "WELL DONE" : "GAME OVER");
 }
 
-export function show(text) {
-  const lines = String(text).trim().split("\n").filter((l) => l.trim() !== "");
-  if (lines.length === 0 || seen.has(text)) return;
-  seen.add(text);
-  tip.lines = lines;
-  tip.left = HOLD + FADE;
-  tip.fade = FADE;
-  tip.alpha = 1;
+// See one.js's msg() for the opts. Setting the text that is already up is a
+// no-op, so a game can call this from update() every frame without restarting
+// the fade; `null` or "" takes the line away.
+export function show(text, opts = {}) {
+  if (text === null || text === "") {
+    line.text = null;
+    return;
+  }
+  if (text === line.text) return;
+  if (opts.once) {
+    if (seen.has(text)) return;
+    seen.add(text);
+  }
+
+  line.text = text;
+  line.lines = String(text).trim().split("\n").filter((l) => l.trim() !== "");
+  line.at = AT[opts.at] ?? AT.top;
+  line.opts = opts;
+  const c = opts.color;
+  line.color = c === undefined ? ink : typeof c === "number" ? css(c) : c;
+  line.left = opts.hold === undefined ? Infinity : opts.hold + FADE;
+  line.fade = FADE;
+  line.alpha = 1;
 }
 
-export function hint() {
-  return tip.left;
+// Seconds until the line goes, and 0 when nothing is showing or the line that
+// is has no hold and so is going nowhere.
+export function left() {
+  if (line.text === null || line.left === Infinity) return 0;
+  return line.left;
 }
 
-// Every frame, in game or not: the round's first input dismisses the hint.
+// Every frame, in game or not: the first input ends a line that was going to
+// fade anyway.
 export function poll(dt) {
   if (finish.on) finish.t += dt;
-  if (tip.left <= 0) return;
+  if (line.text === null || line.left === Infinity) return;
 
-  tip.left = Math.max(0, tip.left - dt);
+  line.left = Math.max(0, line.left - dt);
   const j = input.just;
-  if ((j.act || j.up || j.right || j.down || j.left) && tip.left > DISMISS) {
-    tip.left = DISMISS;
-    tip.fade = DISMISS;
+  if ((j.act || j.up || j.right || j.down || j.left) && line.left > DISMISS) {
+    line.left = DISMISS;
+    line.fade = DISMISS;
   }
-  tip.alpha = Math.min(1, tip.left / tip.fade);
+  line.alpha = Math.min(1, line.left / line.fade);
+  if (line.left === 0) line.text = null;
 }
 
 // Only called between rounds.
@@ -137,35 +176,35 @@ export function update(_dt, start) {
 
 export function render(ctx) {
   ctx.save();
+  // The finish screen is the only thing over the board once the round is over.
   if (finish.on) renderFinish(ctx);
-  else renderMsg(ctx);
-  if (tip.alpha > 0) renderHint(ctx);
+  else if (line.text !== null) renderLine(ctx);
   ctx.restore();
 }
 
-function renderMsg(ctx) {
-  if (op.topmsg) label(ctx, op.topmsg, 512, MARGIN, 28, 0.5, 0);
-}
-
-function renderHint(ctx) {
-  const size = 34;
+function renderLine(ctx) {
+  const o = line.opts;
+  const size = o.size ?? line.at.size;
   const lead = size * 1.55;
-  const px = 44;
-  const py = 34;
-  const w = Math.max(...tip.lines.map((l) => width(ctx, l, size))) + px * 2;
-  const h = (tip.lines.length - 1) * lead + size + py * 2;
+  const [align, valign] = anchor(o.align ?? line.at.align, "center", "top");
+  const h = (line.lines.length - 1) * lead;
 
-  ctx.globalAlpha = tip.alpha;
-  const [bx, by] = box(ctx, 512, 1024 - MARGIN * 3, w, h, 0.5, 1);
-  let y = by + py + size / 2;
-  for (const line of tip.lines) {
-    ctx.text(line, bx + w / 2, y, size, { valign: "middle" });
+  // The block is anchored, not each line, so a two-line rule grows upward off a
+  // bottom anchor rather than off the board.
+  let y = (o.y ?? line.at.y) + size / 2;
+  if (valign === "bottom") y -= h + size;
+  else if (valign === "middle") y -= h / 2;
+
+  ctx.globalAlpha = line.alpha;
+  ctx.fillStyle = line.color;
+  for (const l of line.lines) {
+    ctx.text(l, o.x ?? line.at.x, y, size, { align, valign: "middle" });
     y += lead;
   }
   ctx.globalAlpha = 1;
 }
 
-// On the frame the round ends t is 0, so the dim and the panel are both at
+// On the frame the round ends t is 0, so the dim and the text are both at
 // nothing and this leaves the board as the game just drew it.
 function renderFinish(ctx) {
   const e = fastOutSlowIn(Math.min(1, finish.t / RISE));
@@ -200,10 +239,7 @@ function renderFinish(ctx) {
   ctx.translate(0, (1 - e) * 24);
   const bx = 512 - w / 2;
   const by = 512 - h / 2;
-  // Nothing is filled behind this text, so it takes the colour picked against
-  // the board and not the one picked against a fill: the dim over it is
-  // meta.bg, which is what theme()'s fill was chosen against.
-  ctx.fillStyle = panel.bg;
+  ctx.fillStyle = ink;
 
   let y = by + py;
   if (finish.title) {
@@ -228,49 +264,20 @@ function renderFinish(ctx) {
   ctx.globalAlpha = 1;
 }
 
-// x,y is the anchor and ax,ay which point of the box that is: 0 left/top, 0.5
-// centre, 1 right/bottom. Leaves panel.fg as the fillStyle for the text.
-function box(ctx, x, y, w, h, ax, ay) {
-  const bx = x - w * ax;
-  const by = y - h * ay;
-  ctx.save();
-  ctx.shadowColor = "#0000004d";
-  ctx.shadowBlur = 18;
-  ctx.shadowOffsetY = 4;
-  ctx.fillStyle = panel.bg;
-  ctx.beginPath();
-  ctx.roundRect(bx, by, w, h, RADIUS);
-  ctx.fill();
-  ctx.restore();
-  ctx.fillStyle = panel.fg;
-  return [bx, by];
-}
-
-function label(ctx, txt, x, y, size, ax, ay) {
-  const px = size * 0.7;
-  const py = size * 0.42;
-  const w = width(ctx, txt, size) + px * 2;
-  const h = size + py * 2;
-  const [bx, by] = box(ctx, x, y, w, h, ax, ay);
-  ctx.text(txt, bx + w / 2, by + h / 2, size, { valign: "middle" });
-}
-
-// mtext() sets the same font text() draws with, so a panel is measured in the
-// face that ends up in it.
+// mtext() sets the same font text() draws with, so the finish screen is
+// measured in the face that ends up in it.
 function width(ctx, txt, size) {
   return ctx.mtext(txt, size).width;
 }
 
 /*
- * The two colours every panel is drawn in. Each default is chosen against what
- * it will be drawn over, the fill against the board and the text against the
- * fill, so a game that needs a different fill sets only `meta.overlay.bg`.
- * meta.fg is never a default: rope's is #402F2E on a #000000 board. The
- * gallery card's title is the fill colour, so tools/build.js calls this too.
+ * The colour everything over the board is drawn in, and the gallery card's
+ * title, so tools/build.js calls this too. Nothing is filled behind any of it,
+ * so the one thing it is chosen against is the board. meta.fg is never a
+ * default: rope's is #402F2E on a #000000 board.
  */
 export function theme(m) {
-  const bg = m.overlay?.bg ?? pick(m.bg);
-  return { bg, fg: m.overlay?.fg ?? pick(bg) };
+  return m.overlay ?? pick(m.bg);
 }
 
 // WCAG relative luminance of a #rrggbb colour. Linearising is the step that

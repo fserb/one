@@ -12,7 +12,7 @@
  */
 
 import { zipSync } from "../alma/src/3rdp/fflate.js";
-import { hint } from "../lib/one.js";
+import { msg } from "../lib/one.js";
 
 const FPS = 30; // capture cadence, an exact half of a 60Hz display
 const TAKE = 10; // seconds in a take
@@ -290,10 +290,10 @@ async function keep() {
 // reports it rather than writing a still card.
 export async function auto() {
   if (state !== "idle") throw new Error(`recorder is ${state}`);
-  // A hint panel is up for its first 3.6 seconds and nothing here will dismiss
-  // it. hint() is the seconds it has left, and 0 for the games that show none,
+  // A rule is up for its first 3.6 seconds and nothing here will dismiss it.
+  // msg() is the seconds it has left, and 0 for the games that show none,
   // which are most of them.
-  while (hint() > 0) await new Promise((r) => requestAnimationFrame(r));
+  while (msg() > 0) await new Promise((r) => requestAnimationFrame(r));
   const take = new Promise((r) => (waiting = r));
   record();
   const { cut, moved } = await take;

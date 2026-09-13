@@ -49,6 +49,20 @@ export function css(c) {
   return s;
 }
 
+const ALIGN = ["left", "center", "right"];
+const VALIGN = ["top", "middle", "bottom"];
+
+// One word from each of those lists, in either order and space separated, into
+// the pair ctx.text() takes. Anything else in the string is ignored, and a
+// missing word keeps the default given.
+export function anchor(s, align = "center", valign = "middle") {
+  for (const w of s.toLowerCase().split(/[\s_]+/)) {
+    if (ALIGN.includes(w)) align = w;
+    if (VALIGN.includes(w)) valign = w;
+  }
+  return [align, valign];
+}
+
 export class Gfx {
   constructor() {
     this.cmds = [];

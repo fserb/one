@@ -17,7 +17,7 @@
 
 import { registerSquircle } from "./alma/src/index.js";
 import { GridFiller } from "./lib/pgrid.js";
-import { gameOver, hint, input, score } from "./lib/one.js";
+import { gameOver, input, msg, score } from "./lib/one.js";
 
 export const meta = {
   title: "tower",
@@ -339,7 +339,7 @@ function click(x, y) {
 
 export function init() {
   registerSquircle();
-  hint(meta.desc);
+  msg(meta.desc, { at: "bottom", hold: 3, once: true });
 
   working = [];
   committed = [];

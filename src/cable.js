@@ -82,7 +82,7 @@ const FADE = 1.5;
 const FLASH = 0.05;
 
 // The planets gauge sits just under the overlay's msg() label, which takes the
-// top of the board down to 77.
+// top of the board down to 54.
 const PIECES_X = 128;
 const PIECES_Y = 117;
 const CLOCK_X = 128;
@@ -104,7 +104,6 @@ let clock = null;
 const cam = { x: 0, y: 0 }; // screen minus world, holding the player centred
 let wipe = 0;
 let fade = null;
-let nudge = false;
 let scale = 1; // world units to device pixels, which is what shadowBlur wants
 
 class Player extends ent.Entity {
@@ -445,7 +444,6 @@ function buildLevel() {
   planets = [];
   linked = 0;
   transition = false;
-  nudge = false;
 
   player = new Player();
   new Earth();
@@ -501,7 +499,10 @@ export function update(dt) {
     if (p.linktimer >= 1) done += 1;
   }
   linked = done;
-  if (level === 0 && linked >= planets.length) nudge = true;
+  // Replaces the level label: the last thing to do is the only thing to say.
+  if (level === 0 && linked >= planets.length) {
+    msg("now leave the quadrant", { at: "bottom" });
+  }
 
   clock.spent += t;
   clock.warn = false;
@@ -533,10 +534,6 @@ export function render(ctx) {
     ctx.fillStyle = ent.css(CYAN);
     ctx.fillRect(0, 0, 1024, 1024);
     ctx.globalAlpha = 1;
-  }
-  if (nudge) {
-    ctx.fillStyle = ent.css(BLACK);
-    ctx.text("now leave the quadrant", 512, 917, 34);
   }
 }
 

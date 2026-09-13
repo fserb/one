@@ -16,7 +16,7 @@
 
 import * as ent from "./lib/entity.js";
 import { shake } from "./lib/camera.js";
-import { gameOver, hint, input, score } from "./lib/one.js";
+import { gameOver, input, msg, score } from "./lib/one.js";
 import { coin, explosion, jump, powerup } from "./lib/fsfx/sfxr.js";
 import * as sound from "./lib/sound.js";
 
@@ -597,7 +597,7 @@ function buildLevel() {
 }
 
 export function init() {
-  hint(meta.desc);
+  msg(meta.desc, { at: "bottom", hold: 3, once: true });
   level = 0;
   dying = 0;
   phase = PLAY;
@@ -613,7 +613,7 @@ export function update(dt) {
   tapped = input.release.act && pressed > 0 && pressed <= TAP;
   pressed = input.press.act ? pressed + dt : 0;
 
-  ent.update(phase === PLAY && hint() <= 0 ? dt : 0);
+  ent.update(phase === PLAY && msg() <= 0 ? dt : 0);
 
   if (dying > 0) {
     if ((dying -= dt) <= 0) gameOver({ score: true });

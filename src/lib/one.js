@@ -25,7 +25,7 @@ export const meta = {
   desc: "",
   bg: "#f2f0e5",
   fg: "#212123",
-  // { bg, fg }, either half optional; absent derives both from meta.bg.
+  // The colour everything over the board draws in; absent picks it off meta.bg.
   overlay: null,
   scoreMax: true, // false when a low score is the good one
   date: null, // "YYYY-MM-DD"
@@ -50,14 +50,13 @@ export function roll(level) {
   return Math.random() ** (100 / (level + 1));
 }
 
-// One mutable object rather than exported `let`s: overlay.js imports it back
-// out of one.js, and a binding read at module scope would still be in its
-// temporal dead zone.
+// One mutable object rather than exported `let`s: sound.js writes into it at
+// module scope, and a binding read there would still be in its temporal dead
+// zone.
 export const op = {
   game: null,
   screen: null,
   playing: false,
-  topmsg: null,
   // Null keeps fsfx, alma's Audio and the camera out of the bundle.
   sound: null,
   camera: null,
@@ -111,7 +110,8 @@ export function gameOver(opts) {
   if (!op.playing) return;
   op.playing = false;
   setDpad(false);
-  // The tweens in flight end with the round rather than running under the panel.
+  // The tweens in flight end with the round rather than running under the
+  // finish screen.
   act.reset();
   overlay.gameOver(opts);
 }
@@ -122,16 +122,28 @@ export function fixed(rate, func) {
   return op.screen.fixed(rate, func);
 }
 
-// hint() with no text returns the seconds left, 0 once dismissed or faded, so a
-// game can delay an opening move while the player is still reading.
-export function hint(text) {
-  if (text === undefined) return overlay.hint();
-  overlay.show(text);
-  return overlay.hint();
-}
-
-export function msg(m) {
-  op.topmsg = m;
+/*
+ * The one line of text over the board, and nothing is filled behind it. Setting
+ * the text that is already up is a no-op, so a game can call this from update()
+ * every frame; null or "" takes it away.
+ *
+ *   at      "top", the default, or "bottom", which is where a rule goes
+ *   x, y    the anchor, default the slot's
+ *   align   which point of the text that is, "center top" and the like
+ *   size    board units, default 28 at the top and 34 at the bottom
+ *   color   a 0xrrggbb number or a CSS string, default theme(meta)
+ *   hold    seconds before it fades, and input ends it early; without one it
+ *           stays until the game replaces it or the round does
+ *   once    show it only once a page load, however many rounds are played
+ *
+ * With no arguments it returns the seconds a fading line has left, 0 once it is
+ * gone or when the line is staying, so a game can delay an opening move while
+ * the player is still reading.
+ */
+export function msg(text, opts) {
+  if (text === undefined) return overlay.left();
+  overlay.show(text, opts);
+  return overlay.left();
 }
 
 function frame(dt) {
@@ -159,7 +171,7 @@ function frame(dt) {
   ctx.restore();
 
   // The flash belongs to the round: a game that flashes on death would
-  // otherwise hold the board one colour under the finish panel.
+  // otherwise hold the board one colour under the finish screen.
   if (op.playing) effects.render(ctx);
 
   overlay.render(ctx);

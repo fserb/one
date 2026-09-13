@@ -394,7 +394,6 @@ export function init() {
   dying = 0;
   aiming = false;
   lastx = null;
-  msg("");
 }
 
 export function update(dt) {

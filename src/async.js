@@ -8,7 +8,7 @@
 
 import { ease, extra, vec } from "./alma/src/index.js";
 import { camera } from "./lib/camera.js";
-import { act, gameOver, hint, input, score } from "./lib/one.js";
+import { act, gameOver, input, msg, score } from "./lib/one.js";
 
 const { arrayRemove, promiseSleep, TAU } = extra;
 
@@ -61,7 +61,7 @@ let beltNext;
 let milestone;
 
 export function init() {
-  hint(meta.desc);
+  msg(meta.desc, { at: "bottom", hold: 3, once: true });
   board.length = 0;
   belt.length = 0;
   selected[0] = selected[1] = null;

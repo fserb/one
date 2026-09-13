@@ -17,7 +17,7 @@
 
 import * as ent from "./lib/entity.js";
 import { shake } from "./lib/camera.js";
-import { gameOver, hint, score } from "./lib/one.js";
+import { gameOver, msg, score } from "./lib/one.js";
 
 export const meta = {
   title: "set",
@@ -269,8 +269,8 @@ class Clock extends ent.Entity {
   }
 
   update() {
-    // The timer holds while the hint is up: here the hint is the rule.
-    if (hint() === 0) clock = Math.max(0, clock - ent.game.time);
+    // The timer holds while the rule is up: here the rule is the game.
+    if (msg() === 0) clock = Math.max(0, clock - ent.game.time);
 
     const w = RIGHT - LEFT;
     // The empty track fixes the bounding box, so the bar shortens from the right
@@ -377,7 +377,7 @@ function mark(cell) {
 }
 
 export function init() {
-  hint(meta.desc);
+  msg(meta.desc, { at: "bottom", hold: 3, once: true });
   ent.reset([Card, Mark, Cursor, Clock, ent.Particle]);
 
   deck = newDeck();
