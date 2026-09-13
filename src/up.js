@@ -188,15 +188,7 @@ class Obstacle extends ent.Entity {
     }
 
     if (this.pos.y < OUT) return;
-    score.value += 5;
-    new ent.Text({
-      text: "+5",
-      x: Math.min(Math.max(this.pos.x, 20), 1004),
-      y: 1024,
-      size: 20,
-      vel: [0, -40],
-      duration: 1,
-    });
+    ent.addScore(5, Math.min(Math.max(this.pos.x, 20), 1004), 1024);
     this.remove();
   }
 }
@@ -211,15 +203,7 @@ class Gold extends ent.Entity {
 
   update() {
     if (this.hit(player)) {
-      score.value += this.points;
-      new ent.Text({
-        text: `+${this.points}`,
-        x: this.pos.x,
-        y: this.pos.y,
-        size: 20,
-        vel: [0, -40],
-        duration: 1,
-      });
+      ent.addScore(this.points, this.pos.x, this.pos.y);
       this.remove();
       return;
     }

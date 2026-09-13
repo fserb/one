@@ -22,7 +22,7 @@
 
 import * as ent from "./lib/entity.js";
 import { shake } from "./lib/camera.js";
-import { gameOver, msg, score } from "./lib/one.js";
+import { gameOver, msg } from "./lib/one.js";
 import { blip, coin, explosion, hit } from "./lib/fsfx/sfxr.js";
 import * as sound from "./lib/sound.js";
 
@@ -253,16 +253,9 @@ class Coin extends ent.Entity {
     if (dying > 0) return;
 
     if (this.hit(player)) {
-      score.value += this.value;
       sound.play("coin");
-      new ent.Text({
+      ent.addScore(this.value, this.pos.x, this.pos.y, {
         text: `$${this.value}`,
-        x: this.pos.x,
-        y: this.pos.y,
-        size: 40,
-        color: YELLOW,
-        vel: [0, -43],
-        duration: 1,
       });
       this.remove();
       return;

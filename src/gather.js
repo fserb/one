@@ -332,20 +332,11 @@ class Frame extends ent.Entity {
   }
 }
 
+// The number rises off the tray it was counted in rather than off the board.
 function addScore(v) {
-  score.value += v;
   shake(0.25);
   sound.play("score");
-  new ent.Text({
-    text: `+${Math.floor(v)}`,
-    x: TRAY_R,
-    y: TRAY_Y,
-    align: "right middle",
-    size: 40,
-    color: BLACK,
-    vel: [0, -64],
-    duration: 0.5,
-  });
+  ent.addScore(v, TRAY_R, TRAY_Y, { align: "right middle" });
 }
 
 function say(m) {

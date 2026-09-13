@@ -1,10 +1,12 @@
 /*
- * props.js - a label, a one-shot particle emitter, and two timers. Each is
- * built in one expression from an options object over the defaults.
+ * props.js - a label, a one-shot particle emitter, the score popup, and two
+ * timers. Each is built in one expression from an options object over the
+ * defaults.
  *
  * ```js
  * new ent.Text({ text: `+${n}`, x, y, size: 40, vel: [0, -40], duration: 1 });
  * new ent.Particle({ x, y, count: 20, speed: [107, 43], circle: true });
+ * ent.addScore(10, this.pos.x, this.pos.y);
  * ent.every(1.5, () => { new Enemy(); });
  * ent.after(0.75, () => gameOver({ score: true }));
  * ```
@@ -12,6 +14,7 @@
 
 import { css } from "./gfx.js";
 import { Entity, game } from "./core.js";
+import { meta, score } from "./one.js";
 
 // The words ctx.text() takes for textAlign and textBaseline.
 const ALIGN = ["left", "center", "right"];
@@ -68,6 +71,24 @@ export class Text extends Entity {
       valign: this.valign,
     });
   }
+}
+
+// The score and the number that rises off the board are one call, so the two
+// cannot come apart. The look is the same in every game: 40 board units of
+// meta.fg, rising 45 of them over 0.7s. `opts` is the Text's, for the games
+// that draw the number in a colour of their own.
+export function addScore(n, x, y, opts = {}) {
+  score.value += n;
+  new Text({
+    text: `+${Math.floor(n)}`,
+    x,
+    y,
+    size: 40,
+    color: parseInt(meta.fg.slice(1), 16),
+    vel: [0, -64],
+    duration: 0.7,
+    ...opts,
+  });
 }
 
 // A number, or a [base, spread] pair to choose one value from.

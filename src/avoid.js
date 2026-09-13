@@ -7,7 +7,7 @@
  */
 
 import * as ent from "./lib/entity.js";
-import { gameOver, score } from "./lib/one.js";
+import { gameOver } from "./lib/one.js";
 
 export const meta = {
   title: "avoid",
@@ -116,15 +116,7 @@ class Enemy extends ent.Entity {
 
   cash() {
     if (this.tads <= 0) return;
-    new ent.Text({
-      text: `+${this.tads}`,
-      x: this.pos.x,
-      y: this.pos.y,
-      size: 20,
-      vel: [0, -40],
-      duration: 1,
-    });
-    score.value += this.tads;
+    ent.addScore(this.tads, this.pos.x, this.pos.y);
     this.tads = 0;
   }
 }

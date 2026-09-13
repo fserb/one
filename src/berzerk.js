@@ -11,7 +11,7 @@
 
 import { extra } from "./alma/src/index.js";
 import * as ent from "./lib/entity.js";
-import { gameOver, score } from "./lib/one.js";
+import { gameOver } from "./lib/one.js";
 
 export const meta = {
   title: "berzerk",
@@ -251,17 +251,8 @@ class ScoreBox extends ent.Entity {
     if (this.hitGroup(Player) === null) return;
     this.remove();
 
-    score.value += this.n;
+    ent.addScore(this.n, this.pos.x, this.pos.y);
     next = Math.max(this.n + 1, next);
-    new ent.Text({
-      text: `+${this.n}`,
-      x: this.pos.x,
-      y: this.pos.y,
-      size: 40,
-      color: BLACK,
-      vel: [0, -64],
-      duration: 0.8,
-    });
   }
 
   render(ctx) {

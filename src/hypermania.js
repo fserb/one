@@ -18,7 +18,7 @@
 import * as ent from "./lib/entity.js";
 import { delay } from "./lib/effects.js";
 import { shake } from "./lib/camera.js";
-import { gameOver, score } from "./lib/one.js";
+import { gameOver } from "./lib/one.js";
 import { explosion, laser, powerup } from "./lib/fsfx/sfxr.js";
 import * as sound from "./lib/sound.js";
 
@@ -207,17 +207,8 @@ class Bar extends ent.Entity {
     if (buffer < 1 || this.age < POP) return;
     const n = Math.floor(buffer);
     buffer -= n;
-    score.value += n;
     this.age = 0;
-    new ent.Text({
-      text: `+${n}`,
-      x: 512 + EW / 2 - 32,
-      y: BOT - 21,
-      size: 40,
-      color: ORANGE,
-      vel: [0, -85],
-      duration: 0.3,
-    });
+    ent.addScore(n, 512 + EW / 2 - 32, BOT - 21, { color: ORANGE });
   }
 }
 

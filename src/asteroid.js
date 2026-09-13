@@ -213,8 +213,7 @@ class Rock extends Target {
       this.remove();
       shake();
       sound.play("rock");
-      score.value += 2;
-      pop(this.pos, "+2");
+      ent.addScore(2, this.pos.x, this.pos.y);
       new ent.Particle({
         x: this.pos.x,
         y: this.pos.y,
@@ -332,8 +331,7 @@ class Enemy extends Target {
       this.remove();
       shake();
       sound.play("enemy");
-      score.value += 10;
-      pop(this.pos, "+10");
+      ent.addScore(10, this.pos.x, this.pos.y);
       debris(this.pos, BLACK, 40, 1);
       return;
     }
@@ -423,18 +421,6 @@ function debris(pos, color, count, life) {
     size: [6, 21],
     speed: [11, 53],
     duration: [life, 0.5],
-  });
-}
-
-function pop(pos, text) {
-  new ent.Text({
-    text,
-    x: pos.x,
-    y: pos.y,
-    size: 20,
-    color: WHITE,
-    vel: [0, -43],
-    duration: 1,
   });
 }
 
