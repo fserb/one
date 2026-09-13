@@ -27,7 +27,7 @@ export const meta = {
   // { bg, fg }, either half optional; absent derives both from meta.bg.
   overlay: null,
   scoreMax: true, // false when a low score is the good one
-  date: null, // "YYYY-MM-DD", the gallery's order, newest first
+  date: null, // "YYYY-MM-DD"
   // A touch steers rather than pointing: see the two mappings in input.js.
   dpad: false,
 };
@@ -64,10 +64,7 @@ export const op = {
 
 let ctx = null;
 
-export function run(game, { target = null } = {}) {
-  // The family every ctx.text() in a game draws in: "Vera" is assets/vera.css,
-  // which the build writes into the page and dev.html links, and the rest of
-  // the stack draws only if that is missing.
+export async function run(game, { target = null } = {}) {
   registerPlus2d({ font: '"Vera", system-ui, sans-serif' });
   Object.assign(meta, game.meta ?? {});
   op.game = game;
@@ -78,15 +75,12 @@ export function run(game, { target = null } = {}) {
   ctx = screen.canvas.getContext("2d");
 
   document.title = meta.title;
-  // The board and not the document: the built page puts the canvas in a square
-  // on the gallery's colour.
   screen.canvas.parentElement.style.backgroundColor = meta.bg;
 
-  // Drawing with a @font-face does not load it, and a canvas is the only thing
-  // on a dev page set in this font. Vera is the only face in that stack there
-  // is to load, in the two weights assets/vera.css carries.
-  document.fonts?.load('16px "Vera"');
-  document.fonts?.load('bold 16px "Vera"');
+  await Promise.allSettled([
+    document.fonts?.load('16px "Vera"'),
+    document.fonts?.load('bold 16px "Vera"'),
+  ]);
 
   initInput(screen, { dpad: meta.dpad });
   op.sound?.arm(document); // only there if the game imported lib/sound.js
@@ -162,16 +156,6 @@ function frame(dt) {
     overlay.update(dt, start);
   }
 
-  render();
-  if (ending) {
-    ending = false;
-    overlay.shoot(op.screen.canvas);
-    act.reset();
-  }
-  if (flashColor !== null && (flashTime -= dt) <= 0) flashColor = null;
-}
-
-function render() {
   ctx.reset();
   op.screen.apply(ctx);
 
@@ -191,4 +175,11 @@ function render() {
   }
 
   overlay.render(ctx);
+
+  if (ending) {
+    ending = false;
+    overlay.shoot(op.screen.canvas);
+    act.reset();
+  }
+  if (flashColor !== null && (flashTime -= dt) <= 0) flashColor = null;
 }

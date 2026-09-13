@@ -116,7 +116,7 @@ async function measure(game) {
       `${dir}/entry.js`,
       `import * as game from "${src(`${game}.js`)}";\n` +
         `import { run } from "${src("lib/one.js")}";\n` +
-        `run(game);\n`,
+        `await run(game);\n`,
     );
     const cmd = new Deno.Command("deno", {
       args: [

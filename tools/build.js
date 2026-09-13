@@ -129,7 +129,7 @@ async function bundle(game) {
     entry,
     `import * as game from "${src(`${game}.js`)}";\n` +
       `import { run } from "${src("lib/one.js")}";\n` +
-      `run(game);\n`,
+      `await run(game);\n`,
   );
 
   try {

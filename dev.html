@@ -275,7 +275,7 @@
 
       const game = await import(`./src/${name}.js`);
       const { run, meta } = await import("./src/lib/one.js");
-      const screen = run(game);
+      const screen = await run(game);
       // run() has painted meta.bg on the board, and meta is the merged one, so
       // a game that names no colour has the default in both places.
       document.body.style.backgroundColor = shade(meta.bg);
