@@ -119,16 +119,11 @@ const cy = (j) => MY + (j + 0.5) * CELL;
 const ci = (x) => Math.round((x - MX) / CELL - 0.5);
 const cj = (y) => Math.round((y - MY) / CELL - 0.5);
 
-/*
- * A randomised Prim's from the middle cell out. A cell still at 15, every wall
- * up, has not been reached; the frontier is every unreached cell next to a
- * reached one.
- *
- * The order is the part that matters. It depends on which direction the cell is
- * from the centre: the two perpendicular directions first, then away, then back
- * toward the middle, which runs the corridors around the centre rather than
- * radiating out of it.
- */
+// A randomised Prim's from the middle cell out: a cell still at 15, every wall
+// up, has not been reached. The order is the part that matters. It depends on
+// which direction the cell is from the centre: the two perpendicular directions
+// first, then away, then back toward the middle, which runs the corridors
+// around the centre rather than radiating out of it.
 function generate() {
   map.fill(15);
   const border = [];

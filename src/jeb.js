@@ -187,8 +187,6 @@ class Ship extends ent.Entity {
     this.burning = false;
     this.puff = 0;
     this.pressed = 0;
-    // A hull that tapers to the nose, one porthole, and the engine block the
-    // legs come off, 45 across and 45 down.
     this.gfx.size(45, 45)
       .fill(GREY).mt(-9, -22).lt(9, -22).lt(20, -4).lt(20, 12).lt(-20, 12)
       .lt(-20, -4)

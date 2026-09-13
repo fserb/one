@@ -127,13 +127,12 @@ export function motion(sig) {
 
 // The clip plays [in, out) and jumps back, so the join is invisible when frame
 // `out` matches frame `in`; scoring WINDOW frames from each stops one
-// coincidental match from being chosen.
-//
-// The join is scored against the recording's own median frame-to-frame
-// difference rather than minimised: anything that changes steadily through the
-// recording, a score counting up or a board filling, separates two frames in
-// proportion to how far apart they are in time, so minimising always returns
-// the shortest clip. The longest cut inside the budget is the one taken.
+// coincidental match from being chosen. The join is scored against the
+// recording's own median frame-to-frame difference rather than minimised:
+// anything that changes steadily through the recording, a score counting up or
+// a board filling, separates two frames in proportion to how far apart they are
+// in time, so minimising always returns the shortest clip. The longest cut
+// inside the budget is the one taken.
 export function findLoop(sig, lo, hi) {
   // A round that ends early leaves the frozen game-over frame repeating. It
   // breaks the search twice: cutting anywhere inside it scores zero at any

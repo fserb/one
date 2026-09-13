@@ -26,8 +26,6 @@ const GOLD_DARK = 0xa37d1d;
 const RED = 0xe11c57;
 const RED_DARK = 0x861034;
 
-// A disc is its colour flat with the darker tone over the bottom-right half:
-// one hard edge along the diameter, and the same light on every disc.
 function disc(gfx, r, color, dark) {
   gfx.clear()
     .fill(color).circle(0, 0, r)

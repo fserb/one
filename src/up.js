@@ -60,9 +60,8 @@ const KEY = 0xffffff;
 const FLAME = 0xaa9936;
 const FLAME_DARK = 0x988946;
 
-// The ship and the rocks are the same plus: `arm` out from the centre, `half`
-// across, with the darker tone on the square the two bars share. Two bars and
-// not one path, since they overlap rather than meet, so no join shows.
+// `arm` out from the centre, `half` across. Two bars and not one path, since
+// they overlap rather than meet, so no join shows.
 function cross(gfx, arm, half, color, dark) {
   gfx.fill(color)
     .rect(-arm, -half, 2 * arm, 2 * half)

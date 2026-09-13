@@ -20,14 +20,10 @@ import * as overlay from "./overlay.js";
 
 export { input };
 
-// Every game draws into this square, whatever size the canvas ends up being.
 export const SIZE = 1024;
 
 // What every ctx.text() and every rule in the page templates draws in. "Vera"
 // is assets/vera.css, which the build writes into the page and dev.html links.
-// It has a 400 face and a 700 face and nothing else: ask a canvas for heavier
-// and it takes the 700 and emboldens it again, with no font-synthesis there to
-// turn that off.
 export const FONT = '"Vera", system-ui, sans-serif';
 
 // Filled in from the game module's `meta` export by run().
@@ -51,36 +47,26 @@ export const score = {
   best: null,
 };
 
-// Seconds the round has run: frame() moves it while the round runs and start()
-// puts it back.
-export let time = 0;
+export let time = 0; // seconds the round has run
 
-// The difficulty at t, and at the second the round is on when asked for nothing:
-// ABA Games' curve (Joys of Small Game Development, difficulty), in seconds
-// rather than frames. 1 at the start, 1.6 a minute in, 2.04 at three minutes,
-// which is the run length it is shaped for, and climbing more slowly after. A
-// game multiplies a speed, a count or a rate by it.
-//
-// Passing a t is how a game with a clock of its own ramps on that clock rather
-// than on the wall: asteroid's runs at a fiftieth unless the player thrusts, and
-// gather's starts at the end of its opening script. Scale each parameter on its
-// own shape; the book's example is rock size on this and fall speed linear.
+// ABA Games' difficulty curve (Joys of Small Game Development), in seconds
+// rather than frames: 1 at the start, 1.6 a minute in and 2.04 at three
+// minutes, which is the run length it is shaped for. Passing a t is how a game
+// with a clock of its own ramps on that clock rather than on the wall.
 export function ramp(t = time) {
   return Math.sqrt(t * 0.006) + 1;
 }
 
 // One parameter of level `level`, 0 to 1. The exponent is 100 at level 0 and 1
 // at level 99, so an early roll sits near 0 and a late one is a flat draw: a
-// level comes out easier than its number often enough to break the climb. Roll
-// it once per parameter, so "many weak enemies" and "one dangerous one" are two
-// draws on the same level.
+// level comes out easier than its number often enough to break the climb.
 export function roll(level) {
   return Math.random() ** (100 / (level + 1));
 }
 
-// One mutable object rather than exported `let`s, because overlay.js imports it
-// back out of one.js: the two are a cycle, and a binding read at module scope
-// would still be in its temporal dead zone.
+// One mutable object rather than exported `let`s: overlay.js imports it back
+// out of one.js, and a binding read at module scope would still be in its
+// temporal dead zone.
 export const op = {
   game: null,
   screen: null,
@@ -106,12 +92,11 @@ export function run(game, { target = null } = {}) {
 
   document.title = meta.title;
   // The board and not the document: the built page puts the canvas in a square
-  // on the gallery's colour, and dev.html's canvas has the body for a parent.
+  // on the gallery's colour.
   screen.canvas.parentElement.style.backgroundColor = meta.bg;
 
   // Drawing with a @font-face does not load it, and a canvas is the only thing
-  // on a dev page set in this font. Both faces are data: URLs in the page, so
-  // at most the first frames are drawn in the fallback.
+  // on a dev page set in this font.
   document.fonts?.load(`16px ${FONT}`);
   document.fonts?.load(`bold 16px ${FONT}`);
 
@@ -124,13 +109,9 @@ export function run(game, { target = null } = {}) {
   return screen;
 }
 
-/*
- * alma's plus2d text() and mtext() are hard-coded to Verdana, and are otherwise
- * what every game and the overlay want, so these two replace them: same
- * arguments, same defaults, FONT for the family. The draw below 10px is alma's,
- * where the text is laid out at 10 and the context scaled down to the size
- * asked for.
- */
+// alma's plus2d text() and mtext() are hard-coded to Verdana: same arguments,
+// same defaults, FONT for the family. The draw below 10px is alma's, where the
+// text is laid out at 10 and the context scaled down.
 function font(ctx, size, { weight = "bold", align = "center", valign = "middle" }) {
   ctx.font = `${weight} ${size}px ${FONT}`;
   ctx.textAlign = align;
@@ -181,9 +162,8 @@ export function start() {
   op.game.init?.();
 }
 
-// opts says what the finish screen shows and an empty one shows nothing; see
-// overlay.gameOver(). The board is drawn one more time after this frame's
-// update, so the frozen shot is the game at the moment it ended.
+// See overlay.gameOver() for opts. The board is drawn once more after this
+// frame's update, so the frozen shot is the game at the moment it ended.
 export function gameOver(opts) {
   // Two collision paths can both end the same round; only the first call acts.
   if (!op.playing) return;
@@ -211,8 +191,6 @@ export function msg(m) {
   op.topmsg = m;
 }
 
-// The whole board one CSS colour, over the game and under the overlay. The
-// timer runs after the draw, so t = 0 lasts one frame rather than none.
 let flashColor = null;
 let flashTime = 0;
 

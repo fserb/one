@@ -274,11 +274,8 @@ class EnemyBullet extends ent.Entity {
   }
 }
 
-/*
- * One slice of one ring. `health` is what it has left, `want` where it is
- * heading, and -1 there means it is not moving. The drawing thickens and
- * darkens with the health, so a stronger chunk looks stronger.
- */
+// One slice of one ring. `health` is what it has left, `want` where it is
+// heading, and -1 there means it is not moving.
 class Chunk extends ent.Entity {
   constructor(radius, begin, size, slots, maxHealth) {
     super();
@@ -388,10 +385,8 @@ class Chunk extends ent.Entity {
   }
 }
 
-/*
- * The rings, and the one thing they do on their own: every so often a ring is
- * given a new angle to turn to. That is what closes the hole you cut.
- */
+// The one thing the rings do on their own: every so often one is given a new
+// angle to turn to, which is what closes the hole you cut.
 class Level extends ent.Entity {
   constructor(n) {
     super();
@@ -459,8 +454,8 @@ class Enemy extends ent.Entity {
     // Facing away, so the barrel has half a turn to swing before it can fire.
     this.angle = (player?.angle ?? 0) + Math.PI;
     this.hitCircle(ENEMY_R);
-    // Background colour, drawing nothing: it keeps the bounding box on the
-    // middle of the body, the way size() does.
+    // Background colour, drawing nothing: it keeps the box centred on the
+    // body, the way size() does.
     this.gfx.fill(COLOR).rect(-43, -43, 86, 86)
       .fill(BLACK).circle(0, 0, 21)
       .fill(BLACK).mt(0, -43).lt(21, 0).lt(-21, 0).fill();

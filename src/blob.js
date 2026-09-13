@@ -221,9 +221,9 @@ const SHADOW_STEPS = 8;
 
 const FLASH = 0.3;
 
-// Both cooldowns are read off `age` rather than counted down, so a merge sets
-// them once and nothing decrements them. `body.scale` is the rail's squeeze,
-// the solver's own number, not Entity's `scale`, which stays at 1 here.
+// Both cooldowns are read off `age`, so a merge sets them once and nothing
+// decrements them. `body.scale` is the rail's squeeze, the solver's own number,
+// not Entity's `scale`, which stays at 1 here.
 class Blob extends ent.Entity {
   constructor(index, cx, cy) {
     super();
@@ -377,7 +377,6 @@ class Blob extends ent.Entity {
       ctx.restore();
     }
 
-    // The outline squashed along the light axis.
     this.spec(ctx, path, L, reach * 0.62, across * 0.20, 0.23, 0.32, 0.78);
     this.spec(ctx, path, L, reach * 0.78, across * -0.28, 0.095, 0.13, 0.52);
 
@@ -924,9 +923,9 @@ function shockLife(tier) {
 const scratch = new Layer({ attr: { alpha: false } });
 const SHOCK_BANDS = 8;
 
-// Every shock front there is, in one entity rather than one each: a front
-// displaces what is on the canvas rather than drawing anything of its own, and
-// all of them read the single copy taken before any had moved it.
+// Every shock front in one entity: a front displaces what is on the canvas
+// rather than drawing anything of its own, and all of them read the one copy
+// taken before any had moved it.
 class Shocks extends ent.Entity {
   constructor() {
     super();
@@ -1145,7 +1144,6 @@ function tone(index) {
   return 110 * 2 ** (Math.floor(k / 5) + [0, 3, 5, 7, 10][k % 5] / 12);
 }
 
-// Across the pool and not the board.
 function panAt(x) {
   const { x0, x1 } = pool.bounds;
   return Math.clamp((2 * (x - x0) / (x1 - x0) - 1) * 0.7, -1, 1);
@@ -1255,7 +1253,6 @@ function paintPool(ctx, scale) {
   ctx.stroke(pool.line);
   ctx.restore();
 
-  // The flat face has no curvature, so one tone; the light is in the edges.
   ctx.strokeStyle = "#39414f";
   ctx.lineWidth = 12;
   ctx.stroke(pool.line);

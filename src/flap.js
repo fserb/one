@@ -45,10 +45,6 @@ const SPEED = 210;
 const FLAP = 420;
 const GRAVITY = 630;
 
-// It faces right and flipX turns it around. The beak is drawn first, so the
-// body's outline is the line between the two. The wing is the second tone on
-// the body and the eye the one white. size() holds the box whatever the beak
-// reaches, so the drawing does not shift with it.
 const BODY_R = 22;
 
 class Bird extends ent.Entity {
@@ -61,7 +57,6 @@ class Bird extends ent.Entity {
       .fill(BIRD_DARK).line(null).rect(-24, 3, 20, 11, 11)
       .fill(WHITE).line(4, DARK).circle(6, -9, 9)
       .fill(DARK).line(null).circle(9, -9, 4);
-    // The body and the beak, near enough to the drawing.
     this.hitBox(64, 44);
   }
 
@@ -109,8 +104,6 @@ class Coin extends ent.Entity {
   }
 
   draw() {
-    // Radius 21, a line a fifth of it wide, highlights that far above and
-    // below centre, times what is left.
     const r = 21 * this.life / this.max;
     const w = Math.max(2, r / 5);
     this.gfx.clear()

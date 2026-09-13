@@ -111,8 +111,8 @@ const BLACK = 0x000000;
 // The one colour outside that palette: it separates instrument from street.
 const LANE_BG = "#383838";
 
-// A note is a filled diamond and the mark the same diamond as an outline, so
-// a note arriving sits inside the shape it has to land in.
+// The mark is the note's own diamond as an outline, so a note arriving sits
+// inside the shape it has to land in.
 const NOTE_R = 16;
 const MARK_R = 20;
 
@@ -305,7 +305,6 @@ class Player extends ent.Entity {
   constructor() {
     super();
     this.lean = 0;
-    // A hat, a face, a body on two legs, and the guitar held across it.
     this.gfx.size(85, 85)
       .fill(GREY).rect(-20, -8, 40, 34, 16)
       .rects([[-19, 22, 14, 20], [5, 22, 14, 20]])
@@ -370,7 +369,6 @@ class Hat extends ent.Entity {
     super();
     this.pos.x = HATX;
     this.pos.y = HATY;
-    // Upturned: the brim on top and the crown under it.
     this.gfx.size(68, 34).fill(BLACK)
       .rect(-34, -17, 68, 9, 6)
       .mt(-25, -9).lt(25, -9).lt(18, 17).lt(-18, 17);

@@ -467,7 +467,6 @@ export function render(ctx) {
   ctx.save();
   camera.apply(ctx);
 
-  // The drop shadow: offset down-right, shrinking with the hex.
   for (const v of all(true)) {
     if (v.s === 0) continue;
     ctx.lineWidth = 1;
@@ -524,8 +523,6 @@ function renderAlien(ctx, head, legs) {
   ctx.fillStyle = WHITE;
   ctx.fillCircle(0, 0, 38);
 
-  // The iris squashes along its heading, with a highlight sliding further
-  // off-centre the further it turns.
   const ER = 16;
   const rb = 20.5 - alien.pupil;
   const rx = rb - 5 * vec.len(alien.eye);
@@ -552,8 +549,6 @@ function renderAlien(ctx, head, legs) {
   ctx.fill();
 
   if (alien.blink > 0) {
-    // Two lids meeting in the middle: a fixed top arc, and a bottom ellipse
-    // whose height closes and opens.
     ctx.fillStyle = SKIN;
     ctx.beginPath();
     ctx.arc(0, 0, 39, Math.PI, TAU);

@@ -408,8 +408,7 @@ function lit(p) {
   return sight.clear(player.pos.x, player.pos.y, p.x, p.y);
 }
 
-// A head over a body on two legs, 28 across. It never turns, so there is one
-// facing and flipX is the other.
+// It never turns, so there is one facing and flipX is the other.
 class Player extends ent.Entity {
   constructor(x, y) {
     super();
@@ -441,8 +440,7 @@ class Player extends ent.Entity {
   }
 }
 
-// Four legs, two ears and two eyes, against the player's two legs and none of
-// the rest: which one moved is the shape and not only the colour.
+// Which one moved has to read as a shape and not only as a colour.
 class Hunter extends ent.Entity {
   constructor(i) {
     super();
@@ -721,8 +719,6 @@ function drawRoom(ctx, floor, wall) {
   }
 }
 
-// A dot through the dark where a coin is, an arrow at the edge when it is off
-// screen.
 function drawMarks(ctx) {
   ctx.globalAlpha = MARK;
   ctx.fillStyle = ent.css(CYAN);

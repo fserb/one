@@ -21,15 +21,13 @@
  *
  * An arc stays an arc: Path2D takes one directly and pathBox() measures one in
  * closed form, so both are exact. alma's Path converts to beziers on the way in
- * and flattens them back to a polyline to measure, which costs 9.7 KB minified
- * in 19 bundles and changes the edge as well: Chrome antialiases a
- * bezier with three partial coverage values and an arc with 23, so a disc of
- * four cubics covers 0.6% less than the disc ctx.arc draws.
- *
- * A cubic is exact the same way: pathBox() solves B'(t) = 0, a quadratic in t,
- * rather than flattening the curve and measuring the polyline. ct() adds one to
- * an open poly the way lt() adds a line; rect(), circle() and arc() stay arcs
- * and never emit a "C".
+ * and flattens them back to measure, which costs 9.7 KB minified in 19 bundles
+ * and changes the edge as well: Chrome antialiases a bezier with three partial
+ * coverage values and an arc with 23, so a disc of four cubics covers 0.6% less
+ * than the disc ctx.arc draws. A cubic is exact the same way: pathBox() solves
+ * B'(t) = 0, a quadratic in t, rather than flattening the curve. ct() adds one
+ * to an open poly the way lt() adds a line; rect(), circle() and arc() stay
+ * arcs and never emit a "C".
  */
 
 const TAU = 2 * Math.PI;
@@ -39,7 +37,7 @@ const TAU = 2 * Math.PI;
 const CARDINAL = [[1, 0], [0, 1], [-1, 0], [0, -1]];
 
 // Every colour in a game is a 0xrrggbb number and every canvas call wants a
-// string, so the two are paired once here and kept.
+// string, so the two are paired once and kept.
 const CSS = new Map();
 
 export function css(c) {
@@ -74,7 +72,8 @@ export class Gfx {
     return this;
   }
 
-  // As Art.cache(): skip every call until the index changes.
+  // Skips every call after it until the index changes, so a drawing that only
+  // has two states is rebuilt on the frame it switches and not every frame.
   cache(idx) {
     if (idx === this.cached) {
       this.disabled = true;

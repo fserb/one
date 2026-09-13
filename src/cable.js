@@ -34,7 +34,6 @@ loop every planet, then leave the quadrant
   dpad: true,
 };
 
-// The palette.
 const WHITE = 0xf8e6c2;
 const BLACK = 0x323431;
 const CYAN = 0x83cbc8;
@@ -169,14 +168,10 @@ class Player extends ent.Entity {
   }
 }
 
-/*
- * One straight stretch of cable, from `pos` to `pos + tp`. Every one of them
- * starts as the free stretch, running from wherever the cable last caught to
- * the player; a wrap fixes it in place and gives the player a new one.
- *
- * They form a chain back to the earth through `prev`, and only the free
- * stretch updates.
- */
+// One straight stretch of cable, from `pos` to `pos + tp`. Every one starts as
+// the free stretch, running from wherever the cable last caught to the player;
+// a wrap fixes it in place and gives the player a new one. They chain back to
+// the earth through `prev`, and only the free stretch updates.
 class Rope extends ent.Entity {
   constructor(x, y) {
     super();

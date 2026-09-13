@@ -76,14 +76,11 @@ function choose(v) {
   return Array.isArray(v) ? v[0] + v[1] * Math.random() : v;
 }
 
-/*
- * A one-shot emission, centred on the board unless given a position. The step
- * scales velocity by the fraction of the lifetime left, so particles slow down
- * as they age and fade on the same number. Every field takes a number or a
- * [base, spread] pair, and begin() chooses one value from the pair per
- * particle. `spread` is how far out each starts along its own direction, which
- * is what leaves the middle of a ring empty.
- */
+// A one-shot emission, centred on the board unless given a position. Velocity
+// scales by the fraction of the lifetime left, so particles slow as they age
+// and fade on the same number. Every field takes a number or a [base, spread]
+// pair, drawn once per particle; `spread` is how far out each starts along its
+// own direction, which is what leaves the middle of a ring empty.
 export class Particle extends Entity {
   constructor(opts = {}) {
     super();

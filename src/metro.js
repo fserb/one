@@ -433,10 +433,8 @@ class Train extends ent.Entity {
   }
 }
 
-/*
- * Another car, driving the same map with no player. At a station it takes any
- * tunnel but the one it came in by, and it never stops.
- */
+// Another car, driving the same map with no player. At a station it takes any
+// tunnel but the one it came in by, and it never stops.
 class Enemy extends ent.Entity {
   constructor(at) {
     super();
@@ -478,12 +476,9 @@ class Enemy extends ent.Entity {
   }
 }
 
-/*
- * The red bar along the bottom: a station to reach, a pie chart counting down,
- * and the status text. Reaching one adds to the same timer and raises the
- * combo, and the next one is worth more and allowed a good deal less time, so
- * a chain ends by itself.
- */
+// Reaching a station adds to the same timer and raises the combo, and the next
+// one is worth more and allowed a good deal less time, so a chain ends by
+// itself.
 class Mission extends ent.Entity {
   constructor() {
     super();
@@ -561,10 +556,8 @@ class Mission extends ent.Entity {
   }
 }
 
-/*
- * What marks the station a mission needs: a target ring while it is on screen,
- * an arrow at the edge pointing at it while it is not.
- */
+// A ring on the mission's station while it is on screen, an arrow at the edge
+// pointing at it while it is not.
 class Target extends ent.Entity {
   constructor(station) {
     super();
@@ -591,9 +584,9 @@ class Target extends ent.Entity {
   }
 }
 
-// Turn `e` towards (dx, dy) at most `rate` half-turns a second, returning
-// whether it now points there. A car drives on the frames where the turn
-// changed nothing, which is why it turns at a junction before moving.
+// `rate` is half-turns a second, and it returns whether `e` now points there.
+// A car drives on the frames where the turn changed nothing, which is why it
+// turns at a junction before moving.
 function turn(e, dx, dy, rate) {
   const d = wrap(Math.atan2(dy, dx) - e.angle);
   const step = Math.PI * rate * ent.game.time;

@@ -22,8 +22,7 @@ export const game = {
   time: 0,
   totalTime: 0,
   // The pointer on the board, which with a camera comes back through it. The
-  // three button sets are input.js's own objects: unlike the pointer there is
-  // nothing to convert.
+  // three button sets are input.js's own objects.
   input: {
     x: 0,
     y: 0,
@@ -66,17 +65,14 @@ export function one(cls) {
   return g.list.find((e) => e.started && !e.dead) ?? null;
 }
 
-// A round starts here: it removes the last one's entities, resets the time and
-// the shake, frames the camera on the board and takes the draw order.
 export function reset(classes = []) {
   groups.clear();
   game.time = 0;
   game.totalTime = 0;
   shaking = held = 0;
   shakeHold = shakeX = shakeY = 0;
-  // The bounds go with them: they belong to a round, and a round starts here.
-  // settle() is where the camera clears its own copy of the shake it was
-  // running for a round that is now over.
+  // The bounds belong to a round, and a round starts here. settle() is where
+  // the camera clears its own copy of the shake it was running.
   if (op.camera) {
     const half = SIZE / 2;
     op.camera.bounds = null;
@@ -88,14 +84,11 @@ export function reset(classes = []) {
 }
 
 /*
- * shake() offsets the world under render(); delay() is hitstop, holding every
- * entity still while real time runs on. Each takes the longer of what is asked
- * and what is already running.
- *
- * The offset is BASE + FALL times the seconds it has left, a fresh one HZ times
- * a second and reused in between. Reused, or it moves twice as fast at 120Hz as
- * at 60. Camera2D shakes on those same three numbers, so with a camera shake()
- * passes them over rather than offsetting a frame that is already offset.
+ * Each takes the longer of what is asked and what is already running. The
+ * offset is BASE + FALL times the seconds it has left, a fresh one HZ times a
+ * second and reused in between, or it moves twice as fast at 120Hz as at 60.
+ * Camera2D shakes on those same three numbers, so with a camera shake() passes
+ * them over rather than offsetting a frame that is already offset.
  */
 const SHAKE_BASE = 10;
 const SHAKE_FALL = 20;
@@ -190,7 +183,6 @@ export class Entity {
     return this;
   }
 
-  // Removes every shape, so nothing overlaps either way.
   clearHits() {
     this.hits.length = 0;
     return this;
@@ -325,8 +317,7 @@ export function render(ctx) {
   const layers = ordered();
   ctx.save();
   if (op.camera) op.camera.apply(ctx);
-  // With a camera there is nothing to add: apply() above already included its
-  // own.
+  // With a camera there is nothing to add: apply() included its own.
   if (shaking > 0) ctx.translate(shakeX, shakeY);
   draw(ctx, layers, false);
   ctx.restore();

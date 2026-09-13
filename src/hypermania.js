@@ -227,8 +227,7 @@ class Player extends ent.Entity {
     this.bullet = null;
     this.combo = 0;
     this.hitBox(48, 72);
-    // A round cockpit over wings that sweep out to two thrusters, 48 across
-    // and 72 down. One path under the cockpit, so no join shows in it.
+    // One path under the cockpit, so no join shows in it.
     this.gfx.size(48, 72).fill(WHITE)
       .circle(0, -17, 17)
       .mt(-6, -14).lt(6, -14).lt(6, -2).lt(24, 10).lt(24, 36).lt(11, 36)

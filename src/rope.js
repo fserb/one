@@ -160,17 +160,17 @@ function createPlayer() {
   player.head = world.body({ x: 0, y: 0, type: "dynamic", data: "head" });
   // A category of its own, which only the saw has and only the saw's mask
   // includes. box2d asks the broadphase for the sensor's mask against the
-  // shape's category before it asks whether the two collide, and a category of
-  // 0 fails every query, so the saw would pass straight over the head.
+  // shape's category before the two are tested, and a category of 0 fails
+  // every query, so the saw would pass straight over the head.
   player.head.circle({ r: 0.6, density, filter: { category: 8, mask: 8 } });
 
   let last = player.head;
   for (let i = 0; i < 2; ++i) {
     // box2d solves the length limit softly and returns the energy, so undamped
-    // the tail keeps every jump and winds round the head at 5.2 turns a second.
-    // Nothing on the joint constrains that, since a tail spinning round the
-    // head is not changing its length; damping is what is left. At 3 it winds
-    // 1.48 turns a second and stays 1.30 metres off the head.
+    // the tail winds round the head at 5.2 turns a second. The joint does not
+    // constrain that, a tail spinning round the head not changing its length,
+    // so damping is what is left: at 3 it winds 1.48 turns a second and stays
+    // 1.30 metres off the head.
     const o = world.body({ x: 0, y: i, type: "dynamic", damping: 3 });
     o.radius = 0.4 - i * 0.2;
     o.circle({
@@ -199,10 +199,10 @@ function createPlayer() {
       data: "hand",
     });
     // A small solid one that meets rope, a wide sensor for a click near the
-    // hand, and a tiny one for the pointer query. Only the solid one has
-    // mass: a sensor weighs what its density says like any other shape, and the
-    // 1.2 metre one at density 1 would make the hand 4.8 kg against 0.28. The
-    // dense shape is built first, since box2d asserts on a massless body.
+    // hand, and a tiny one for the pointer query. Only the solid one has mass:
+    // a sensor weighs what its density says, and the 1.2 metre one at density 1
+    // would make the hand 4.8 kg against 0.28. The dense shape is built first,
+    // since box2d asserts on a massless body.
     a.hand.circle({
       r: 0.3,
       density: 1,

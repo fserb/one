@@ -36,14 +36,12 @@ let panel = { bg: DARK, fg: LIGHT };
 
 const tip = {
   lines: [],
-  // Seconds until the panel is gone, 0 the moment it is dismissed.
-  left: 0,
+  left: 0, // seconds until the panel is gone, 0 the moment it is dismissed
   fade: FADE,
   alpha: 0,
 };
 
-// Text already shown this page load: init() runs every round, and the second
-// round should not re-explain the first.
+// Text already shown this page load: a second round does not re-explain.
 const seen = new Set();
 
 const finish = {
@@ -113,7 +111,6 @@ export function shoot(canvas) {
   finish.shot = shot;
 }
 
-// Each string shows once a page load, so init() needs no round counter.
 export function show(text) {
   const lines = String(text).trim().split("\n").filter((l) => l.trim() !== "");
   if (lines.length === 0 || seen.has(text)) return;
@@ -124,7 +121,6 @@ export function show(text) {
   tip.alpha = 1;
 }
 
-// Seconds of hint left, fade included; zero once dismissed or faded.
 export function hint() {
   return tip.left;
 }
@@ -277,26 +273,19 @@ function width(ctx, txt, size) {
  * The two colours every panel is drawn in. Each default is chosen against what
  * it will be drawn over, the fill against the board and the text against the
  * fill, so a game that needs a different fill sets only `meta.overlay.bg`.
- *
- * meta.fg is never a default: rope's is #402F2E on a #000000 board and grab's
- * is nearly its own board too. tools/build.js calls this for the gallery card,
- * whose title is the fill colour, that being the half chosen to be readable
- * over the board.
+ * meta.fg is never a default: rope's is #402F2E on a #000000 board. The
+ * gallery card's title is the fill colour, so tools/build.js calls this too.
  */
 export function theme(m) {
   const bg = m.overlay?.bg ?? pick(m.bg);
   return { bg, fg: m.overlay?.fg ?? pick(bg) };
 }
 
-/*
- * WCAG relative luminance of a #rrggbb colour. Linearising is the step that
- * matters: weighting the raw bytes calls #3DBF86 a 0.62 when it is a 0.40,
- * which is most of the distance to the wrong pair.
- *
- * Six-digit hex only, which is what every meta.bg and meta.overlay is. alma's
- * color().contrast() reads any CSS colour and costs 12 KB a bundle, the Color
- * class including OKLAB, deltaE2000, gamut mapping and a CSS parser.
- */
+// WCAG relative luminance of a #rrggbb colour. Linearising is the step that
+// matters: weighting the raw bytes calls #3DBF86 a 0.62 when it is a 0.40,
+// which is most of the distance to the wrong pair. Six-digit hex only, which is
+// what every meta.bg and meta.overlay is; alma's color().contrast() reads any
+// CSS colour and costs 12 KB a bundle.
 function lum(hex) {
   const n = parseInt(hex.slice(1), 16);
   let y = 0;

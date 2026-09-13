@@ -106,9 +106,9 @@ const CLIMB = 4;
 const LOOK = 0.4;
 const LOST = 2;
 
-// A head, a body and two legs, 42 across. The head sits HEAD_X off centre the
-// way the figure faces, and `big` adds BIG_H to the body while it is rising,
-// which the box grows with, so the feet stay under it.
+// The head sits HEAD_X off centre the way the figure faces, and `big` adds
+// BIG_H to the body while it is rising, which the box grows with, so the feet
+// stay under it.
 const FIG = 42;
 const BIG_H = 18;
 const HEAD_X = 3;

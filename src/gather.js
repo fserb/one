@@ -72,8 +72,7 @@ const HIGHRATE = 5 / 367;
 const HOLE = 0.04;
 
 // A box is 81 across: 72 of colour under a 9-thick black edge, rounded by that
-// same 9, with the two eyes on it. A cursor is four corner brackets, 9 thick
-// and 27 along each side.
+// same 9. A cursor is four corner brackets, 9 thick and 27 along each side.
 const BOX = 36;
 const EDGE = 9;
 const EYE = 13.5;
@@ -315,7 +314,7 @@ class Tray extends ent.Entity {
 }
 
 // The strips an incoming row slides out from behind and a dropped one slides
-// away under, plus the two lines that bound the board.
+// away under.
 class Frame extends ent.Entity {
   constructor() {
     super();

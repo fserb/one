@@ -331,11 +331,9 @@ class Path extends ent.Entity {
   }
 }
 
-/*
- * The bead. It moves along the loop at a fixed speed whatever else it is doing:
- * `h` is how far it is off the curve, and the button is the only thing that
- * moves it out.
- */
+// The bead moves along the loop at a fixed speed whatever else it is doing:
+// `h` is how far it is off the curve, and the button is the only thing that
+// moves it out.
 class Cursor extends ent.Entity {
   constructor() {
     super();

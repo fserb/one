@@ -87,9 +87,8 @@ const TEMPLATE = {
 };
 
 // assets/vera.css carries its own woff2 in the url(), so inlining it here is
-// the whole of it: a page has the font it is set in and fetches nothing. Its
-// own <style> block in the template, because a block that is nothing but a
-// placeholder is the one thing squeeze() leaves alone.
+// the whole of it: a page has the font it is set in and fetches nothing. It
+// gets a <style> of its own, the one block squeeze() leaves alone.
 const FONTS = await press(
   await Deno.readTextFile(new URL("vera.css", ASSETS)),
   "css",

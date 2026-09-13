@@ -402,12 +402,10 @@ class Ghost extends ent.Entity {
   }
 }
 
-/*
- * A black 42x42 square on the spot where you died, whose four corners then move
- * to the four corners of the board. One at a time and each waiting for the one
- * before it: all four at once would expand the square, where one at a time
- * stretches the black out of the shape.
- */
+// A black square on the spot where you died, whose corners then move to the
+// four corners of the board. One at a time and each waiting for the one before
+// it: all four at once would expand the square, where one at a time stretches
+// the black out of the shape.
 // [corner, x, y]: top-left, bottom-left, top-right, bottom-right.
 const SWEEP = [[0, 0, 0], [3, 0, 1024], [1, 1024, 0], [2, 1024, 1024]];
 
@@ -446,7 +444,6 @@ class EndGame extends ent.Entity {
   }
 }
 
-// A bar 11 across and 21 long out of the hook's centre at `a`.
 function prong(gfx, a) {
   const vx = Math.cos(a);
   const vy = Math.sin(a);

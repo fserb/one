@@ -4,11 +4,9 @@
  * `press`, `just` and `release` each hold `up`, `right`, `down`, `left` and
  * `act`, and `x`/`y` is the pointer in 1024-space. That is the whole
  * vocabulary: a tap is `just.act`, a drag is `press.act` with x/y, a charge is
- * `release.act` after counting frames of `press.act`.
- *
- * `act` carries the pointer button as well as the keys, so a pointer press and
- * an action press are the same event and every game that only acts is playable
- * with a finger alone.
+ * `release.act` after counting frames of `press.act`. `act` carries the pointer
+ * button as well as the keys, so a pointer press and an action press are the
+ * same event and a game that only acts is playable with a finger alone.
  *
  * Touch has two mappings and `meta.dpad` picks between them, because the two
  * cannot be one:
@@ -22,11 +20,10 @@
  * Each breaks the other's games. With the finger on act, berzerk fires the
  * whole time it walks and gather undoes its chain on every step; with the
  * finger on the stick, amaze's own pointer aim loses to a direction it never
- * asked for. Nor can it be derived: set and grab read the same four fields,
- * and set wants the finger on the board where grab wants it on a stick.
- *
- * Mouse and pen are the pointer either way, so a desktop player on a dpad game
- * steers with the keys and fires with the button.
+ * asked for. Nor can it be derived: set and grab read the same four fields, and
+ * set wants the finger on the board where grab wants it on a stick. Mouse and
+ * pen are the pointer either way, so a desktop player on a dpad game steers
+ * with the keys and fires with the button.
  *
  * It declares `input` rather than one.js, so nothing here imports the rest of
  * src/lib and the one.js <-> input.js cycle never exists.
@@ -62,7 +59,6 @@ function blank() {
 }
 
 export const input = {
-  // The pointer, in 1024-space.
   x: 0,
   y: 0,
   press: blank(), // held now
@@ -127,9 +123,8 @@ function releaseAll() {
   acting.clear();
 }
 
-// Off between rounds, whatever the game asked for: the finish screen is a panel
-// in the middle of a frozen board, and a tap on it has to be the act that
-// restarts rather than a stick nothing is reading.
+// Off between rounds, whatever the game asked for: a tap on the finish screen
+// has to be the act that restarts rather than a stick nothing is reading.
 export function setDpad(on) {
   dpad = on;
   stick = null;
