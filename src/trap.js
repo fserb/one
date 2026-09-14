@@ -9,18 +9,7 @@
 import { ease, extra, HexGrid, vec } from "./alma/src/index.js";
 import { camera } from "./lib/camera2d.js";
 import { act, gameOver, input, msg, score } from "./lib/one.js";
-import {
-  ADSR,
-  biquad,
-  bitcrush,
-  compressor,
-  envelope,
-  karplus_strong,
-  linear,
-  oscillator,
-  ringmod,
-  VSAJ,
-} from "./lib/fsfx/fsfx.js";
+import { crush, lp } from "./alma/src/sfx.js";
 import * as sound from "./lib/sound.js";
 
 const { arrayRemove, lerp, promiseSleep, SQRT3, TAU } = extra;
@@ -43,46 +32,48 @@ const WHITE = "#F2F0E5";
 const IRIS = "#212123";
 const RIM = "#B9A588";
 
-sound.make("hit", 0.3, (track) => {
-  track(karplus_strong, { b: 0.5, freq: 40, S: 0.1 });
-  track(biquad, { type: "lowpass", freq: 1500 });
-  track(bitcrush, { sample: 4, bits: 24 });
-  track(compressor);
-  track(envelope, {
-    env: ADSR({ sustainv: 2, sustain: 0.1, release: 0.2, type: "linear" }),
-  });
+const FLAT = (d) => [0, d, 1e-4];
+
+// A 40 Hz string whose sign is randomised every round trip has no pitch left,
+// so this is filtered noise and wants no resonator at all.
+sound.make("hit", {
+  osc: {
+    osc: "white",
+    env: FLAT(0.3),
+    fx: [lp(1500), crush(Math.log2(48), 12000)],
+  },
+  gain: 2,
+  env: [0, 0.1, 0.2],
 });
 
-sound.make("drop", 0.3, (track) => {
-  track(oscillator, { type: "saw", freq: linear(100, -300) });
-  track(oscillator, { type: "brown", amp: 0.5 });
-  track(ringmod, { wet: 1, freq: 120 });
-  track(biquad, { type: "lowpass", freq: 1000 });
-  track(envelope, {
-    env: ADSR({ sustainv: 1, sustain: 0.05, release: 0.25, type: "linear" }),
-  });
+// The brown sits under the saw at half level, which costs a node: a bare
+// source has no gain of its own. gain is the ring modulator, depth 1 of 0
+// being a bare ring.
+sound.make("drop", {
+  osc: {
+    osc: ["saw", { osc: "brown", gain: 0.5, env: FLAT(0.3) }],
+    freq: (t) => 100 - 600 * t,
+    env: FLAT(0.3),
+    gain: { wave: "sine", rate: 120, depth: 1, of: 0 },
+    fx: lp(1000),
+  },
+  env: [0, 0.05, 0.25],
 });
 
-sound.make("move", 0.65, (track) => {
-  track(oscillator, { type: "sine", freq: VSAJ(400, 400, -4000) });
-  track(ringmod, { wet: 0.5, freq: 200 });
-  track(envelope, {
-    env: ADSR({
-      attack: 0.3,
-      sustain: 0.2,
-      release: 0.25,
-      sustainv: 1,
-      type: "exp",
-    }),
-  });
+// The envelope is the length here, 0.75s. The old 0.65s track cut 100ms off
+// the release; that tail plays now.
+sound.make("move", {
+  osc: "sine",
+  freq: (t) => 400 + 800 * t - 6000 * t * t,
+  gain: { wave: "sine", rate: 200, depth: 0.5, of: 0.5 },
+  env: ["expIn", 0.3, 0.2, "expOut", 0.25],
 });
 
-sound.make("fall", 0.5, (track) => {
-  track(oscillator, { type: "sine", freq: VSAJ(400, -200) });
-  track(ringmod, { wet: 0.5, freq: 200 });
-  track(envelope, {
-    env: ADSR({ attack: 0.1, release: 0.4, sustainv: 1, type: "linear" }),
-  });
+sound.make("fall", {
+  osc: "sine",
+  freq: (t) => 400 - 400 * t,
+  gain: { wave: "sine", rate: 200, depth: 0.5, of: 0.5 },
+  env: [0.1, 0.4],
 });
 
 const WIDTH = 10;

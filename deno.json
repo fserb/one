@@ -4,12 +4,11 @@
     "exclude": [
       "assets",
       "src/alma",
-      "src/lib/fsfx",
       "tools/tpl",
       "www"
     ]
   },
   "lint": {
-    "exclude": ["src/alma", "src/lib/fsfx", "www"]
+    "exclude": ["src/alma", "www"]
   }
 }

@@ -57,7 +57,7 @@ export const op = {
   game: null,
   screen: null,
   playing: false,
-  // Null keeps fsfx, alma's Audio and the camera out of the bundle.
+  // Null keeps the synth, alma's Audio and the camera out of the bundle.
   sound: null,
   camera: null,
 };

@@ -23,7 +23,7 @@
 import * as ent from "./lib/entity.js";
 import { shake } from "./lib/camera.js";
 import { gameOver, msg } from "./lib/one.js";
-import { blip, coin, explosion, hit } from "./lib/fsfx/sfxr.js";
+import { blip, coin, explosion, hit } from "./lib/sfxr.js";
 import * as sound from "./lib/sound.js";
 
 export const meta = {

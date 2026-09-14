@@ -19,7 +19,7 @@ import * as ent from "./lib/entity.js";
 import { delay } from "./lib/effects.js";
 import { shake } from "./lib/camera.js";
 import { gameOver } from "./lib/one.js";
-import { explosion, laser, powerup } from "./lib/fsfx/sfxr.js";
+import { explosion, laser, powerup } from "./lib/sfxr.js";
 import * as sound from "./lib/sound.js";
 
 export const meta = {

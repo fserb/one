@@ -17,7 +17,7 @@
 
 import * as ent from "./lib/entity.js";
 import { gameOver, score } from "./lib/one.js";
-import { blip, coin, jump } from "./lib/fsfx/sfxr.js";
+import { blip, coin, jump } from "./lib/sfxr.js";
 import * as sound from "./lib/sound.js";
 
 export const meta = {

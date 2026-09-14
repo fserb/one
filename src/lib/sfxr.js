@@ -1,17 +1,18 @@
 /*
- * sfxr.js - Tomas Pettersson's sfxr, the synth twelve of the games use.
+ * sfxr.js - Tomas Pettersson's sfxr, the synth thirteen of the games use.
  *
  * Derived from sfxr (2007) -> Mike Wiering (2009) -> as3fxr (2010). Seven
  * generators produce a parameter set at random, and render() turns one into
  * samples.
  *
- * Not a second general-purpose synth beside fsfx: one fixed voice, an
+ * Not a second general-purpose synth beside alma's sfx: one fixed voice, an
  * oscillator, an envelope, a slide, two filters and a phaser, with randomisers
- * tuned to produce arcade sounds. What gives it its own sound is what fsfx has
- * no module for: the noise is a 32-entry buffer refilled once a period, so it
+ * tuned to produce arcade sounds. What gives it its own sound is what sfx has
+ * no source for: the noise is a 32-entry buffer refilled once a period, so it
  * is pitched rather than white; the period is a whole number of samples, so the
  * pitch steps as it rises; and eight sub-samples are averaged into every output
- * sample.
+ * sample. Thirteen games are tuned to it and none of it is reachable from a
+ * curve and a chain, which is why it stays.
  *
  * A generator returns a whole options set from its seed, and spreading it
  * leaves every field open to override, so a generated sound and a hand-built
@@ -22,18 +23,11 @@
  * ```js
  * sound.voice("boom", { ...explosion(1238), vol: 0.2 });
  * sound.voice("thud", { waveType: 2, startFrequency: 0.14, slide: -0.1 });
- *
- * sound.make("boom", 0.6, (track) => {
- *   track(sfxr, { ...explosion(1238), vol: 0.2 });
- *   track(multidelay, { delay: 0.03, M: 4, wet: 0.3 });
- * }, SAMPLE_RATE);
  * ```
  *
- * `sfxr` is an fsfx stage as well, so a voice can be processed further by
- * fsfx's filters and delays. It does not resample, so the Track has to run at
- * SAMPLE_RATE and it throws when the Track does not. The generator runs before
- * the track rather than being passed in as a parameter, since fsfx's State
- * treats any function among its parameters as a time-varying signal.
+ * render() returns a Float32Array, which is a source alma's sfx takes, so a
+ * voice that wants a chain over it goes in `osc` and sfx resamples it:
+ * `sfx({osc: render({...explosion(1238)}), fx: echo(.03)})`.
  *
  * Two things differ from as3fxr: it writes 16-bit shorts where this keeps the
  * floats Web Audio uses, and it filled the noise buffer from an unseeded
@@ -539,31 +533,4 @@ export function render(opts = {}) {
   }
 
   return Float32Array.from(out);
-}
-
-/*
- * The fsfx stage: render()'s options, plus `amp`, added into the track.
- *
- * sfxr counts a period in whole samples rather than in Hz, so the same
- * parameters at another rate are another pitch and another length. Rather than
- * resample, which would make the stage and voice() produce different sounds, it
- * requires the Track to run at 44100.
- */
-export function sfxr(block, state) {
-  state.param("amp", 1);
-  if (state.SR !== SAMPLE_RATE) {
-    throw new Error(`sfxr: track runs at ${state.SR}, not ${SAMPLE_RATE}`);
-  }
-
-  // What to read out of the State, which has the Track's own keys as well.
-  // Built here rather than at module scope: an Object.keys() call there is one
-  // esbuild will not remove, and it keeps DEFAULTS in every fsfx bundle.
-  const opts = {};
-  for (const k of [...Object.keys(DEFAULTS), "seed", "vol"]) {
-    if (state.out[k] !== undefined) opts[k] = state.out[k];
-  }
-
-  const wave = render(opts);
-  const n = Math.min(block.length, wave.length);
-  for (let i = 0; i < n; ++i) block[i] += state(i).amp * wave[i];
 }

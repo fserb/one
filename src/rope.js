@@ -10,7 +10,7 @@ import { ease, extra, vec } from "./alma/src/index.js";
 import { World } from "./alma/src/rigid.js";
 import { camera } from "./lib/camera.js";
 import { act, fixed, gameOver, input, score } from "./lib/one.js";
-import { ADSR, biquad, envelope, karplus_strong } from "./lib/fsfx/fsfx.js";
+import { comb, lp } from "./alma/src/sfx.js";
 import * as sound from "./lib/sound.js";
 
 const { clamp, lerp, TAU } = extra;
@@ -42,13 +42,34 @@ const ZOOM = 1.5;
 // Ropes further than this from the player are generated ahead / culled behind.
 const REACH = VIEW * 2;
 const CULL = VIEW * 3;
-sound.make("hold", 0.1, (track) => {
-  track(karplus_strong, { b: 1, freq: 100, S: 0.5 });
-  track(karplus_strong, { b: 0.5, freq: 50, S: 0.5 });
-  track(biquad, { type: "lowpass", freq: 100 });
-  track(envelope, {
-    env: ADSR({ sustainv: 3, sustain: 0, release: 0.1, type: "linear" }),
-  });
+// Two strings summed, so two nodes: a list in fx is a chain, which would put
+// one through the other. comb is the Karplus loop with the excitation left to
+// the caller, and `blend` is the chance a sign survives a round trip: 1 is a
+// string and .5 is the paper's drum. pluck cannot write the second one, and
+// removes the DC that most of this sound is.
+//
+// The decays are seconds for a sound 100ms long, which is deliberate: the
+// loop barely decays over the sound and the envelope does the shaping. Longer
+// only costs time, since a comb renders its own decay before the parent cuts
+// it.
+const FLAT = (d) => [0, d, 1e-4];
+const PLUCK = (f, blend, decay) => ({
+  osc: { osc: "white", env: FLAT(f === 100 ? 0.01 : 0.02) },
+  fx: comb(f, { blend, decay, damp: 0.05 }),
+});
+
+sound.make("hold", {
+  osc: {
+    osc: [
+      PLUCK(100, 1, 3),
+      { ...PLUCK(50, 0.5, 1), gain: 1.6 },
+      { osc: "white", gain: 0.3, env: FLAT(0.1) },
+    ],
+    env: FLAT(0.1),
+    fx: lp(100),
+  },
+  gain: 2.51,
+  env: [0, 0.1],
 });
 
 let world;

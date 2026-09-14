@@ -4,31 +4,33 @@
  * A game imports this itself and defines its sounds at module scope. Nothing
  * here uses the DOM until arm() gets the first gesture, so the build can
  * import a game to read its `meta`. A silent game leaves op.sound null and the
- * bundler drops fsfx and alma's Audio.
+ * bundler drops the synth and alma's Audio.
  *
- * A Track is callable: one call per stage, each processing what the last one
- * produced. Import the stages by name; passing the callback the whole `fsfx`
- * namespace would keep every module in the directory in the bundle.
+ * Two synths, and which one a sound uses is what it is: `voice()` is sfxr, one
+ * fixed arcade voice out of a seed, and thirteen games use nothing else.
+ * `make()` is alma's sfx, a params object with a source and a chain, for the
+ * three games whose sounds sfxr has no shape for. A stage is a value you
+ * import, so a game ships the stages it names and no others.
  *
  * ```js
- * import { ADSR, biquad, envelope, linear, oscillator } from "./lib/fsfx/fsfx.js";
+ * import { crush, lp } from "./alma/src/sfx.js";
  *
- * sound.make("drop", 0.3, (track) => {
- *   track(oscillator, { type: "saw", freq: linear(100, -300) });
- *   track(biquad, { type: "lowpass", freq: 1000 });
- *   track(envelope, { env: ADSR({ sustainv: 1, release: 0.25 }) });
+ * sound.make("drop", {
+ *   osc: {osc: "brown", env: [0, .3, 1e-4], fx: [crush(4, 8000), lp(1600)]},
+ *   env: ["expIn", .005, "expOut", .28],
  * });
+ * sound.voice("hit", { ...explosion(1238), vol: 0.2 });
  * sound.play("drop", { detune: 800 * (2 * Math.random() - 1) });
  * ```
+ *
+ * A sound is rendered once at load and played from the buffer. sfx renders
+ * the nine in the three games in about 28 ms between them.
  */
 
 import { Audio } from "../alma/src/audio.js";
+import { sfx } from "../alma/src/sfx.js";
 import { op } from "./one.js";
-import {
-  render as sfxrRender,
-  SAMPLE_RATE as SFXR_RATE,
-  Track,
-} from "./fsfx/fsfx.js";
+import { render as sfxrRender, SAMPLE_RATE as SFXR_RATE } from "./sfxr.js";
 
 const SAMPLE_RATE = 48000;
 
@@ -79,16 +81,18 @@ export function arm(target) {
   target.addEventListener("keydown", go, opts);
 }
 
-// `rate` is here for sfxr, which counts a period in whole samples and so only
-// renders correctly on a track at its own 44100.
-export function make(name, duration, func, rate = SAMPLE_RATE) {
-  const track = new Track(duration, rate, 1);
-  func(track);
-  put(name, track.build(), rate);
+// alma's sfx, at the rate the mixer runs and with no supersampling. Both are
+// fixed here rather than per sound, because a game's sounds are tuned by ear
+// at one setting and `over` is not only a quality knob: alma's brown and pink
+// are one-pole filters whose corner follows rate * over, so raising it tilts
+// every noise about 10 dB across the band. It is also 6x cheaper at 1, and
+// nothing in the gallery aliases enough at 1 to hear.
+export function make(name, params) {
+  put(name, sfx(params, { rate: SAMPLE_RATE, over: 1 }));
 }
 
-// One sfxr voice, played as rendered; alma resamples its 44100. A voice that
-// needs an fsfx stage after it goes through make() at that rate instead.
+// One sfxr voice, played as rendered; alma resamples its 44100, which it has
+// to keep because sfxr counts a period in whole samples.
 export function voice(name, opts) {
   put(name, sfxrRender(opts), SFXR_RATE);
 }

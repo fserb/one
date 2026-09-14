@@ -8,16 +8,7 @@
 
 import { ease, extra } from "./alma/src/index.js";
 import { act, gameOver, input, score } from "./lib/one.js";
-import {
-  ADSR,
-  biquad,
-  bitcrush,
-  envelope,
-  linear,
-  oscillator,
-  ringmod,
-  VSAJ,
-} from "./lib/fsfx/fsfx.js";
+import { crush, lp } from "./alma/src/sfx.js";
 import * as sound from "./lib/sound.js";
 
 const { arrayShuffle, TAU } = extra;
@@ -80,37 +71,41 @@ let tentacles;
 let turn;
 let dead;
 
-sound.make("step", 0.09, (track) => {
-  track(oscillator, { type: "sine", freq: linear(320, -140) });
-  track(envelope, {
-    env: ADSR({ attack: 0.005, release: 0.07, sustainv: 1, type: "exp" }),
-  });
+// A source has no level of its own and the chain runs after the envelope, so
+// a stage that cares about level sits on a nested node under FLAT, and the
+// parent does the shaping.
+const FLAT = (d) => [0, d, 1e-4];
+
+sound.make("step", {
+  osc: "sine",
+  freq: (t) => 320 - 280 * t,
+  env: ["expIn", 0.005, "expOut", 0.07],
 });
 
-sound.make("push", 0.18, (track) => {
-  track(oscillator, { type: "brown", amp: 0.7 });
-  track(biquad, { type: "lowpass", freq: 700 });
-  track(envelope, {
-    env: ADSR({ attack: 0.01, release: 0.15, sustainv: 1, type: "linear" }),
-  });
+sound.make("push", {
+  osc: { osc: "brown", env: FLAT(0.18), fx: lp(700) },
+  gain: 0.7,
+  env: [0.01, 0.15],
 });
 
-sound.make("crunch", 0.3, (track) => {
-  track(oscillator, { type: "brown", amp: 1 });
-  track(bitcrush, { sample: 6, bits: 6 });
-  track(biquad, { type: "lowpass", freq: 1600 });
-  track(envelope, {
-    env: ADSR({ attack: 0.005, release: 0.28, sustainv: 1, type: "exp" }),
-  });
+// crush's first argument is bit depth, so 2^b levels; six steps of 1/6 is
+// log2(12) of them.
+sound.make("crunch", {
+  osc: { osc: "brown", env: FLAT(0.3), fx: [crush(Math.log2(12), 8000), lp(1600)] },
+  env: ["expIn", 0.005, "expOut", 0.28],
 });
 
-sound.make("caught", 0.6, (track) => {
-  track(oscillator, { type: "saw", freq: VSAJ(220, -160) });
-  track(ringmod, { wet: 0.6, freq: 60 });
-  track(biquad, { type: "lowpass", freq: 900 });
-  track(envelope, {
-    env: ADSR({ attack: 0.02, release: 0.5, sustainv: 1, type: "linear" }),
-  });
+// A ring modulator is a periodic gain: gain is not clamped, so at audio rate
+// it rings rather than tremolos.
+sound.make("caught", {
+  osc: {
+    osc: "saw",
+    freq: (t) => 220 - 320 * t,
+    env: FLAT(0.6),
+    gain: { wave: "sine", rate: 60, depth: 0.6, of: 0.4 },
+    fx: lp(900),
+  },
+  env: [0.02, 0.5],
 });
 
 // GRID ///

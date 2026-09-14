@@ -17,7 +17,7 @@
 import * as ent from "./lib/entity.js";
 import { shake } from "./lib/camera.js";
 import { gameOver, ramp, score, time } from "./lib/one.js";
-import { coin, explosion, jump } from "./lib/fsfx/sfxr.js";
+import { coin, explosion, jump } from "./lib/sfxr.js";
 import * as sound from "./lib/sound.js";
 
 export const meta = {
