@@ -19,6 +19,8 @@ import {
 import { camera } from "./lib/camera2d.js";
 import * as ent from "./lib/entity.js";
 import { fixed, gameOver, input, op, score } from "./lib/one.js";
+import { hp, lp } from "./alma/src/sfx.js";
+import { blow } from "./alma/src/sfxgen.js";
 import * as sound from "./lib/sound.js";
 
 export const meta = {
@@ -1126,14 +1128,41 @@ class Danger extends ent.Entity {
   }
 }
 
-// `peak` is what each was normalised by, so it comes back at its own level.
-const MERGE_PCM =
-  "dHSCiaCnrq23ydLl6caPXjgkGwUCAgIEHUNmiavF2OLg1L+igV4+IQwCAgwhQGaQttz5/v7+//HTr4hmSDYpKjZKaImtzub4/fnozauFXzwgDgYMHjldgqjI4O/v5M2qg1s0GwsIEidGaI+00+r29OXGnnBCGAIDAQ0wW4asydre18SqiGQ8IgoCDiRQgK/X6u7cv5p0VDspHyEsRWmWxOX27s6jckgtJSs7T2iDo8bi8unKll4wGh41WX6Yqr3P19S9jE8bAwQhWIivxs7R0seqfkYTARI+frfW39fHtZ5+USYPGEWIx+vt1bCNcFI0HBUtZqzm/eu/jGRINiotRHW37v7tuX1POTI3Smyd0O/nunxGKSc6WYCu2e7erGkxFxw7ZJXB3+HBhkojIDxrnsrk48GFRRkSLmSez+nkv4FBGRg7da7X4s6ZViAMJFyd0+rfr20wEBxPldHx5rZxMBAdUp3f+uiuYiMJIWKx6vfSiz4MCz2M2P7ytmQhBiBjs+rxyIE8FyJYn9jozI5OJCJKh7/YyZhfNi9Og7TNw5plPjdUhLPLwJlnRD9aiLDCtY5hRkdjjK23poJgTFNvk62xnn5hVF55mKyqlXddVGB7l6ejj3RgXGqBlZ6VgmtdYXKJmZqNeWdibH+Tm5WEcWRkcoWUmI9+bmdtfY2Wk4Z3bW54hpGSi31zb3aBjJCKgHVwdH6Jj4yEeXN1fIWLioR8dnZ7g4iJhH14eX2FiomDfnp6foSHh4J9eXl+g4eHhH97e3+DhYSCf3t8f4OEhIJ+fX6BgoSDgX99fX+BgoKBfn5+gIKDgoB/fn+AgICAf39/f4CBgYGAgIB/gICAf35+fn9/gYGAf4B/f4CAgH9+fn5/gICBgH9/f3+AgIB/fn5+";
-const FEED_PCM =
-  "f3+AgICAgICAgICAgICAgIGBgYCAgYGBgYB/gICBgH9+fn+AgYCAf39/f39/f3+BgoKBgYCBgYKBf4CAgoKAfXx9f4GBf319f4KCgn57fH6CgYCBgoWGhoWAgoKCgoF/fX9/e3FqaG5/jZKWjIl/d25qbHWLpcDJ0L6helszGAEKGDZYgqrT7P/87NKtjmlPOSslLTlPYXiHmKSwtbe3sKqdkYFyZFlQSkhLUlxtfo+dq7O5t7KnmIh4aV1TT09SW2VzgpCep66xrqmflIZ4bGBYU1JUW2VxfouXoaeqqKOckoZ7cGdhXV1hZm52f4iQl5ydnpuXkYqCeXJsZ2VlZ2tweH+HjpSYm5qXkoqCeXFrZ2Vmam93foaMkZWWlpSQi4aBfHh2dHR0dXZ4eXt9gIOFh4iKioqJh4WBfnt4dnV1dXd5fYCDhomKioqJh4WCf316eHd2d3h5fH+ChYiJioqIhoSBfnt5d3d3eXt+gYOGh4iIiIaFg4KAf317enh3dnZ3enx/g4aJiouLioeEgX57eXd2dnd5fH+ChYeJi4uKiIaDf3x5d3Z2dnh6fYCChIaHiIeHhYSCgH58e3p5enp7fH1/goSGh4iJiYiGhIF+e3h2dXV2eHt+goWJi4yNi4mGgn15dnRzdHZ5fYGFiIqLiomGg398eXh3eHl7foCDhYaHh4aFg4F/fXt6eXl6e31/gYOFh4eIh4WDgX98enl4eHl7fYCDhYiJiomIhYJ+e3h2dXV3eX2AhIeKi4uKiIWBfnp4dnZ2eHt+goWHiYmJh4SBfnt5d3d4en2Ag4aHiIiGhIF/fHp5eXp7fX+ChIWGh4aFg4F/fXt6eXl6fH6Bg4aHiIeGhIF+e3l4eHl7foCDhYeIh4aDgH57eXl5enx+gYSGh4iHhYKAfXp5eHl6fYCDhYeIiIaEgX58enh4eXp9gIKFh4iIh4aDgH16eHd3eHp9gIOGiYqKiIaDgHx5d3d3eHt+gYSGh4iHhYOBf318e3t8fn+BgYKCgYB/f35+fn+AgoOEhISEg4F/fXt6eXp7fX+BhIaIiIeGg4B+e3l4eHl7foGEhoiIh4aDgX57eXh5enx/goWHiIeGhIF+e3h3eHl8f4OGiIqKiIWCfnp3dnZ3en6ChomKiomGgn56d3Z2eHt+goaIiomIhYF9end2dnh7foKGiYqLiYaCfnp3dXV2eX2BhYiLi4qIhYB8eHZ1dnh7gISHiouKh4R/e3h2dXd6foOHioyLiYWAe3d0dHV4fYKHi46OjIiDfXh0cXJ0eX6EiY2OjYuGgXt3dHN0d3yBhoqMjIqGgXx4dXR1eH2Ch4uNjIqFgHt2c3J0eH2DiY2PjouGgHp1cnFzeH2EiY2OjIiDfXh0c3R4fYOIjI6MiIN9d3NxcnZ8gomOkI+MhoB5dHFxdHh/hYqNjoyIgnx3dHN1eX6EiYyNi4eCfHdzcnR4foSJjY6MiIN9eHRzdXh9g4iLjIqGgXx3dXV3e4GGioyMiYR+eXV0dXh9goeKjIqHgn15dnZ4e4CFiIqJh4N+end2d3p/g4eJiYiFgXx5eHh6fYGEhoeGhIF9e3l6fH+ChYeHhYJ/e3l4eXt/g4aIiIaDf3t5eHp8gISGh4eEgX16eHl7foKFh4eGg4B9e3p7fYCChIWEg4B+fHt8fYCChIWEg4F/fXx8fn+BgoODgoB+fX1+f4GCg4SDgX99fHx9f4GChISDgX99fX1+gIKDhIOCgH58fHx+gIKEhIOCgH58fH1/gYOEhIOBf359fX5/gYKCgoGAf35+f4CBgoKCgH9+fX1+gIGCg4OCgH99fX5/gYKDg4KBf35+fn+AgYGCgYB/f39/gIGCgoKAf35+fn6AgYGCgYGAf39/gIGBgYGAf35+f3+AgYKCgYB/f35/gICBgoKBgIB/f39/gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgYGBgYCAf39/f4CAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBgYE=";
+// The knock: a jet into a bore, which is what the fit found in a mallet on
+// metal, driven up 466 to 1062Hz over the 83ms the file ran. lp(375) sits
+// under the whole sweep, so what is heard is the bore and not the jet. `gain`
+// is the level the fit normalised away: at 4.5 the energy is the file's, and
+// the peak lands 1.4x over it, the two sounds having different shapes.
+// playMerge() plays it at the tier's rate.
+sound.make("merge", {
+  osc: { type: blow, feed: 0.546 },
+  freq: [466, 1062],
+  env: [0.001, 0.013, 0.069],
+  gain: 4.5,
+  fx: [lp(375)],
+});
 
-sound.putPCM8("merge", MERGE_PCM, { rate: 8000, peak: 0.4641 });
-sound.putPCM8("feed", FEED_PCM, { rate: 8000, peak: 0.9327 });
+// The plip: a sine climbing 197 to 907Hz through a band the two filters
+// leave between them, which is the drop, and a triangle under its first
+// 96ms, which is the water it lands in. 245ms rendered, and playFeed()
+// plays it at 0.6.
+sound.make("feed", {
+  osc: [
+    {
+      osc: "sine",
+      freq: [197, 907],
+      env: [0.009, "expOut", 0.216],
+      fx: [lp(2719, 4.968), hp(680, 4.968)],
+    },
+    {
+      osc: "tri",
+      freq: [117, "expOut", 550],
+      env: [0.018, "expOut", 0.078],
+      fx: [lp(598)],
+    },
+  ],
+});
+
 sound.setVolume(0.72);
 // A cascade plays one knock a merge, and four at once reach the limiter.
 sound.setLimit(4);

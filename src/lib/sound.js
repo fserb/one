@@ -1,5 +1,5 @@
 /*
- * sound.js - sound effects, synthesised at load time or given as samples.
+ * sound.js - sound effects, synthesised at load time.
  *
  * A game imports this itself and defines its sounds at module scope. Nothing
  * here uses the DOM until arm() gets the first gesture, so the build can
@@ -9,7 +9,7 @@
  * Two synths, and which one a sound uses is what it is: `voice()` is sfxr, one
  * fixed arcade voice out of a seed, and thirteen games use nothing else.
  * `make()` is alma's sfx, a params object with a source and a chain, for the
- * three games whose sounds sfxr has no shape for. A stage is a value you
+ * four games whose sounds sfxr has no shape for. A stage is a value you
  * import, so a game ships the stages it names and no others.
  *
  * ```js
@@ -24,7 +24,7 @@
  * ```
  *
  * A sound is rendered once at load and played from the buffer. sfx renders
- * the nine in the three games in about 28 ms between them.
+ * the eleven in the four games in about 31 ms between them.
  */
 
 import { Audio } from "../alma/src/audio.js";
@@ -42,8 +42,8 @@ let volume = 1;
 let limit = 0;
 
 // Each entry is the call that will put a sound into the Audio once there is
-// one. A closure rather than the samples, so putPCM8() passes on the base64
-// that alma already decodes rather than restating that decode.
+// one. A closure and not the samples, because a sound is rendered before
+// there is a context to hand it to.
 const pending = new Map();
 
 function flush() {
@@ -97,15 +97,9 @@ export function voice(name, opts) {
   put(name, sfxrRender(opts), SFXR_RATE);
 }
 
-// Samples somebody else rendered, at whatever rate they rendered at.
-export function put(name, samples, rate = SAMPLE_RATE) {
+// What the two synths share: a rendered buffer, at the rate it was rendered at.
+function put(name, samples, rate = SAMPLE_RATE) {
   add(name, () => audio.put(name, samples, rate));
-}
-
-// 8-bit unsigned PCM in base64, one byte a frame and 128 for silence. `peak` is
-// what it was normalised by, so it is restored to its original level.
-export function putPCM8(name, base64, { rate = SAMPLE_RATE, peak = 1 } = {}) {
-  add(name, () => audio.putPCM8(name, base64, { rate, peak }));
 }
 
 // `opts` goes straight to alma's Playback: detune, delay, rate, volume, pan.
