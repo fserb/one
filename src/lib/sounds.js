@@ -3,12 +3,11 @@
  *
  * A game does not write sound params. It calls a name out of this list and the
  * same rendered sound answers in every game, with a little detune a play so the
- * tenth in a row is not the first again. sounds.html plays them; it is also
- * where the set was chosen, three rounds of designs against fserb's ear.
+ * tenth in a row is not the first again. The set was chosen by ear, three
+ * rounds of designs.
  *
- * Each entry is the name, `tag`, which design won the name, a note saying what
- * makes the sound, `vol`, the level it plays at, and `params`, alma's sfx
- * object.
+ * Each entry is the name, a note saying what makes the sound, `vol`, the level
+ * it plays at, and `params`, alma's sfx object.
  *
  * Every one is a wave -- sine, tri, saw, square -- doing one definite thing: a
  * slide, a run of notes, a gate, or two voices a few cents apart, 60 to 700ms
@@ -49,7 +48,7 @@ const FLAT = (d) => [0, d, 1e-4];
 // It renders the first time it is played and not before, so a game pays for
 // what it calls. `vol` is the level the set was measured at and a caller can
 // still pass its own.
-function one(name, tag, vol, params) {
+function one(name, vol, params) {
   let made = false;
   const f = (opts) => {
     if (!made) {
@@ -58,20 +57,18 @@ function one(name, tag, vol, params) {
     }
     play(name, { volume: vol, ...opts });
   };
-  // What sounds.html reads to show the set; nothing in a game touches it.
-  f.sound = { name, tag, vol, params };
   return f;
 }
 
 // a sine sliding 700 to 1400 in 60ms, with nothing under it
-export const select = /* @__PURE__ */ one("select", "chirp", 0.43, {
+export const select = /* @__PURE__ */ one("select", 0.43, {
   osc: "sine",
   freq: [700, "expIn", 1400],
   env: [0.004, "expOut", 0.055],
 });
 
 // a sine at 660 with a second voice 6 cents off, so it beats slowly
-export const blip = /* @__PURE__ */ one("blip", "soft", 0.07, {
+export const blip = /* @__PURE__ */ one("blip", 0.07, {
   osc: "sine",
   freq: 660,
   detune: 6,
@@ -79,14 +76,14 @@ export const blip = /* @__PURE__ */ one("blip", "soft", 0.07, {
 });
 
 // the bounce's arc made small, 200 out to 320 and back
-export const step = /* @__PURE__ */ one("step", "arc", 0.31, {
+export const step = /* @__PURE__ */ one("step", 0.31, {
   osc: "tri",
   freq: (_t, u) => 200 + 120 * Math.sin(Math.PI * u),
   env: [0.004, "expOut", 0.09],
 });
 
 // a triangle up a curve that flattens at the top, so it lands on a note
-export const jump = /* @__PURE__ */ one("jump", "boing", 0.34, {
+export const jump = /* @__PURE__ */ one("jump", 0.34, {
   osc: "tri",
   freq: (_t, u) => 260 + 900 * u - 500 * u * u,
   env: [0.006, "expOut", 0.16],
@@ -94,7 +91,7 @@ export const jump = /* @__PURE__ */ one("jump", "boing", 0.34, {
 });
 
 // a saw falling 300 to 60 while the filter closes, lose's shape in 250ms
-export const land = /* @__PURE__ */ one("land", "settle", 0.39, {
+export const land = /* @__PURE__ */ one("land", 0.39, {
   osc: "saw",
   freq: [300, "expOut", 60],
   env: [0.005, "expOut", 0.25],
@@ -102,7 +99,7 @@ export const land = /* @__PURE__ */ one("land", "settle", 0.39, {
 });
 
 // a triangle out to 900 and back to 500, the whole arc in 140ms
-export const bounce = /* @__PURE__ */ one("bounce", "arc", 0.36, {
+export const bounce = /* @__PURE__ */ one("bounce", 0.36, {
   osc: "tri",
   freq: (_t, u) => 400 + 900 * Math.sin(Math.PI * u) - 100 * u,
   env: [0.004, "expOut", 0.14],
@@ -110,14 +107,14 @@ export const bounce = /* @__PURE__ */ one("bounce", "arc", 0.36, {
 });
 
 // the drop's sine four times faster, 500 down to 90
-export const hit = /* @__PURE__ */ one("hit", "sink", 0.32, {
+export const hit = /* @__PURE__ */ one("hit", 0.32, {
   osc: "sine",
   freq: { wave: "sine", rate: 16, depth: [0, 20], of: [500, "expOut", 90] },
   env: [0.003, "expOut", 0.12],
 });
 
 // a saw falling 1500 to 240, driven and then filtered
-export const shoot = /* @__PURE__ */ one("shoot", "laser", 0.35, {
+export const shoot = /* @__PURE__ */ one("shoot", 0.35, {
   osc: "saw",
   freq: [1500, "expOut", 240],
   env: [0.002, "expOut", 0.15],
@@ -127,7 +124,7 @@ export const shoot = /* @__PURE__ */ one("shoot", "laser", 0.35, {
 // a saw falling 500 to 100 gated twenty-eight times a second
 // `break` is a reserved word, so it cannot be the name of a binding. It can be
 // the name of an export and of a property, which is all a caller touches.
-const brk = /* @__PURE__ */ one("break", "gatefall", 0.48, {
+const brk = /* @__PURE__ */ one("break", 0.48, {
   osc: "saw",
   freq: [500, "expOut", 100],
   gain: { wave: "square", rate: 28, depth: 0.5, of: 0.5 },
@@ -137,7 +134,7 @@ const brk = /* @__PURE__ */ one("break", "gatefall", 0.48, {
 export { brk as break };
 
 // a saw falling 150 to 30 gated eighteen times a second, a rumble
-export const explode = /* @__PURE__ */ one("explode", "roll", 0.3, {
+export const explode = /* @__PURE__ */ one("explode", 0.3, {
   osc: "saw",
   freq: [150, "expOut", 30],
   gain: { wave: "square", rate: 18, depth: 0.5, of: 0.5 },
@@ -146,7 +143,7 @@ export const explode = /* @__PURE__ */ one("explode", "roll", 0.3, {
 });
 
 // three 40ms notes up 1319, 1760 and 2637, a small run
-export const coin = /* @__PURE__ */ one("coin", "sparkle", 0.17, {
+export const coin = /* @__PURE__ */ one("coin", 0.17, {
   osc: "tri",
   freq: [
     [0, 1319],
@@ -159,7 +156,7 @@ export const coin = /* @__PURE__ */ one("coin", "sparkle", 0.17, {
 });
 
 // four square steps up a major chord, 523 to 1047
-export const power = /* @__PURE__ */ one("power", "arp", 0.1, {
+export const power = /* @__PURE__ */ one("power", 0.1, {
   osc: { type: square, duty: 0.4 },
   freq: [
     [0, 523],
@@ -175,7 +172,7 @@ export const power = /* @__PURE__ */ one("power", "arp", 0.1, {
 });
 
 // the power arp, then its octave held and beating six cents wide
-export const win = /* @__PURE__ */ one("win", "arpup", 0.07, {
+export const win = /* @__PURE__ */ one("win", 0.07, {
   osc: { type: square, duty: 0.4 },
   detune: 6,
   freq: [
@@ -192,7 +189,7 @@ export const win = /* @__PURE__ */ one("win", "arpup", 0.07, {
 });
 
 // a saw sliding 330 to 55 while the filter closes on it
-export const lose = /* @__PURE__ */ one("lose", "powerdown", 0.22, {
+export const lose = /* @__PURE__ */ one("lose", 0.22, {
   osc: "saw",
   freq: [330, "expOut", 55],
   env: [0.01, 0.1, "expOut", 0.6],
@@ -200,7 +197,7 @@ export const lose = /* @__PURE__ */ one("lose", "powerdown", 0.22, {
 });
 
 // a 1200 square gated eight times a second, three beeps of it
-export const alarm = /* @__PURE__ */ one("alarm", "beeps", 0.11, {
+export const alarm = /* @__PURE__ */ one("alarm", 0.11, {
   osc: { type: square, duty: 0.5 },
   freq: 1200,
   gain: { wave: "square", rate: 8, depth: 0.5, of: 0.5 },
@@ -209,14 +206,14 @@ export const alarm = /* @__PURE__ */ one("alarm", "beeps", 0.11, {
 });
 
 // a sine falling 600 to 80 with the wobble opening as it goes
-export const drop = /* @__PURE__ */ one("drop", "sink", 0.2, {
+export const drop = /* @__PURE__ */ one("drop", 0.2, {
   osc: "sine",
   freq: { wave: "sine", rate: 5, depth: [0, 30], of: [600, "expOut", 80] },
   env: [0.006, "expOut", 0.4],
 });
 
 // two squares, 330 then 220, the answer that is no
-export const deny = /* @__PURE__ */ one("deny", "down", 0.1, {
+export const deny = /* @__PURE__ */ one("deny", 0.1, {
   osc: { type: square, duty: 0.3 },
   freq: [[0, 330], [0.1, 330], [0.1, 220]],
   env: [0.004, 0.18, "expOut", 0.06],
@@ -224,7 +221,7 @@ export const deny = /* @__PURE__ */ one("deny", "down", 0.1, {
 });
 
 // a band sweeping 300 to 3000 over noise, something coming in
-export const whoosh = /* @__PURE__ */ one("whoosh", "rise", 0.36, {
+export const whoosh = /* @__PURE__ */ one("whoosh", 0.36, {
   osc: {
     osc: "white",
     env: FLAT(0.28),
