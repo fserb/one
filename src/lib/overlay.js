@@ -8,7 +8,6 @@
  * and render() after the game draws.
  */
 
-import { fastOutSlowIn } from "../alma/src/ease.js";
 import { anchor, css } from "./gfx.js";
 import { input } from "./input.js";
 import { meta, score } from "./one.js";
@@ -39,6 +38,12 @@ const AT = {
 // How far the finish screen dims the board, and how long it takes to appear.
 const DIM = 0.8;
 const RISE = 0.26;
+// The shape of that rise, written out rather than taken from alma's ease.js.
+// Its fastOutSlowIn is cubic-bezier(.4, 0, .2, 1) as a 200-sample table, and
+// over 0.26s the two are not separable run side by side. Naming it was the one
+// thing keeping ease.js in seven bundles that use nothing else out of it, at
+// 1.1 to 1.2 KB each; the other twenty pull it in for themselves.
+const ease = (t) => 1 - (1 - t) ** 3;
 const AGAIN = "TAP TO PLAY AGAIN";
 // A click this soon after the round ends is the click that ended it.
 const DEAD = 0.4;
@@ -207,7 +212,7 @@ function renderLine(ctx) {
 // On the frame the round ends t is 0, so the dim and the text are both at
 // nothing and this leaves the board as the game just drew it.
 function renderFinish(ctx) {
-  const e = fastOutSlowIn(Math.min(1, finish.t / RISE));
+  const e = ease(Math.min(1, finish.t / RISE));
 
   ctx.globalAlpha = DIM * e;
   ctx.fillStyle = meta.bg;
