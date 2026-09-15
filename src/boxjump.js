@@ -18,8 +18,7 @@ import * as ent from "./lib/entity.js";
 import { flash } from "./lib/effects.js";
 import { shake } from "./lib/camera.js";
 import { gameOver, msg, score } from "./lib/one.js";
-import { explosion, hit, jump, powerup } from "./lib/sfxr.js";
-import * as sound from "./lib/sound.js";
+import * as play from "./lib/sounds.js";
 
 export const meta = {
   title: "boxjump",
@@ -74,12 +73,6 @@ const SPIN_VAR = 1.4;
 // Seconds the board holds after the last piece goes, and after the blob does.
 const CLEAR = 0.8;
 const DEATH = 0.35;
-
-sound.voice("land", { ...hit(21883), vol: 0.1 });
-sound.voice("jump", { ...jump(9271), vol: 0.14 });
-sound.voice("pop", { ...explosion(4471), vol: 0.16 });
-sound.voice("clear", { ...powerup(3311), vol: 0.2 });
-sound.voice("die", { ...explosion(1032), vol: 0.2 });
 
 let level = 0;
 let clearing = 0; // seconds left of the pause between levels, 0 while playing
@@ -139,7 +132,7 @@ class Piece extends ent.Entity {
       duration: [0.5, 0.3],
     });
     this.remove();
-    sound.play("pop");
+    play.break();
     shake(0.25);
     if (ent.get(Piece).length === 0) clear();
   }
@@ -236,7 +229,7 @@ class Player extends ent.Entity {
       direction: [Math.atan2(-this.dir.y, -this.dir.x) - 0.6, 1.2],
       duration: [0.3, 0.2],
     });
-    sound.play("jump");
+    play.jump();
     p.leave();
   }
 
@@ -299,14 +292,14 @@ class Player extends ent.Entity {
       direction: [Math.atan2(n.y, n.x) - Math.PI / 2, Math.PI],
       duration: [0.3, 0.2],
     });
-    sound.play("land");
+    play.land();
     shake(0.1);
     return true;
   }
 
   die() {
     this.remove();
-    sound.play("die");
+    play.lose();
     shake(0.3);
     ent.after(DEATH, () => gameOver({ score: true }));
   }
@@ -430,7 +423,7 @@ function reach(x, y, dx, dy) {
 function clear() {
   clearing = CLEAR;
   score.value += 1;
-  sound.play("clear");
+  play.power();
   flash(ent.css(CHALK), 0.05);
 }
 

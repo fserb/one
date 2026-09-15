@@ -19,8 +19,7 @@ import * as ent from "./lib/entity.js";
 import { delay } from "./lib/effects.js";
 import { shake } from "./lib/camera.js";
 import { gameOver } from "./lib/one.js";
-import { explosion, laser, powerup } from "./lib/sfxr.js";
-import * as sound from "./lib/sound.js";
+import * as play from "./lib/sounds.js";
 
 export const meta = {
   title: "hypermania",
@@ -90,12 +89,6 @@ const WHITEOUT = 0.1;
 const POP = 0.2;
 
 // All at 0.2 except the spend, which plays ten times a second.
-sound.voice("begin", { ...powerup(8428), vol: 0.2 });
-sound.voice("spend", { ...explosion(1345), vol: 0.1 });
-sound.voice("shot", { ...laser(1350), vol: 0.2 });
-sound.voice("dead", { ...explosion(1344), vol: 0.2 });
-sound.voice("enemyshot", { ...laser(1403), vol: 0.2 });
-sound.voice("boom", { ...explosion(1345), vol: 0.2 });
 
 // `across` spawns w by h off the left edge and moves them right; the other
 // spawns a column every dx and moves them down. At t == 0, `xmove(row, t)` is
@@ -231,7 +224,7 @@ class Player extends ent.Entity {
     if (this.dead) return;
     this.bullet?.remove();
     this.remove();
-    sound.play("dead");
+    play.lose();
     new ent.Particle({
       x: this.pos.x,
       y: this.pos.y,
@@ -252,7 +245,7 @@ class Player extends ent.Entity {
     // Flown from here, not from itself: steer while it climbs and it follows.
     if (this.bullet === null) {
       if (input.press.act) {
-        sound.play("shot");
+        play.shoot();
         this.bullet = new Bullet(this.pos.x);
         new Light(this.pos.x, SHOTY, true);
         energy -= COST;
@@ -373,7 +366,7 @@ class Enemy extends ent.Entity {
 
   shoot() {
     new EnemyBullet(this.pos.x + 5, this.pos.y + 26);
-    sound.play("enemyshot");
+    play.shoot({ detune: -500 });
   }
 
   update() {
@@ -384,7 +377,7 @@ class Enemy extends ent.Entity {
       player.explode();
       this.remove();
       this.wave.drop(this);
-      sound.play("boom");
+      play.explode();
       return;
     }
 
@@ -392,7 +385,7 @@ class Enemy extends ent.Entity {
 
     this.exploding = true;
     this.draw(WHITE);
-    sound.play("boom");
+    play.explode();
     shake(0.2);
     delay(0.01);
     player.bullet.explode(true);
@@ -535,7 +528,7 @@ function nextLevel() {
 
     beat -= ent.game.time;
     if (beat <= 0) {
-      sound.play("spend");
+      play.blip();
       beat += BEAT;
     }
 
@@ -547,7 +540,7 @@ function nextLevel() {
 
 function beginLevel() {
   if (energy <= 0) energy = 1;
-  sound.play("begin");
+  play.power();
 
   ent.every(0, () => {
     energy = Math.min(100, energy + ent.game.time * 100 / FILL);

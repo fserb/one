@@ -20,8 +20,7 @@ import * as ent from "./lib/entity.js";
 import { delay, flash } from "./lib/effects.js";
 import { shake } from "./lib/camera.js";
 import { gameOver, msg, score } from "./lib/one.js";
-import { explosion, hit, powerup } from "./lib/sfxr.js";
-import * as sound from "./lib/sound.js";
+import * as play from "./lib/sounds.js";
 
 export const meta = {
   title: "cable",
@@ -89,11 +88,6 @@ const CLOCK_X = 128;
 const CLOCK_Y = 970;
 const ZONE_ALPHA = 0.25;
 
-sound.voice("hit", { ...explosion(1238), vol: 0.1 });
-sound.voice("connect", { ...powerup(1246), vol: 0.1 });
-sound.voice("leave", { ...hit(1259), vol: 0.1 });
-sound.voice("done", { ...powerup(1274), vol: 0.1 });
-
 let level = 0;
 let planets = [];
 let linked = 0;
@@ -154,7 +148,7 @@ class Player extends ent.Entity {
     this.accelerate(ux * BUMP, uy * BUMP);
     shake(0.2);
     flash(ent.css(WHITE), FLASH);
-    sound.play("hit");
+    play.hit();
   }
 
   render(ctx) {
@@ -245,7 +239,7 @@ class Rope extends ent.Entity {
     p.link += 1;
     p.draw();
     score.value += 1;
-    sound.play("connect");
+    play.power();
     delay(0.01);
   }
 
@@ -263,7 +257,7 @@ class Rope extends ent.Entity {
     this.root.link -= 1;
     this.root.draw();
     score.value -= 1;
-    sound.play("leave");
+    play.deny();
 
     q.remove();
     this.remove();
@@ -341,7 +335,7 @@ class Zone extends ent.Entity {
     if (transition) return;
     if (this.hit(player)) return;
     if (linked < planets.length) return;
-    sound.play("done");
+    play.win();
     nextLevel();
   }
 

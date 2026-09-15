@@ -5,11 +5,11 @@
     <title>one · sounds</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <!-- Every candidate for the named sound set, rendered at load and played
-         on click, so the set is picked by ear. src/dev/sounds.js is the list;
+         on click, so the set is picked by ear. src/lib/sounds.js is the list;
          this page renders it with alma's sfx at the 48000 and over 1 that
          sound.js uses, shows what each one measures, and reads that file's own
-         text to print the params next to the button. Nothing here ships: no
-         game and no built page imports it.
+         text to print the params next to the button. The list ships, since a
+         game plays the names in it; this page does not.
 
          Linked stylesheet, since this page has no build step. -->
     <link rel="stylesheet" href="./assets/vera.css">
@@ -214,7 +214,7 @@
     <script type="module">
     import { Audio } from "./src/alma/src/audio.js";
     import { sfx } from "./src/alma/src/sfx.js";
-    import { SOUNDS } from "./src/dev/sounds.js";
+    import { SOUNDS } from "./src/lib/sounds.js";
 
     const RATE = 48000; // sound.js's, and over 1 is sound.js's too
 
@@ -364,7 +364,7 @@
     const source = new Map();
 
     async function readSource() {
-      const text = await (await fetch("./src/dev/sounds.js")).text();
+      const text = await (await fetch("./src/lib/sounds.js")).text();
       let depth = 0, from = -1, n = 0;
       for (let i = text.indexOf("export const SOUNDS = ["); i < text.length; i++) {
         const c = text[i];

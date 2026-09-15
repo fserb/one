@@ -19,8 +19,7 @@ import * as ent from "./lib/entity.js";
 import { delay } from "./lib/effects.js";
 import { shake } from "./lib/camera.js";
 import { gameOver, score } from "./lib/one.js";
-import { coin, explosion, hit } from "./lib/sfxr.js";
-import * as sound from "./lib/sound.js";
+import * as play from "./lib/sounds.js";
 
 export const meta = {
   title: "metro",
@@ -73,12 +72,6 @@ const DEATH = 0.5; // on top of the hitstop
 const BAR = 576;
 const OFF = 1070;
 const ON = 940;
-
-sound.voice("reach", { ...coin(82), vol: 0.25 });
-sound.voice("timeup", { ...explosion(4073), vol: 0.1 });
-sound.voice("crash", { ...explosion(4005), vol: 0.25 });
-sound.voice("station", { ...coin(112), vol: 0.15 });
-sound.voice("switch", { ...hit(764), vol: 0.25 });
 
 // In the board's coordinates: follow() slides every station once a frame so the
 // car stays in the middle, which is why nothing here needs a camera.
@@ -352,11 +345,11 @@ class Train extends ent.Entity {
     const aligned = turn(this, dx, dy, TURN);
 
     if (input.just.left) {
-      sound.play("switch");
+      play.select();
       this.select(this.selection - 1);
     }
     if (input.just.right) {
-      sound.play("switch");
+      play.select();
       this.select(this.selection + 1);
     }
 
@@ -388,7 +381,7 @@ class Train extends ent.Entity {
   arrive() {
     this.pos.x = this.to.x;
     this.pos.y = this.to.y;
-    sound.play("station");
+    play.coin();
     mission?.reach(this.to);
     this.from = this.to;
     this.to = this.next;
@@ -416,7 +409,7 @@ class Train extends ent.Entity {
   }
 
   die() {
-    sound.play("crash");
+    play.explode();
     this.clearHits();
     this.gfx.clear();
     this.dying = DEATH;
@@ -507,7 +500,7 @@ class Mission extends ent.Entity {
 
   reach(s) {
     if (s !== this.station) return;
-    sound.play("reach");
+    play.win();
     shake(0.1);
     this.combo += 1;
     score.value += 10 * this.combo * Math.sqrt(enemies) / 5;
@@ -520,7 +513,7 @@ class Mission extends ent.Entity {
   finish() {
     this.marker?.remove();
     if (this.end >= 0) return;
-    sound.play("timeup");
+    play.lose();
     this.end = 3;
     mission = null;
     this.msg = this.combo <= 1 ? "nope" : `Final combo x${this.combo}!`;

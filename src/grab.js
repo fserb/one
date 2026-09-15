@@ -15,8 +15,7 @@ import * as ent from "./lib/entity.js";
 import { delay } from "./lib/effects.js";
 import { shake } from "./lib/camera.js";
 import { gameOver, score } from "./lib/one.js";
-import { explosion, hit, laser } from "./lib/sfxr.js";
-import * as sound from "./lib/sound.js";
+import * as play from "./lib/sounds.js";
 
 export const meta = {
   title: "grab",
@@ -71,11 +70,6 @@ const DODGE = 107;
 // Both over the speed: how fast a ghost walks and how fast a bullet travels.
 const WALK = 107;
 const SHOT = 215;
-
-// sfxr squares the vol, so the hook is a quarter the loudness of the other two.
-sound.voice("hook", { ...laser(1249), vol: 0.1 });
-sound.voice("grab", { ...hit(1249), vol: 0.2 });
-sound.voice("hit", { ...explosion(1238), vol: 0.2 });
 
 let speed = 1.5;
 let floor = YELLOW;
@@ -150,7 +144,7 @@ class Player extends ent.Entity {
   }
 
   die() {
-    sound.play("hit");
+    play.explode();
     this.clearHits();
     this.vel.x = this.vel.y = 0;
     this.dying = true;
@@ -196,7 +190,7 @@ class Hook extends ent.Entity {
       // The drawing points along its own -y, so the aim is a quarter turn on.
       this.angle = Math.atan2(input.y - p.y, input.x - p.x) + Math.PI / 2;
       if (input.just.act) {
-        sound.play("hook");
+        play.shoot();
         this.action = OUT;
       }
     } else if (this.action === OUT) {
@@ -205,7 +199,7 @@ class Hook extends ent.Entity {
 
       const g = this.hitGroup(Ghost);
       if (g !== null) {
-        sound.play("grab");
+        play.hit();
         this.target = g;
         g.grabbed = true;
         this.action = REEL;

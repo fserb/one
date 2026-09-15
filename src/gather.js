@@ -17,8 +17,7 @@
 import * as ent from "./lib/entity.js";
 import { shake } from "./lib/camera.js";
 import { gameOver, ramp, score, time } from "./lib/one.js";
-import { coin, explosion, jump } from "./lib/sfxr.js";
-import * as sound from "./lib/sound.js";
+import * as play from "./lib/sounds.js";
 
 export const meta = {
   title: "gather",
@@ -110,11 +109,6 @@ const NOTES = [
   "group with same number of each color",
   "use keys to move, space to undo",
 ];
-
-sound.voice("move", { ...jump(12), vol: 0.2 });
-sound.voice("gather", { ...explosion(25), vol: 0.2 });
-sound.voice("score", { ...coin(12), vol: 0.2 });
-sound.voice("over", { ...explosion(30), vol: 0.2 });
 
 // grid[x][y] is a Piece or null. y grows downward: row 0 is what the next shift
 // pushes in, ROWS-1 what it drops.
@@ -335,7 +329,7 @@ class Frame extends ent.Entity {
 // The number rises off the tray it was counted in rather than off the board.
 function addScore(v) {
   shake(0.25);
-  sound.play("score");
+  play.coin();
   ent.addScore(v, TRAY_R, TRAY_Y, { align: "right middle" });
 }
 
@@ -454,7 +448,7 @@ function check() {
     if (c !== head) c.remove();
   }
   chain = [head];
-  sound.play("gather");
+  play.break();
 
   tray.go();
   tray = new Tray();
@@ -493,7 +487,7 @@ function control() {
   }
   if (box.targeted) return;
 
-  sound.play("move");
+  play.step();
   head.head = false;
   head.draw();
   box.target();
@@ -502,7 +496,7 @@ function control() {
 }
 
 function die() {
-  sound.play("over");
+  play.lose();
   shake(1);
   dying = DEATH;
 }

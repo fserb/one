@@ -20,8 +20,7 @@ import * as ent from "./lib/entity.js";
 import { delay, flash } from "./lib/effects.js";
 import { shake } from "./lib/camera.js";
 import { gameOver, msg, score } from "./lib/one.js";
-import { explosion, hit, laser, powerup } from "./lib/sfxr.js";
-import * as sound from "./lib/sound.js";
+import * as play from "./lib/sounds.js";
 
 export const meta = {
   title: "orbit",
@@ -75,15 +74,6 @@ const HISTORY = 60;
 
 const SHIELD_BONUS = 50;
 const DEATH = 0.6; // on top of the hitstop
-
-sound.voice("shot", { ...laser(1350), vol: 0.15 });
-sound.voice("pop", { ...explosion(1002), vol: 0.1 });
-sound.voice("chunk", { ...hit(95446), vol: 0.1 });
-sound.voice("enemyshot", { ...laser(1006), vol: 0.075 });
-sound.voice("shield", { ...explosion(39969), vol: 0.2 });
-sound.voice("boom", { ...explosion(81796), vol: 0.2 });
-sound.voice("build", { ...powerup(31331), vol: 0.2 });
-sound.voice("die", { ...explosion(1032), vol: 0.2 });
 
 // A ring is a pattern and a weight read digit by digit: a pattern digit is how
 // many slots that chunk covers, so the digits sum to the ring's slots, and the
@@ -163,7 +153,7 @@ class Player extends ent.Entity {
   }
 
   removeShield() {
-    if (this.shield) sound.play("shield");
+    if (this.shield) play.deny();
     this.shield = false;
     this.draw();
   }
@@ -186,7 +176,7 @@ class Player extends ent.Entity {
     const c = Math.cos(this.angle);
     const s = Math.sin(this.angle);
     new Bullet(this.pos.x - 4 * c + 26 * s, this.pos.y - 4 * s - 26 * c, this.angle);
-    sound.play("shot");
+    play.shoot();
     this.radius += RECOIL;
   }
 }
@@ -270,7 +260,7 @@ class EnemyBullet extends ent.Entity {
     // paths cross.
     const b = this.hitGroup(Bullet);
     if (b === null) return;
-    sound.play("pop");
+    play.break();
     b.remove();
     this.remove();
   }
@@ -358,7 +348,7 @@ class Chunk extends ent.Entity {
       b.explode();
       this.health -= 1;
       this.draw();
-      sound.play("chunk");
+      play.hit();
 
       const a = b.angle - Math.PI / 2;
       if (this.health > 0.2) {
@@ -465,7 +455,7 @@ class Enemy extends ent.Entity {
 
   explode() {
     this.remove();
-    sound.play("boom");
+    play.explode();
     new ent.Particle({
       x: CX,
       y: CY,
@@ -515,7 +505,7 @@ class Enemy extends ent.Entity {
     if (this.bulletTime > 0) return;
     this.bulletTime = this.bulletDelay;
     new EnemyBullet(this.angle);
-    sound.play("enemyshot");
+    play.shoot({ detune: -500 });
   }
 }
 
@@ -559,7 +549,7 @@ function nextLevel() {
   else if (level > 0) score.value += SHIELD_BONUS;
 
   rings = new Level(level);
-  sound.play("build");
+  play.power();
 
   const built = rings;
   ent.every(0.05, () => {
@@ -580,7 +570,7 @@ function die() {
   player.remove();
   player = null;
 
-  sound.play("die");
+  play.lose();
   new ent.Particle({
     x,
     y,

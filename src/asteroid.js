@@ -23,8 +23,7 @@
 import * as ent from "./lib/entity.js";
 import { shake } from "./lib/camera.js";
 import { gameOver, ramp, score } from "./lib/one.js";
-import { explosion, laser } from "./lib/sfxr.js";
-import * as sound from "./lib/sound.js";
+import * as play from "./lib/sounds.js";
 
 export const meta = {
   title: "asteroid",
@@ -92,13 +91,6 @@ const STALLED = 43;
 const CONE = Math.PI / 6;
 const SIGHT = Math.PI / 12;
 
-sound.voice("shot", laser(1008));
-sound.voice("enemyshot", laser(1006));
-sound.voice("pop", explosion(1002));
-sound.voice("rock", explosion(1010));
-sound.voice("enemy", explosion(1005));
-sound.voice("player", explosion(1032));
-
 let realtime = 0;
 // Seconds of running clock the round has had: the ramp is read off this, not off
 // one.js's `time`, which counts the seconds a frozen board sits there.
@@ -133,7 +125,7 @@ class Player extends ent.Entity {
 
     this.reload = Math.max(0, this.reload - time);
     if (input.press.act && this.reload <= 0) {
-      fire(this, true, "shot");
+      fire(this, true, play.shoot);
       this.reload += RELOAD;
     }
 
@@ -172,7 +164,7 @@ class Bullet extends ent.Entity {
     // The only response to a bullet on its way that does not cost clock time.
     for (const b of ent.get(Bullet)) {
       if (b.fromPlayer === this.fromPlayer || !this.hit(b)) continue;
-      sound.play("pop");
+      play.hit();
       b.remove();
       this.remove();
       return;
@@ -212,7 +204,7 @@ class Rock extends Target {
       b.remove();
       this.remove();
       shake();
-      sound.play("rock");
+      play.explode();
       ent.addScore(2, this.pos.x, this.pos.y);
       new ent.Particle({
         x: this.pos.x,
@@ -318,7 +310,7 @@ class Enemy extends Target {
     if (p !== null) {
       this.reload = Math.max(0, this.reload - time);
       if (Math.abs(fold(toPlayer - this.angle)) < SIGHT && this.reload <= 0) {
-        fire(this, false, "enemyshot");
+        fire(this, false, play.shoot, -500);
         this.reload += ENEMY_RELOAD;
       }
     }
@@ -330,7 +322,7 @@ class Enemy extends Target {
       b.remove();
       this.remove();
       shake();
-      sound.play("enemy");
+      play.break();
       ent.addScore(10, this.pos.x, this.pos.y);
       debris(this.pos, BLACK, 40, 1);
       return;
@@ -338,7 +330,7 @@ class Enemy extends Target {
 
     if (p === null || !this.hit(p)) return;
     this.remove();
-    sound.play("enemy");
+    play.break();
     debris(this.pos, BLACK, 40, 1);
     explode(p);
   }
@@ -358,11 +350,11 @@ function thrust(e, dv) {
   e.vel.y *= TOP_SPEED / l;
 }
 
-function fire(e, fromPlayer, name) {
+function fire(e, fromPlayer, shoot, detune = 0) {
   new Bullet(e, fromPlayer);
   e.vel.x -= RECOIL * Math.cos(e.angle);
   e.vel.y -= RECOIL * Math.sin(e.angle);
-  sound.play(name);
+  shoot({ detune });
 }
 
 // Turns `e` towards `to`, returning how far off it was before the turn, which
@@ -387,7 +379,7 @@ function explode(p) {
   if (p.dead) return;
   debris(p.pos, WHITE, 70, 2);
   shake(0.5);
-  sound.play("player");
+  play.lose();
   p.remove();
   dying = DYING;
   // `flip` starts true and turns over on the first frame, so the title is the

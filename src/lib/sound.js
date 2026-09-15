@@ -6,11 +6,10 @@
  * import a game to read its `meta`. A silent game leaves op.sound null and the
  * bundler drops the synth and alma's Audio.
  *
- * Two synths, and which one a sound uses is what it is: `voice()` is sfxr, one
- * fixed arcade voice out of a seed, and thirteen games use nothing else.
- * `make()` is alma's sfx, a params object with a source and a chain, for the
- * four games whose sounds sfxr has no shape for. A stage is a value you
- * import, so a game ships the stages it names and no others.
+ * A game imports the sounds it plays out of sounds.js and calls them. `make()`
+ * is what those are built on and what a game writes directly when the sound is
+ * its own. A stage is a value you import, so a game ships the stages it names
+ * and no others, and a sound is one too.
  *
  * ```js
  * import { crush, lp } from "./alma/src/sfx.js";
@@ -19,18 +18,17 @@
  *   osc: {osc: "brown", env: [0, .3, 1e-4], fx: [crush(4, 8000), lp(1600)]},
  *   env: ["expIn", .005, "expOut", .28],
  * });
- * sound.voice("hit", { ...explosion(1238), vol: 0.2 });
+ * import { coin } from "./lib/sounds.js";
+ * coin();
  * sound.play("drop", { detune: 800 * (2 * Math.random() - 1) });
  * ```
  *
- * A sound is rendered once at load and played from the buffer. sfx renders
- * the eleven in the four games in about 31 ms between them.
+ * A sound is rendered once at load and played from the buffer.
  */
 
 import { Audio } from "../alma/src/audio.js";
 import { sfx } from "../alma/src/sfx.js";
 import { op } from "./one.js";
-import { render as sfxrRender, SAMPLE_RATE as SFXR_RATE } from "./sfxr.js";
 
 const SAMPLE_RATE = 48000;
 
@@ -89,12 +87,6 @@ export function arm(target) {
 // nothing in the gallery aliases enough at 1 to hear.
 export function make(name, params) {
   put(name, sfx(params, { rate: SAMPLE_RATE, over: 1 }));
-}
-
-// One sfxr voice, played as rendered; alma resamples its 44100, which it has
-// to keep because sfxr counts a period in whole samples.
-export function voice(name, opts) {
-  put(name, sfxrRender(opts), SFXR_RATE);
 }
 
 // What the two synths share: a rendered buffer, at the rate it was rendered at.

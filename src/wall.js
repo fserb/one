@@ -20,8 +20,7 @@
 import * as ent from "./lib/entity.js";
 import { camera, shake } from "./lib/camera.js";
 import { gameOver, msg, score } from "./lib/one.js";
-import { coin, explosion, powerup } from "./lib/sfxr.js";
-import * as sound from "./lib/sound.js";
+import * as play from "./lib/sounds.js";
 
 export const meta = {
   title: "wall",
@@ -107,22 +106,6 @@ const BEAT_FAST = 0.22;
 const BEAT_SLOW = 1;
 
 // The vols are the original game's own volumes.
-sound.voice("coin", { ...coin(4021), vol: 0.14 });
-sound.voice("die", { ...explosion(4057), vol: 0.2 });
-sound.voice("more", { ...powerup(4093), vol: 0.14 });
-sound.voice("beat", { ...thud(), vol: 0.16 });
-
-// About 70Hz: sfxr's period is 100/(f*f + 0.001) eighths of a sample.
-function thud() {
-  return {
-    waveType: 2,
-    startFrequency: 0.14,
-    slide: -0.1,
-    sustainTime: 0.02,
-    sustainPunch: 0.5,
-    decayTime: 0.16,
-  };
-}
 
 let range = LIGHT;
 
@@ -523,7 +506,7 @@ class Coin extends ent.Entity {
     score.value += 1;
     taken += 1;
     range = Math.min(LIGHT_MAX, range + FEED);
-    sound.play("coin");
+    play.coin();
     new ent.Particle({
       x: this.pos.x,
       y: this.pos.y,
@@ -567,7 +550,7 @@ function addHunter() {
   if (hunting >= HUNTERS) return;
   hunting += 1;
   new Hunter(pick(HUNT_GAP, ent.get(Hunter)));
-  sound.play("more");
+  play.power();
   msg(`${hunting} HUNTING`);
 }
 
@@ -575,7 +558,7 @@ function die() {
   if (dying > 0) return;
   dying = DEATH;
   shake(0.5);
-  sound.play("die");
+  play.lose();
   new ent.Particle({
     x: player.pos.x,
     y: player.pos.y,
@@ -664,7 +647,7 @@ function pulse(t) {
   if (beat > 0) return;
   const f = near / BEAT_NEAR;
   beat = BEAT_FAST + (BEAT_SLOW - BEAT_FAST) * f;
-  sound.play("beat", { detune: -6 * (1 - f) });
+  play.hit({ detune: -6 * (1 - f) });
 }
 
 export function render(ctx) {

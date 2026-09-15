@@ -23,8 +23,7 @@
 import * as ent from "./lib/entity.js";
 import { shake } from "./lib/camera.js";
 import { gameOver, msg } from "./lib/one.js";
-import { blip, coin, explosion, hit } from "./lib/sfxr.js";
-import * as sound from "./lib/sound.js";
+import * as play from "./lib/sounds.js";
 
 export const meta = {
   title: "musician",
@@ -117,12 +116,6 @@ const LANE_BG = "#383838";
 const NOTE_R = 16;
 const MARK_R = 20;
 
-sound.voice("note", { ...blip(0), vol: 0.13 });
-sound.voice("tick", { ...blip(0), vol: 0.035 });
-sound.voice("coin", { ...coin(12), vol: 0.12 });
-sound.voice("miss", { ...hit(3), vol: 0.12 });
-sound.voice("tomato", { ...explosion(16), vol: 0.2 });
-
 let player = null;
 let bpm = BPM0;
 let combo = 0;
@@ -212,7 +205,7 @@ class Note extends ent.Entity {
     this.done = this.good = true;
     combo += 1;
     resolved += 1;
-    sound.play("note");
+    play.blip();
     const run = Math.min(COMBO_CAP, combo);
     new Coin(Math.round(run + PAY * (1 - off / WINDOW)));
   }
@@ -221,7 +214,7 @@ class Note extends ent.Entity {
     this.done = true;
     combo = 0;
     resolved += 1;
-    sound.play("miss");
+    play.deny();
     new Tomato();
   }
 }
@@ -253,7 +246,7 @@ class Coin extends ent.Entity {
     if (dying > 0) return;
 
     if (this.hit(player)) {
-      sound.play("coin");
+      play.coin();
       ent.addScore(this.value, this.pos.x, this.pos.y, {
         text: `$${this.value}`,
       });
@@ -373,7 +366,7 @@ function die() {
   if (dying > 0) return;
   dying = DEATH;
   shake(0.5);
-  sound.play("tomato");
+  play.lose();
 }
 
 export function init() {
@@ -411,7 +404,7 @@ export function update(dt) {
     step += t;
     while (step >= grid) {
       step -= grid;
-      if (steps % TICK === 0) sound.play("tick");
+      if (steps % TICK === 0) play.select();
       steps += 1;
       if (Math.random() < DENSITY) new Note();
     }

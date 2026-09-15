@@ -22,8 +22,7 @@
 import * as ent from "./lib/entity.js";
 import { shake } from "./lib/camera.js";
 import { gameOver, score } from "./lib/one.js";
-import { blip, explosion, powerup } from "./lib/sfxr.js";
-import * as sound from "./lib/sound.js";
+import * as play from "./lib/sounds.js";
 
 export const meta = {
   title: "jeb",
@@ -105,10 +104,6 @@ const PURPLE = 0x342a97;
 const STARLIGHT = 0x3c3c46;
 const LINE = "#44891a";
 const LINE_BAD = "#be2633";
-
-sound.voice("burn", { ...blip(511), vol: 0.05 });
-sound.voice("land", { ...powerup(3607), vol: 0.13 });
-sound.voice("crash", { ...explosion(3613), vol: 0.2 });
 
 let ship = null;
 // Not read back out of entity.js: ent.get() hides entities that have not begun,
@@ -236,7 +231,6 @@ class Ship extends ent.Entity {
     this.puff -= t;
     if (this.puff > 0) return;
     this.puff = 0.05;
-    sound.play("burn", { detune: -4 + 8 * Math.random() });
     new ent.Particle({
       x: this.pos.x - Math.cos(a) * 26,
       y: this.pos.y - Math.sin(a) * 26,
@@ -302,7 +296,7 @@ function wreck() {
   if (dying > 0) return;
   dying = DEATH;
   shake(0.5);
-  sound.play("crash");
+  play.explode();
   new ent.Particle({
     x: ship.pos.x,
     y: ship.pos.y,
@@ -326,7 +320,7 @@ function wreck() {
 function arrive(p) {
   score.value += 1;
   fuel = Math.min(TANK, fuel + Math.max(FILL_MIN, FILL - FILL_OFF * score.value));
-  sound.play("land");
+  play.land();
   new ent.Particle({
     x: ship.pos.x,
     y: ship.pos.y,
@@ -449,7 +443,7 @@ export function update(dt) {
 function expire() {
   if (dying > 0) return;
   dying = DEATH;
-  sound.play("crash", { detune: -8 });
+  play.explode({ detune: -8 });
   new ent.Particle({
     x: ship.pos.x,
     y: ship.pos.y,

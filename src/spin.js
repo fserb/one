@@ -17,8 +17,7 @@
 
 import * as ent from "./lib/entity.js";
 import { gameOver, score } from "./lib/one.js";
-import { blip, coin, jump } from "./lib/sfxr.js";
-import * as sound from "./lib/sound.js";
+import * as play from "./lib/sounds.js";
 
 export const meta = {
   title: "spin",
@@ -140,27 +139,6 @@ const MAP = `
 0.................0....0
 000000000000000000000000
 `;
-
-sound.voice("jump", { ...jump(2801), vol: 0.09 });
-sound.voice("mark", { ...coin(2833), vol: 0.13 });
-sound.voice("wind", { ...blip(2851), vol: 0.05 });
-sound.voice("turn", { ...rumble(), vol: 0.2 });
-
-// A sine sliding down under slow noise: the nearest sfxr's seven generators get
-// to something heavy moving.
-function rumble() {
-  return {
-    waveType: 2,
-    startFrequency: 0.2,
-    minFrequency: 0.05,
-    slide: -0.12,
-    attackTime: 0.05,
-    sustainTime: 0.25,
-    decayTime: 0.35,
-    vibratoDepth: 0.25,
-    vibratoSpeed: 0.35,
-  };
-}
 
 // 1 wall, 2 platform, 0 air. Rewritten in place by a turn.
 const map = new Uint8Array(GRID * GRID);
@@ -354,7 +332,7 @@ class Player extends ent.Entity {
           this.face = touch === T_RIGHT ? -1 : 1;
           this.coyote = 0;
           kicked = true;
-          sound.play("jump");
+          play.jump();
         }
       } else if (!held) {
         this.vel.y = Math.max(this.vel.y, -CLIP);
@@ -365,7 +343,7 @@ class Player extends ent.Entity {
     if (jump && !kicked && (touch & T_DOWN || this.coyote > 0)) {
       this.vel.y = -JUMP;
       this.coyote = 0;
-      sound.play("jump");
+      play.jump();
     }
 
     let mx = 0;
@@ -416,7 +394,7 @@ class Mark extends ent.Entity {
     score.value += 1;
     clock = Math.min(TIME_MAX, clock + FEED);
     every = Math.max(EVERY_MIN, every - EVERY_OFF);
-    sound.play("mark");
+    play.coin();
     new ent.Particle({
       x: this.pos.x,
       y: this.pos.y,
@@ -520,7 +498,7 @@ function turnClock(t) {
     phase = WINDING;
     since = 0;
     dir = [1, -1, 2][Math.floor(3 * Math.random())];
-    sound.play("wind");
+    play.alarm();
     return;
   }
 
@@ -538,7 +516,7 @@ function turnClock(t) {
     phase = TURNING;
     since = 0;
     locked = true;
-    sound.play("turn");
+    play.whoosh();
     return;
   }
 

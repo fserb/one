@@ -17,8 +17,7 @@
 import * as ent from "./lib/entity.js";
 import { shake } from "./lib/camera.js";
 import { gameOver, input, msg, score } from "./lib/one.js";
-import { coin, explosion, jump, powerup } from "./lib/sfxr.js";
-import * as sound from "./lib/sound.js";
+import * as play from "./lib/sounds.js";
 
 export const meta = {
   title: "amaze",
@@ -88,11 +87,6 @@ const DARK = 0x444444;
 const YOU = 0xffffff;
 const BOT = 0xc24079;
 const BG = 0x3dbf86;
-
-sound.voice("jump", { ...jump(4), vol: 0.1 });
-sound.voice("key", { ...coin(12), vol: 0.13 });
-sound.voice("gate", { ...powerup(3), vol: 0.13 });
-sound.voice("dead", { ...explosion(2), vol: 0.2 });
 
 // Four wall bits a cell.
 const map = new Uint8Array(N * N);
@@ -262,7 +256,7 @@ class Player extends ent.Entity {
     if (!wall(this.mx, this.my, this.facing)) return;
     if (!this.stepTo(this.facing)) return;
     this.cool = 1;
-    sound.play("jump");
+    play.step();
   }
 
   update() {
@@ -505,7 +499,7 @@ class Key extends ent.Entity {
     if (dying > 0 || player === null) return;
     if (!this.hit(player)) return;
     gate.open();
-    sound.play("key");
+    play.coin();
     this.remove();
   }
 
@@ -536,7 +530,7 @@ class Gate extends ent.Entity {
     }
     if (!this.unlocked || player === null || player.leaving >= 0) return;
     if (!this.hit(player)) return;
-    sound.play("gate");
+    play.power();
     player.door();
   }
 
@@ -555,7 +549,7 @@ function die() {
   if (dying > 0) return;
   dying = DEATH;
   shake(0.4);
-  sound.play("dead");
+  play.lose();
   new ent.Particle({
     x: player.pos.x,
     y: player.pos.y,
