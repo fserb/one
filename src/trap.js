@@ -8,7 +8,8 @@
 
 import { ease, extra, HexGrid, vec } from "./alma/src/index.js";
 import { camera } from "./lib/camera2d.js";
-import { act, gameOver, input, msg, score } from "./lib/one.js";
+import { act } from "./lib/act.js";
+import { gameOver, input, msg, score } from "./lib/one.js";
 import { crush, lp } from "./alma/src/sfx.js";
 import * as sound from "./lib/sound.js";
 

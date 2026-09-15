@@ -6,11 +6,10 @@
  * doing nothing at module scope: the build reads `meta` by importing it under
  * Deno, so nothing may use the DOM there.
  *
- * It also has the shared state: meta, score, act, op and the round clock the
+ * It also has the shared state: meta, score, op and the round clock the
  * difficulty is read off.
  */
 
-import Act from "../alma/src/Act.js";
 import { register as registerPlus2d } from "../alma/src/gfx/plus2d.js";
 import { Screen } from "../alma/src/screen.js";
 import * as effects from "./effects.js";
@@ -32,8 +31,6 @@ export const meta = {
   // A touch steers rather than pointing: see the two mappings in input.js.
   dpad: false,
 };
-
-export const act = new Act();
 
 export const score = {
   value: 0,
@@ -57,9 +54,10 @@ export const op = {
   game: null,
   screen: null,
   playing: false,
-  // Null keeps the synth, alma's Audio and the camera out of the bundle.
+  // Null keeps the synth, alma's Audio, the camera and Act out of the bundle.
   sound: null,
   camera: null,
+  act: null,
 };
 
 let ctx = null;
@@ -92,7 +90,7 @@ export async function run(game, { target = null } = {}) {
 }
 
 export function start() {
-  act.reset();
+  op.act?.reset();
   setDpad(meta.dpad);
   // Reset to the whole board, so init() changes only what it needs to.
   op.camera?.moveTo({ x: 512, y: 512, scale: 1, angle: 0 }).settle();
@@ -112,7 +110,7 @@ export function gameOver(opts) {
   setDpad(false);
   // The tweens in flight end with the round rather than running under the
   // finish screen.
-  act.reset();
+  op.act?.reset();
   overlay.gameOver(opts);
 }
 
@@ -147,7 +145,7 @@ export function msg(text, opts) {
 }
 
 function frame(dt) {
-  act._frame(dt);
+  op.act?._frame(dt);
   op.camera?.update(dt);
   pollInput();
   overlay.poll(dt);

@@ -17,7 +17,8 @@ import { Collider } from "./alma/src/collider.js";
 import { Mat4 } from "./alma/src/geom/mat4.js";
 import { Quad } from "./alma/src/geom/Quad.js";
 import * as ease from "./alma/src/ease.js";
-import { act, input, score } from "./lib/one.js";
+import { act } from "./lib/act.js";
+import { input, score } from "./lib/one.js";
 
 export const meta = {
   title: "async2",

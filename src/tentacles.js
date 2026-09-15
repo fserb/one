@@ -7,7 +7,8 @@
  */
 
 import { ease, extra } from "./alma/src/index.js";
-import { act, gameOver, input, score } from "./lib/one.js";
+import { act } from "./lib/act.js";
+import { gameOver, input, score } from "./lib/one.js";
 import { crush, lp } from "./alma/src/sfx.js";
 import * as sound from "./lib/sound.js";
 

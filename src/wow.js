@@ -4,7 +4,8 @@
  */
 
 import { ease, utils } from "./alma/src/index.js";
-import { act, gameOver, input, score } from "./lib/one.js";
+import { act } from "./lib/act.js";
+import { gameOver, input, score } from "./lib/one.js";
 
 export const meta = {
   title: "wow",

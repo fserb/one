@@ -9,7 +9,8 @@
 import { ease, extra, vec } from "./alma/src/index.js";
 import { World } from "./alma/src/rigid.js";
 import { camera } from "./lib/camera.js";
-import { act, fixed, gameOver, input, score } from "./lib/one.js";
+import { act } from "./lib/act.js";
+import { fixed, gameOver, input, score } from "./lib/one.js";
 import { comb, lp } from "./alma/src/sfx.js";
 import * as sound from "./lib/sound.js";
 
