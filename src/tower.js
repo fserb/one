@@ -15,7 +15,7 @@
  * sides it does not.
  */
 
-import { registerSquircle } from "./alma/src/index.js";
+import { register as registerSquircle } from "./alma/src/gfx/squircle.js";
 import { gameOver, input, msg, score } from "./lib/one.js";
 
 export const meta = {

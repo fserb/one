@@ -3,7 +3,8 @@
  * https://www.cs.brandeis.edu/~storer/JimPuzzles/ZPAGES/zzzBullsEye.html
  */
 
-import { ease, utils } from "./alma/src/index.js";
+import * as ease from "./alma/src/ease.js";
+import { newCanvas } from "./alma/src/utils/utils.js";
 import { act } from "./lib/act.js";
 import { gameOver, input, score } from "./lib/one.js";
 
@@ -38,7 +39,7 @@ let tiles;
 let ox, oy;
 
 function drawTiles() {
-  const [canvas, c] = utils.newCanvas(COLS * ART, ROWS * ART);
+  const [canvas, c] = newCanvas(COLS * ART, ROWS * ART);
   const cx = COLS * ART / 2;
   const r = 50;
 

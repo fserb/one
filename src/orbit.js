@@ -15,7 +15,8 @@
  * divide by dt guard against it.
  */
 
-import { extra, random } from "./alma/src/index.js";
+import * as extra from "./alma/src/utils/extra.js";
+import * as random from "./alma/src/random.js";
 import * as ent from "./lib/entity.js";
 import { delay, flash } from "./lib/effects.js";
 import { shake } from "./lib/camera.js";

@@ -6,7 +6,9 @@
  * only one that includes alma's rigid.js and the Box2D behind it.
  */
 
-import { ease, extra, vec } from "./alma/src/index.js";
+import * as ease from "./alma/src/ease.js";
+import * as extra from "./alma/src/utils/extra.js";
+import * as vec from "./alma/src/geom/vec.js";
 import { World } from "./alma/src/rigid.js";
 import { camera } from "./lib/camera.js";
 import { act } from "./lib/act.js";

@@ -6,7 +6,9 @@
  * to grow. The belt never stops, and reaching the left edge ends the run.
  */
 
-import { ease, extra, vec } from "./alma/src/index.js";
+import * as ease from "./alma/src/ease.js";
+import * as extra from "./alma/src/utils/extra.js";
+import * as vec from "./alma/src/geom/vec.js";
 import { camera } from "./lib/camera.js";
 import { act } from "./lib/act.js";
 import { gameOver, input, msg, score } from "./lib/one.js";

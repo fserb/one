@@ -9,7 +9,7 @@
  * A player standing still has no heading, so standing still fires nothing.
  */
 
-import { extra } from "./alma/src/index.js";
+import * as extra from "./alma/src/utils/extra.js";
 import * as ent from "./lib/entity.js";
 import { gameOver } from "./lib/one.js";
 

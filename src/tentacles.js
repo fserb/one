@@ -6,7 +6,8 @@
  * and a cornered tentacle destroys one to get through.
  */
 
-import { ease, extra } from "./alma/src/index.js";
+import * as ease from "./alma/src/ease.js";
+import * as extra from "./alma/src/utils/extra.js";
 import { act } from "./lib/act.js";
 import { gameOver, input, score } from "./lib/one.js";
 import { crush, lp } from "./alma/src/sfx.js";

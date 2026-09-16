@@ -6,7 +6,10 @@
  * level starts. Based on Isola.
  */
 
-import { ease, extra, HexGrid, vec } from "./alma/src/index.js";
+import * as ease from "./alma/src/ease.js";
+import * as extra from "./alma/src/utils/extra.js";
+import * as vec from "./alma/src/geom/vec.js";
+import { HexGrid } from "./alma/src/game/HexGrid.js";
 import { camera } from "./lib/camera2d.js";
 import { act } from "./lib/act.js";
 import { gameOver, input, msg, score } from "./lib/one.js";

@@ -6,16 +6,15 @@
  * is in the 1024 board, and ent.update() runs inside the 60Hz fixed step.
  */
 
-import {
-  color,
-  Layer,
-  line,
-  PointerSpeed,
-  random,
-  sdf,
-  SoftBodies,
-  spline,
-} from "./alma/src/index.js";
+import "./alma/src/extend.js"; // Math.TAU and Math.clamp
+import color from "./alma/src/color.js";
+import * as line from "./alma/src/geom/line.js";
+import * as sdf from "./alma/src/geom/sdf.js";
+import * as spline from "./alma/src/geom/spline.js";
+import { Layer } from "./alma/src/gfx/layer.js";
+import * as random from "./alma/src/random.js";
+import { PointerSpeed } from "./alma/src/smooth.js";
+import { SoftBodies } from "./alma/src/softbody.js";
 import { camera } from "./lib/camera2d.js";
 import * as ent from "./lib/entity.js";
 import { fixed, gameOver, input, op, score } from "./lib/one.js";
