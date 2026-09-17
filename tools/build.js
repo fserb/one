@@ -215,9 +215,9 @@ function gallery(entries) {
       title: esc(m.title),
       year: esc((m.date ?? "").slice(0, 4)),
       bg: m.bg,
-      // The panel fill and not the panel text: the title is drawn directly on
-      // the clip with no panel behind it.
-      fg: theme(m).bg,
+      // Nothing is filled behind the title, so it is chosen against the board
+      // exactly as the text a game draws over it is.
+      fg: theme(m),
       media: s.mp4
         ? `<video src="./${game}/card.mp4"${
           s.png ? ` poster="./${game}/card.png"` : ""

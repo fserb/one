@@ -370,10 +370,10 @@
     }
 
     function card(g, theme) {
-      const m = { bg: "#f2f0e5", fg: "#212123", ...g };
-      // The panel fill and not the panel text: the title is drawn directly on
-      // the clip with no panel behind it, which is what the built card does.
-      const fg = theme(m).bg;
+      const m = { bg: "#f2f0e5", ...g };
+      // Nothing is filled behind the title, so it is chosen against the board
+      // exactly as the built card's is.
+      const fg = theme(m);
       const clip = g.shot
         ? `<video src="./media/${g.name}/card.mp4" ` +
           `poster="./media/${g.name}/card.png" loop muted playsinline ` +
