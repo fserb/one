@@ -28,6 +28,7 @@ go too far and the loop swallows it
   fg: "#f7f0e8",
   scoreMax: true,
   date: "2015-09-08",
+  draft: true,
 };
 
 const WHITE = 0xf7f0e8;

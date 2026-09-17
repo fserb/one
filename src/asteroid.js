@@ -35,6 +35,7 @@ time crawls until you thrust or shoot
   fg: "#FFFFFF",
   scoreMax: true,
   date: "2014-04-03",
+  draft: true,
   dpad: true,
 };
 

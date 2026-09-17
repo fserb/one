@@ -32,6 +32,7 @@ the orange moves only while you cannot see it
   fg: "#1EBED8",
   scoreMax: true,
   date: "2015-10-10",
+  draft: true,
   dpad: true,
 };
 

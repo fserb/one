@@ -19,6 +19,7 @@ touching it costs you size
   fg: "#E1B81F",
   scoreMax: true,
   date: "2014-03-30",
+  draft: true,
 };
 
 const GOLD = 0xe1b81f;

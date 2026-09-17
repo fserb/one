@@ -31,6 +31,7 @@ the bar is the clock, and every shot spends it
   fg: "#024972",
   scoreMax: true,
   date: "2014-04-13",
+  draft: true,
   dpad: true,
 };
 

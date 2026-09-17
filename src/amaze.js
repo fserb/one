@@ -29,6 +29,7 @@ tap to jump one wall, hold to walk
   fg: "#444444",
   scoreMax: true,
   date: "2014-04-02",
+  draft: true,
 };
 
 // 15 cells of 64 is 960, leaving a margin either side.

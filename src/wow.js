@@ -18,6 +18,7 @@ inside the bigger circle
   fg: "#4B4158",
   scoreMax: false,
   date: "2021-05-08",
+  draft: true,
 };
 
 const PAPER = "#EDE19E";

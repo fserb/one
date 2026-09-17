@@ -23,6 +23,7 @@ each number taken raises the next
   fg: "#000000",
   scoreMax: true,
   date: "2015-09-20",
+  draft: true,
   dpad: true,
 };
 

@@ -24,6 +24,7 @@ which pushes you off it. space levels you
   fg: "#E3C61E",
   scoreMax: true,
   date: "2014-03-30",
+  draft: true,
   dpad: true,
 };
 

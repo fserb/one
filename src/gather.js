@@ -29,6 +29,7 @@ take an equal count of every colour you touch
   fg: "#000000",
   scoreMax: true,
   date: "2014-04-15",
+  draft: true,
   dpad: true,
 };
 

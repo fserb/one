@@ -29,6 +29,7 @@ each trait all same or all different
   fg: "#010101",
   scoreMax: true,
   date: "2015-05-03",
+  draft: true,
 };
 
 // The first three are the cards, the other two the mark and the cursor.

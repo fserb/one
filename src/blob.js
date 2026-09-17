@@ -32,6 +32,7 @@ two of a kind make the next one up
   fg: "#8a9ab4",
   scoreMax: true,
   date: "2026-09-10",
+  draft: true,
 };
 
 // One ring point's radius: how far outside the ring a blob's edge reaches.
