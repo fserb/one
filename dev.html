@@ -40,8 +40,9 @@
       -webkit-user-select: none;
       -webkit-tap-highlight-color: transparent;
     }
-    /* The cards, when there is no ?game=: the front page's, plus what only dev
-       shows: the games the build skips, and a module that threw on import.
+    /* The cards, when there is no ?game=: the front page's, in two sections,
+       the drafts the build skips and then the games it ships, plus the label
+       only dev shows, on a module that threw on import.
        The body is the scroller here, and border-box so that it is: at
        content-box its 100% height plus the padding runs 52px past the window,
        and html's overflow: hidden cuts that off the bottom of the last row. */
@@ -70,9 +71,19 @@
       font-size: 11px;
       color: #21212399;
     }
+    .index section + section {
+      margin-top: 30px;
+    }
+    .index h2 {
+      margin: 0 0 12px;
+      font: bold 13px/1.45 var(--sans);
+      letter-spacing: .04em;
+      text-transform: uppercase;
+      color: #21212399;
+    }
     /* Flex and not grid, and the count sizes the card, so a row of n fills the
        width exactly. The five queries are the gallery's. */
-    #cards {
+    .cards {
       --gap: 14px;
       --n: 2;
       --card: calc((100% - (var(--n) - 1) * var(--gap)) / var(--n));
@@ -84,28 +95,28 @@
       padding: 0;
     }
     @media (min-width: 560px) {
-      #cards {
+      .cards {
         --n: 3;
       }
     }
     @media (min-width: 820px) {
-      #cards {
+      .cards {
         --n: 4;
       }
     }
     @media (min-width: 1080px) {
-      #cards {
+      .cards {
         --n: 5;
       }
     }
     @media (min-width: 1340px) {
-      #cards {
+      .cards {
         --n: 6;
       }
     }
     /* A container, so the title and the label are the same fraction of the
        square at every card count. */
-    #cards li {
+    .cards li {
       flex: 0 0 var(--card);
       position: relative;
       aspect-ratio: 1;
@@ -117,7 +128,7 @@
       -webkit-tap-highlight-color: transparent;
       container-type: inline-size;
     }
-    #cards a {
+    .cards a {
       position: absolute;
       inset: 0;
       color: inherit;
@@ -125,7 +136,7 @@
     }
     /* A game with no clip is flat --bg, which is the clip's own background too,
        so the title is readable either way. */
-    #cards video {
+    .cards video {
       position: absolute;
       inset: 0;
       width: 100%;
@@ -148,8 +159,8 @@
       opacity: .55;
       font-variant-numeric: tabular-nums;
     }
-    /* draft, or a module that threw on import. Red here and on the card's edge
-       below, rather than the card's own text colour, which the title uses. */
+    /* A module that threw on import. Red here and on the card's edge below,
+       rather than the card's own text colour, which the title uses. */
     .state {
       position: absolute;
       right: 0;
@@ -165,8 +176,7 @@
        Inside the square and not around it: a border would take 4px off every
        card, labelled or not. A pseudo-element and not an outline, because the
        clip is positioned and draws over an outline. */
-    #cards li.draft::after,
-    #cards li.error::after {
+    .cards li.error::after {
       content: "";
       position: absolute;
       inset: 0;
@@ -255,7 +265,8 @@
       Runs a game straight from src/, with no build step: the browser loads the
       same ES modules the bundler does. Needs ~/web served, not a file:// open.
 
-        dev.html               every game in src/, as the front page shows them
+        dev.html               every game in src/: the drafts, then the games
+                               the build ships as the front page shows them
         dev.html?game=wow      that game, running, like the built page
         &rec=0                 without the recorder, for an embedded iframe
 
@@ -345,17 +356,31 @@
           return { name, error: String(err) };
         }
       }));
-      games.sort((a, b) =>
-        (b.date ?? "").localeCompare(a.date ?? "") || a.name.localeCompare(b.name)
-      );
+      // A draft is what is being worked on, so its section is at the top of
+      // the page. A module that threw has no meta, so nothing says whether it
+      // is a draft; it goes up there too, where work in progress goes.
+      const newest = (a, b) =>
+        (b.date ?? "").localeCompare(a.date ?? "") ||
+        a.name.localeCompare(b.name);
 
       document.body.innerHTML = `<header>
         <h1>one · dev</h1>
         <p class=by>${games.length} games from src/</p>
-      </header>
-      <ul id=cards>${games.map((g) => card(g, theme)).join("")}</ul>`;
+      </header>` +
+        section("drafts", games.filter((g) => g.draft || g.error), theme) +
+        section("games", games.filter((g) => !g.draft && !g.error), theme);
 
-      play([...document.querySelectorAll("#cards video")]);
+      play([...document.querySelectorAll(".cards video")]);
+
+      // One heading and its cards, newest first; nothing at all when the group
+      // is empty, which is how a tree with no draft in it reads.
+      function section(title, group, theme) {
+        if (!group.length) return "";
+        return `<section><h2>${title}</h2>
+          <ul class=cards>${
+          group.sort(newest).map((g) => card(g, theme)).join("")
+        }</ul></section>`;
+      }
     }
 
     // One directory off the server's listing, as names; a directory comes back
@@ -381,10 +406,7 @@
         : "";
       // Hover text, which the front page's cards deliberately do not have.
       const tip = g.error ?? (g.desc ?? "").trim();
-      // One word, used both as the label and as the class the red edge is
-      // drawn from.
-      const state = g.error ? "error" : g.draft ? "draft" : "";
-      return `<li${state ? ` class=${state}` : ""} ` +
+      return `<li${g.error ? " class=error" : ""} ` +
         `style="--bg:${esc(m.bg)};--fg:${esc(fg)}">
         <a href="?game=${encodeURIComponent(g.name)}"${
           tip ? ` title="${esc(tip)}"` : ""
@@ -393,7 +415,7 @@
           <p class="title"><b>${esc(g.name)}</b><time>${
           esc((g.date ?? "").slice(0, 4))
         }</time></p>
-          ${state ? `<p class="state ${state}">${state}</p>` : ""}
+          ${g.error ? `<p class=state>error</p>` : ""}
         </a>
       </li>`;
     }
