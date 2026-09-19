@@ -8,7 +8,7 @@
  * A recording is a fixed ten seconds after a countdown, and all ten are the
  * card. The one thing dropped is the frozen finish screen a round that ended
  * early leaves at the end. "keep" downloads a zip of PNG frames that
- * `./task media <game>` turns into media/<game>/card.mp4, .gif and .png.
+ * `./task media <game>` turns into media/<game>/card.mp4 and .png.
  */
 
 import { zipSync } from "../alma/src/3rdp/fflate.js";

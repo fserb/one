@@ -18,7 +18,7 @@ function size {
   deno run -A tools/size.js "$@"
 }
 
-# Turn the newest recorder zip into media/<game>/card.{mp4,gif,png}, for the
+# Turn the newest recorder zip into media/<game>/card.{mp4,png}, for the
 # games named or, with no name, for every game whose zip is newer than its card.
 # src/dev/rec.js downloads the zip; this is the other half of that.
 function media {

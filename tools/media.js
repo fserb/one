@@ -1,5 +1,5 @@
 /*
- * media.js - a recorder zip becomes media/<game>/card.{mp4,gif,png}.
+ * media.js - a recorder zip becomes media/<game>/card.{mp4,png}.
  *
  * src/dev/rec.js downloads a zip of PNG frames and an fps.txt into ~/Downloads.
  * This takes the newest such zip for each game named and runs ffmpeg over the
@@ -15,7 +15,6 @@ import { unzipSync } from "../src/alma/src/3rdp/fflate.js";
 
 const ROOT = new URL("..", import.meta.url).pathname.replace(/\/$/, "");
 const DOWNLOADS = `${Deno.env.get("HOME")}/Downloads`;
-const GIF = 240; // the gif is for anywhere a video will not go, at a size to match
 
 function mtime(path) {
   try {
@@ -81,26 +80,12 @@ function card(game, zip) {
     const h264 = "-c:v libx264 -crf 20 -pix_fmt yuv420p -movflags +faststart";
     ffmpeg([...frames, ...h264.split(" "), `${out}/card.mp4`]);
 
-    // Two passes: the palette has to be built from the whole clip before any
-    // frame is quantised against it.
-    const scale = `scale=${GIF}:${GIF}:flags=lanczos`;
-    const pal = `${dir}/pal.png`;
-    ffmpeg([...frames, "-vf", `${scale},palettegen=stats_mode=diff`, pal]);
-    ffmpeg([
-      ...frames,
-      "-i",
-      pal,
-      "-filter_complex",
-      `[0]${scale}[x];[x][1]paletteuse=dither=bayer:bayer_scale=3`,
-      `${out}/card.gif`,
-    ]);
-
     Deno.copyFileSync(`${dir}/0000.png`, `${out}/card.png`);
   } finally {
     Deno.removeSync(dir, { recursive: true });
   }
 
-  for (const name of ["card.mp4", "card.gif", "card.png"]) {
+  for (const name of ["card.mp4", "card.png"]) {
     const kb = Deno.statSync(`${out}/${name}`).size / 1024;
     console.log(
       `  media/${game}/${name}`.padEnd(26) + `${kb.toFixed(1).padStart(8)} KB`,

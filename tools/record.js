@@ -32,7 +32,6 @@ const TYPES = {
   json: "application/json",
   png: "image/png",
   mp4: "video/mp4",
-  gif: "image/gif",
   svg: "image/svg+xml",
 };
 

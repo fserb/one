@@ -156,7 +156,7 @@ async function exists(url) {
 // What `./task media <game>` wrote, keyed by extension.
 async function shot(game) {
   const out = {};
-  for (const ext of ["mp4", "gif", "png"]) {
+  for (const ext of ["mp4", "png"]) {
     const from = new URL(`${game}/card.${ext}`, MEDIA);
     if (await exists(from)) out[ext] = from;
   }
