@@ -5,6 +5,10 @@
  * and the chain scores the moment it holds two or more colours in equal
  * numbers, for `colours * each * (each - 1) * (colours - 1)`.
  *
+ * The chain's colours stack up as a tray of squares at the left end of the head
+ * strip, and a gather throws that tray into the score in the middle of the
+ * strip. The score goes up where it lands, not where the boxes were.
+ *
  * The scroll speed is set by where you are: it is slow while your lowest cursor
  * is in the bottom half and multiplies by up to 23 as it rises, and again by up
  * to 6 once the top of the chain passes the second line. one.js's ramp over the
@@ -15,6 +19,7 @@
  */
 
 import * as ent from "./lib/entity.js";
+import color from "./alma/src/color.js";
 import { shake } from "./lib/camera.js";
 import { gameOver, ramp, score, time } from "./lib/one.js";
 import * as play from "./lib/sounds.js";
@@ -31,13 +36,23 @@ take an equal count of every colour you touch
   fg: "#000000",
   scoreMax: true,
   date: "2014-04-15",
-  draft: true,
   dpad: true,
 };
 
 const BLACK = 0x000000;
 const WHITE = 0xffffff;
-const COLORS = [0xff6819, 0xc0dc61, 0x1ebed8, 0xfec804, 0xe284cc];
+
+function hex(c) {
+  return parseInt(c.slice(1), 16);
+}
+
+const PALETTE = ["#ff6819", "#c0dc61", "#1ebed8", "#fec804", "#e284cc"];
+const COLORS = PALETTE.map(hex);
+// A box is edged in its own colour taken halfway to black in OKLAB, so the
+// outline carries the hue instead of being flat black.
+const DARK = PALETTE.map((c) =>
+  hex(color(c).mix(color("#000000"), 0.66, "oklab").hex)
+);
 
 const COLS = 9;
 const ROWS = 11;
@@ -47,21 +62,26 @@ const CELL = 82;
 const HEAD = 110;
 const FOOT = 1012;
 
-// TRAY_Y is a centre and not a top edge, so trays of one row and of five are
-// centred on the same line.
-const TRAY_R = 896;
+// The tray builds rightward from the left board line, and the score sits in the
+// middle of the strip, which is how far the tray flies. TRAY_Y is a centre and
+// not a top edge, so trays of one row and of five are centred on the same line.
+const TRAY_L = 107;
 const TRAY_Y = HEAD / 2;
+const SCORE_X = 512;
 
 const NEAR = 512;
 
-// A box is 81 across: 72 of colour under a 9-thick black edge, rounded by that
-// same 9. A cursor is four corner brackets, 9 thick and 27 along each side.
-const BOX = 36;
+// A box is 73 across: 64 of colour under a 9-thick edge, square-cornered, and
+// the white between two boxes is 9, the same as the edge.
+// A cursor is four corner brackets, 9 thick and 27 along each side.
+// Both the socket and the pupil are squares, and EYE_R and PUPIL are their
+// half-sides: a pupil is half the socket across.
+const BOX = 32;
 const EDGE = 9;
 const EYE = 13.5;
 const EYE_R = 9;
 const PUPIL = 4.5;
-const ARM = 18;
+const ARM = 14;
 
 const _ = -1;
 
@@ -105,6 +125,7 @@ let from = 0;
 // stands on an empty cell and is what an undo leaves behind.
 let chain = [];
 let tray = null;
+let total = null;
 let note = null;
 let dying = 0;
 
@@ -172,13 +193,15 @@ class Piece extends ent.Entity {
     const px = d === 0 ? 0 : PUPIL * dx / d;
     const py = d === 0 ? 0 : PUPIL * dy / d;
     this.gfx.clear()
-      .fill(COLORS[this.color]).line(EDGE, BLACK)
-      .rect(-BOX, -BOX, 2 * BOX, 2 * BOX, 2 * EDGE)
+      .fill(COLORS[this.color]).line(EDGE, DARK[this.color])
+      .rect(-BOX, -BOX, 2 * BOX, 2 * BOX)
       .line(null)
-      .fill(WHITE).circle(-EYE, -EYE, EYE_R).circle(EYE, -EYE, EYE_R)
+      .fill(WHITE)
+      .rect(-EYE - EYE_R, -EYE - EYE_R, 2 * EYE_R, 2 * EYE_R)
+      .rect(EYE - EYE_R, -EYE - EYE_R, 2 * EYE_R, 2 * EYE_R)
       .fill(BLACK)
-      .circle(-EYE + px, -EYE + py, PUPIL)
-      .circle(EYE + px, -EYE + py, PUPIL);
+      .rect(-EYE + px - PUPIL, -EYE + py - PUPIL, 2 * PUPIL, 2 * PUPIL)
+      .rect(EYE + px - PUPIL, -EYE + py - PUPIL, 2 * PUPIL, 2 * PUPIL);
   }
 
   update() {
@@ -189,7 +212,9 @@ class Piece extends ent.Entity {
 
     this.pos.x = cellX(this.px);
     this.pos.y = cellY(this.py);
-    if (this.pos.y > 1033) return this.remove();
+    // Gone once its top edge is under the foot strip, not once its centre is:
+    // pos.y is the centre, so it owes the strip half a box and half an edge.
+    if (this.pos.y - BOX - EDGE / 2 > FOOT) return this.remove();
 
     const step = ent.game.time / 0.3;
     if (this.popping) {
@@ -250,7 +275,8 @@ class Tray extends ent.Entity {
     this.counts = null;
     this.moving = false;
     this.points = 0;
-    this.pos.x = TRAY_R;
+    this.from = TRAY_L;
+    this.pos.x = TRAY_L;
     this.pos.y = TRAY_Y;
   }
 
@@ -267,8 +293,9 @@ class Tray extends ent.Entity {
       row += 1;
     }
 
-    // gfx centres on its own box, so the right edge costs half the width.
-    this.pos.x = TRAY_R - (17 * Math.max(...counts) - 2) / 2;
+    // gfx centres on its own box, so the left edge costs half the width.
+    this.from = TRAY_L + (17 * Math.max(...counts) - 2) / 2;
+    this.pos.x = this.from;
     this.pos.y = TRAY_Y;
   }
 
@@ -280,10 +307,12 @@ class Tray extends ent.Entity {
     this.points = kinds * each * (each - 1) * (kinds - 1) * hard();
   }
 
+  // 0.3s out of a standing start, and it has faded by the time its left edge
+  // reaches the score.
   update() {
     if (!this.moving) return;
     const t = this.age / 0.3;
-    this.pos.y = TRAY_Y - (TRAY_Y + 43) * t * t;
+    this.pos.x = this.from + (SCORE_X - TRAY_L) * t * t;
     this.alpha = Math.max(0, 1 - t * t);
     if (t <= 1) return;
     addScore(this.points);
@@ -308,11 +337,38 @@ class Frame extends ent.Entity {
   }
 }
 
-// The number rises off the tray it was counted in rather than off the board.
+// The round's score, between the two ends of the head strip. It measures itself
+// as it draws, so `half` is how far its right edge stands from the centre,
+// which is where the +N goes.
+class Total extends ent.Text {
+  constructor() {
+    super({ text: "0", x: SCORE_X, y: TRAY_Y, size: 60, color: BLACK });
+    this.half = 0;
+  }
+
+  update() {
+    this.text = String(Math.floor(score.value));
+  }
+
+  render(ctx) {
+    this.half = ctx.mtext(this.text, this.size).width / 2;
+    super.render(ctx);
+  }
+}
+
+// The number reads out beside the score the tray flew into and runs off to the
+// right of it, grey and half the height, so the total stays the thing being
+// read and the addition is what passes.
 function addScore(v) {
   shake(0.25);
   play.coin();
-  ent.addScore(v, TRAY_R, TRAY_Y, { align: "right middle" });
+  ent.addScore(v, SCORE_X + 11 + total.half, TRAY_Y, {
+    size: 30,
+    color: 0x666666,
+    align: "left middle",
+    vel: [85, 0],
+    duration: 0.5,
+  });
 }
 
 function say(m) {
@@ -433,7 +489,7 @@ function check() {
     if (c !== head) c.remove();
   }
   chain = [head];
-  play.break();
+  play.explode();
 
   tray.go();
   tray = new Tray();
@@ -472,7 +528,7 @@ function control() {
   }
   if (box.targeted) return;
 
-  play.step();
+  play.jump();
   head.head = false;
   head.draw();
   box.target();
@@ -501,6 +557,7 @@ export function init() {
 
   new Frame();
   tray = new Tray();
+  total = new Total();
 
   // Frame one is the game: the script's first five rows are the opening board.
   for (let y = 0; y < 5 && introAt >= 0; ++y) {
