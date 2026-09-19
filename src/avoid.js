@@ -54,9 +54,9 @@ const MIN_SIZE = 2;
 
 // Three flat tones a blob, lit to dark. The two ends an enemy is drawn
 // between: red turns, pink runs.
-const GOLD_SKIN = ["#ffe27a", "#ffc21e", "#d18c00"];
-const PINK_SKIN = ["#ff96bd", "#ff3d7f", "#c40d4e"];
-const RED_SKIN = ["#ff8a72", "#ee2a18", "#9e0d06"];
+const GOLD_TONES = ["#ffe27a", "#ffc21e", "#d18c00"];
+const PINK_TONES = ["#ff96bd", "#ff3d7f", "#c40d4e"];
+const RED_TONES = ["#ff8a72", "#ee2a18", "#9e0d06"];
 
 const sim = new SoftBodies({
   width: 1024,
@@ -133,7 +133,7 @@ class Blob extends ent.Entity {
   render(ctx) {
     // _draw translated to pos, and the body draws in board units.
     ctx.translate(-this.pos.x, -this.pos.y);
-    paint(ctx, this.body, this.skin, this.size);
+    paint(ctx, this.body, this.tones, this.size);
   }
 }
 
@@ -168,7 +168,9 @@ class Enemy extends Blob {
     this.speedSize = SPEED_SIZE * ramp();
     const chase = Math.random();
     this.turn = TURN_WIDE + (TURN_TIGHT - TURN_WIDE) * chase;
-    this.skin = PINK_SKIN.map((c, i) => color(c).mix(color(RED_SKIN[i]), chase).hex);
+    this.tones = PINK_TONES.map((c, i) =>
+      color(c).mix(color(RED_TONES[i]), chase).hex
+    );
 
     // Already up to speed: a wide turner would spend its first seconds
     // gathering it off the board, where nobody can see it happen.
@@ -228,7 +230,7 @@ class Enemy extends Blob {
       this.cash();
       player.chit(s);
       this.remove();
-      new Splat(this.skin[1], this.pos, 560 + this.speed / 4, 24, s * CLEAN_BACK);
+      new Splat(this.tones[1], this.pos, 560 + this.speed / 4, 24, s * CLEAN_BACK);
       return;
     }
 
@@ -240,13 +242,13 @@ class Enemy extends Blob {
       ) continue;
 
       if (this.size > e.size) {
-        new Splat(e.skin[1], e.pos, 470 + e.speed / 3, 18, e.size * CLEAN_BACK);
+        new Splat(e.tones[1], e.pos, 470 + e.speed / 3, 18, e.size * CLEAN_BACK);
         this.size -= e.size;
         this.tads += e.tads;
         e.remove();
       } else {
         new Splat(
-          this.skin[1],
+          this.tones[1],
           this.pos,
           470 + this.speed / 3,
           18,
@@ -287,8 +289,8 @@ class Player extends Blob {
     this.aim = { x: 512, y: 512 };
   }
 
-  get skin() {
-    return GOLD_SKIN;
+  get tones() {
+    return GOLD_TONES;
   }
 
   update() {
@@ -320,15 +322,41 @@ class Player extends Blob {
     // one.js runs the camera whether or not a round is playing, so this plays
     // out under the finish screen rather than being cut off by it.
     shake(0.7);
-    new Splat(GOLD_SKIN[1], this.pos, 980 + this.speed / 4, 60, 0, true);
+    new Splat(GOLD_TONES[1], this.pos, 980 + this.speed / 4, 60, 0, true);
     this.remove();
     gameOver({ score: true });
   }
 }
 
-// Out along the way it is going and in across it. Scaled by speed over radius,
-// so it is the same shape at any size, and the mean is taken back out, so it
-// costs the body no momentum.
+// How both deformations below are applied: `at` writes the impulse for the ring
+// point (rx, ry) off the centroid into `imp`, and the mean is taken back out, so
+// the ring changes shape and the body keeps its velocity. One `imp` and not a
+// returned pair, which would allocate per point.
+const imp = { x: 0, y: 0 };
+
+function deform(b, at) {
+  const { px, py, vx, vy } = sim;
+  const s = b.start;
+  const n = b.count;
+  let mx = 0;
+  let my = 0;
+  for (let i = s; i < s + n; i++) {
+    at(px[i] - b.cx, py[i] - b.cy);
+    vx[i] += imp.x;
+    vy[i] += imp.y;
+    mx += imp.x;
+    my += imp.y;
+  }
+  mx /= n;
+  my /= n;
+  for (let i = s; i < s + n; i++) {
+    vx[i] -= mx;
+    vy[i] -= my;
+  }
+}
+
+// Out along the way it is going and in across it, scaled by speed over radius,
+// so it is the same shape at any size.
 function stretch(b, rate) {
   const sp = Math.hypot(b.mvx, b.mvy);
   const rad = b.restRadius * b.scale;
@@ -336,71 +364,33 @@ function stretch(b, rate) {
   const ux = b.mvx / sp;
   const uy = b.mvy / sp;
   const k = rate * sp / rad * ent.game.time;
-  const { px, py, vx, vy } = sim;
-  const s = b.start;
-  const n = b.count;
-  let mx = 0;
-  let my = 0;
-  for (let i = s; i < s + n; i++) {
-    const rx = px[i] - b.cx;
-    const ry = py[i] - b.cy;
+  deform(b, (rx, ry) => {
     const along = rx * ux + ry * uy;
-    const ax = (along * ux - 0.5 * (rx - along * ux)) * k;
-    const ay = (along * uy - 0.5 * (ry - along * uy)) * k;
-    vx[i] += ax;
-    vy[i] += ay;
-    mx += ax;
-    my += ay;
-  }
-  mx /= n;
-  my /= n;
-  for (let i = s; i < s + n; i++) {
-    vx[i] -= mx;
-    vy[i] -= my;
-  }
+    imp.x = (along * ux - 0.5 * (rx - along * ux)) * k;
+    imp.y = (along * uy - 0.5 * (ry - along * uy)) * k;
+  });
 }
 
-// ent.Text cannot be retexted, so the running number is its own entity. Left
-// out of reset()'s list, so it keeps the default layer of 10 and draws over
-// everything there.
-class Score extends ent.Entity {
-  static screen = true;
-
-  render(ctx) {
-    ctx.fillStyle = theme(meta);
-    ctx.text(`${Math.floor(score.value)}`, 40, 40, 54, {
-      align: "left",
-      valign: "top",
-    });
-  }
-}
-
-// The facing arc pulls in and the mean is taken back out, so the ring dents
-// and the body stays on the course it was on.
+// The facing arc pulls in, with a magnitude falling off as 1/d², so only
+// the near arc moves. The d³ is that over the length of (dx, dy).
 function dent(b, ox, oy, rate) {
   const k = rate * ent.game.time;
-  const { px, py, vx, vy } = sim;
-  const s = b.start;
-  const n = b.count;
-  let mx = 0;
-  let my = 0;
-  for (let i = s; i < s + n; i++) {
-    const dx = ox - px[i];
-    const dy = oy - py[i];
+  deform(b, (rx, ry) => {
+    const dx = ox - b.cx - rx;
+    const dy = oy - b.cy - ry;
     const d = Math.hypot(dx, dy) || 1;
-    const w = k / (d * d); // falls off fast, so only the near arc moves
-    const ax = dx * w / d;
-    const ay = dy * w / d;
-    vx[i] += ax;
-    vy[i] += ay;
-    mx += ax;
-    my += ay;
-  }
-  mx /= n;
-  my /= n;
-  for (let i = s; i < s + n; i++) {
-    vx[i] -= mx;
-    vy[i] -= my;
+    const w = k / (d * d * d);
+    imp.x = dx * w;
+    imp.y = dy * w;
+  });
+}
+
+// `screen` keeps the score out of the shake.
+class Score extends ent.Text {
+  static screen = true;
+
+  update() {
+    this.text = String(Math.floor(score.value));
   }
 }
 
@@ -418,7 +408,7 @@ function spec(ctx, b, path, L, along, across, sl, sa, alpha) {
   ctx.restore();
 }
 
-function paint(ctx, b, skin, outer) {
+function paint(ctx, b, tones, outer) {
   const path = sim.outline(b);
 
   const ldx = LIGHT_X - b.cx;
@@ -479,7 +469,7 @@ function paint(ctx, b, skin, outer) {
     ctx.translate(LIGHT_X, LIGHT_Y);
     ctx.scale(k, k);
     ctx.translate(-LIGHT_X, -LIGHT_Y);
-    ctx.fillStyle = skin[i];
+    ctx.fillStyle = tones[i];
     ctx.fill(path);
     ctx.restore();
   }
@@ -549,7 +539,7 @@ class Splat extends ent.Entity {
     this.hotRamp = [];
     for (let i = 0; i <= HOT_STEPS; i++) {
       this.hotRamp.push(
-        color(tone).mix(color(GOLD_SKIN[1]), i / HOT_STEPS).hex,
+        color(tone).mix(color(GOLD_TONES[1]), i / HOT_STEPS).hex,
       );
     }
 
@@ -636,7 +626,13 @@ export function init() {
   ent.reset([Splat, Enemy, Player]);
 
   new Player();
-  new Score();
+  new Score({
+    x: 40,
+    y: 40,
+    size: 54,
+    align: "left top",
+    color: ent.hex(theme(meta)),
+  });
   ent.every(1.5, () => {
     new Enemy();
   });
