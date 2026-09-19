@@ -78,6 +78,7 @@ async function chrome() {
       `--window-size=${WINDOW},${WINDOW}`,
       "--hide-scrollbars",
       "--mute-audio",
+      "--use-mock-keychain",
       "--no-first-run",
       "--no-default-browser-check",
       "--disable-extensions",
@@ -222,7 +223,7 @@ const browser = await chrome();
 const cdp = await connect(browser.port);
 
 const idle = []; // nothing moved: the game waits for a player
-const short = []; // the round ended before a loop's worth of it was recorded
+const short = []; // the round ended before the take did
 let failed = 0;
 for (const game of names) {
   const label = `${game}`.padEnd(12);
@@ -233,19 +234,19 @@ for (const game of names) {
       console.log(`${label} nothing moved: it needs a player`);
       continue;
     }
-    // findLoop goes under MIN_LOOP only when the recording ran past the end of
-    // the round, and what it discarded was the frozen finish screen.
+    // A take is short only when the round ended inside it, and what was
+    // dropped was the frozen finish screen.
     const secs = take.frames / take.fps;
     if (secs < 1) {
       short.push(game);
       console.log(`${label} ${secs.toFixed(1)}s: the round ended at once`);
       continue;
     }
-    if (secs < 3.5) short.push(game);
+    if (take.frames < take.full) short.push(game);
     const path = write(take);
     const pct = Math.round(take.moved * 100);
     console.log(
-      `${label} ${secs.toFixed(1)}s from ${take.from.toFixed(1)}s` +
+      `${label} ${secs.toFixed(1)}s` +
         `${pct < 90 ? ` · ${pct}% moving` : ""} · ${path.split("/").pop()}`,
     );
   } catch (err) {

@@ -1,14 +1,14 @@
 /*
- * rec.js - records a looping clip of the running game, for the gallery card.
+ * rec.js - records a clip of the running game, for the gallery card.
  *
  * dev.html loads this and nothing else does, so it is in no game's bundle. The
  * buttons it draws are DOM, never in the footage, and dev.html's style block is
  * what styles them.
  *
- * A recording is a fixed ten seconds after a countdown, and there is no editor:
- * it is searched for the cut that loops without a visible jump and played back.
- * "keep" downloads a zip of PNG frames that `./task media <game>` turns into
- * media/<game>/card.mp4, .gif and .png.
+ * A recording is a fixed ten seconds after a countdown, and all ten are the
+ * card. The one thing dropped is the frozen finish screen a round that ended
+ * early leaves at the end. "keep" downloads a zip of PNG frames that
+ * `./task media <game>` turns into media/<game>/card.mp4, .gif and .png.
  */
 
 import { zipSync } from "../alma/src/3rdp/fflate.js";
@@ -18,12 +18,8 @@ const FPS = 30; // capture cadence, an exact half of a 60Hz display
 const TAKE = 10; // seconds in a take
 const LEAD = 2; // seconds it counts down before one starts
 const OUT = 512; // exported frame, downscaled from the 1024 canvas
-const TINY = 64; // every frame is also kept this small, for the search
-const SIG = 16; // ... and reduced to this greyscale grid to score a cut
-const MIN_LOOP = 3.5; // seconds the chosen loop has to run for
-const MAX_LOOP = 7;
-const WINDOW = 5; // frames either side of a cut that have to agree
-const TOL = 2.5; // a seam may cost this many ordinary frame steps
+const TINY = 64; // every frame is also kept this small, to compare with
+const SIG = 16; // ... and reduced to this greyscale grid, to compare frames
 
 const TOTAL = TAKE * FPS;
 const STEP = TINY / SIG;
@@ -46,7 +42,7 @@ export function init(scr, game) {
   big = new OffscreenCanvas(OUT, OUT);
   bigCtx = big.getContext("2d");
   bigCtx.imageSmoothingQuality = "high";
-  // The search reads pixels back every frame, so keep this on the CPU.
+  // Every frame is read back off this one, so keep it on the CPU.
   tiny = new OffscreenCanvas(TINY, TINY);
   tinyCtx = tiny.getContext("2d", { willReadFrequently: true });
   tinyCtx.imageSmoothingQuality = "high";
@@ -114,8 +110,8 @@ function dist(p, q) {
   return s;
 }
 
-// How much of the recording changed, as a fraction of its frames. A still
-// board loops perfectly and nothing later can tell that from a real clip.
+// How much of the take changed, as a fraction of its frames. A game that waits
+// for a player records a still board, and this is what tells the two apart.
 export function motion(sig) {
   if (sig.length < 2) return 0;
   let moved = 0;
@@ -125,44 +121,12 @@ export function motion(sig) {
   return moved / (sig.length - 1);
 }
 
-// The clip plays [in, out) and jumps back, so the join is invisible when frame
-// `out` matches frame `in`; scoring WINDOW frames from each stops one
-// coincidental match from being chosen. The join is scored against the
-// recording's own median frame-to-frame difference rather than minimised:
-// anything that changes steadily through the recording, a score counting up or
-// a board filling, separates two frames in proportion to how far apart they are
-// in time, so minimising always returns the shortest clip. The longest cut
-// inside the budget is the one taken.
-export function findLoop(sig, lo, hi) {
-  // A round that ends early leaves the frozen game-over frame repeating. It
-  // breaks the search twice: cutting anywhere inside it scores zero at any
-  // length, and its zero steps lower the median until the budget excludes
-  // everything else.
+// Frames up to where the board stopped: a round that ends early leaves the
+// finish screen repeating to the end of the take, and the card stops before it.
+export function played(sig) {
   let n = sig.length;
   while (n > 1 && dist(sig[n - 2], sig[n - 1]) === 0) n--;
-
-  const steps = [];
-  for (let i = 1; i < n; i++) steps.push(dist(sig[i - 1], sig[i]));
-  steps.sort((a, b) => a - b);
-  // Median, not mean: one screen-clearing frame should not raise the budget.
-  const budget = (steps[steps.length >> 1] ?? 0) * WINDOW * TOL;
-
-  let best = null; // longest cut inside the budget
-  let least = null; // the lowest-scoring one, for when nothing is inside it
-  for (let a = 0; a + lo + WINDOW <= n; a++) {
-    for (let len = lo; len <= hi && a + len + WINDOW <= n; len++) {
-      let d = 0;
-      for (let k = 0; k < WINDOW; k++) d += dist(sig[a + k], sig[a + len + k]);
-      if (least === null || d < least.d) least = { d, in: a, out: a + len };
-      if (d > budget) continue;
-      const gain = best === null ? 1 : len - (best.out - best.in);
-      if (gain > 0 || (gain === 0 && d < best.d)) {
-        best = { d, in: a, out: a + len };
-      }
-    }
-  }
-  // Nothing long enough to loop: return the play without the frozen end.
-  return best ?? least ?? { d: 0, in: 0, out: n };
+  return n;
 }
 
 function record() {
@@ -188,30 +152,20 @@ async function finish() {
   ui.note.textContent = "encoding";
   frames = await Promise.all(frames);
 
-  ui.note.textContent = "finding the loop";
-  // Yield once, so the text is drawn before the search blocks.
-  await new Promise((r) => setTimeout(r, 0));
-  const cut = findLoop(
-    sigs,
-    Math.round(MIN_LOOP * FPS),
-    Math.round(MAX_LOOP * FPS),
-  );
-
-  // The cut and not the whole recording: a round ending at 3s leaves seven
-  // frozen seconds the recording as a whole still counts as movement.
-  const moved = motion(sigs.slice(cut.in, cut.out));
+  const end = played(sigs);
+  const moved = motion(sigs.slice(0, end));
   if (waiting) {
     const hand = waiting;
     waiting = null;
-    hand({ cut, moved });
+    hand({ end, moved });
     return;
   }
-  await showPreview(cut, moved);
+  await showPreview(end, moved);
 }
 
-async function showPreview(cut, moved) {
+async function showPreview(end, moved) {
   const bmp = await Promise.all(
-    frames.slice(cut.in, cut.out).map((b) => createImageBitmap(b)),
+    frames.slice(0, end).map((b) => createImageBitmap(b)),
   );
   state = "preview";
 
@@ -225,8 +179,7 @@ async function showPreview(cut, moved) {
   const pct = Math.round(moved * 100);
   box.querySelector("p").textContent = moved === 0
     ? "nothing moved: ten seconds of an idle game"
-    : `${secs}s · ${bmp.length} frames · from ${(cut.in / FPS).toFixed(1)}s` +
-      (pct < 90 ? ` · ${pct}% moving` : "");
+    : `${secs}s · ${bmp.length} frames` + (pct < 90 ? ` · ${pct}% moving` : "");
   // A recording with no motion is never worth keeping; anything above that is a
   // judgement call, so the number is shown and the button stays enabled.
   ui.keep.disabled = moved === 0;
@@ -248,16 +201,16 @@ async function showPreview(cut, moved) {
     for (const b of bmp) b.close();
     idle();
   };
-  ui.cut = cut;
+  ui.end = end;
 }
 
-// The chosen clip as the bytes of a zip of PNG frames.
-async function zipCut({ in: a, out: b }) {
+// The take as the bytes of a zip of PNG frames.
+async function zipTake(end) {
   const files = {};
-  for (let i = a; i < b; i++) {
+  for (let i = 0; i < end; i++) {
     const buf = new Uint8Array(await frames[i].arrayBuffer());
     // PNG is already deflated, so store it.
-    files[`${String(i - a).padStart(4, "0")}.png`] = [buf, { level: 0 }];
+    files[`${String(i).padStart(4, "0")}.png`] = [buf, { level: 0 }];
   }
   files["fps.txt"] = [new TextEncoder().encode(`${FPS}\n`), { level: 0 }];
   return zipSync(files);
@@ -270,7 +223,7 @@ function zipName() {
 
 async function keep() {
   ui.note.textContent = "zipping";
-  const bytes = await zipCut(ui.cut);
+  const bytes = await zipTake(ui.end);
   const file = zipName();
   const url = URL.createObjectURL(
     new Blob([bytes], { type: "application/zip" }),
@@ -286,7 +239,7 @@ async function keep() {
 }
 
 // One recording with nobody at the keyboard, for tools/record.js, returned as
-// base64 over CDP. A cut with no motion is returned as zip: null, so record.js
+// base64 over CDP. A take with no motion is returned as zip: null, so record.js
 // reports it rather than writing a still card.
 export async function auto() {
   if (state !== "idle") throw new Error(`recorder is ${state}`);
@@ -296,14 +249,14 @@ export async function auto() {
   while (msg() > 0) await new Promise((r) => requestAnimationFrame(r));
   const take = new Promise((r) => (waiting = r));
   record();
-  const { cut, moved } = await take;
-  const bytes = moved === 0 ? null : await zipCut(cut);
+  const { end, moved } = await take;
+  const bytes = moved === 0 ? null : await zipTake(end);
   idle();
   return {
     file: zipName(),
     zip: bytes && await base64(bytes),
-    frames: cut.out - cut.in,
-    from: cut.in / FPS,
+    frames: end,
+    full: TOTAL,
     fps: FPS,
     moved,
   };
