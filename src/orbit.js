@@ -2,26 +2,21 @@
  * orbit, May 2014.
  *
  * The score is inverted, and that is the design: destroying a chunk scores its
- * health once, while a chunk still standing when the turret dies scores its
- * health repeatedly as the level drains, weighted by its ring. A five-health
- * chunk in the third ring is worth 5 destroyed and 45 left alone, so the game
- * is to cut one hole and shoot through it. `finishLevel`'s re-scoring of the
- * same chunk every tick is deliberate, not a bug.
+ * health once, while a chunk left standing scores it again on every tick of the
+ * drain, weighted by its ring. A five-health chunk in the third ring is worth 5
+ * destroyed and 45 left alone, so the game is to cut one hole and shoot through
+ * it.
  *
  * A chunk is a slice of a ring, which is neither shape entity.js collides. In
  * polar coordinates the slice is two comparisons, which is `covers()`.
  *
- * Mashing the flip parks the player at one angle, and parking wins twice: the
+ * Flipping fast parks the player near one angle, and parking wins twice: the
  * outgoing stream then lies along the line the turret fires back down, so the
- * two collinear rays always cross and the player's own bullets eat almost
- * every round, and all of that fire drills a single column, which is the
- * fastest cut. Pressure is what it costs. It is built from a decaying count of
- * presses, so it reads the rate of pressing rather than any position, and it
- * shortens the turret's interval, lengthens the player's reload, and swells
- * the core, which is the only part of it the player can see.
+ * player's own bullets destroy almost every round, and all that fire lands in
+ * one column, which is the fastest way to cut a hole. Pressure is what it
+ * costs, and the swelling core is the only part of it the player can see.
  *
- * Hitstop runs a frame at dt 0 rather than skipping it, so the two places that
- * divide by dt guard against it.
+ * Hitstop runs a frame at dt 0 rather than skipping it.
  */
 
 import * as extra from "./alma/src/utils/extra.js";
@@ -50,35 +45,23 @@ shoot the core; what you leave standing scores
 const WHITE = 0xecebec;
 const BLACK = 0x222222;
 const COLOR = 0x8232cd;
-// Three quarters of the way to the background, so both are nearly invisible.
-const HALFWHITE = mix(WHITE, COLOR, 0.75);
-const HALFBLACK = mix(BLACK, COLOR, 0.75);
 
 const TAU = 2 * Math.PI;
 
-// The point the board all turns about.
 const CX = 512;
 const CY = 512;
 
-// 425, reaching 507 out with the recoil and the shield ring.
+// Reaches 507 out with the recoil and the shield ring.
 const ORBIT = 425;
-const ANGSPEED = Math.PI / 4;
 const SHIELD = 36;
 
 const BSPEED = 640;
 const BR = 13;
 
-// One ring gets a new target angle every REPOINT seconds over the ring count.
 const REPOINT = 12;
 
 // Frames of player angle the turret averages to lead its shot.
 const HISTORY = 60;
-
-// `presses` is how many presses are recent: one adds PRESS, and the count
-// halves every PRESSHALF seconds and stops at 1, so pressing once a second
-// settles near 0.2 and seven a second holds it at 1.
-const PRESS = 0.1;
-const PRESSHALF = 1.4;
 
 // A ring is a pattern and a weight read digit by digit: a pattern digit is how
 // many slots that chunk covers, so the digits sum to the ring's slots, and the
@@ -132,8 +115,10 @@ let player = null;
 let rings = null;
 let presses = 0;
 
-// The three effects read the square, so a flip a second costs almost nothing
-// and the cost climbs steeply from there: five a second is already most of it.
+// `presses` is how recent the flipping is: a press adds 0.1, the count halves
+// every 1.4s and stops at 1, so once a second settles near 0.2 and five a
+// second pins it at 1. The three effects read the square, so one flip a second
+// costs almost nothing and the cost climbs steeply from there.
 function pressure() {
   return presses * presses;
 }
@@ -154,7 +139,8 @@ class Player extends ent.Entity {
     this.gfx.clear().size(2 * SHIELD)
       .fill(WHITE).mt(0, -26).lt(21, 21).lt(0, 9).lt(-21, 21).fill();
     if (this.shield) {
-      this.gfx.line(6, HALFWHITE).circle(0, 0, SHIELD);
+      // Three quarters of the way to the background: the ring is barely there.
+      this.gfx.line(6, mix(WHITE, COLOR, 0.75)).circle(0, 0, SHIELD);
     }
   }
 
@@ -173,11 +159,11 @@ class Player extends ent.Entity {
     const dt = ent.game.time;
     if (ent.game.input.just.act) {
       this.clockwise = !this.clockwise;
-      presses = Math.min(1, presses + PRESS);
+      presses = Math.min(1, presses + 0.1);
     }
-    presses *= Math.pow(0.5, dt / PRESSHALF);
+    presses *= Math.pow(0.5, dt / 1.4);
 
-    this.angle += (this.clockwise ? -ANGSPEED : ANGSPEED) * dt;
+    this.angle += (this.clockwise ? -dt : dt) * Math.PI / 4;
     this.angle = mod(this.angle, TAU);
 
     this.radius = Math.max(ORBIT, this.radius - 107 * dt);
@@ -213,7 +199,7 @@ class Bullet extends ent.Entity {
   }
 
   explode() {
-    this.gfx.cache(2).fill(HALFBLACK).circle(0, 0, 2 * BR);
+    this.gfx.cache(2).fill(mix(BLACK, COLOR, 0.75)).circle(0, 0, 2 * BR);
     this.vel.x = this.vel.y = 0;
     this.gone = 0.05;
   }
@@ -523,8 +509,8 @@ class Enemy extends ent.Entity {
   }
 }
 
-// The drain scores a chunk on every tick, so one left at health h scores
-// h + (h-1) + ... + 1 times one plus its ring index.
+// Scoring the same chunk on every tick is the point: one left at health h
+// scores h + (h-1) + ... + 1 times one plus its ring index.
 function finishLevel() {
   ent.one(Enemy)?.explode();
   delay(0.05);
