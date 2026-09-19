@@ -16,9 +16,10 @@
  * sizes the solver's substep off the frame instead of counting a fixed eight,
  * so the jelly is the same jelly at 60Hz and at 144.
  *
- * Size never comes back on its own. Motes cross the board on one heading a
- * round and the player grows by taking them in, so recovering is somewhere to
- * go rather than something to wait for.
+ * Size never comes back on its own. Under test right now: motes are off, and
+ * the only way back up is wiping out a stain, which is worth a quarter of the
+ * size of the blob that left it. Recovering is going back over board the player has
+ * already been hit on, before the stain fades out from under it.
  *
  * A blob is painted the way blob.js paints one, against a cream board: a
  * short shadow, three flat tones scaled toward a lamp off the top left, one
@@ -62,9 +63,12 @@ const MIN_SIZE = 2;
 const GOLD_SKIN = ["#ffe27a", "#ffc21e", "#d18c00"];
 const RED_SKIN = ["#ff96bd", "#ff3d7f", "#c40d4e"];
 
-// What a blob leaves on the board when it breaks.
-const GOLD_SPLAT = "#ffc21e";
-const RED_SPLAT = "#ff3d7f";
+// What a blob leaves on the board when it breaks. Both blobs are light and
+// saturated, so an enemy's mark is near-black instead of its own pink: a pink
+// stain on a cream board is a small enemy. The player's stays gold, and it
+// lands once, under the finish screen, with nothing left to confuse it with.
+const ENEMY_SPLAT = "#4B3B2A";
+const PLAYER_SPLAT = "#ffc21e";
 
 const sim = new SoftBodies({
   width: 1024,
@@ -233,10 +237,13 @@ class Enemy extends Blob {
     }
 
     if (d < this.size + player.size) {
+      // Read before remove(): chit() can end the round, and the body is gone
+      // by the time the splat is made.
+      const s = this.size;
       this.cash();
-      player.chit(this.size);
+      player.chit(s);
       this.remove();
-      new Splat(RED_SPLAT, this.pos, 560 + this.speed / 4, 24);
+      new Splat(ENEMY_SPLAT, this.pos, 560 + this.speed / 4, 24, s * CLEAN_BACK);
       return;
     }
 
@@ -248,12 +255,18 @@ class Enemy extends Blob {
       ) continue;
 
       if (this.size > e.size) {
-        new Splat(RED_SPLAT, e.pos, 470 + e.speed / 3, 18);
+        new Splat(ENEMY_SPLAT, e.pos, 470 + e.speed / 3, 18, e.size * CLEAN_BACK);
         this.size -= e.size;
         this.tads += e.tads;
         e.remove();
       } else {
-        new Splat(RED_SPLAT, this.pos, 470 + this.speed / 3, 18);
+        new Splat(
+          ENEMY_SPLAT,
+          this.pos,
+          470 + this.speed / 3,
+          18,
+          this.size * CLEAN_BACK,
+        );
         e.size -= this.size;
         e.tads += this.tads;
         this.remove();
@@ -299,7 +312,7 @@ const STRETCH = 2.5;
 const MOTE_R = 9;
 const MOTE_GAIN = 5;
 const MOTE_SPEED = 40;
-const MOTE_EVERY = 2;
+// const MOTE_EVERY = 2;
 
 let drift = { x: 1, y: 0 };
 
@@ -405,7 +418,7 @@ class Player extends Blob {
     // one.js runs the camera whether or not a round is playing, so this one
     // plays out under the finish screen rather than being cut off by it.
     shake(0.7);
-    new Splat(GOLD_SPLAT, this.pos, 980 + this.speed / 4, 60, true);
+    new Splat(PLAYER_SPLAT, this.pos, 980 + this.speed / 4, 60, 0, true);
     this.remove();
     gameOver({ score: true });
   }
@@ -593,28 +606,56 @@ function paint(ctx, b, skin, outer) {
 // A drop travels v0 / SPLAT_DRAG before it stops, so the speeds below read
 // directly as how far the splat throws.
 const SPLAT_DRAG = 6;
+// A drop's radius. Cubed, so the draw sits near the small end and the big one
+// is the exception rather than the size of a drop. The satellite disc carries
+// the shape out past this.
+const DROP_MIN = 3.5;
+const DROP_MAX = 28;
+// Under 1 so the drops compound where they overlap, which is what gives a
+// stain a dark pile and a light edge. At 1 the whole splat is one flat tone
+// and reads as a hole cut in the board rather than paint lying on it.
+const SPLAT_ALPHA = 0.72;
 // Bold for most of its life and then gone quickly, rather than a long pale
-// tail: a half-faded pink on a cream board reads as a smudge.
-// Already half into the board when it lands. At full strength a stain reads as
-// another blob, and what separates the two is that one is paint on the board
-// and the other is a thing on top of it.
-const SPLAT_ALPHA = 0.5;
-// It goes the whole time it is there rather than holding and then dropping:
-// 1 - u^2 is still near full for the first third and has no edge to it.
+// tail: it fades the whole time it is there rather than holding and then
+// dropping, and 1 - u^2 is still near full for the first third.
 const SPLAT_LIFE = 14;
+// What a stain gives back if the player wipes the whole of it, as a share of
+// the size the blob that left it had.
+const CLEAN_BACK = 0.2;
+// A drop that stays under the player clears in 1 / CLEAN_RATE seconds.
+const CLEAN_RATE = 3.6;
+// A drop turns the player's gold while it is being wiped and falls back over
+// this long once the blob is off it. A drop wiped away holds its alpha up
+// until the gold is gone, so what the player took in comes out from behind the
+// blob rather than disappearing under it.
+const CLEAN_FLASH = 0.35;
+// Steps from the stain's colour to gold, held as strings so a drop being
+// cleaned costs no colour arithmetic a frame.
+const HOT_STEPS = 8;
+
+// t of the way from a to b, both #rrggbb.
+function mix(a, b, t) {
+  const x = parseInt(a.slice(1), 16);
+  const y = parseInt(b.slice(1), 16);
+  const c = (sh) => {
+    const u = x >> sh & 255;
+    return Math.round(u + ((y >> sh & 255) - u) * t);
+  };
+  return `rgb(${c(16)}, ${c(8)}, ${c(0)})`;
+}
 
 class Splat extends ent.Entity {
   static layer = 0; // under the blobs: it is on the board, not in the air
 
-  constructor(color, pos, speed, count, settled = false) {
+  constructor(color, pos, speed, count, worth = 0, settled = false) {
     super();
-    this.color = color;
+    this.worth = worth;
     this.drops = [];
     for (let i = 0; i < count; i++) {
       const a = Math.random() * 2 * Math.PI;
       // Squared, so most drops stay near the break and a few carry.
       const v = speed * (0.12 + Math.random() ** 2 * 1.5);
-      const r = 3.5 + Math.random() ** 2.2 * 13;
+      const r = DROP_MIN + Math.random() ** 3 * (DROP_MAX - DROP_MIN);
       const sa = Math.random() * 2 * Math.PI;
       this.drops.push({
         x: pos.x,
@@ -629,6 +670,25 @@ class Splat extends ent.Entity {
         sy: Math.sin(sa) * r * 0.75,
       });
     }
+    // Each drop keeps how much of itself is left and what that much is worth.
+    // The share is by area, so the pile where the blob broke is worth more
+    // than the far drops, and a stain is worth the same whatever the draw.
+    let area = 0;
+    for (const d of this.drops) area += d.r * d.r;
+    for (const d of this.drops) {
+      d.left = 1;
+      d.hot = 0;
+      d.worth = worth * d.r * d.r / area;
+      // How far the drawn drop goes from its centre, which is the satellite's
+      // far edge and not the main disc.
+      d.reach = Math.max(d.r, Math.hypot(d.sx, d.sy) + d.sr);
+    }
+
+    this.hotRamp = [];
+    for (let i = 0; i <= HOT_STEPS; i++) {
+      this.hotRamp.push(mix(color, GOLD_SKIN[1], i / HOT_STEPS));
+    }
+
     // gameOver() stops update(), so a splat thrown by the killing hit would
     // stand where it was thrown. v0 / SPLAT_DRAG is exactly where a drop ends
     // up, so the round's last splat is laid down already landed.
@@ -642,22 +702,55 @@ class Splat extends ent.Entity {
 
   update() {
     const k = Math.exp(-SPLAT_DRAG * ent.game.time);
-    for (const d of this.drops) {
+    const cool = ent.game.time / CLEAN_FLASH;
+    // Backwards: a drop with no ink and no gold left is done with. The cooling
+    // runs before clean(), so a drop wiped this frame is hot going into the
+    // next one.
+    for (let i = this.drops.length - 1; i >= 0; i--) {
+      const d = this.drops[i];
       d.x += d.vx * ent.game.time;
       d.y += d.vy * ent.game.time;
       d.vx *= k;
       d.vy *= k;
+      d.hot = Math.max(0, d.hot - cool);
+      if (d.left <= 0 && d.hot <= 0) this.drops.splice(i, 1);
     }
-    if (this.age > SPLAT_LIFE) this.remove();
+    this.clean();
+    if (this.drops.length === 0 || this.age > SPLAT_LIFE) this.remove();
+  }
+
+  // A drop the player is over clears, and what clears of it comes back as
+  // size. The two overlapping is the test, rather than the drop's centre
+  // being under the blob: a blob worn down to MIN_SIZE fits inside a big drop
+  // without ever reaching its middle, and cleaning is what a small blob is
+  // there to do.
+  clean() {
+    if (this.worth === 0) return;
+    const player = ent.one(Player);
+    if (player === null) return;
+
+    const wipe = CLEAN_RATE * ent.game.time;
+    let gain = 0;
+    for (const d of this.drops) {
+      if (d.left <= 0) continue;
+      const dist = Math.hypot(d.x - player.pos.x, d.y - player.pos.y);
+      if (dist > player.size + d.reach) continue;
+      const off = Math.min(d.left, wipe);
+      d.left -= off;
+      gain += d.worth * off;
+      d.hot = 1;
+    }
+    if (gain > 0) player.size += gain;
   }
 
   // The drops carry board positions and `pos` stays at the origin, so there
   // is nothing to undo here.
   render(ctx) {
     const u = Math.min(1, this.age / SPLAT_LIFE);
-    ctx.globalAlpha = SPLAT_ALPHA * (1 - u * u);
-    ctx.fillStyle = this.color;
+    const alpha = SPLAT_ALPHA * (1 - u * u);
     for (const d of this.drops) {
+      ctx.globalAlpha = alpha * Math.max(d.left, d.hot);
+      ctx.fillStyle = this.hotRamp[Math.round(d.hot * HOT_STEPS)];
       ctx.beginPath();
       ctx.arc(d.x, d.y, d.r, 0, 2 * Math.PI);
       ctx.fill();
@@ -699,9 +792,10 @@ export function init() {
   ent.every(1.5, () => {
     new Enemy();
   });
-  ent.every(MOTE_EVERY, () => {
-    new Mote();
-  });
+  // Under test: no motes, so cleaning a stain is the only way size comes back.
+  // ent.every(MOTE_EVERY, () => {
+  //   new Mote();
+  // });
   sim.measure();
 }
 
