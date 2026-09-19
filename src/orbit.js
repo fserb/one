@@ -182,20 +182,40 @@ class Player extends ent.Entity {
   }
 }
 
-class Bullet extends ent.Entity {
-  constructor(x, y, angle) {
+// A round in flight, either side's: a disc for the first frames, the drawn
+// shape after that, and removed at the edge of the board. The two differ in
+// their colour and in what they test against.
+class Shot extends ent.Entity {
+  constructor(x, y, angle, color) {
     super();
+    this.color = color;
     this.pos.x = x;
     this.pos.y = y;
     this.angle = angle;
     this.vel.x = BSPEED * Math.cos(angle - Math.PI / 2);
     this.vel.y = BSPEED * Math.sin(angle - Math.PI / 2);
-    // Seconds left of the puff. Zero while the bullet is live.
-    this.gone = 0;
     this.hitCircle(BR);
     // Built in the constructor, not begin(): a group is rendered with whatever
     // the constructor added this frame.
-    this.gfx.cache(0).fill(WHITE).circle(0, 0, BR);
+    this.gfx.cache(0).fill(color).circle(0, 0, BR);
+  }
+
+  update() {
+    const { x, y } = this.pos;
+    if (x < 0 || y < 0 || x > 1024 || y > 1024) return this.remove();
+
+    if (this.age > 0.06) {
+      this.gfx.cache(1).fill(this.color)
+        .mt(0, -13).lt(-6, 9).lt(-6, 13).lt(6, 13).lt(6, 9);
+    }
+  }
+}
+
+class Bullet extends Shot {
+  constructor(x, y, angle) {
+    super(x, y, angle, WHITE);
+    // Seconds left of the puff. Zero while the bullet is live.
+    this.gone = 0;
   }
 
   explode() {
@@ -211,13 +231,8 @@ class Bullet extends ent.Entity {
       return;
     }
 
-    const { x, y } = this.pos;
-    if (x < 0 || y < 0 || x > 1024 || y > 1024) return this.remove();
-
-    if (this.age > 0.06) {
-      this.gfx.cache(1).fill(WHITE)
-        .mt(0, -13).lt(-6, 9).lt(-6, 13).lt(6, 13).lt(6, 9);
-    }
+    super.update();
+    if (this.dead) return;
 
     const e = ent.one(Enemy);
     if (e !== null && this.hit(e)) {
@@ -227,26 +242,14 @@ class Bullet extends ent.Entity {
   }
 }
 
-class EnemyBullet extends ent.Entity {
+class EnemyBullet extends Shot {
   constructor(angle) {
-    super();
-    this.pos.x = CX;
-    this.pos.y = CY;
-    this.angle = angle;
-    this.vel.x = BSPEED * Math.cos(angle - Math.PI / 2);
-    this.vel.y = BSPEED * Math.sin(angle - Math.PI / 2);
-    this.hitCircle(BR);
-    this.gfx.cache(0).fill(BLACK).circle(0, 0, BR);
+    super(CX, CY, angle, BLACK);
   }
 
   update() {
-    const { x, y } = this.pos;
-    if (x < 0 || y < 0 || x > 1024 || y > 1024) return this.remove();
-
-    if (this.age > 0.06) {
-      this.gfx.cache(1).fill(BLACK)
-        .mt(0, -13).lt(-6, 9).lt(-6, 13).lt(6, 13).lt(6, 9);
-    }
+    super.update();
+    if (this.dead) return;
 
     if (player !== null && this.hit(player)) {
       this.remove();
@@ -443,7 +446,7 @@ class Enemy extends ent.Entity {
     this.past = [];
     this.pos.x = CX;
     this.pos.y = CY;
-    // Facing away, so the barrel has half a turn to swing before it can fire.
+    // Facing away, so the turret has half a turn to make before it can fire.
     this.angle = (player?.angle ?? 0) + Math.PI;
     this.hitCircle(36);
     // Background colour, drawing nothing: it keeps the box on the body.
@@ -494,7 +497,7 @@ class Enemy extends ent.Entity {
     this.bulletDelay = Math.max(0.1, this.bulletDelay - 0.1 * dt / 30);
     this.scale = 1 + 0.3 * pressure();
 
-    // Damping that never quite settles, so the barrel oscillates around the
+    // Damping that never quite settles, so the turret oscillates around the
     // player rather than tracking them.
     const t = turn(this.angle, aim);
     if (t !== 0) this.angvel += Math.sign(t) * 10 * dt;
