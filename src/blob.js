@@ -31,7 +31,7 @@ two of a kind make the next one up
   bg: "#14171c",
   fg: "#8a9ab4",
   scoreMax: true,
-  date: "2026-09-10",
+  date: "2026-09-01",
   draft: true,
 };
 

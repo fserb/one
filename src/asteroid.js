@@ -29,7 +29,7 @@ time crawls until you thrust or shoot
   bg: "#BF1B25",
   fg: "#FFFFFF",
   scoreMax: true,
-  date: "2014-04-03",
+  date: "2014-04-05",
   dpad: true,
 };
 
