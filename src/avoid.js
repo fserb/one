@@ -1,27 +1,4 @@
-/*
- * avoid. Based on Aba Games' Satellite Catch.
- *
- * Every blob is a soft body in alma's solver, in free space: no field, no
- * gravity, no solver drag. The solver owns the positions, so `pos` is copied
- * off the centroid and `vel` stays at zero; `size` is a getter over the body's
- * scale, and setScale() relaxes the ring into a new size over the next
- * substeps, which is the squash. Every number here is a rate a second, and
- * update() sizes the substep off the frame rather than counting a fixed eight,
- * so a blob deforms the same at 60Hz and at 144.
- *
- * An enemy is two flat draws. `chase` sets the radius it turns on and its
- * colour together: red turns inside the player's own size, pink on near a
- * third of the board. Size is the other, and speed times size is one constant
- * times ramp(), so the small ones are the fast ones. Its velocity relaxes
- * toward top speed straight at the player, and nothing else steers it.
- *
- * Size never comes back on its own: the way back up is wiping a stain off the
- * board before it fades.
- *
- * A blob is painted the way blob.js paints one: a short shadow, three flat
- * tones scaled toward a lamp off the top left, one broad specular, and a white
- * rim stroked inside the clip. Nothing here is a gradient.
- */
+// avoid. Based on Aba Games' Satellite Catch.
 
 import color from "./alma/src/color.js";
 import { SoftBodies } from "./alma/src/softbody.js";
@@ -48,8 +25,7 @@ const R = 7;
 const MAX_SIZE = 300;
 const MIN_SIZE = 2;
 
-// Three flat tones a blob, lit to dark. The two ends an enemy is drawn
-// between: red turns, pink runs.
+// Lit to dark.
 const GOLD_TONES = ["#ffe27a", "#ffc21e", "#d18c00"];
 const PINK_TONES = ["#ff96bd", "#ff3d7f", "#c40d4e"];
 const RED_TONES = ["#ff8a72", "#ee2a18", "#9e0d06"];
@@ -78,12 +54,10 @@ function ringOf(n) {
 const LIGHT_X = -220;
 const LIGHT_Y = -260;
 
-// Four fills at 0.055 compound to 0.20 at the core; blob's eight sit on cream
-// as a grey ring.
+// Four fills at 0.055 compound to 0.20 at the core.
 const SHADOW_STEPS = 4;
 
-// The body is built here and not in begin(): core.js draws an entity from the
-// frame it is constructed.
+// Built here, not in begin(): entity.js draws from the frame a body is made.
 class Blob extends ent.Entity {
   constructor(size, x, y) {
     super();
@@ -133,8 +107,6 @@ class Blob extends ent.Entity {
   }
 }
 
-// Off one of the four edges by its own size and a margin, which stays well
-// inside the 200 the out-of-bounds check allows.
 function offBoard(size) {
   const m = size + 24;
   const u = Math.random() * 1024;
@@ -152,15 +124,11 @@ function offBoard(size) {
 
 class Enemy extends Blob {
   constructor() {
-    // 16 to 46 across: what it costs to touch one, and through SPEED_SIZE how
-    // fast it comes at you.
     const size = 16 + Math.random() * 30;
     const at = offBoard(size);
     super(size, at.x, at.y);
     this.tads = 0;
 
-    // Fixed at birth, so one born later is faster than one the same size born
-    // at the start, and one that loses size in a collision runs faster for it.
     this.speedSize = SPEED_SIZE * ramp();
     const chase = Math.random();
     this.turn = TURN_WIDE + (TURN_TIGHT - TURN_WIDE) * chase;
@@ -168,8 +136,6 @@ class Enemy extends Blob {
       color(c).mix(color(RED_TONES[i]), chase).hex
     );
 
-    // Already up to speed: a wide turner would spend its first seconds
-    // gathering it off the board, where nobody can see it happen.
     const top = this.speedSize / size;
     const dx = 512 - at.x;
     const dy = 512 - at.y;
@@ -183,9 +149,7 @@ class Enemy extends Blob {
     const player = ent.one(Player);
     if (player === null) return;
 
-    // The whole of the motion. Exact over the frame, so the speed it holds and
-    // the radius it turns on do not move with the frame rate, and the mean
-    // only, so the wobble the ring carries is left alone.
+    // Exact over the frame, so the turn radius does not move with frame rate.
     const b = this.body;
     const top = this.speedSize / this.size;
     const dx = player.pos.x - this.pos.x;
@@ -196,14 +160,12 @@ class Enemy extends Blob {
       sim.pushBody(b, (dx / d * top - b.mvx) * k, (dy / d * top - b.mvy) * k);
     }
 
-    // Points accrue while close without touching, so a near miss scores. The
-    // trunc is the threshold: a step's worth has to reach 1.
+    // The trunc is the threshold: a step's worth has to reach 1.
     const gap = d - this.size - player.size;
     const ads = Math.trunc((this.size + player.size) * 2 / (gap + 0.2));
     if (ads > 0) this.tads += ads * 60 * ent.game.time;
     else this.cash();
 
-    // Both rings dent where they face each other, and neither body moves.
     if (gap > 0 && gap < this.size + player.size) {
       const k = 54000 * this.size / (gap + this.size);
       dent(this.body, player.pos.x, player.pos.y, k);
@@ -230,7 +192,6 @@ class Enemy extends Blob {
       return;
     }
 
-    // The bigger of two that touch takes the smaller's points and its size.
     for (const e of ent.get(Enemy)) {
       if (e === this || e.dead) continue;
       if (
@@ -265,23 +226,19 @@ class Enemy extends Blob {
   }
 }
 
-// Top speed times size, at ramp() 1: a 31 across runs 240 a second, so the
-// range is 162 to 465 at the start of a round and 330 to 949 three minutes in.
+// Top speed times size: one 31 across runs 240 a second.
 const SPEED_SIZE = 240 * 31;
 
-// The radius an enemy turns on at its own top speed. Radii and not rates: a
-// fast enemy is given whatever rate holds the radius.
+// The radius an enemy turns on at its own top speed, not a rate.
 const TURN_TIGHT = 40;
 const TURN_WIDE = 300;
 
-// Tight enough that the blob is under the pointer at a graze distance.
 const FOLLOW = 26;
 
 class Player extends Blob {
   constructor() {
     super(53, 512, 512);
-    // The last place over the board the pointer was, since it starts wherever
-    // the cursor happens to be and that is often off the board entirely.
+    // The last place over the board the pointer was; it can start off it.
     this.aim = { x: 512, y: 512 };
   }
 
@@ -307,16 +264,14 @@ class Player extends Blob {
   }
 
   chit(s) {
-    // shake() reads its size off the duration, so the biggest enemy on the
-    // board hits about twice as hard as the smallest.
+    // shake() reads its size off the duration.
     shake(0.18 + 0.22 * Math.min(1, s / 47));
     const left = this.size - s;
     if (left > MIN_SIZE) {
       this.size = left;
       return;
     }
-    // one.js runs the camera whether or not a round is playing, so this plays
-    // out under the finish screen rather than being cut off by it.
+    // one.js runs the camera whether or not a round is playing.
     shake(0.7);
     new Splat(GOLD_TONES[1], this.pos, 980 + this.speed / 4, 60, 0, true);
     this.remove();
@@ -324,10 +279,8 @@ class Player extends Blob {
   }
 }
 
-// How both deformations below are applied: `at` writes the impulse for the ring
-// point (rx, ry) off the centroid into `imp`, and the mean is taken back out, so
-// the ring changes shape and the body keeps its velocity. One `imp` and not a
-// returned pair, which would allocate per point.
+// `at` writes the impulse for ring point (rx, ry) into `imp`, and the mean is
+// taken back out, so the ring changes shape and the body keeps its velocity.
 const imp = { x: 0, y: 0 };
 
 function deform(b, at) {
@@ -351,8 +304,6 @@ function deform(b, at) {
   }
 }
 
-// Out along the way it is going and in across it, scaled by speed over radius,
-// so it is the same shape at any size.
 function stretch(b, rate) {
   const sp = Math.hypot(b.mvx, b.mvy);
   const rad = b.restRadius * b.scale;
@@ -367,8 +318,7 @@ function stretch(b, rate) {
   });
 }
 
-// The facing arc pulls in, with a magnitude falling off as 1/d², so only
-// the near arc moves. The d³ is that over the length of (dx, dy).
+// Falls off as 1/d², so only the near arc moves; the d³ is that over (dx, dy).
 function dent(b, ox, oy, rate) {
   const k = rate * ent.game.time;
   deform(b, (rx, ry) => {
@@ -390,7 +340,6 @@ class Score extends ent.Text {
   }
 }
 
-// The body path scaled about the centroid, offset onto the lit face.
 function spec(ctx, b, path, L, along, across, sl, sa, alpha) {
   const { cx, cy } = b;
   ctx.save();
@@ -412,7 +361,6 @@ function paint(ctx, b, tones, outer) {
   const llen = Math.hypot(ldx, ldy) || 1;
   const L = { x: ldx / llen, y: ldy / llen, a: Math.atan2(ldy, ldx) };
 
-  // Extent along the light axis and across it.
   const { px, py } = sim;
   let lo = Infinity;
   let hi = -Infinity;
@@ -456,7 +404,6 @@ function paint(ctx, b, tones, outer) {
   ctx.save();
   ctx.clip(path);
 
-  // Darkest first, scaled toward the lamp, so the sides narrow with distance.
   const far = llen - lo + rad; // lamp to the blob's far edge, along the axis
   const steps = [0, Math.max(3.5, 0.020 * span), 0.28 * span];
   for (let i = 0; i < steps.length; i++) {
@@ -479,23 +426,17 @@ function paint(ctx, b, tones, outer) {
   ctx.restore();
 }
 
-// The mark left behind and not confetti: a drop keeps its colour where it
-// stops and the whole splat fades together, well after the last one has
-// landed. Its own class and not ent.Particle, whose alpha is the same number
-// that slows a particle. A drop travels v0 / SPLAT_DRAG before it stops, so
-// the speeds a splat is given read as how far it throws.
+// A drop travels v0 / SPLAT_DRAG before it stops.
 const SPLAT_DRAG = 6;
-// 1 - u^2, near full for the first third: bold, then gone quickly.
 const SPLAT_LIFE = 14;
 // What a whole stain gives back, as a share of the blob that left it.
 const CLEAN_BACK = 0.2;
 // A drop that stays under the player clears in 1 / CLEAN_RATE seconds.
 const CLEAN_RATE = 3.6;
-// Held as strings, so a drop costs no colour arithmetic a frame.
 const HOT_STEPS = 8;
 
 class Splat extends ent.Entity {
-  static layer = 0; // under the blobs: it is on the board, not in the air
+  static layer = 0;
 
   constructor(tone, pos, speed, count, worth = 0, settled = false) {
     super();
@@ -503,9 +444,7 @@ class Splat extends ent.Entity {
     this.drops = [];
     for (let i = 0; i < count; i++) {
       const a = Math.random() * 2 * Math.PI;
-      // Squared, so most drops stay near the break and a few carry.
       const v = speed * (0.12 + Math.random() ** 2 * 1.5);
-      // 3.5 to 28, cubed, so a big drop is the exception.
       const r = 3.5 + Math.random() ** 3 * 24.5;
       const sa = Math.random() * 2 * Math.PI;
       this.drops.push({
@@ -514,14 +453,11 @@ class Splat extends ent.Entity {
         vx: Math.cos(a) * v,
         vy: Math.sin(a) * v,
         r,
-        // Two overlapping circles read as one torn edge, a dot does not.
         sr: r * (0.45 + Math.random() * 0.3),
         sx: Math.cos(sa) * r * 0.75,
         sy: Math.sin(sa) * r * 0.75,
       });
     }
-    // The share is by area, so a stain is worth the same whatever the draw
-    // gave it.
     let area = 0;
     for (const d of this.drops) area += d.r * d.r;
     for (const d of this.drops) {
@@ -539,8 +475,7 @@ class Splat extends ent.Entity {
       );
     }
 
-    // gameOver() stops update(), so the round's last splat is laid down
-    // already landed.
+    // gameOver() stops update(), so the last splat is laid down landed.
     if (!settled) return;
     for (const d of this.drops) {
       d.x += d.vx / SPLAT_DRAG;
@@ -551,11 +486,8 @@ class Splat extends ent.Entity {
 
   update() {
     const k = Math.exp(-SPLAT_DRAG * ent.game.time);
-    // A wiped drop goes gold and falls back over 0.35s, holding its alpha up
-    // while it does, so what the player took in comes out from behind the blob.
     const cool = ent.game.time / 0.35;
-    // Cooling before clean(), so a drop wiped this frame is hot going into the
-    // next.
+    // Cooling before clean(), so a drop wiped this frame is hot next frame.
     for (let i = this.drops.length - 1; i >= 0; i--) {
       const d = this.drops[i];
       d.x += d.vx * ent.game.time;
@@ -569,8 +501,7 @@ class Splat extends ent.Entity {
     if (this.drops.length === 0 || this.age > SPLAT_LIFE) this.remove();
   }
 
-  // Overlap and not the drop's centre under the blob: a blob worn to MIN_SIZE
-  // fits inside a big drop without reaching its middle.
+  // Overlap and not the centre: a blob at MIN_SIZE fits inside a big drop.
   clean() {
     if (this.worth === 0) return;
     const player = ent.one(Player);
@@ -593,7 +524,6 @@ class Splat extends ent.Entity {
   // The drops carry board positions, so there is nothing to undo here.
   render(ctx) {
     const u = Math.min(1, this.age / SPLAT_LIFE);
-    // Under 1 so drops compound where they overlap: a dark pile, a light edge.
     const alpha = 0.72 * (1 - u * u);
     for (const d of this.drops) {
       ctx.globalAlpha = alpha * Math.max(d.left, d.hot);
@@ -636,12 +566,10 @@ export function init() {
 }
 
 export function update(dt) {
-  // A longer frame is solved short rather than whole, or one step carries a
-  // blob further than its own radius, through everything it should have hit.
+  // A longer frame is solved short, or a step carries a blob past its radius.
   dt = Math.min(dt, 1 / 30);
-  // The solver's constraints are projections, so their stiffness over a second
-  // is the substep count times the steps in it. 480 a second rather than a
-  // fixed count holds that still at any frame length.
+  // The constraints are projections, so stiffness over a second is the substep
+  // count times the steps in it; 480 a second holds it at any frame length.
   sim.substeps = Math.max(2, Math.min(24, Math.round(dt * 480)));
   step(dt);
 }

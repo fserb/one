@@ -1,18 +1,4 @@
-/*
- * asteroid - "Super Hot Asteroid", April 2014. Atari's Asteroids combined with
- * SUPERHOT.
- *
- * Time runs at a fiftieth of its speed unless you are thrusting or shooting.
- * Turning always runs at real time, so a board at a fiftieth speed is a place
- * to aim from, and the score is seconds of running clock plus 2 a rock and 10 a
- * ship.
- *
- * Both spawn clocks are divided by one.js's ramp read on that running clock and
- * not on the wall clock, so aiming at a fiftieth speed costs nothing.
- *
- * Both ships collide as their own triangle: at a fiftieth speed you watch the
- * bullet arrive and can see which. entity.js gained hitPoly() for this game.
- */
+// asteroid - "Super Hot Asteroid", April 2014. Atari's Asteroids and SUPERHOT.
 
 import * as ent from "./lib/entity.js";
 import { shake } from "./lib/camera.js";
@@ -36,8 +22,7 @@ const BLACK = 0x000000;
 
 const TAU = 2 * Math.PI;
 
-// dart()'s shape, moved from the corner of the sprite's 52x52 box onto the
-// centre gfx draws it about.
+// dart()'s shape, moved off the 52x52 box's corner onto the centre gfx uses.
 const SHIP = [-26, -26, 26, 0, -26, 26];
 const MUZZLE = 21;
 
@@ -50,14 +35,13 @@ const RECOIL = 75;
 
 const SHOT_SPEED = 640;
 
-// Only a rock this big splits, so the halves it leaves are the end of it.
 const ROCK_MIN = 64;
 const ROCK_SPEED = 215;
 
 const CONE = Math.PI / 6;
 
 let realtime = 0;
-// Seconds of running clock: the ramp is read off this, not off one.js's `time`.
+// Seconds of running clock; the ramp reads this, not one.js's time.
 let clock = 0;
 let rockTime = 0;
 let waveTime = 0;
@@ -99,8 +83,7 @@ class Player extends ent.Entity {
 }
 
 class Bullet extends ent.Entity {
-  // In the constructor, not begin(): it leaves along the firer's heading at the
-  // moment of firing, and by the next frame an enemy has turned off it.
+  // In the constructor, not begin(): it leaves along the heading at fire time.
   constructor(src, fromPlayer) {
     super();
     this.fromPlayer = fromPlayer;
@@ -121,7 +104,6 @@ class Bullet extends ent.Entity {
 
     wrap(this, 0);
 
-    // The only response to a bullet on its way that does not cost clock time.
     for (const b of ent.get(Bullet)) {
       if (b.fromPlayer === this.fromPlayer || !this.hit(b)) continue;
       play.hit();
@@ -146,7 +128,6 @@ class Target extends ent.Entity {
 }
 
 class Rock extends Target {
-  // A fresh rock drifts in off an edge, a split one is placed by its parent.
   constructor(size, x, y, angle, speed) {
     super();
     this.size = size;
@@ -176,7 +157,6 @@ class Rock extends Target {
         duration: [1.5, 0.5],
       });
 
-      // Sideways to the shot, so a rock splits along the line you fired down.
       if (this.size >= ROCK_MIN) {
         const half = this.size / 2;
         split(this.pos, half, b.angle + Math.PI / 2);
@@ -210,8 +190,7 @@ class Enemy extends Target {
     this.angle = Math.atan2(y - this.pos.y, x - this.pos.x);
   }
 
-  // Pulled towards the player by age: a fresh ship wanders, one ten seconds old
-  // flies three quarters of the way at you.
+  // Pulled toward the player by age: three quarters of the way at ten seconds.
   findTarget() {
     const x = 1024 * Math.random();
     const y = 1024 * Math.random();
@@ -247,8 +226,7 @@ class Enemy extends Target {
       let dx = tx;
       let dy = ty;
       if (speed > 0 && this.vel.x * tx + this.vel.y * ty > 0) {
-        // Mirror the heading about the line to the target, so a drift one way
-        // is answered by as much push the other. The overshoot is the weave.
+        // Mirror about the line to the target; the overshoot is the weave.
         const l = Math.hypot(tx, ty);
         const nx = tx / l;
         const ny = ty / l;
@@ -313,8 +291,7 @@ function fire(e, fromPlayer, shoot, detune = 0) {
   shoot({ detune });
 }
 
-// Turns `e` towards `to`, returning how far off it was before the turn, which
-// is what the enemy reads to decide whether to thrust.
+// Returns how far off `e` was before the turn.
 function steer(e, to, rate) {
   const off = fold(to - e.angle);
   const step = rate * ent.game.time;
@@ -322,8 +299,7 @@ function steer(e, to, rate) {
   return Math.abs(off);
 }
 
-// A ship sits inside its own shot for its first frames, so only the other
-// side's bullets count.
+// A ship sits inside its own shot for its first frames.
 function incoming(e, fromPlayer) {
   for (const b of ent.get(Bullet)) {
     if (b.fromPlayer === fromPlayer && e.hit(b)) return b;
@@ -331,7 +307,6 @@ function incoming(e, fromPlayer) {
   return null;
 }
 
-// The title and the score alternate, a second each, once the ship is hit.
 class Banner extends ent.Entity {
   render(ctx) {
     ctx.fillStyle = ent.css(WHITE);
@@ -423,8 +398,7 @@ export function init() {
 export function update(dt) {
   realtime = dt;
 
-  // Nothing spawns and nothing scores once the ship is hit; explode()'s timer
-  // ends the round.
+  // explode()'s timer ends the round.
   if (player === null) return ent.update(dt);
 
   const { input } = ent.game;
@@ -442,8 +416,7 @@ export function update(dt) {
   if (waveTime <= 0) {
     const n = Math.floor(wave);
     for (let i = 0; i < n; ++i) new Enemy();
-    // Each wave is a tenth bigger than the last, and the fraction carries until
-    // it adds a ship.
+    // A tenth bigger each wave; the fraction carries until it adds a ship.
     waveTime += 5 * n / hard;
     wave *= 1.1;
   }

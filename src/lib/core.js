@@ -121,12 +121,6 @@ export class Entity {
     this.dead = true;
   }
 
-  xy(x, y) {
-    this.pos.x = x;
-    this.pos.y = y;
-    return this;
-  }
-
   accelerate(x, y) {
     this.acc.x += x;
     this.acc.y += y;

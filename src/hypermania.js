@@ -1,19 +1,4 @@
-/*
- * hypermania.
- *
- * Megamania on a time limit. The orange bar is both the timer and the
- * ammunition: it drains on its own, every shot takes half a point off it, and
- * at zero the ship is destroyed. Clearing a wave spends what is left for score,
- * two points per energy point per wave already cleared, then refills it. The
- * score is what you did not spend clearing.
- *
- * Eight formations rotate, four crossing and four falling, and every eight
- * waves a timing pattern runs the formation in bursts of up to three times
- * speed. Hits chain: a kill is worth (waves + 1) times the length of its chain.
- *
- * The shooter is chosen at random from the enemies on screen: if each bullet
- * came down your own column there would be nothing to do but dodge.
- */
+// hypermania. Megamania on a time limit.
 
 import * as ent from "./lib/entity.js";
 import { delay } from "./lib/effects.js";
@@ -27,8 +12,7 @@ export const meta = {
   title: "hypermania",
   bg: "#04a2fc",
   fg: "#024972",
-  // The board is light enough that overlay.js would put black over it; white is
-  // what the ship and the enemies are drawn in.
+  // overlay.js would put black on a board this light.
   overlay: "#ffffff",
   scoreMax: true,
   date: "2014-04-13",
@@ -46,22 +30,18 @@ const ORANGE = 0xe65205;
 const BARH = 105;
 const BOT = 1024 - BARH;
 
-// The gauge starts 87 in, where it sat when it was centred in the bar, and ends
-// at 896 rather than 937: the panel past it is the total's, not spare room.
+// Ends at 896 and not 937: the panel past it is the total's.
 const EX = 87;
 const EW = 809;
 const EH = 26;
 
 // Rests 60 above the bar, drops to 21 on the recoil, climbs back at 215.
 const PY = BOT - 60;
-// Never closer to a side than this.
 const PX = 38;
 
-// A shot leaves from above the ship whatever the recoil is doing.
 const SHOTY = PY - 38;
 
-// An enemy leaving one side is already in place at the other, wrapping 11 past
-// the foot of the field.
+// An enemy leaving one side is already in place at the other.
 const BANDX = 1024 + 64;
 const BANDY = 917;
 
@@ -71,9 +51,8 @@ const PIXEL = 13;
 
 const WHITEOUT = 0.1;
 
-// `across` spawns w by h off the left edge and moves them right; the other
-// spawns a column every dx and moves them down. At t == 0, `xmove(row, t)` is
-// not a speed but that row's spawn offset, which is what spawn() reads it for.
+// `across` spawns w by h off the left edge; the other a column every dx. At
+// t == 0, `xmove(row, t)` is not a speed but that row's spawn offset.
 const STRATS = [
   {
     spawn: { across: true, w: 5, h: 3, dy: 107 },
@@ -130,8 +109,7 @@ const STRATS = [
   },
 ];
 
-// Extra substeps the formation takes this frame, on top of its ten: 20 is three
-// times speed and -2 is four fifths of it.
+// Extra substeps on top of the formation's ten: 20 is three times speed.
 const TICKERS = [
   () => 0,
   (t) => Math.trunc(t) % 2 === 0 ? 0 : 10,
@@ -161,7 +139,6 @@ class Bar extends ent.Entity {
   }
 
   update() {
-    // Frame and gauge in one entity: three rectangles a frame is cheap.
     const y = BOT + (BARH - EH) / 2 - this.pos.y;
     const left = Math.max(0, energy) / 100;
     this.gfx.clear()
@@ -171,15 +148,8 @@ class Bar extends ent.Entity {
   }
 }
 
-// The running total, in the panel past the right end of the gauge. It grows
-// leftwards off a right edge 24 short of the board's, so the digits already
-// drawn do not shift when one is added, and six of them clear the gauge with
-// room.
-//
-// It does not jump to the score: each second it closes twice the distance it is
-// behind, and 20 a second when that is slower, so a kill rolls the last digits
-// for a moment and a whole bar spent runs them for a couple of seconds after
-// the spending stops.
+// It grows leftwards off a right edge 24 short of the board's, so the digits
+// already drawn do not shift when one is added.
 class Total extends ent.Text {
   static screen = true;
 
@@ -187,8 +157,7 @@ class Total extends ent.Text {
     super({
       text: "0",
       x: 1024 - 24,
-      // 2 down: the text sits by its em box, and digits with no descender sit
-      // high in it.
+      // 2 down: digits with no descender sit high in the em box.
       y: BOT + BARH / 2 + 2,
       size: 26,
       color: ORANGE,
@@ -217,8 +186,7 @@ class Player extends ent.Entity {
     this.pos.y = PY;
     this.bullet = null;
     this.combo = 0;
-    // Steered by the pointer until an arrow key is pressed, and by the keys
-    // until the pointer moves again. `lastx` is how a move is noticed.
+    // Pointer until an arrow key, keys until the pointer moves again.
     this.aiming = false;
     this.lastx = null;
     this.hitBox(48, 72);
@@ -281,8 +249,7 @@ class Player extends ent.Entity {
     if (input.press.left) this.pos.x -= step;
     else if (input.press.right) this.pos.x += step;
     else if (this.aiming) {
-      // A place, not a direction: it stops under the pointer, and at the same
-      // speed the keys walk it, so the mouse dodges no faster than the keys.
+      // A place, not a direction, and at the speed the keys walk it.
       const d = input.x - this.pos.x;
       this.pos.x += Math.abs(d) <= step ? d : Math.sign(d) * step;
     }
@@ -331,7 +298,6 @@ class EnemyBullet extends ent.Entity {
     if (this.hit(player.bullet)) {
       shake(0.1);
       player.bullet.explode(true);
-      // Shot down: white, held, and harmless on the way.
       this.clearHits();
       this.gfx.clear().fill(WHITE).rect(-4, -12, 8, 24);
       ent.after(WHITEOUT, () => this.remove());
@@ -432,8 +398,7 @@ class Enemy extends ent.Entity {
   }
 }
 
-// It owns its enemies rather than reading them back out of the group: an enemy
-// has no velocity, only a place in the pattern.
+// It owns its enemies: an enemy has no velocity, only a place in the pattern.
 class Wave extends ent.Entity {
   // Not begin(): the wave is built and pushed off its entry edge in one call.
   constructor() {
@@ -450,7 +415,6 @@ class Wave extends ent.Entity {
     const add = (row, x, y) => this.all.push(new Enemy(row, x, y, sprite, this));
 
     if (across) {
-      // Rows every dy, a screen wide, odd ones half a gap over.
       const gap = BANDX / w;
       for (let y = 0; y < h; ++y) {
         for (let x = 0; x < w; ++x) {
@@ -519,8 +483,7 @@ class Wave extends ent.Entity {
   }
 }
 
-// Mirrored left to right, generated again until it has enough set pixels to be
-// legible at 65 across. The count is how many particles it comes apart into.
+// Mirrored left to right, drawn again until legible; dots is the debris count.
 function pattern() {
   for (;;) {
     const pat = new Array(COLS * ROWS);
@@ -588,12 +551,10 @@ export function init() {
 }
 
 export function update(dt) {
-  // Entities first: entity.js holds a hit by running a frame at dt 0, which
-  // the drain below only sees by running after.
+  // Entities first: entity.js holds a hit by running a frame at dt 0.
   ent.update(dt);
 
-  // Between waves the bar is being spent or refilled, and the drain is off. A
-  // destroyed ship leaves the round to explode()'s timer.
+  // Between waves the bar is being spent or refilled, and the drain is off.
   if (wave === null || player.dead) return;
 
   energy -= ent.game.time * 100 / 120; // a full bar is two minutes unspent

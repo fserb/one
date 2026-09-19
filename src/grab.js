@@ -24,6 +24,7 @@ export const meta = {
   fg: "#FAFAFA",
   scoreMax: true,
   date: "2015-04-18",
+  release: true,
   dpad: true,
 };
 
@@ -38,6 +39,8 @@ const PURPLE = 0xaa00ff;
 const BLUE = 0x00aaff;
 const FLOORS = [YELLOW, PURPLE, BLUE, PINK];
 
+const CENTER = { x: 512, y: 512 };
+
 // How far off each wall the ghosts start, and where the player's wall is.
 const EDGE = 21;
 
@@ -48,7 +51,6 @@ const DRAG = 5;
 const IDLE = 0;
 const OUT = 1;
 const BACK = 2;
-const REEL = 3;
 const MAXARM = 425;
 const THROW = 1070;
 const PULL = 1700;
@@ -69,11 +71,13 @@ let speed = 1.5;
 let floor = YELLOW;
 let player = null;
 let hook = null;
+let label = null;
 
 class Floor extends ent.Entity {
   constructor() {
     super();
-    this.pos.x = this.pos.y = 512;
+    this.pos.x = 512;
+    this.pos.y = 512;
   }
 
   update() {
@@ -84,7 +88,8 @@ class Floor extends ent.Entity {
 class Player extends ent.Entity {
   constructor() {
     super();
-    this.pos.x = this.pos.y = 512;
+    this.pos.x = 512;
+    this.pos.y = 512;
     this.dying = false;
     this.gfx.fill(BLACK).circle(0, 0, PR);
     this.hitCircle(PR);
@@ -98,10 +103,10 @@ class Player extends ent.Entity {
     if (hook.action === IDLE) {
       let mx = 0;
       let my = 0;
-      if (input.press.left) mx = -1;
-      if (input.press.right) mx = 1;
-      if (input.press.up) my = -1;
-      if (input.press.down) my = 1;
+      if (input.press.left) mx -= 1;
+      if (input.press.right) mx += 1;
+      if (input.press.up) my -= 1;
+      if (input.press.down) my += 1;
 
       const l = Math.hypot(mx, my);
       if (l > 0) this.accelerate(mx * PUSH / l, my * PUSH / l);
@@ -111,29 +116,25 @@ class Player extends ent.Entity {
       this.vel.x = this.vel.y = 0;
     }
 
-    // The walls return the speed you hit them with.
-    if (this.pos.x <= EDGE) {
-      this.pos.x = EDGE;
-      this.vel.x = Math.abs(this.vel.x);
-    }
-    if (this.pos.x >= 1024 - EDGE) {
-      this.pos.x = 1024 - EDGE;
-      this.vel.x = -Math.abs(this.vel.x);
-    }
-    if (this.pos.y <= EDGE) {
-      this.pos.y = EDGE;
-      this.vel.y = Math.abs(this.vel.y);
-    }
-    if (this.pos.y >= 1024 - EDGE) {
-      this.pos.y = 1024 - EDGE;
-      this.vel.y = -Math.abs(this.vel.y);
-    }
+    this.bounce("x");
+    this.bounce("y");
 
     // Reeling a ghost in moves you through everything else without collision.
-    if (hook.action === REEL) return;
+    if (hook.target !== null) return;
     if (this.hitGroup(Bullet) !== null) return this.die();
     for (const g of ent.get(Ghost)) {
       if (g.wait === 0 && this.hit(g)) return this.die();
+    }
+  }
+
+  // The walls return the speed you hit them with.
+  bounce(k) {
+    if (this.pos[k] < EDGE) {
+      this.pos[k] = EDGE;
+      this.vel[k] = Math.abs(this.vel[k]);
+    } else if (this.pos[k] > 1024 - EDGE) {
+      this.pos[k] = 1024 - EDGE;
+      this.vel[k] = -Math.abs(this.vel[k]);
     }
   }
 
@@ -148,8 +149,8 @@ class Player extends ent.Entity {
   }
 }
 
-// Points at the pointer while idle, goes out at THROW, comes back at PULL with
-// whatever it caught.
+// Points at the pointer while idle, goes out at THROW and comes back at PULL.
+// `target` is the ghost it caught, which comes back with it.
 class Hook extends ent.Entity {
   constructor() {
     super();
@@ -164,7 +165,7 @@ class Hook extends ent.Entity {
   // The claw is the origin and the arm extends back from it, so size() keeps
   // the centre fixed as the arm changes length.
   draw() {
-    this.gfx.clear()
+    this.gfx.cache(this.arm)
       .size(2 * CLAW, 2 * Math.max(21, this.arm))
       .fill(BLACK)
       .circle(0, 0, 6)
@@ -181,63 +182,57 @@ class Hook extends ent.Entity {
 
     if (this.action === IDLE) {
       // The drawing points along its own -y, so the aim is a quarter turn on.
-      this.angle = Math.atan2(input.y - p.y, input.x - p.x) + Math.PI / 2;
+      this.angle = angle(p, input) + Math.PI / 2;
       if (input.just.act) {
         play.shoot();
         this.action = OUT;
       }
     } else if (this.action === OUT) {
       this.arm = Math.min(MAXARM, this.arm + time * THROW);
-      this.draw();
-
       const g = this.hitGroup(Ghost);
-      if (g !== null) {
-        play.hit();
-        this.target = g;
-        g.grabbed = true;
-        this.action = REEL;
-        delay(0.05);
-        // Everything gets a moment off, so the two you did not catch are not
-        // on top of you when the reel lands.
-        for (const o of ent.get(Ghost)) o.wait = GRACE / speed;
-      } else if (this.arm === MAXARM) {
-        this.action = BACK;
-      }
-    } else if (this.action === BACK) {
-      this.arm = Math.max(0, this.arm - time * PULL);
-      this.draw();
-      if (this.arm === 0) this.action = IDLE;
+      if (g !== null) this.grab(g);
+      else if (this.arm === MAXARM) this.action = BACK;
     } else {
       const was = this.arm;
       this.arm = Math.max(0, this.arm - time * PULL);
       // The arm's lost length splits between the two, so a grab also travels.
-      const step = (was - this.arm) / 2;
-      const t = this.target.pos;
-      const a = Math.atan2(t.y - p.y, t.x - p.x);
-      p.x += Math.cos(a) * step;
-      p.y += Math.sin(a) * step;
-      t.x -= Math.cos(a) * step;
-      t.y -= Math.sin(a) * step;
-      this.draw();
-
+      if (this.target !== null) {
+        const step = (was - this.arm) / 2;
+        towards(p, this.target.pos, step);
+        towards(this.target.pos, p, step);
+      }
       if (this.arm === 0) {
-        eat(this.target.color);
+        if (this.target !== null) eat(this.target.color);
+        this.target = null;
         this.action = IDLE;
       }
     }
 
+    this.draw();
     // The claw is 23 out plus the arm, so the arm's far end stays 23 out.
-    this.pos.x = p.x + (23 + this.arm) * Math.cos(this.angle - Math.PI / 2);
-    this.pos.y = p.y + (23 + this.arm) * Math.sin(this.angle - Math.PI / 2);
+    const { x, y } = polar(p, 23 + this.arm, this.angle - Math.PI / 2);
+    this.pos.x = x;
+    this.pos.y = y;
+  }
+
+  grab(g) {
+    play.hit();
+    this.target = g;
+    g.grabbed = true;
+    this.action = BACK;
+    delay(0.05);
+    // Everything gets a moment off, so the two you did not catch are not on
+    // top of you when the reel lands.
+    for (const o of ent.get(Ghost)) o.wait = GRACE / speed;
   }
 }
 
 class Bullet extends ent.Entity {
-  constructor(color, x, y) {
+  constructor(color, p) {
     super();
     this.color = color;
-    this.pos.x = x;
-    this.pos.y = y;
+    this.pos.x = p.x;
+    this.pos.y = p.y;
     this.gfx.fill(color)
       .circle(0, 0, BR).rect(-BR, 0, 2 * BR, BR)
       .fill(WHITE, 0.9).circle(-4, -2, 2).circle(4, -2, 2);
@@ -267,9 +262,7 @@ class Ghost extends ent.Entity {
     this.turn = 0;
     this.spin = 1;
     this.seen = IDLE;
-    this.target = color === BLUE
-      ? { x: 512, y: 512 }
-      : { x: this.pos.x, y: this.pos.y };
+    this.target = color === BLUE ? { ...CENTER } : { ...this.pos };
 
     this.gfx.fill(color)
       .circle(0, 0, GR).rect(-GR, 0, 2 * GR, GR)
@@ -296,95 +289,69 @@ class Ghost extends ent.Entity {
     wrap(this.pos);
   }
 
+  walk(q) {
+    towards(this.pos, q, WALK * speed * ent.game.time);
+  }
+
+  steer(q) {
+    towards(this.bullet.pos, q, SHOT * speed * ent.game.time);
+  }
+
   // Pink stays KEEP away, either side, and swings its bullet around itself on
   // an arm the same length.
   orbit() {
-    const { time } = ent.game;
     if (this.wait === 0 && gone(this.bullet)) {
-      this.bullet = new Bullet(this.color, this.pos.x, this.pos.y);
+      this.bullet = new Bullet(this.color, this.pos);
       this.spin = Math.random() < 0.5 ? 1 : -1;
     }
 
-    const a = angle(this.pos, player.pos);
     const side = dist(this.pos, player.pos) < KEEP ? -KEEP : KEEP;
-    towards(
-      this.pos,
-      this.pos.x + Math.cos(a) * side,
-      this.pos.y + Math.sin(a) * side,
-      WALK * speed * time,
-    );
+    this.walk(polar(this.pos, side, angle(this.pos, player.pos)));
 
     if (gone(this.bullet)) return;
-    this.turn += this.spin * Math.PI * 0.1 * speed * time;
-    towards(
-      this.bullet.pos,
-      this.pos.x + Math.cos(this.turn) * KEEP,
-      this.pos.y + Math.sin(this.turn) * KEEP,
-      SHOT * speed * time,
-    );
+    this.turn += this.spin * Math.PI * 0.1 * speed * ent.game.time;
+    this.steer(polar(this.pos, KEEP, this.turn));
   }
 
   // Purple throws its bullet FAR towards you and walks over to collect it, so
   // it is always between you.
   fetch() {
-    const { time } = ent.game;
-
     if (dist(this.pos, this.target) < 21) {
       this.bullet?.remove();
-      this.bullet = this.wait > 0
-        ? null
-        : new Bullet(this.color, this.pos.x, this.pos.y);
-      if (this.bullet === null) return;
+      this.bullet = null;
+      if (this.wait > 0) return;
 
       const a = angle(this.pos, player.pos);
+      this.bullet = new Bullet(this.color, this.pos);
       this.bullet.angle = a + Math.PI / 2;
-      this.target.x = this.pos.x + Math.cos(a) * FAR;
-      this.target.y = this.pos.y + Math.sin(a) * FAR;
+      this.target = polar(this.pos, FAR, a);
       return;
     }
 
     if (!gone(this.bullet) && dist(this.bullet.pos, this.target) > 11) {
-      const s = SHOT * speed * time;
-      towards(this.bullet.pos, this.target.x, this.target.y, s);
+      this.steer(this.target);
       return;
     }
-    towards(this.pos, this.target.x, this.target.y, WALK * speed * time);
+    this.walk(this.target);
   }
 
   // Yellow stands FAR out from the centre on the far side from you, and fires
   // whenever it has nothing in the air.
   snipe() {
-    const { time } = ent.game;
-    const a = angle(player.pos, { x: 512, y: 512 });
-    towards(
-      this.pos,
-      512 + Math.cos(a) * FAR,
-      512 + Math.sin(a) * FAR,
-      WALK * speed * time,
-    );
-
+    this.walk(polar(CENTER, FAR, angle(player.pos, CENTER)));
     if (this.wait === 0 && gone(this.bullet)) this.bullet = shoot(this);
   }
 
   // Blue watches the hook: every throw makes it step DODGE sideways and shoot
   // back, and it does not wait out its grace period first.
   answer() {
-    if (this.seen !== hook.action) {
-      this.seen = hook.action;
-      if (hook.action === OUT) {
-        const a = angle(player.pos, this.pos) + Math.PI / 2;
-        const side = Math.random() < 0.5 ? DODGE : -DODGE;
-        this.target.x = this.pos.x + Math.cos(a) * side;
-        this.target.y = this.pos.y + Math.sin(a) * side;
-        if (gone(this.bullet)) this.bullet = shoot(this);
-      }
+    if (this.seen !== OUT && hook.action === OUT) {
+      const a = angle(player.pos, this.pos) + Math.PI / 2;
+      this.target = polar(this.pos, Math.random() < 0.5 ? DODGE : -DODGE, a);
+      if (gone(this.bullet)) this.bullet = shoot(this);
     }
-    towards(
-      this.pos,
-      this.target.x,
-      this.target.y,
-      WALK * speed * ent.game.time,
-    );
+    this.seen = hook.action;
+    this.walk(this.target);
   }
 }
 
@@ -397,7 +364,8 @@ const SWEEP = [[0, 0, 0], [3, 0, 1024], [1, 1024, 0], [2, 1024, 1024]];
 class EndGame extends ent.Entity {
   constructor(x, y) {
     super();
-    this.pos.x = this.pos.y = 512;
+    this.pos.x = 512;
+    this.pos.y = 512;
     this.stage = 0;
     this.p = [
       { x: x - 21, y: y - 21 },
@@ -409,12 +377,12 @@ class EndGame extends ent.Entity {
   }
 
   update() {
-    if (this.stage >= SWEEP.length) return;
+    if (this.stage === SWEEP.length) return;
 
-    const [i, tx, ty] = SWEEP[this.stage];
+    const [i, x, y] = SWEEP[this.stage];
     const p = this.p[i];
-    towards(p, tx, ty, 10700 * ent.game.time);
-    if (p.x === tx && p.y === ty) this.stage += 1;
+    towards(p, { x, y }, 10700 * ent.game.time);
+    if (p.x === x && p.y === y) this.stage += 1;
     this.draw();
 
     if (this.stage === SWEEP.length) gameOver({ score: true });
@@ -443,12 +411,21 @@ const gone = (b) => b === null || b.dead;
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const angle = (from, to) => Math.atan2(to.y - from.y, to.x - from.x);
 
-function towards(p, x, y, max) {
-  const d = Math.hypot(x - p.x, y - p.y);
-  if (d === 0) return;
-  const s = Math.min(1, max / d);
-  p.x += (x - p.x) * s;
-  p.y += (y - p.y) * s;
+// The point `r` from `p` in the direction `a`.
+function polar(p, r, a) {
+  return { x: p.x + Math.cos(a) * r, y: p.y + Math.sin(a) * r };
+}
+
+// `max` towards `q`, or onto it.
+function towards(p, q, max) {
+  const d = dist(p, q);
+  if (d <= max) {
+    p.x = q.x;
+    p.y = q.y;
+    return;
+  }
+  p.x += (q.x - p.x) * max / d;
+  p.y += (q.y - p.y) * max / d;
 }
 
 // The board is a torus: a ghost leaving one edge comes back at the other.
@@ -461,7 +438,7 @@ function wrap(p) {
 
 // Fired at the player and then left to itself. Yellow's and blue's.
 function shoot(g) {
-  const b = new Bullet(g.color, g.pos.x, g.pos.y);
+  const b = new Bullet(g.color, g.pos);
   const a = angle(g.pos, player.pos);
   b.vel.x = Math.cos(a) * SHOT * speed;
   b.vel.y = Math.sin(a) * SHOT * speed;
@@ -476,11 +453,12 @@ function eat(color) {
   shake(0.2);
   floor = color;
   speed *= 1.06;
-  score.value += 1;
+  ent.addScore(1, player.pos.x, player.pos.y, { color: BLACK });
+  label.text = String(score.value);
 }
 
 export function init() {
-  ent.reset([Floor, Bullet, Ghost, Hook, Player, EndGame]);
+  ent.reset([Floor, Bullet, Ghost, Hook, Player, ent.Text, EndGame]);
 
   speed = 1.5;
   floor = FLOORS[Math.floor(Math.random() * FLOORS.length)];
@@ -488,6 +466,8 @@ export function init() {
   new Floor();
   player = new Player();
   hook = new Hook();
+  // Black like the player and the hook, so the sweep at the end covers it.
+  label = new ent.Text({ text: "0", x: 512, y: 64, size: 64, color: BLACK });
 
   // One per corner; the one with the floor's colour leaves on frame one.
   const corners = [

@@ -1,13 +1,4 @@
-/*
- * up. Based on Aba Games' WASD THRUST.
- *
- * Four thrusters, one an arrow key, each pushing the ship away from itself: the
- * one on top drives you down.
- *
- * No camera: the world moves and the view does not, so the ship stays at a
- * fixed 512 across and never above 425. The field is a grid of world cells,
- * each filled once as the view nears it.
- */
+// up. Based on Aba Games' WASD THRUST.
 
 import * as ent from "./lib/entity.js";
 import { gameOver, ramp, score } from "./lib/one.js";
@@ -44,7 +35,6 @@ let player = null;
 // The screen's top left in world space, and what the cells are counted off.
 let camX = 0;
 let camY = 0;
-// The cells already filled, one "cx,cy" each.
 const filled = new Set();
 let passAt = 0;
 let burnAt = 0;
@@ -68,8 +58,7 @@ class Engine extends ent.Entity {
   }
 
   fire() {
-    // Thrust over drag is the top speed: 530 against Player.update()'s drag
-    // gives 265, over the 105 a second slide and under outrunning the view.
+    // Thrust over drag is the top speed: 530 against a drag of 2 gives 265.
     this.ship.thrust(530, this.offset + Math.PI);
     new ent.Particle({
       x: this.pos.x,
@@ -145,7 +134,8 @@ class Player extends ent.Entity {
 class Obstacle extends ent.Entity {
   constructor(x, y) {
     super();
-    this.xy(x, y);
+    this.pos.x = x;
+    this.pos.y = y;
     cross(this.gfx, 30, 7.5, ROCK);
     this.angle = 2 * Math.PI * Math.random();
     this.hitBox(60);
@@ -175,7 +165,8 @@ class Obstacle extends ent.Entity {
 class Gold extends ent.Entity {
   constructor(x, y) {
     super();
-    this.xy(x, y);
+    this.pos.x = x;
+    this.pos.y = y;
     this.points = Math.round(1 + Math.random() * 8) * 10;
     this.gfx.fill(GOLD).line(6, 0xb3690f).rect(-21, -18, 42, 36, 10);
     this.hitBox(48, 42);
@@ -224,15 +215,14 @@ class Readout extends ent.Text {
 const CELL = 300;
 const MARGIN = 600;
 
-// Every cell within MARGIN of the screen, and a screen above it, filled once.
-// The view wanders left and right, so this is a set of cells and not a line.
+// Every cell within MARGIN filled once. The view wanders left and right, so
+// this is a set of cells and not a line.
 function fill() {
   const x0 = Math.floor((camX - MARGIN) / CELL);
   const x1 = Math.floor((camX + 1024 + MARGIN) / CELL);
   const y0 = Math.floor((camY - 1024 - MARGIN) / CELL);
   const y1 = Math.floor((camY + 1024) / CELL);
-  // Pieces a cell: half of one at the start, two one ramp on. The fraction is
-  // the share of cells that take one more.
+  // Pieces a cell; the fraction is the share of cells that take one more.
   const n = 0.5 + (ramp() - 1) * 1.5;
 
   for (let cy = y0; cy <= y1; cy++) {
@@ -245,8 +235,7 @@ function fill() {
   }
 }
 
-// `k` pieces into cell `cx, cy`, one to a box off an `m` by `m` split, so a cell
-// holding two does not hold them in one spot. Drawn without replacement.
+// `k` pieces, one to a box off an `m` by `m` split, without replacement.
 function deal(cx, cy, k) {
   const m = Math.ceil(Math.sqrt(k));
   // 75 off each edge, split m ways, so a piece never lands against an edge.
@@ -260,8 +249,7 @@ function deal(cx, cy, k) {
 
     const x = box(cx, s % m) - camX;
     const y = box(cy, Math.floor(s / m)) - camY;
-    // The opening fill covers the screen the ship starts on, so keep the 220
-    // around it clear.
+    // The opening fill covers the screen the ship starts on.
     if (Math.hypot(x - player.pos.x, y - player.pos.y) < 220) continue;
 
     if (Math.random() < 0.09) new Gold(x, y);
@@ -269,8 +257,7 @@ function deal(cx, cy, k) {
   }
 }
 
-// One whoosh every 0.07s however many engines fired. x pans and y pitches, so
-// the left flame is heard on the left and the top engine has the highest pitch.
+// One whoosh every 0.07s however many engines fired; x pans, y pitches.
 function burn() {
   let n = 0;
   let x = 0;
@@ -315,8 +302,7 @@ export function init() {
 }
 
 export function update(dt) {
-  // The view stops climbing and nothing more is dealt; kill()'s timer ends the
-  // round.
+  // kill()'s timer ends the round.
   if (player.dead) return ent.update(dt);
 
   // The slide is 105 a second; climbing faster only moves the ship up to 425.

@@ -1,22 +1,4 @@
-/*
- * gather - the sketch the full Gather (fserb.com/vault/gather) grew out of.
- *
- * The cursor moves onto a box and extends a chain behind it, one box per press,
- * and the chain scores the moment it holds two or more colours in equal
- * numbers, for `colours * each * (each - 1) * (colours - 1)`.
- *
- * The chain's colours stack up as a tray of squares at the left end of the head
- * strip, and a gather throws that tray into the score in the middle of the
- * strip. The score goes up where it lands, not where the boxes were.
- *
- * The scroll speed is set by where you are: it is slow while your lowest cursor
- * is in the bottom half and multiplies by up to 23 as it rises, and again by up
- * to 6 once the top of the chain passes the second line. one.js's ramp over the
- * round multiplies it too, and holes and points scale on the same ramp.
- *
- * The first round opens on a scripted board that resets the score and the ramp.
- * Dying inside it replays it; finishing means it is not shown again.
- */
+// gather - the sketch the full Gather (fserb.com/vault/gather) grew out of.
 
 import * as ent from "./lib/entity.js";
 import color from "./alma/src/color.js";
@@ -41,8 +23,6 @@ const WHITE = 0xffffff;
 
 const PALETTE = ["#ff6819", "#c0dc61", "#1ebed8", "#fec804", "#e284cc"];
 const COLORS = PALETTE.map(ent.hex);
-// A box is edged in its own colour taken two thirds of the way to black in
-// OKLAB, so the outline carries the hue instead of being flat black.
 const DARK = PALETTE.map((c) =>
   ent.hex(color(c).mix(color("#000000"), 0.66, "oklab").hex)
 );
@@ -55,18 +35,14 @@ const CELL = 82;
 const HEAD = 110;
 const FOOT = 1012;
 
-// The tray builds rightward from the left board line, and the score sits in the
-// middle of the strip, which is how far the tray flies. TRAY_Y is a centre and
-// not a top edge, so trays of one row and of five are centred on the same line.
+// The tray builds rightward from the left board line; TRAY_Y is a centre.
 const TRAY_L = 107;
 const TRAY_Y = HEAD / 2;
 const SCORE_X = 512;
 
 const NEAR = 512;
 
-// BOX, EYE_R and PUPIL are half-sides: a box is 64 of colour under a 9-thick
-// edge, a socket is 18 across and a pupil half that. EYE is how far off centre
-// an eye sits, and a cursor's bracket runs from ARM out to BOX along each edge.
+// BOX, EYE_R and PUPIL are half-sides. ARM is where a cursor's bracket starts.
 const BOX = 32;
 const EDGE = 9;
 const EYE = 13.5;
@@ -76,9 +52,8 @@ const ARM = 14;
 
 const _ = -1;
 
-// Fed in from the end of the list, one row per shift. An empty row means "say
-// the next line and carry on with the row after it", and running off the front
-// ends the script. The first five rows out are the board the round starts on.
+// Fed in from the end, one row per shift. An empty row says the next line and
+// carries on with the row after; running off the front ends the script.
 const INTRO = [
   [],
   [_, _, _, _, _, _, _, _, _],
@@ -104,16 +79,12 @@ const NOTES = [
   "use keys to move, space to undo",
 ];
 
-// grid[x][y] is a Piece or null. y grows downward: row 0 is what the next shift
-// pushes in, ROWS-1 what it drops.
+// grid[x][y] is a Piece or null; row 0 is what the next shift pushes in.
 const grid = [];
 let scroll = 0;
-// The second the script ended on, and 0 while it is still playing. The ramp is
-// measured from there, so a first-time player does not begin a real round on a
-// board that has already ramped through the tutorial.
+// The second the script ended on, and 0 while it is still playing.
 let from = 0;
-// Oldest first. The last is the head, the only one a key moves; the first
-// stands on an empty cell and is what an undo leaves behind.
+// Oldest first; the last is the head, the only one a key moves.
 let chain = [];
 let tray = null;
 let total = null;
@@ -132,14 +103,11 @@ function cellY(y) {
   return scroll + 151 + CELL * y;
 }
 
-// A cursor scrolls past the last row before it dies, so y is out of range for a
-// frame.
+// A cursor scrolls past the last row before it dies, so y goes out of range.
 function at(x, y) {
   return grid[x]?.[y] ?? null;
 }
 
-// Its pupils follow whatever `eye` is: a random point on the board, the cursor
-// when the cursor is next to it, and its own centre while held.
 class Piece extends ent.Entity {
   constructor(x, y, color) {
     super();
@@ -203,8 +171,7 @@ class Piece extends ent.Entity {
 
     this.pos.x = cellX(this.px);
     this.pos.y = cellY(this.py);
-    // Gone once its top edge is under the foot strip, not once its centre is:
-    // pos.y is the centre, so half a box and half an edge come off it.
+    // Gone once its top edge is under the foot strip, not once its centre is.
     if (this.pos.y - BOX - EDGE / 2 > FOOT) return this.remove();
 
     const step = ent.game.time / 0.3;
@@ -230,7 +197,6 @@ class Piece extends ent.Entity {
   }
 }
 
-// Red while it is the head, grey once the chain has moved past it.
 class Cursor extends ent.Entity {
   constructor(x, y) {
     super();
@@ -258,8 +224,6 @@ class Cursor extends ent.Entity {
   }
 }
 
-// One row per colour, longest first: the whole readout the win needs, equal
-// rows and two of them or more.
 class Tray extends ent.Entity {
   constructor() {
     super();
@@ -298,8 +262,6 @@ class Tray extends ent.Entity {
     this.points = kinds * each * (each - 1) * (kinds - 1) * hard();
   }
 
-  // 0.3s out of a standing start, and it has faded by the time its left edge
-  // reaches the score.
   update() {
     if (!this.moving) return;
     const t = this.age / 0.3;
@@ -311,7 +273,6 @@ class Tray extends ent.Entity {
   }
 }
 
-// The strips a row slides out from behind and a dropped one slides away under.
 class Frame extends ent.Entity {
   constructor() {
     super();
@@ -328,8 +289,7 @@ class Frame extends ent.Entity {
   }
 }
 
-// The round's score, between the two ends of the head strip. It measures itself
-// as it draws, so `half` is how far its right edge stands from the centre,
+// `half` is measured as it draws: how far its right edge is from the centre,
 // which is where the +N goes.
 class Total extends ent.Text {
   constructor() {
@@ -347,9 +307,6 @@ class Total extends ent.Text {
   }
 }
 
-// The number reads out beside the score the tray flew into and runs off to the
-// right of it, grey and half the height, so the total stays the thing being
-// read and the +N is what moves.
 function addScore(v) {
   shake(0.25);
   play.coin();
@@ -374,8 +331,7 @@ function say(m) {
   });
 }
 
-// one.js's ramp over the seconds since the script ended: `from` drops it back
-// to 1 for the first real row.
+// Seconds since the script ended: `from` drops the ramp back to 1.
 function hard() {
   return ramp(time - from);
 }
@@ -406,7 +362,6 @@ function nextRow() {
   return null;
 }
 
-// Boxes, index and chain together, so a cursor keeps the box it was holding.
 function shift() {
   for (let y = 0; y < ROWS; ++y) {
     for (let x = 0; x < COLS; ++x) {
@@ -436,8 +391,7 @@ function advance(dt) {
     high = Math.min(high, y);
   }
 
-  // 11/CELL is an eighth of a row a second; the multipliers move the board.
-  // The high test is against 260 off a measure from 512, so it snaps on at 4.4.
+  // 11 a second is an eighth of a row; the multipliers move the board.
   let speed = 11 * hard();
   if (low < NEAR) speed *= 1 + 9 / 150 * (NEAR - low);
   if (high < 260) speed *= 1 + 5 / 367 * (NEAR - high);
@@ -459,8 +413,6 @@ function undo() {
   tray.set([0, 0, 0, 0, 0]);
 }
 
-// A gather is two colours or more, at least two of each, and every colour
-// present in the same number.
 function check() {
   const counts = [0, 0, 0, 0, 0];
   for (const c of chain) {
@@ -487,7 +439,7 @@ function check() {
 }
 
 // An empty cell is a step only when the head is on one too, which keeps the
-// chain unbroken and the first cursor somewhere an undo can return to.
+// chain unbroken.
 function control() {
   const { input } = ent.game;
   if (input.just.act) undo();
@@ -551,7 +503,7 @@ export function init() {
   tray = new Tray();
   total = new Total();
 
-  // Frame one is the game: the script's first five rows are the opening board.
+  // The script's first five rows are the opening board.
   for (let y = 0; y < 5 && introAt >= 0; ++y) {
     const row = INTRO[--introAt];
     for (let x = 0; x < COLS; ++x) {
