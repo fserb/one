@@ -29,6 +29,7 @@ html, body { margin: 0; overflow: hidden; }
 html { background: #f2f0e5; scrollbar-gutter: stable; }
 /* A drag across the board is the game being played, not a selection. */
 body {
+  --pad: 0px;
   height: 100dvh;
   padding: 26px;
   display: flex;
@@ -81,11 +82,63 @@ a .arrow { visibility: visible; }
 .board {
   position: relative;
   margin: auto;
-  width: min(calc(100dvh - 104px), 100%);
+  width: min(calc(100dvh - 104px - var(--pad)), 100%);
   aspect-ratio: 1;
   view-transition-name: board;
 }
 canvas { display: block; cursor: pointer; touch-action: none; }
+
+/* The pad a game is steered with on a screen that has no mouse on it: the four
+   directions on the left, act on the right, and both below the board rather
+   than over it, so a finger on the board is still the pointer. input.js puts
+   the `dpad` class on <body> for a game whose meta asks for a pad, then binds
+   these two elements, names the directions it is reading in `data-held` and
+   puts `on` on the button. Outlines in currentColor, the page's ink, at the
+   weight the type on this page is, and a shape fills in while it is held. */
+.pad {
+  display: none;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--pad);
+  touch-action: none;
+}
+.pad svg { display: block; aspect-ratio: 1; }
+.dirs { width: min(42vw, 26dvh); }
+.act { width: min(26vw, 16dvh); }
+.pad path, .pad circle {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 4;
+  stroke-linejoin: round;
+  opacity: .35;
+}
+.dirs[data-held~="up"] .up,
+.dirs[data-held~="right"] .right,
+.dirs[data-held~="down"] .down,
+.dirs[data-held~="left"] .left,
+.act.on circle { fill: currentColor; opacity: .8; }
+
+/* A screen with no mouse on it. The board gives the bottom third of the page
+   to the pad, which is what --pad takes off its size above. */
+@media (pointer: coarse) and (hover: none) {
+  body.dpad { --pad: 32dvh; }
+  body.dpad .pad { display: flex; }
+}
+/* A phone on its side has no height to give away and width to spare, so the
+   two go in the margins either side of the board and the board keeps its size.
+   Fixed, and transparent to a pointer between them, so a press in the middle
+   is the board's. */
+@media (pointer: coarse) and (hover: none) and (orientation: landscape) {
+  body.dpad { --pad: 0px; }
+  body.dpad .pad {
+    position: fixed;
+    inset: 78px 26px 26px;
+    height: auto;
+    pointer-events: none;
+  }
+  body.dpad .pad > * { pointer-events: auto; }
+}
 /* Both pages have these: the pseudo-elements belong to the document being
    navigated to, so each direction uses the destination's copy. */
 ::view-transition-group(board) {
@@ -103,6 +156,15 @@ canvas { display: block; cursor: pointer; touch-action: none; }
   <h1 class="game">{{title}}</h1>
 </header>
 <main class="board" style="background:{{bg}}"><canvas id="canvas"></canvas></main>
+<div class="pad">
+  <svg class="dirs" viewBox="0 0 100 100">
+    <path class="up" d="M50 4 L64 27 L36 27 Z"/>
+    <path class="right" d="M96 50 L73 64 L73 36 Z"/>
+    <path class="down" d="M50 96 L36 73 L64 73 Z"/>
+    <path class="left" d="M4 50 L27 36 L27 64 Z"/>
+  </svg>
+  <svg class="act" viewBox="0 0 100 100"><circle cx="50" cy="50" r="46"/></svg>
+</div>
 <script type="module">
 // Going back restores the gallery from the back/forward cache, with its scroll
 // position and its playing clips. Anything else follows the link and loads it.

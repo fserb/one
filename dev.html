@@ -16,6 +16,7 @@
       overflow: hidden;
     }
     body {
+      --pad: 0px;
       background: #f2f0e5;
       color: #212123;
       font-family: var(--sans);
@@ -39,6 +40,85 @@
       user-select: none;
       -webkit-user-select: none;
       -webkit-tap-highlight-color: transparent;
+    }
+    /* The pad below the board on a screen with no mouse on it, the rules the
+       built page has: input.js adds the `dpad` class for a game whose meta asks
+       for a pad, then binds .dirs and .act, names the directions it is reading
+       in data-held and puts `on` on the button. Outlines in currentColor, which
+       the script sets from the game, since the page around the board here is a
+       shade of the board itself. */
+    .pad {
+      display: none;
+      box-sizing: border-box;
+      flex: none;
+      width: 100%;
+      height: var(--pad);
+      padding: 0 26px;
+      align-items: center;
+      justify-content: space-between;
+      touch-action: none;
+    }
+    .pad svg {
+      display: block;
+      aspect-ratio: 1;
+    }
+    .dirs {
+      width: min(42vw, 26dvh);
+    }
+    .act {
+      width: min(26vw, 16dvh);
+    }
+    .pad path,
+    .pad circle {
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 4;
+      stroke-linejoin: round;
+      opacity: .35;
+    }
+    .dirs[data-held~="up"] .up,
+    .dirs[data-held~="right"] .right,
+    .dirs[data-held~="down"] .down,
+    .dirs[data-held~="left"] .left,
+    .act.on circle {
+      fill: currentColor;
+      opacity: .8;
+    }
+    /* The board gives the bottom third of the page to the pad. */
+    @media (pointer: coarse) and (hover: none) {
+      body.dpad {
+        --pad: 32dvh;
+        flex-direction: column;
+      }
+      body.dpad main {
+        width: min(100vw, calc(100dvh - var(--pad)));
+        height: auto;
+        aspect-ratio: 1;
+        margin: auto;
+      }
+      body.dpad .pad {
+        display: flex;
+      }
+    }
+    /* A phone on its side has no height to give away and width to spare, so
+       the two go in the margins either side of the board and the board keeps
+       its size. Fixed, and transparent to a pointer between them, so a press
+       in the middle is the board's. */
+    @media (pointer: coarse) and (hover: none) and (orientation: landscape) {
+      body.dpad {
+        --pad: 0px;
+      }
+      body.dpad .pad {
+        position: fixed;
+        inset: 26px;
+        width: auto;
+        height: auto;
+        padding: 0;
+        pointer-events: none;
+      }
+      body.dpad .pad > * {
+        pointer-events: auto;
+      }
     }
     /* The cards, when there is no ?game=: the front page's, in two sections,
        the drafts the build skips and then the games it ships, plus the label
@@ -283,13 +363,28 @@
       canvas.id = "canvas";
       board.append(canvas);
       document.body.append(board);
+      // The pad input.js binds on a touch screen, the built page's markup.
+      document.body.insertAdjacentHTML(
+        "beforeend",
+        `<div class=pad><svg class=dirs viewBox="0 0 100 100">` +
+          `<path class=up d="M50 4 L64 27 L36 27 Z"/>` +
+          `<path class=right d="M96 50 L73 64 L73 36 Z"/>` +
+          `<path class=down d="M50 96 L36 73 L64 73 Z"/>` +
+          `<path class=left d="M4 50 L27 36 L27 64 Z"/></svg>` +
+          `<svg class=act viewBox="0 0 100 100">` +
+          `<circle cx="50" cy="50" r="46"/></svg></div>`,
+      );
 
       const game = await import(`./src/${name}.js`);
       const { run, meta } = await import("./src/lib/one.js");
+      const { theme } = await import("./src/lib/overlay.js");
       const screen = await run(game);
       // run() has painted meta.bg on the board, and meta is the merged one, so
-      // a game that names no colour has the default in both places.
+      // a game that names no colour has the default in both places. The pad
+      // draws in the page's ink, which is the board's, since the page around
+      // the board is a shade of it.
       document.body.style.backgroundColor = shade(meta.bg);
+      document.body.style.color = theme(meta);
 
       // After run(), so the recorder's frame callback runs after the game's.
       let rec = null;

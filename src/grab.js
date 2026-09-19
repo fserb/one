@@ -6,7 +6,7 @@
  * board. Hook one of the other three and reel it in: its colour becomes the
  * floor, it leaves, and the old floor colour walks back on.
  *
- * It needs a keyboard or gamepad to move and a pointer to aim. Alone in the
+ * It needs the keys or the pad to move and a pointer to aim. Alone in the
  * collection, it is not playable with either one alone.
  */
 

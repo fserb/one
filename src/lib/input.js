@@ -8,28 +8,28 @@
  * button as well as the keys, so a pointer press and an action press are the
  * same event and a game that only acts is playable with a finger alone.
  *
- * Touch has two mappings and `meta.dpad` picks between them, because the two
- * cannot be one:
+ * The board is a place in every game: a finger on it is the pointer the way a
+ * mouse is, writing x/y and holding act. The four directions come from the
+ * keys, and on a touch screen from the pad the page draws below the board, in
+ * HTML and outside the canvas: `.dirs`, a cross, and `.act`, a button.
+ * `meta.dpad` is what asks for one, ten games do, and bindPad() is the whole
+ * connection to the page. It finds `.pad`, puts the `dpad` class on <body> for
+ * the page's CSS to lay the board and the pad out with, and reads the two
+ * elements; that CSS shows them only where `(pointer: coarse) and (hover:
+ * none)`, a screen with no mouse on it. A page with none of that markup in it,
+ * like the recorder's, leaves a dpad game on the keys.
  *
- *   dpad off  the finger is the pointer. It writes x/y and holds act, which is
- *             what tapping a cell, dragging a rope or charging a shot needs.
- *   dpad on   the first finger is a stick, holding whichever directions its
- *             offset from the centre points at, and the second finger is the
- *             pointer and act.
- *
- * Each breaks the other's games. With the finger on act, berzerk fires the
- * whole time it walks and gather undoes its chain on every step; with the
- * finger on the stick, amaze's own pointer aim loses to a direction it never
- * asked for. Nor can it be derived: set and grab read the same four fields, and
- * set wants the finger on the board where grab wants it on a stick. Mouse and
- * pen are the pointer either way, so a desktop player on a dpad game steers
- * with the keys and fires with the button.
+ * The cross is read as a stick and not as four buttons: the offset from its
+ * centre picks one of eight sectors, and a direction owns the three facing it,
+ * so a thumb holds two at once and slides from one direction to the next
+ * without lifting.
  *
  * It declares `input` rather than one.js, so nothing here imports the rest of
  * src/lib and the one.js <-> input.js cycle never exists.
  */
 
 const BUTTONS = ["up", "right", "down", "left", "act"];
+const DIRS = BUTTONS.slice(0, 4);
 
 const KEYS = {
   "arrowup": "up",
@@ -50,9 +50,9 @@ const KEYS = {
 // header's link still works from the keyboard.
 const SCROLLS = new Set([" ", "arrowup", "arrowright", "arrowdown", "arrowleft"]);
 
-// The board's centre in 1024-space, and the stick's dead circle around it.
-const CENTRE = 512;
-const DEAD = 70;
+// The middle of the cross, as a fraction of its width: a thumb there holds no
+// direction, and one that lands there steers as soon as it leaves it.
+const DEAD = 0.18;
 
 function blank() {
   return { up: false, right: false, down: false, left: false, act: false };
@@ -78,14 +78,17 @@ const lifted = new Set();
 // alma's Screen, for toLogical(). Held here rather than read off op, so
 // input.js imports nothing from the rest of src/lib.
 let screen = null;
-let dpad = false;
 let abort = null;
+// The page's two elements once bindPad() has found them, and null on a game
+// that asked for no pad or a page that draws none.
+let pad = null;
 
-// Client coordinates: the pointer, and the finger driving the stick.
+// Client coordinates: the pointer, and the thumb on the cross.
 const ptr = { x: 0, y: 0 };
 let stick = null;
-// Every pointer holding act down. A set and not a flag: a second finger landing
-// and lifting during a drag would otherwise take act with it.
+// Every pointer holding act down, a finger on the board and a thumb on the
+// pad's button alike. A set and not a flag: a second finger landing and lifting
+// during a drag would otherwise take act with it.
 const acting = new Set();
 
 function down(button) {
@@ -102,10 +105,9 @@ function up(button) {
 // diagonal holds two at once and asteroid can turn while it thrusts.
 function stickDirs() {
   if (stick === null) return null;
-  const p = screen.toLogical(stick.x, stick.y);
-  const dx = p.x - CENTRE;
-  const dy = p.y - CENTRE;
-  if (Math.hypot(dx, dy) < DEAD) return null;
+  const dx = stick.x - stick.cx;
+  const dy = stick.y - stick.cy;
+  if (Math.hypot(dx, dy) < stick.dead) return null;
 
   const o = (Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) + 8) % 8;
   return {
@@ -123,16 +125,69 @@ function releaseAll() {
   acting.clear();
 }
 
-// Off between rounds, whatever the game asked for: a tap on the finish screen
-// has to be the act that restarts rather than a stick nothing is reading.
-export function setDpad(on) {
-  dpad = on;
-  stick = null;
+// A pointer dragged off the element it came down on stops delivering move and
+// up there, leaving what it holds stuck down; capture reroutes it back.
+function capture(el, e) {
+  try {
+    el.setPointerCapture(e.pointerId);
+  } catch { /* nothing to capture */ }
 }
 
-export function init(scr, { dpad: wantsDpad = false } = {}) {
+// The board and the pad's button are one act between them: act goes down on the
+// first of them and up when the last lifts.
+function actDown(e) {
+  if (acting.size === 0) down("act");
+  acting.add(e.pointerId);
+}
+
+function actUp(e) {
+  if (!acting.delete(e.pointerId) || acting.size > 0) return;
+  up("act");
+}
+
+// The pad below the board, and the only place this file touches the document.
+function bindPad(on) {
+  const el = document.querySelector(".pad");
+  if (el === null) return;
+  document.body.classList.add("dpad");
+  pad = { dirs: el.querySelector(".dirs"), act: el.querySelector(".act") };
+
+  on(pad.dirs, "pointerdown", (e) => {
+    capture(pad.dirs, e);
+    if (stick !== null) return;
+    // The centre is taken here and not every frame, since the pad does not
+    // move under a thumb that is already on it.
+    const r = pad.dirs.getBoundingClientRect();
+    stick = {
+      id: e.pointerId,
+      x: e.clientX,
+      y: e.clientY,
+      cx: r.left + r.width / 2,
+      cy: r.top + r.height / 2,
+      dead: r.width * DEAD,
+    };
+  });
+  on(pad.dirs, "pointermove", (e) => {
+    if (stick?.id !== e.pointerId) return;
+    stick.x = e.clientX;
+    stick.y = e.clientY;
+  });
+  const lift = (e) => {
+    if (stick?.id === e.pointerId) stick = null;
+  };
+  on(pad.dirs, "pointerup", lift);
+  on(pad.dirs, "pointercancel", lift);
+
+  on(pad.act, "pointerdown", (e) => {
+    capture(pad.act, e);
+    actDown(e);
+  });
+  on(pad.act, "pointerup", actUp);
+  on(pad.act, "pointercancel", actUp);
+}
+
+export function init(scr, { dpad = false } = {}) {
   screen = scr;
-  dpad = wantsDpad;
   abort = new AbortController();
   const { signal } = abort;
   const on = (target, event, handler, opts) =>
@@ -158,46 +213,21 @@ export function init(scr, { dpad: wantsDpad = false } = {}) {
   on(el, "contextmenu", (e) => e.preventDefault());
 
   on(el, "pointerdown", (e) => {
-    // A pointer dragged off the canvas stops delivering move and up there,
-    // leaving act stuck down; capture reroutes it back.
-    try {
-      el.setPointerCapture(e.pointerId);
-    } catch { /* nothing to capture */ }
-
-    // The first finger of a dpad game is the stick and never the board: it is
-    // not a place, and it does not act.
-    if (dpad && e.pointerType === "touch" && stick === null) {
-      stick = { id: e.pointerId, x: e.clientX, y: e.clientY };
-      return;
-    }
+    capture(el, e);
     if (e.button !== 0) return;
     ptr.x = e.clientX;
     ptr.y = e.clientY;
-    if (acting.size === 0) down("act");
-    acting.add(e.pointerId);
+    actDown(e);
   });
-
   on(el, "pointermove", (e) => {
-    if (stick?.id === e.pointerId) {
-      stick.x = e.clientX;
-      stick.y = e.clientY;
-      return;
-    }
     // With no button down too, for a mouse hovering a board.
     ptr.x = e.clientX;
     ptr.y = e.clientY;
   });
+  on(el, "pointerup", actUp);
+  on(el, "pointercancel", actUp);
 
-  const end = (e) => {
-    if (stick?.id === e.pointerId) {
-      stick = null;
-      return;
-    }
-    if (!acting.delete(e.pointerId) || acting.size > 0) return;
-    up("act");
-  };
-  on(el, "pointerup", end);
-  on(el, "pointercancel", end);
+  if (dpad) bindPad(on);
 }
 
 export function poll() {
@@ -215,12 +245,24 @@ export function poll() {
   }
   fired.clear();
   lifted.clear();
+
+  // The pad lights what it published rather than what a thumb is over, so a
+  // player on the keys sees the same thing the game is reading. Written only
+  // when it changes, since this runs every frame and a hidden pad still has
+  // one of these on a page recording a card.
+  if (pad !== null) {
+    const lit = DIRS.filter((b) => input.press[b]).join(" ");
+    if (lit !== pad.dirs.dataset.held) pad.dirs.dataset.held = lit;
+    pad.act.classList.toggle("on", input.press.act);
+  }
 }
 
 export function destroy() {
   abort?.abort();
   abort = null;
   screen = null;
+  if (pad !== null) document.body.classList.remove("dpad");
+  pad = null;
   releaseAll();
   lifted.clear();
 }

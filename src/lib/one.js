@@ -13,7 +13,7 @@
 import { register as registerPlus2d } from "../alma/src/gfx/plus2d.js";
 import { Screen } from "../alma/src/screen.js";
 import * as effects from "./effects.js";
-import { init as initInput, input, poll as pollInput, setDpad } from "./input.js";
+import { init as initInput, input, poll as pollInput } from "./input.js";
 import * as overlay from "./overlay.js";
 
 export { input };
@@ -28,7 +28,7 @@ export const meta = {
   overlay: null,
   scoreMax: true, // false when a low score is the good one
   date: null, // "YYYY-MM-DD"
-  // A touch steers rather than pointing: see the two mappings in input.js.
+  // A touch screen gets the pad below the board: see input.js.
   dpad: false,
 };
 
@@ -91,7 +91,6 @@ export async function run(game, { target = null } = {}) {
 
 export function start() {
   op.act?.reset();
-  setDpad(meta.dpad);
   // Reset to the whole board, so init() changes only what it needs to.
   op.camera?.moveTo({ x: 512, y: 512, scale: 1, angle: 0 }).settle();
   effects.reset();
@@ -107,7 +106,6 @@ export function gameOver(opts) {
   // Two collision paths can both end the same round; only the first call acts.
   if (!op.playing) return;
   op.playing = false;
-  setDpad(false);
   // The tweens in flight end with the round rather than running under the
   // finish screen.
   op.act?.reset();
