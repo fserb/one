@@ -24,10 +24,6 @@ import * as play from "./lib/sounds.js";
 
 export const meta = {
   title: "cable",
-  desc: `
-fly with the arrows or the pointer
-loop every planet, then leave the quadrant
-`,
   bg: "#83CBC8",
   fg: "#323431",
   scoreMax: true,

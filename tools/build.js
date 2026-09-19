@@ -21,6 +21,7 @@ const WWW = new URL("../www/", import.meta.url);
 const MEDIA = new URL("../media/", import.meta.url);
 const ASSETS = new URL("../assets/", import.meta.url);
 const BASE = "https://one.fserb.com";
+const REPO = "https://github.com/fserb/one";
 
 // The gallery's own colours, and what a game gets when meta leaves them out.
 const SITE = { bg: "#f2f0e5", fg: "#212123" };
@@ -119,7 +120,7 @@ async function games() {
 async function meta(game) {
   const mod = await import(src(`${game}.js`));
   if (!mod.meta) throw new Error(`src/${game}.js has no "meta" export`);
-  return { title: game, desc: "", ...SITE, ...mod.meta };
+  return { title: game, ...SITE, ...mod.meta };
 }
 
 async function bundle(game) {
@@ -198,8 +199,8 @@ function page(game, m, js, s) {
     : "";
   return fill(TEMPLATE.game, {
     title: esc(m.title),
-    desc: esc(m.desc.trim().replace(/\s*\n\s*/g, " ")),
     url: `${BASE}/${game}/`,
+    source: `${REPO}/blob/main/src/${game}.js`,
     bg: m.bg,
     icon: favicon(m),
     fonts: FONTS,

@@ -28,10 +28,6 @@ export { render } from "./lib/entity.js";
 
 export const meta = {
   title: "gather",
-  desc: `
-arrows move, space undoes
-take an equal count of every colour you touch
-`,
   bg: "#FFFFFF",
   fg: "#000000",
   scoreMax: true,

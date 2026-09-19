@@ -22,10 +22,6 @@ import * as play from "./lib/sounds.js";
 
 export const meta = {
   title: "musician",
-  desc: `
-tap when a note reaches the mark
-slide to catch coins and dodge tomatoes
-`,
   bg: "#444444",
   fg: "#F7E26B",
   scoreMax: true,

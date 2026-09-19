@@ -20,10 +20,6 @@ export { render, update } from "./lib/entity.js";
 
 export const meta = {
   title: "grab",
-  desc: `
-arrows move, the mouse aims and throws
-grab a ghost, its colour becomes the floor
-`,
   bg: "#010101",
   fg: "#FAFAFA",
   scoreMax: true,

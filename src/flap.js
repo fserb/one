@@ -16,10 +16,6 @@ export { render, update } from "./lib/entity.js";
 
 export const meta = {
   title: "flap",
-  desc: `
-one button up, the walls turn you around
-catch the coin before it goes
-`,
   bg: "#4EC0CA",
   fg: "#533846",
   scoreMax: true,

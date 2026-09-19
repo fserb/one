@@ -34,10 +34,6 @@ export { render } from "./lib/entity.js";
 
 export const meta = {
   title: "avoid",
-  desc: `
-graze the red to score
-touching it costs you size
-`,
   bg: "#FFF6E8",
   fg: "#FFC21E",
   scoreMax: true,

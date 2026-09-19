@@ -21,7 +21,6 @@ export { input };
 // Filled in from the game module's `meta` export by run().
 export const meta = {
   title: "untitled",
-  desc: "",
   bg: "#f2f0e5",
   fg: "#212123",
   // The colour everything over the board draws in; absent picks it off meta.bg.

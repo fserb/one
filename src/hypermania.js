@@ -25,10 +25,6 @@ export { render } from "./lib/entity.js";
 
 export const meta = {
   title: "hypermania",
-  desc: `
-arrows or the mouse move, space or a click shoots
-the bar is the clock, and every shot spends it
-`,
   bg: "#04a2fc",
   fg: "#024972",
   // The board is light enough that overlay.js would put black over it; white is

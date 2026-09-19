@@ -23,10 +23,6 @@ export { render } from "./lib/entity.js";
 
 export const meta = {
   title: "asteroid",
-  desc: `
-arrows fly the ship, space shoots
-time crawls until you thrust or shoot
-`,
   bg: "#BF1B25",
   fg: "#FFFFFF",
   scoreMax: true,

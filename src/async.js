@@ -17,10 +17,6 @@ const { arrayRemove, promiseSleep, TAU } = extra;
 
 export const meta = {
   title: "async",
-  desc: `
-swap blocks on each side
-to build mega blocks
-`,
   bg: "#FFFFFF",
   fg: "#424B54",
   scoreMax: true,
@@ -62,7 +58,13 @@ let beltNext;
 let milestone;
 
 export function init() {
-  msg(meta.desc, { at: "bottom", hold: 3, once: true });
+  msg(
+    `
+swap blocks on each side
+to build mega blocks
+`,
+    { at: "bottom", hold: 3, once: true },
+  );
   board.length = 0;
   belt.length = 0;
   selected[0] = selected[1] = null;

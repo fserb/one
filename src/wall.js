@@ -24,10 +24,6 @@ import * as play from "./lib/sounds.js";
 
 export const meta = {
   title: "wall",
-  desc: `
-coins feed the light, which is going out
-the orange moves only while you cannot see it
-`,
   bg: "#303030",
   fg: "#1EBED8",
   scoreMax: true,

@@ -17,10 +17,6 @@ export { render, update } from "./lib/entity.js";
 
 export const meta = {
   title: "berzerk",
-  desc: `
-arrows move, space shoots
-each number taken raises the next
-`,
   bg: "#FF3155",
   fg: "#000000",
   scoreMax: true,

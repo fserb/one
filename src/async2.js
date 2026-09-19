@@ -22,10 +22,6 @@ import { input, score } from "./lib/one.js";
 
 export const meta = {
   title: "async2",
-  desc: `
-click a block on each board to swap
-click a merged block to destroy it
-`,
   bg: "#519B9D",
   fg: "#386B99",
   scoreMax: true,

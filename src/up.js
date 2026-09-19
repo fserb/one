@@ -18,10 +18,6 @@ export { render } from "./lib/entity.js";
 
 export const meta = {
   title: "up",
-  desc: `
-arrows fire the thruster on that side
-which pushes you off it
-`,
   bg: "#EDE4D0",
   fg: "#33302B",
   scoreMax: true,

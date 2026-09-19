@@ -21,10 +21,6 @@ import * as play from "./lib/sounds.js";
 
 export const meta = {
   title: "amaze",
-  desc: `
-take the key, then the square it opens
-tap to jump one wall, hold to walk
-`,
   bg: "#3DBF86",
   fg: "#444444",
   scoreMax: true,
@@ -569,7 +565,13 @@ function buildLevel() {
 }
 
 export function init() {
-  msg(meta.desc, { at: "bottom", hold: 3, once: true });
+  msg(
+    `
+take the key, then the square it opens
+tap to jump one wall, hold to walk
+`,
+    { at: "bottom", hold: 3, once: true },
+  );
   level = 0;
   dying = 0;
   phase = PLAY;

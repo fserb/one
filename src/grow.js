@@ -20,10 +20,6 @@ import { gameOver, score } from "./lib/one.js";
 
 export const meta = {
   title: "grow",
-  desc: `
-hold to pull the loop out to the gold
-go too far and the loop swallows it
-`,
   bg: "#bf1b25",
   fg: "#f7f0e8",
   scoreMax: true,

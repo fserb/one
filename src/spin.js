@@ -21,10 +21,6 @@ import * as play from "./lib/sounds.js";
 
 export const meta = {
   title: "spin",
-  desc: `
-run and jump for the orange
-the needle says which way the room turns
-`,
   bg: "#303030",
   fg: "#FF6819",
   scoreMax: true,

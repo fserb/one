@@ -24,10 +24,6 @@ export { render } from "./lib/entity.js";
 
 export const meta = {
   title: "boxjump",
-  desc: `
-ride the turning shape, press to launch
-off the face you are standing on
-`,
   bg: "#2B2D42",
   fg: "#EDF2F4",
   scoreMax: true,

@@ -10,10 +10,6 @@ import { gameOver, input, score } from "./lib/one.js";
 
 export const meta = {
   title: "wow",
-  desc: `
-move the small circle
-inside the bigger circle
-`,
   bg: "#B8B5B9",
   fg: "#4B4158",
   scoreMax: false,

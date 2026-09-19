@@ -20,10 +20,6 @@ const { clamp, lerp, TAU } = extra;
 
 export const meta = {
   title: "rope",
-  desc: `
-climb up
-stay alive
-`,
   bg: "#000000",
   fg: "#402F2E",
   scoreMax: true,

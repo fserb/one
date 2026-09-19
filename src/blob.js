@@ -24,10 +24,6 @@ import * as sound from "./lib/sound.js";
 
 export const meta = {
   title: "blob",
-  desc: `
-drag a blob off the rail to throw it
-two of a kind make the next one up
-`,
   bg: "#14171c",
   fg: "#8a9ab4",
   scoreMax: true,

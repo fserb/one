@@ -20,10 +20,6 @@ const { arrayRemove, lerp, promiseSleep, SQRT3, TAU } = extra;
 
 export const meta = {
   title: "trap",
-  desc: `
-destroy blocks
-don't let the eye escape
-`,
   bg: "#68C2D3",
   fg: "#402F2E",
   scoreMax: true,

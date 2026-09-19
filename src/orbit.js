@@ -31,10 +31,6 @@ export { render } from "./lib/entity.js";
 
 export const meta = {
   title: "orbit",
-  desc: `
-click flips your orbit
-shoot the core; what you leave standing scores
-`,
   bg: "#8232CD",
   fg: "#222222",
   release: true,

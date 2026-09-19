@@ -26,10 +26,6 @@ import * as play from "./lib/sounds.js";
 
 export const meta = {
   title: "jeb",
-  desc: `
-land on the lit planet, slow and upright
-drag to aim the nose, hold to burn
-`,
   bg: "#000000",
   fg: "#EEB62F",
   scoreMax: true,

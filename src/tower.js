@@ -20,10 +20,6 @@ import { gameOver, input, msg, score } from "./lib/one.js";
 
 export const meta = {
   title: "tower",
-  desc: `
-drag out a region of 1..n
-until the board is gone
-`,
   bg: "#FFFFFF",
   fg: "#333333",
   scoreMax: true,
@@ -539,7 +535,13 @@ function click(x, y) {
 
 export function init() {
   registerSquircle();
-  msg(meta.desc, { at: "bottom", hold: 3, once: true });
+  msg(
+    `
+drag out a region of 1..n
+until the board is gone
+`,
+    { at: "bottom", hold: 3, once: true },
+  );
 
   working = [];
   committed = [];

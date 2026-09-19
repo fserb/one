@@ -25,10 +25,6 @@ export { render } from "./lib/entity.js";
 
 export const meta = {
   title: "metro",
-  desc: `
-you are a metro car
-up drives, left and right switch
-`,
   bg: "#FFFFFF",
   fg: "#1C140D",
   scoreMax: true,

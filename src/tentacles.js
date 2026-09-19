@@ -17,10 +17,6 @@ const { arrayShuffle, TAU } = extra;
 
 export const meta = {
   title: "tentacles",
-  desc: `
-tap a side to move
-they leave their bodies behind
-`,
   bg: "#9AAAB2",
   fg: "#2F3E46",
   scoreMax: true,

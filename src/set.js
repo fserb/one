@@ -20,10 +20,6 @@ export { render } from "./lib/entity.js";
 
 export const meta = {
   title: "set",
-  desc: `
-pick three cards
-each trait all same or all different
-`,
   bg: "#FAFAFA",
   fg: "#010101",
   scoreMax: true,
@@ -361,7 +357,13 @@ function mark(cell) {
 }
 
 export function init() {
-  msg(meta.desc, { at: "bottom", hold: 3, once: true });
+  msg(
+    `
+pick three cards
+each trait all same or all different
+`,
+    { at: "bottom", hold: 3, once: true },
+  );
   ent.reset([Card, Mark, Cursor, Clock, ent.Particle]);
 
   deck = newDeck();

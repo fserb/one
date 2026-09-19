@@ -499,8 +499,9 @@
           `poster="./media/${g.name}/card.png" loop muted playsinline ` +
           `preload=none></video>`
         : "";
-      // Hover text, which the front page's cards deliberately do not have.
-      const tip = g.error ?? (g.desc ?? "").trim();
+      // A broken game says why on hover; a working one has no hover text,
+      // the way the front page's cards have none.
+      const tip = g.error ?? "";
       return `<li${g.error ? " class=error" : ""} ` +
         `style="--bg:${esc(m.bg)};--fg:${esc(fg)}">
         <a href="?game=${encodeURIComponent(g.name)}"${
