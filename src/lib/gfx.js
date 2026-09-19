@@ -9,8 +9,9 @@
  * fill() and line() set what every shape after them uses, and null turns
  * either off. mt()/lt()/ct() draw a path where the shape calls will not.
  *
- * css(c) is here too: it turns one of those 0xrrggbb numbers into the string a
- * canvas takes, and every game reaches it through entity.js.
+ * css(c) and hex(s) are here too: one turns a 0xrrggbb number into the string a
+ * canvas takes, the other a "#rrggbb" string back into the number. Games reach
+ * both through entity.js.
  *
  * Each shape is an alma Path2D, which records the calls and hands them to a
  * real Path2D the first time it is drawn, so a command list holds no DOM
@@ -36,6 +37,11 @@ export function css(c) {
     CSS.set(c, s);
   }
   return s;
+}
+
+// The other way: meta and theme() carry "#rrggbb", and drawing takes numbers.
+export function hex(s) {
+  return parseInt(s.slice(1), 16);
 }
 
 const ALIGN = ["left", "center", "right"];

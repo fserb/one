@@ -8,7 +8,7 @@
  * and render() after the game draws.
  */
 
-import { anchor, css } from "./gfx.js";
+import { anchor, css, hex } from "./gfx.js";
 import { input } from "./input.js";
 import { meta, score } from "./one.js";
 
@@ -290,8 +290,8 @@ export function theme(m) {
 // which is most of the distance to the wrong pair. Six-digit hex only, which is
 // what every meta.bg and meta.overlay is; alma's color().contrast() reads any
 // CSS colour and costs 12 KB a bundle.
-function lum(hex) {
-  const n = parseInt(hex.slice(1), 16);
+function lum(c) {
+  const n = hex(c);
   let y = 0;
   for (const [shift, weight] of [[16, 0.2126], [8, 0.7152], [0, 0.0722]]) {
     const c = ((n >> shift) & 255) / 255;

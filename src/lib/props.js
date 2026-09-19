@@ -12,7 +12,7 @@
  * ```
  */
 
-import { anchor, css } from "./gfx.js";
+import { anchor, css, hex } from "./gfx.js";
 import { Entity, game } from "./core.js";
 import { meta, score } from "./one.js";
 
@@ -74,7 +74,7 @@ export function addScore(n, x, y, opts = {}) {
     x,
     y,
     size: 40,
-    color: parseInt(meta.fg.slice(1), 16),
+    color: hex(meta.fg),
     vel: [0, -64],
     duration: 0.7,
     ...opts,
