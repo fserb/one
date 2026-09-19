@@ -11,6 +11,15 @@
  * A chunk is a slice of a ring, which is neither shape entity.js collides. In
  * polar coordinates the slice is two comparisons, which is `covers()`.
  *
+ * Mashing the flip parks the player at one angle, and parking wins twice: the
+ * outgoing stream then lies along the line the turret fires back down, so the
+ * two collinear rays always cross and the player's own bullets eat almost
+ * every round, and all of that fire drills a single column, which is the
+ * fastest cut. Pressure is what it costs. It is built from a decaying count of
+ * presses, so it reads the rate of pressing rather than any position, and it
+ * shortens the turret's interval, lengthens the player's reload, and swells
+ * the core, which is the only part of it the player can see.
+ *
  * Hitstop runs a frame at dt 0 rather than skipping it, so the two places that
  * divide by dt guard against it.
  */
@@ -33,6 +42,7 @@ shoot the core; what you leave standing scores
 `,
   bg: "#8232CD",
   fg: "#222222",
+  release: true,
   scoreMax: true,
   date: "2014-05-01",
 };
@@ -63,6 +73,12 @@ const REPOINT = 12;
 
 // Frames of player angle the turret averages to lead its shot.
 const HISTORY = 60;
+
+// `presses` is how many presses are recent: one adds PRESS, and the count
+// halves every PRESSHALF seconds and stops at 1, so pressing once a second
+// settles near 0.2 and seven a second holds it at 1.
+const PRESS = 0.1;
+const PRESSHALF = 1.4;
 
 // A ring is a pattern and a weight read digit by digit: a pattern digit is how
 // many slots that chunk covers, so the digits sum to the ring's slots, and the
@@ -114,6 +130,13 @@ let level = 0;
 let transition = false;
 let player = null;
 let rings = null;
+let presses = 0;
+
+// The three effects read the square, so a flip a second costs almost nothing
+// and the cost climbs steeply from there: five a second is already most of it.
+function pressure() {
+  return presses * presses;
+}
 
 class Player extends ent.Entity {
   constructor() {
@@ -148,7 +171,11 @@ class Player extends ent.Entity {
 
   update() {
     const dt = ent.game.time;
-    if (ent.game.input.just.act) this.clockwise = !this.clockwise;
+    if (ent.game.input.just.act) {
+      this.clockwise = !this.clockwise;
+      presses = Math.min(1, presses + PRESS);
+    }
+    presses *= Math.pow(0.5, dt / PRESSHALF);
 
     this.angle += (this.clockwise ? -ANGSPEED : ANGSPEED) * dt;
     this.angle = mod(this.angle, TAU);
@@ -159,7 +186,7 @@ class Player extends ent.Entity {
 
     if (!transition) this.reload -= dt;
     if (this.reload > 0) return;
-    this.reload += 0.5;
+    this.reload += 0.5 + 0.5 * pressure();
 
     const c = Math.cos(this.angle);
     const s = Math.sin(this.angle);
@@ -479,6 +506,7 @@ class Enemy extends ent.Entity {
     aim = mod(aim + n * Math.PI / 32, TAU);
 
     this.bulletDelay = Math.max(0.1, this.bulletDelay - 0.1 * dt / 30);
+    this.scale = 1 + 0.3 * pressure();
 
     // Damping that never quite settles, so the barrel oscillates around the
     // player rather than tracking them.
@@ -489,7 +517,7 @@ class Enemy extends ent.Entity {
 
     if (!transition) this.bulletTime -= dt;
     if (this.bulletTime > 0) return;
-    this.bulletTime = this.bulletDelay;
+    this.bulletTime = Math.max(0.1, this.bulletDelay - 0.45 * pressure());
     new EnemyBullet(this.angle);
     play.shoot({ detune: -500 });
   }
@@ -602,6 +630,7 @@ export function init() {
 
   level = -1;
   transition = true;
+  presses = 0;
   rings = null;
   player = new Player();
   nextLevel();
