@@ -23,6 +23,7 @@ function size {
 # src/dev/rec.js downloads the zip; this is the other half of that.
 function media {
   deno run -A tools/media.js "$@"
+  build "$@"
 }
 
 # Record each game with nobody at the keyboard, and turn the recordings into
