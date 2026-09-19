@@ -7,7 +7,7 @@
  * scale, and setScale() relaxes the ring into a new size over the next
  * substeps, which is the squash. Every number here is a rate a second, and
  * update() sizes the substep off the frame rather than counting a fixed eight,
- * so the jelly is the same at 60Hz and at 144.
+ * so a blob deforms the same at 60Hz and at 144.
  *
  * An enemy is two flat draws. `chase` sets the radius it turns on and its
  * colour together: red turns inside the player's own size, pink on near a
@@ -15,8 +15,8 @@
  * times ramp(), so the small ones are the fast ones. Its velocity relaxes
  * toward top speed straight at the player, and nothing else steers it.
  *
- * Size never comes back on its own: motes are off, and the way back up is
- * wiping a stain off the board before it fades.
+ * Size never comes back on its own: the way back up is wiping a stain off the
+ * board before it fades.
  *
  * A blob is painted the way blob.js paints one: a short shadow, three flat
  * tones scaled toward a lamp off the top left, one broad specular, and a white
@@ -57,8 +57,6 @@ const MIN_SIZE = 2;
 const GOLD_SKIN = ["#ffe27a", "#ffc21e", "#d18c00"];
 const PINK_SKIN = ["#ff96bd", "#ff3d7f", "#c40d4e"];
 const RED_SKIN = ["#ff8a72", "#ee2a18", "#9e0d06"];
-
-const PLAYER_SPLAT = "#ffc21e";
 
 const sim = new SoftBodies({
   width: 1024,
@@ -158,7 +156,9 @@ function offBoard(size) {
 
 class Enemy extends Blob {
   constructor() {
-    const size = SIZE_MIN + Math.random() * (SIZE_MAX - SIZE_MIN);
+    // 16 to 46 across: what it costs to touch one, and through SPEED_SIZE how
+    // fast it comes at you.
+    const size = 16 + Math.random() * 30;
     const at = offBoard(size);
     super(size, at.x, at.y);
     this.tads = 0;
@@ -187,7 +187,7 @@ class Enemy extends Blob {
 
     // The whole of the motion. Exact over the frame, so the speed it holds and
     // the radius it turns on do not move with the frame rate, and the mean
-    // only, so the wobble the ring carries rides through it.
+    // only, so the wobble the ring carries is left alone.
     const b = this.body;
     const top = this.speedSize / this.size;
     const dx = player.pos.x - this.pos.x;
@@ -207,7 +207,7 @@ class Enemy extends Blob {
 
     // Both rings dent where they face each other, and neither body moves.
     if (gap > 0 && gap < this.size + player.size) {
-      const k = DENT * this.size / (gap + this.size);
+      const k = 54000 * this.size / (gap + this.size);
       dent(this.body, player.pos.x, player.pos.y, k);
       dent(player.body, this.pos.x, this.pos.y, k);
     }
@@ -267,10 +267,6 @@ class Enemy extends Blob {
   }
 }
 
-// What it costs to touch one, and through SPEED_SIZE how fast it comes at you.
-const SIZE_MIN = 16;
-const SIZE_MAX = 46;
-
 // Top speed times size, at ramp() 1: a 31 across runs 240 a second, so the
 // range is 162 to 465 at the start of a round and 330 to 949 three minutes in.
 const SPEED_SIZE = 240 * 31;
@@ -280,79 +276,8 @@ const SPEED_SIZE = 240 * 31;
 const TURN_TIGHT = 40;
 const TURN_WIDE = 300;
 
-// How hard a pass pulls the two rings toward each other.
-const DENT = 54000;
-
 // Tight enough that the blob is under the pointer at a graze distance.
 const FOLLOW = 26;
-
-// How hard the player's ring pulls out of round while it moves. The deform
-// flattens off above about 4.
-const STRETCH = 2.5;
-
-// Motes cross the board on one heading a round, slowly enough that reaching
-// one is a place the player chose to be.
-const MOTE_R = 9;
-const MOTE_GAIN = 5;
-const MOTE_SPEED = 40;
-// const MOTE_EVERY = 2;
-
-let drift = { x: 1, y: 0 };
-
-class Mote extends ent.Entity {
-  static layer = 1; // over the splats on the board, under the blobs
-
-  constructor() {
-    super();
-    // Which of the two upwind edges is picked in proportion to how square-on
-    // the heading is to each, so a diagonal feeds both evenly. A fixed
-    // distance from the middle instead spawns a diagonal inside the board.
-    const m = MOTE_R * 2 + 6;
-    const ax = Math.abs(drift.x);
-    const ay = Math.abs(drift.y);
-    if (Math.random() * (ax + ay) < ax) {
-      this.pos.x = drift.x > 0 ? -m : 1024 + m;
-      this.pos.y = Math.random() * 1024;
-    } else {
-      this.pos.x = Math.random() * 1024;
-      this.pos.y = drift.y > 0 ? -m : 1024 + m;
-    }
-    this.vel.x = drift.x * MOTE_SPEED;
-    this.vel.y = drift.y * MOTE_SPEED;
-    this.r = MOTE_R * (0.75 + Math.random() * 0.5);
-  }
-
-  update() {
-    const player = ent.one(Player);
-    if (player !== null) {
-      const d = Math.hypot(
-        player.pos.x - this.pos.x,
-        player.pos.y - this.pos.y,
-      );
-      if (d < player.size + this.r) {
-        player.size += MOTE_GAIN;
-        this.remove();
-        return;
-      }
-    }
-    const s = 220;
-    if (
-      this.pos.x < -s || this.pos.y < -s ||
-      this.pos.x > 1024 + s || this.pos.y > 1024 + s
-    ) this.remove();
-  }
-
-  render(ctx) {
-    ctx.fillStyle = GOLD_SKIN[1];
-    ctx.beginPath();
-    ctx.arc(0, 0, this.r, 0, 2 * Math.PI);
-    ctx.fill();
-    ctx.fillStyle = "rgba(255, 255, 255, 0.85)";
-    ctx.beginPath();
-    ctx.arc(-this.r * 0.3, -this.r * 0.34, this.r * 0.32, 0, 2 * Math.PI);
-    ctx.fill();
-  }
-}
 
 class Player extends Blob {
   constructor() {
@@ -379,7 +304,8 @@ class Player extends Blob {
       (this.aim.x - b.cx) * FOLLOW - b.mvx,
       (this.aim.y - b.cy) * FOLLOW - b.mvy,
     );
-    stretch(b, STRETCH);
+    // How hard the ring pulls out of round; the deform flattens off above 4.
+    stretch(b, 2.5);
   }
 
   chit(s) {
@@ -394,7 +320,7 @@ class Player extends Blob {
     // one.js runs the camera whether or not a round is playing, so this plays
     // out under the finish screen rather than being cut off by it.
     shake(0.7);
-    new Splat(PLAYER_SPLAT, this.pos, 980 + this.speed / 4, 60, 0, true);
+    new Splat(GOLD_SKIN[1], this.pos, 980 + this.speed / 4, 60, 0, true);
     this.remove();
     gameOver({ score: true });
   }
@@ -437,15 +363,12 @@ function stretch(b, rate) {
 // ent.Text cannot be retexted, so the running number is its own entity. Left
 // out of reset()'s list, so it keeps the default layer of 10 and draws over
 // everything there.
-const SCORE_SIZE = 54;
-const SCORE_INSET = 40;
-
 class Score extends ent.Entity {
   static screen = true;
 
   render(ctx) {
     ctx.fillStyle = theme(meta);
-    ctx.text(`${Math.floor(score.value)}`, SCORE_INSET, SCORE_INSET, SCORE_SIZE, {
+    ctx.text(`${Math.floor(score.value)}`, 40, 40, 54, {
       align: "left",
       valign: "top",
     });
@@ -576,20 +499,12 @@ function paint(ctx, b, skin, outer) {
 // that slows a particle. A drop travels v0 / SPLAT_DRAG before it stops, so
 // the speeds a splat is given read as how far it throws.
 const SPLAT_DRAG = 6;
-// Cubed, so the draw sits near the small end and a big drop is the exception.
-const DROP_MIN = 3.5;
-const DROP_MAX = 28;
-// Under 1 so drops compound where they overlap: a dark pile, a light edge.
-const SPLAT_ALPHA = 0.72;
 // 1 - u^2, near full for the first third: bold, then gone quickly.
 const SPLAT_LIFE = 14;
 // What a whole stain gives back, as a share of the blob that left it.
 const CLEAN_BACK = 0.2;
 // A drop that stays under the player clears in 1 / CLEAN_RATE seconds.
 const CLEAN_RATE = 3.6;
-// A wiped drop goes gold and falls back over this, holding its alpha up while
-// it does, so what the player took in comes out from behind the blob.
-const CLEAN_FLASH = 0.35;
 // Held as strings, so a drop costs no colour arithmetic a frame.
 const HOT_STEPS = 8;
 
@@ -604,7 +519,8 @@ class Splat extends ent.Entity {
       const a = Math.random() * 2 * Math.PI;
       // Squared, so most drops stay near the break and a few carry.
       const v = speed * (0.12 + Math.random() ** 2 * 1.5);
-      const r = DROP_MIN + Math.random() ** 3 * (DROP_MAX - DROP_MIN);
+      // 3.5 to 28, cubed, so a big drop is the exception.
+      const r = 3.5 + Math.random() ** 3 * 24.5;
       const sa = Math.random() * 2 * Math.PI;
       this.drops.push({
         x: pos.x,
@@ -649,7 +565,9 @@ class Splat extends ent.Entity {
 
   update() {
     const k = Math.exp(-SPLAT_DRAG * ent.game.time);
-    const cool = ent.game.time / CLEAN_FLASH;
+    // A wiped drop goes gold and falls back over 0.35s, holding its alpha up
+    // while it does, so what the player took in comes out from behind the blob.
+    const cool = ent.game.time / 0.35;
     // Cooling before clean(), so a drop wiped this frame is hot going into the
     // next.
     for (let i = this.drops.length - 1; i >= 0; i--) {
@@ -689,7 +607,8 @@ class Splat extends ent.Entity {
   // The drops carry board positions, so there is nothing to undo here.
   render(ctx) {
     const u = Math.min(1, this.age / SPLAT_LIFE);
-    const alpha = SPLAT_ALPHA * (1 - u * u);
+    // Under 1 so drops compound where they overlap: a dark pile, a light edge.
+    const alpha = 0.72 * (1 - u * u);
     for (const d of this.drops) {
       ctx.globalAlpha = alpha * Math.max(d.left, d.hot);
       ctx.fillStyle = this.hotRamp[Math.round(d.hot * HOT_STEPS)];
@@ -704,15 +623,6 @@ class Splat extends ent.Entity {
   }
 }
 
-// The solver's constraints are projections, so their stiffness over a second
-// is the substep count times the steps in it. Sizing the substep rather than
-// counting it holds that still at any frame length.
-const SUBSTEP = 1 / 480;
-
-// A longer frame is solved short rather than whole, or one step carries a blob
-// further than its own radius, through everything it should have hit.
-const MAX_DT = 1 / 30;
-
 function step(dt) {
   sim.measure();
   sim.repair(dt);
@@ -723,24 +633,23 @@ function step(dt) {
 
 export function init() {
   sim.clear();
-  const a = Math.random() * 2 * Math.PI;
-  drift = { x: Math.cos(a), y: Math.sin(a) };
-  ent.reset([Splat, Mote, Enemy, Player]);
+  ent.reset([Splat, Enemy, Player]);
 
   new Player();
   new Score();
   ent.every(1.5, () => {
     new Enemy();
   });
-  // Motes are off: cleaning a stain is the only way size comes back.
-  // ent.every(MOTE_EVERY, () => {
-  //   new Mote();
-  // });
   sim.measure();
 }
 
 export function update(dt) {
-  dt = Math.min(dt, MAX_DT);
-  sim.substeps = Math.max(2, Math.min(24, Math.round(dt / SUBSTEP)));
+  // A longer frame is solved short rather than whole, or one step carries a
+  // blob further than its own radius, through everything it should have hit.
+  dt = Math.min(dt, 1 / 30);
+  // The solver's constraints are projections, so their stiffness over a second
+  // is the substep count times the steps in it. 480 a second rather than a
+  // fixed count holds that still at any frame length.
+  sim.substeps = Math.max(2, Math.min(24, Math.round(dt * 480)));
   step(dt);
 }
