@@ -43,16 +43,12 @@ take an equal count of every colour you touch
 const BLACK = 0x000000;
 const WHITE = 0xffffff;
 
-function hex(c) {
-  return parseInt(c.slice(1), 16);
-}
-
 const PALETTE = ["#ff6819", "#c0dc61", "#1ebed8", "#fec804", "#e284cc"];
-const COLORS = PALETTE.map(hex);
+const COLORS = PALETTE.map(ent.hex);
 // A box is edged in its own colour taken two thirds of the way to black in
 // OKLAB, so the outline carries the hue instead of being flat black.
 const DARK = PALETTE.map((c) =>
-  hex(color(c).mix(color("#000000"), 0.66, "oklab").hex)
+  ent.hex(color(c).mix(color("#000000"), 0.66, "oklab").hex)
 );
 
 const COLS = 9;
@@ -126,7 +122,7 @@ let chain = [];
 let tray = null;
 let total = null;
 let note = null;
-let dying = 0;
+let dying = false;
 
 // Survives a round: the tutorial is once a page unless the player died in it.
 let introAt = INTRO.length;
@@ -538,7 +534,8 @@ function control() {
 function die() {
   play.lose();
   shake(1);
-  dying = 0.35;
+  dying = true;
+  ent.after(0.35, () => gameOver({ score: true }));
 }
 
 export function init() {
@@ -546,7 +543,7 @@ export function init() {
 
   scroll = 0;
   from = 0;
-  dying = 0;
+  dying = false;
   note = null;
   introAt = introAt >= 0 ? INTRO.length : -1;
   noteAt = NOTES.length;
@@ -572,10 +569,7 @@ export function init() {
 }
 
 export function update(dt) {
-  if (dying > 0) {
-    dying -= dt;
-    if (dying <= 0) return gameOver({ score: true });
-  } else {
+  if (!dying) {
     advance(dt);
     if (chain.some((c) => cellY(c.py) >= 973)) die();
     else control();

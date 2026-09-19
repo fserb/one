@@ -68,10 +68,8 @@ let waveTime = 0;
 let wave = 1;
 // Not off ent.get(): one made this frame has not begun.
 let alive = 0;
-let dying = 0;
-let flip = false;
-let flipTime = 0;
-let flipped = [];
+// Null once the ship is hit, which is what stops the round.
+let player = null;
 
 class Player extends ent.Entity {
   begin() {
@@ -100,7 +98,7 @@ class Player extends ent.Entity {
     const b = incoming(this, false);
     if (b === null) return;
     b.remove();
-    explode(this);
+    explode();
   }
 }
 
@@ -191,8 +189,7 @@ class Rock extends Target {
       return;
     }
 
-    const p = ent.one(Player);
-    if (p !== null && this.hit(p)) explode(p);
+    if (this.hit(player)) explode();
 
     wrap(this, 2 * this.size);
   }
@@ -222,15 +219,14 @@ class Enemy extends Target {
   findTarget() {
     const x = 1024 * Math.random();
     const y = 1024 * Math.random();
-    const p = ent.one(Player);
-    if (p === null) {
+    if (player === null) {
       this.target = { x, y };
       return;
     }
     const w = 1 - Math.min(0.75, this.age / 10);
     this.target = {
-      x: w * x + (1 - w) * p.pos.x,
-      y: w * y + (1 - w) * p.pos.y,
+      x: w * x + (1 - w) * player.pos.x,
+      y: w * y + (1 - w) * player.pos.y,
     };
   }
 
@@ -240,15 +236,14 @@ class Enemy extends Target {
     const ty = this.target.y - this.pos.y;
     if (Math.hypot(tx, ty) < 68) this.findTarget();
 
-    const p = ent.one(Player);
     const speed = Math.hypot(this.vel.x, this.vel.y);
-    const toPlayer = p === null
+    const toPlayer = player === null
       ? 0
-      : Math.atan2(p.pos.y - this.pos.y, p.pos.x - this.pos.x);
+      : Math.atan2(player.pos.y - this.pos.y, player.pos.x - this.pos.x);
 
     // Over 215 it stops steering and aims; under 43 it thrusts as it points.
     if (
-      p !== null && speed >= 215 &&
+      player !== null && speed >= 215 &&
       between(tx, ty, this.vel.x, this.vel.y) <= CONE
     ) {
       steer(this, toPlayer, Math.PI);
@@ -273,7 +268,7 @@ class Enemy extends Target {
       if (off < CONE || speed < 43) thrust(this, THRUST * time);
     }
 
-    if (p !== null) {
+    if (player !== null) {
       this.reload = Math.max(0, this.reload - time);
       if (Math.abs(fold(toPlayer - this.angle)) < Math.PI / 12 && this.reload <= 0) {
         fire(this, false, play.shoot, -500);
@@ -294,11 +289,11 @@ class Enemy extends Target {
       return;
     }
 
-    if (p === null || !this.hit(p)) return;
+    if (!this.hit(player)) return;
     this.remove();
     play.break();
     debris(this.pos, BLACK, 40, 1);
-    explode(p);
+    explode();
   }
 }
 
@@ -340,31 +335,29 @@ function incoming(e, fromPlayer) {
   return null;
 }
 
-function explode(p) {
-  if (p.dead) return;
-  debris(p.pos, WHITE, 70, 2);
+// The title and the score alternate, a second each, once the ship is hit.
+class Banner extends ent.Entity {
+  render(ctx) {
+    ctx.fillStyle = ent.css(WHITE);
+    if (Math.trunc(this.age) % 2 === 1) {
+      ctx.text(String(Math.floor(score.value)), 512, 512, 220);
+      return;
+    }
+    ctx.text("SUPER", 512, 256, 160);
+    ctx.text("HOT", 512, 512, 160);
+    ctx.text("ASTEROID", 512, 768, 160);
+  }
+}
+
+function explode() {
+  if (player === null) return;
+  debris(player.pos, WHITE, 70, 2);
   shake(0.5);
   play.lose();
-  p.remove();
-  dying = 2.5;
-  // `flip` starts true and turns over at once, so the title is seen first.
-  flip = true;
-  flipTime = 0;
-}
-
-// `Text` has no way to move or retext one, so the labels are remade a second.
-function turnOver() {
-  for (const t of flipped) t.remove();
-  flip = !flip;
-  flipped = flip ? [label(512, 220, Math.floor(score.value))] : [
-    label(256, 160, "SUPER"),
-    label(512, 160, "HOT"),
-    label(768, 160, "ASTEROID"),
-  ];
-}
-
-function label(y, size, text) {
-  return new ent.Text({ text, x: 512, y, size, color: WHITE });
+  player.remove();
+  player = null;
+  new Banner();
+  ent.after(2.5, () => gameOver({ score: true }));
 }
 
 function debris(pos, color, count, life) {
@@ -428,28 +421,15 @@ export function init() {
   waveTime = 0;
   wave = 1;
   alive = 0;
-  dying = 0;
-  flip = false;
-  flipTime = 0;
-  flipped = [];
-  new Player();
+  player = new Player();
 }
 
 export function update(dt) {
   realtime = dt;
 
-  // Nothing spawns and nothing scores for the 2.5s after the ship is hit.
-  if (dying > 0) {
-    dying -= dt;
-    flipTime -= dt;
-    if (flipTime <= 0) {
-      flipTime += 1;
-      turnOver();
-    }
-    ent.update(dt);
-    if (dying <= 0) gameOver({ score: true });
-    return;
-  }
+  // Nothing spawns and nothing scores once the ship is hit; explode()'s timer
+  // ends the round.
+  if (player === null) return ent.update(dt);
 
   const { input } = ent.game;
   const time = input.press.up || input.press.act ? dt : dt / 50;

@@ -153,20 +153,6 @@ let energy = 0;
 let wave = null;
 let waves = 0;
 let player = null;
-// The ship is steered by the pointer until an arrow key is pressed, and by the
-// keys until the pointer moves again. `lastx` is how a move is noticed.
-let aiming = false;
-let lastx = null;
-let dying = 0;
-
-// Score arrives in fractions while the bar is spent, and score.value is whole,
-// so the fraction is kept here and only the whole part goes out.
-let earned = 0;
-
-function addScore(v) {
-  earned += v;
-  score.value = Math.floor(earned);
-}
 
 class Bar extends ent.Entity {
   // Flush with the bottom edge: shaken, it shows meta.bg underneath.
@@ -235,6 +221,10 @@ class Player extends ent.Entity {
     this.pos.y = PY;
     this.bullet = null;
     this.combo = 0;
+    // Steered by the pointer until an arrow key is pressed, and by the keys
+    // until the pointer moves again. `lastx` is how a move is noticed.
+    this.aiming = false;
+    this.lastx = null;
     this.hitBox(48, 72);
     // On 6-unit cells, where an enemy's are 13.
     this.gfx.fill(WHITE).rects([
@@ -264,7 +254,7 @@ class Player extends ent.Entity {
       duration: 1.5,
     });
     shake(1);
-    dying = 0.4;
+    ent.after(0.4, () => gameOver({ score: true }));
   }
 
   update() {
@@ -287,14 +277,14 @@ class Player extends ent.Entity {
       if (this.bullet.pos.y < -18) this.bullet.explode(false);
     }
 
-    if (lastx !== null && input.x !== lastx) aiming = true;
-    if (input.press.left || input.press.right) aiming = false;
-    lastx = input.x;
+    if (this.lastx !== null && input.x !== this.lastx) this.aiming = true;
+    if (input.press.left || input.press.right) this.aiming = false;
+    this.lastx = input.x;
 
     const step = 425 * time;
     if (input.press.left) this.pos.x -= step;
     else if (input.press.right) this.pos.x += step;
-    else if (aiming) {
+    else if (this.aiming) {
       // A place, not a direction: it stops under the pointer, and at the same
       // speed the keys walk it, so the mouse dodges no faster than the keys.
       const d = input.x - this.pos.x;
@@ -428,7 +418,7 @@ class Enemy extends ent.Entity {
     shake(0.2);
     delay(0.01);
     player.bullet.explode(true);
-    addScore((waves + 1) * player.combo);
+    score.value += (waves + 1) * player.combo;
     ent.after(WHITEOUT, () => {
       this.remove();
       this.wave.drop(this);
@@ -560,7 +550,7 @@ function nextLevel() {
   ent.every(0, () => {
     const was = energy;
     energy = Math.max(1, energy - ent.game.time * 100 / 1.5);
-    addScore(waves * 2 * (was - energy));
+    score.value += waves * 2 * (was - energy);
 
     beat -= ent.game.time;
     if (beat <= 0) {
@@ -594,10 +584,6 @@ export function init() {
   energy = 0;
   wave = null;
   waves = 0;
-  earned = 0;
-  dying = 0;
-  aiming = false;
-  lastx = null;
 
   new Bar();
   new Total();
@@ -610,14 +596,9 @@ export function update(dt) {
   // the drain below only sees by running after.
   ent.update(dt);
 
-  if (dying > 0) {
-    dying -= dt;
-    if (dying <= 0) gameOver({ score: true });
-    return;
-  }
-
-  // Between waves the bar is being spent or refilled, and the drain is off.
-  if (wave === null) return;
+  // Between waves the bar is being spent or refilled, and the drain is off. A
+  // destroyed ship leaves the round to explode()'s timer.
+  if (wave === null || player.dead) return;
 
   energy -= ent.game.time * 100 / 120; // a full bar is two minutes unspent
   if (energy <= 0) player.explode();

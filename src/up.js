@@ -45,9 +45,6 @@ function cross(gfx, arm, half, color) {
 }
 
 let player = null;
-// Score earned but not yet whole.
-let adds = 0;
-let dying = 0;
 // The screen's top left in world space, and what the cells are counted off.
 let camX = 0;
 let camY = 0;
@@ -55,9 +52,6 @@ let camY = 0;
 const filled = new Set();
 let passAt = 0;
 let burnAt = 0;
-let burnN = 0;
-let burnX = 0;
-let burnY = 0;
 
 // The exhaust is what moves the ship, so firing pushes along `offset` reversed.
 class Engine extends ent.Entity {
@@ -66,6 +60,7 @@ class Engine extends ent.Entity {
     this.ship = ship;
     this.offset = offset;
     this.label = label;
+    this.firing = false;
     this.gfx.fill(FLAME).rect(-19.5, -19.5, 39, 39, 12);
   }
 
@@ -92,10 +87,7 @@ class Engine extends ent.Entity {
       duration: [0.25, 0.1],
     });
 
-    const a = this.offset + this.ship.angle;
-    burnN += 1;
-    burnX += Math.cos(a);
-    burnY += Math.sin(a);
+    this.firing = true;
   }
 
   render(ctx) {
@@ -150,7 +142,7 @@ class Player extends ent.Entity {
     });
     for (const e of this.engines) e.remove();
     this.remove();
-    dying = 0.5;
+    ent.after(0.5, () => gameOver({ score: true }));
   }
 }
 
@@ -227,13 +219,9 @@ class Bands extends ent.Entity {
   }
 }
 
-class Readout extends ent.Entity {
-  render(ctx) {
-    ctx.fillStyle = theme(meta);
-    ctx.text(String(Math.floor(score.value)), 26, 26, 34, {
-      align: "left",
-      valign: "top",
-    });
+class Readout extends ent.Text {
+  update() {
+    this.text = String(Math.floor(score.value));
   }
 }
 
@@ -288,44 +276,52 @@ function deal(cx, cy, k) {
 // One whoosh every 0.07s however many engines fired. x pans and y pitches, so
 // the left flame is heard on the left and the top engine has the highest pitch.
 function burn() {
-  if (burnN > 0 && ent.game.totalTime >= burnAt) {
-    burnAt = ent.game.totalTime + 0.07;
-    play.whoosh({
-      volume: 0.055 + 0.028 * burnN,
-      pan: 0.6 * burnX / burnN,
-      detune: -900 - 150 * burnY / burnN + 60 * (2 * Math.random() - 1),
-    });
+  let n = 0;
+  let x = 0;
+  let y = 0;
+  for (const e of player.engines) {
+    if (!e.firing) continue;
+    e.firing = false;
+    const a = e.offset + player.angle;
+    n += 1;
+    x += Math.cos(a);
+    y += Math.sin(a);
   }
-  burnN = burnX = burnY = 0;
+  if (n === 0 || ent.game.totalTime < burnAt) return;
+
+  burnAt = ent.game.totalTime + 0.07;
+  play.whoosh({
+    volume: 0.055 + 0.028 * n,
+    pan: 0.6 * x / n,
+    detune: -900 - 150 * y / n + 60 * (2 * Math.random() - 1),
+  });
 }
 
 export function init() {
   ent.reset([Bands, Obstacle, Gold, ent.Particle, Player, Engine, Readout]);
 
   new Bands();
-  new Readout();
+  new Readout({
+    x: 26,
+    y: 26,
+    size: 34,
+    align: "left top",
+    color: ent.hex(theme(meta)),
+  });
   player = new Player();
   player.pos.x = player.pos.y = 512;
-  adds = 0;
-  dying = 0;
   camX = 0;
   camY = 0;
   passAt = 0;
   burnAt = 0;
-  burnN = 0;
-  burnX = 0;
-  burnY = 0;
   filled.clear();
   fill();
 }
 
 export function update(dt) {
-  if (dying > 0) {
-    dying -= dt;
-    ent.update(dt);
-    if (dying <= 0) gameOver({ score: true });
-    return;
-  }
+  // The view stops climbing and nothing more is dealt; kill()'s timer ends the
+  // round.
+  if (player.dead) return ent.update(dt);
 
   // The slide is 105 a second; climbing faster only moves the ship up to 425.
   const dx = 512 - player.pos.x;
@@ -348,11 +344,8 @@ export function update(dt) {
 
   fill();
 
-  adds += near * dt / 12;
-  if (adds >= 1) {
-    score.value += 1;
-    adds -= 1;
-  }
+  // Shown floored, so score.value holds the fraction.
+  score.value += near * dt / 12;
 
   ent.update(dt);
   burn();
