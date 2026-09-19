@@ -5,8 +5,8 @@
  * one on top drives you down.
  *
  * No camera: the world moves and the view does not, so the ship stays at a
- * fixed 512 across and never above the pin at 425. The field is a grid of world
- * cells, each filled once as the view nears it.
+ * fixed 512 across and never above 425. The field is a grid of world cells,
+ * each filled once as the view nears it.
  */
 
 import * as ent from "./lib/entity.js";
@@ -286,7 +286,7 @@ function deal(cx, cy, k) {
 }
 
 // One whoosh every 0.07s however many engines fired. x pans and y pitches, so
-// the left flame is heard on the left and the top engine is the bright one.
+// the left flame is heard on the left and the top engine has the highest pitch.
 function burn() {
   if (burnN > 0 && ent.game.totalTime >= burnAt) {
     burnAt = ent.game.totalTime + 0.07;

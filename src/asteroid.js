@@ -3,11 +3,12 @@
  * SUPERHOT.
  *
  * Time runs at a fiftieth of its speed unless you are thrusting or shooting.
- * Turning always runs at real time, so a frozen board is a place to aim from,
- * and the score is seconds of running clock plus 2 a rock and 10 a ship.
+ * Turning always runs at real time, so a board at a fiftieth speed is a place
+ * to aim from, and the score is seconds of running clock plus 2 a rock and 10 a
+ * ship.
  *
  * Both spawn clocks are divided by one.js's ramp read on that running clock and
- * not on the wall clock, so aiming from a frozen board costs nothing.
+ * not on the wall clock, so aiming at a fiftieth speed costs nothing.
  *
  * Both ships collide as their own triangle: at a fiftieth speed you watch the
  * bullet arrive and can see which. entity.js gained hitPoly() for this game.
@@ -39,21 +40,18 @@ const BLACK = 0x000000;
 
 const TAU = 2 * Math.PI;
 
-const FLIP_GAP = 256;
-
 // dart()'s shape, moved from the corner of the sprite's 52x52 box onto the
-// centre it is drawn about.
+// centre gfx draws it about.
 const SHIP = [-26, -26, 26, 0, -26, 26];
 const MUZZLE = 21;
 
 const TURN = 1.5 * Math.PI;
 const THRUST = 425;
 const TOP_SPEED = 425;
-// Nothing clamps it, so firing over your shoulder is the one way past
+// Nothing clamps it, so turning around and firing is the one way past
 // TOP_SPEED.
 const RECOIL = 75;
 
-const SHOT = [-15, -6, 15, -6, 15, 6, -15, 6];
 const SHOT_SPEED = 640;
 
 // Only a rock this big splits, so the halves it leaves are the end of it.
@@ -87,7 +85,6 @@ class Player extends ent.Entity {
   update() {
     const { input, time } = ent.game;
 
-    // The one control that runs at real time: aiming is free.
     if (input.press.left) this.angle -= TURN * realtime;
     if (input.press.right) this.angle += TURN * realtime;
     if (input.press.up) thrust(this, THRUST * time);
@@ -119,7 +116,7 @@ class Bullet extends ent.Entity {
     this.pos.y = src.pos.y + MUZZLE * Math.sin(this.angle);
     this.vel.x = SHOT_SPEED * Math.cos(this.angle);
     this.vel.y = SHOT_SPEED * Math.sin(this.angle);
-    this.hitPoly(SHOT);
+    this.hitPoly([-15, -6, 15, -6, 15, 6, -15, 6]);
     this.gfx.fill(fromPlayer ? WHITE : BLACK)
       .mt(0, 6).lt(21, 0).lt(30, 0).lt(30, 12).lt(21, 12).lt(0, 6);
   }
@@ -185,7 +182,7 @@ class Rock extends Target {
         duration: [1.5, 0.5],
       });
 
-      // Sideways to the shot, so a rock opens along the line you fired down.
+      // Sideways to the shot, so a rock splits along the line you fired down.
       if (this.size >= ROCK_MIN) {
         const half = this.size / 2;
         split(this.pos, half, b.angle + Math.PI / 2);
@@ -305,7 +302,6 @@ class Enemy extends Target {
   }
 }
 
-// Gfx centres it on its own 52x52 box, which is where SHIP's numbers come from.
 function dart(e, color) {
   e.gfx.fill(color).mt(52, 26).lt(0, 52).lt(13, 26).lt(0, 0).lt(52, 26);
 }
@@ -360,11 +356,10 @@ function explode(p) {
 function turnOver() {
   for (const t of flipped) t.remove();
   flip = !flip;
-  const mid = 512;
-  flipped = flip ? [label(mid, 220, Math.floor(score.value))] : [
-    label(mid - FLIP_GAP, 160, "SUPER"),
-    label(mid, 160, "HOT"),
-    label(mid + FLIP_GAP, 160, "ASTEROID"),
+  flipped = flip ? [label(512, 220, Math.floor(score.value))] : [
+    label(256, 160, "SUPER"),
+    label(512, 160, "HOT"),
+    label(768, 160, "ASTEROID"),
   ];
 }
 
@@ -417,7 +412,7 @@ function fold(a) {
   return x;
 }
 
-// 0 to PI. A standing ship has no heading, and PI sends it to the steering.
+// 0 to PI. A ship at rest has no heading, and PI sends it to the steering.
 function between(ax, ay, bx, by) {
   const l = Math.hypot(ax, ay) * Math.hypot(bx, by);
   if (l === 0) return Math.PI;
@@ -443,7 +438,7 @@ export function init() {
 export function update(dt) {
   realtime = dt;
 
-  // Nothing spawns and nothing scores while the board runs itself out.
+  // Nothing spawns and nothing scores for the 2.5s after the ship is hit.
   if (dying > 0) {
     dying -= dt;
     flipTime -= dt;
@@ -471,7 +466,8 @@ export function update(dt) {
   if (waveTime <= 0) {
     const n = Math.floor(wave);
     for (let i = 0; i < n; ++i) new Enemy();
-    // Each wave is a tenth bigger than the last, rolling over into a ship.
+    // Each wave is a tenth bigger than the last, and the fraction carries until
+    // it adds a ship.
     waveTime += 5 * n / hard;
     wave *= 1.1;
   }

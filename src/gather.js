@@ -12,7 +12,7 @@
  * The scroll speed is set by where you are: it is slow while your lowest cursor
  * is in the bottom half and multiplies by up to 23 as it rises, and again by up
  * to 6 once the top of the chain passes the second line. one.js's ramp over the
- * round multiplies it too, and holes and points ride the same ramp.
+ * round multiplies it too, and holes and points scale on the same ramp.
  *
  * The first round opens on a scripted board that resets the score and the ramp.
  * Dying inside it replays it; finishing means it is not shown again.
@@ -49,8 +49,8 @@ function hex(c) {
 
 const PALETTE = ["#ff6819", "#c0dc61", "#1ebed8", "#fec804", "#e284cc"];
 const COLORS = PALETTE.map(hex);
-// A box is edged in its own colour taken halfway to black in OKLAB, so the
-// outline carries the hue instead of being flat black.
+// A box is edged in its own colour taken two thirds of the way to black in
+// OKLAB, so the outline carries the hue instead of being flat black.
 const DARK = PALETTE.map((c) =>
   hex(color(c).mix(color("#000000"), 0.66, "oklab").hex)
 );
@@ -72,11 +72,9 @@ const SCORE_X = 512;
 
 const NEAR = 512;
 
-// A box is 73 across: 64 of colour under a 9-thick edge, square-cornered, and
-// the white between two boxes is 9, the same as the edge.
-// A cursor is four corner brackets, 9 thick and 27 along each side.
-// Both the socket and the pupil are squares, and EYE_R and PUPIL are their
-// half-sides: a pupil is half the socket across.
+// BOX, EYE_R and PUPIL are half-sides: a box is 64 of colour under a 9-thick
+// edge, a socket is 18 across and a pupil half that. EYE is how far off centre
+// an eye sits, and a cursor's bracket runs from ARM out to BOX along each edge.
 const BOX = 32;
 const EDGE = 9;
 const EYE = 13.5;
@@ -214,7 +212,7 @@ class Piece extends ent.Entity {
     this.pos.x = cellX(this.px);
     this.pos.y = cellY(this.py);
     // Gone once its top edge is under the foot strip, not once its centre is:
-    // pos.y is the centre, so it owes the strip half a box and half an edge.
+    // pos.y is the centre, so half a box and half an edge come off it.
     if (this.pos.y - BOX - EDGE / 2 > FOOT) return this.remove();
 
     const step = ent.game.time / 0.3;
@@ -359,7 +357,7 @@ class Total extends ent.Text {
 
 // The number reads out beside the score the tray flew into and runs off to the
 // right of it, grey and half the height, so the total stays the thing being
-// read and the addition is what passes.
+// read and the +N is what moves.
 function addScore(v) {
   shake(0.25);
   play.coin();
@@ -390,7 +388,7 @@ function hard() {
   return ramp(time - from);
 }
 
-// Colour indices and holes, or null once the board has nothing left to say.
+// Colour indices and holes, or null once the script has run out.
 function nextRow() {
   if (introAt < 0) {
     const row = [];

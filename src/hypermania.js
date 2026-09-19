@@ -31,7 +31,7 @@ the bar is the clock, and every shot spends it
 `,
   bg: "#04a2fc",
   fg: "#024972",
-  // The board is light enough that the picker would put black over it; white is
+  // The board is light enough that overlay.js would put black over it; white is
   // what the ship and the enemies are drawn in.
   overlay: "#ffffff",
   scoreMax: true,
@@ -42,11 +42,9 @@ the bar is the clock, and every shot spends it
 
 const WHITE = 0xffffff;
 const BLACK = 0x000000;
-// meta.fg is PANEL too: the bar is the darkest thing on the board.
+// meta.fg is PANEL too.
 const PANEL = 0x024972;
-const DEEP = 0x011f30;
 const ORANGE = 0xe65205;
-const FLASH = 0xffffcc;
 
 // The game's own bar, along the bottom.
 const BARH = 105;
@@ -58,17 +56,9 @@ const EX = 87;
 const EW = 809;
 const EH = 26;
 
-// The total sits on the gauge's row and grows leftwards off a right edge 24
-// short of the board's, so the digits already drawn do not shift when one is
-// added. Six of them clear the gauge with room. The 2 down centres the digits on
-// it: the text sits by its em box, and digits with no descender ride high in it.
-const TOTALSIZE = 26;
-const TOTALX = 1024 - 24;
-const TOTALY = BOT + BARH / 2 + 2;
-
 // Rests 60 above the bar, drops to 21 on the recoil, climbs back at 215.
 const PY = BOT - 60;
-const WALK = 425;
+// Never closer to a side than this.
 const PX = 38;
 
 // A shot leaves from above the ship whatever the recoil is doing.
@@ -194,25 +184,31 @@ class Bar extends ent.Entity {
     const left = Math.max(0, energy) / 100;
     this.gfx.clear()
       .fill(PANEL).rect(-512, -BARH / 2, 1024, BARH)
-      .fill(DEEP).rect(EX - 512, y, EW, EH)
+      .fill(0x011f30).rect(EX - 512, y, EW, EH)
       .fill(ORANGE).rect(EX - 512, y, EW * left, EH);
   }
 }
 
-// The running total, in the panel past the right end of the gauge. It does not
-// jump to the score: each second it closes two and a half times the distance it
-// is behind, and 10 a second when that is slower, so a kill rolls the last
-// digits for a moment and a whole bar spent runs them for a couple of seconds
-// after the spending stops.
+// The running total, in the panel past the right end of the gauge. It grows
+// leftwards off a right edge 24 short of the board's, so the digits already
+// drawn do not shift when one is added, and six of them clear the gauge with
+// room.
+//
+// It does not jump to the score: each second it closes twice the distance it is
+// behind, and 20 a second when that is slower, so a kill rolls the last digits
+// for a moment and a whole bar spent runs them for a couple of seconds after
+// the spending stops.
 class Total extends ent.Text {
   static screen = true;
 
   constructor() {
     super({
       text: "0",
-      x: TOTALX,
-      y: TOTALY,
-      size: TOTALSIZE,
+      x: 1024 - 24,
+      // 2 down: the text sits by its em box, and digits with no descender sit
+      // high in it.
+      y: BOT + BARH / 2 + 2,
+      size: 26,
       color: ORANGE,
       align: "right middle",
     });
@@ -240,8 +236,7 @@ class Player extends ent.Entity {
     this.bullet = null;
     this.combo = 0;
     this.hitBox(48, 72);
-    // An octagonal cockpit on a stem, between two thrusters a crossbar joins,
-    // on 6-unit cells where an enemy's are 13. One shape, as the enemy grid is.
+    // On 6-unit cells, where an enemy's are 13.
     this.gfx.fill(WHITE).rects([
       [-6, -36, 12, 6],
       [-12, -30, 24, 6],
@@ -296,7 +291,7 @@ class Player extends ent.Entity {
     if (input.press.left || input.press.right) aiming = false;
     lastx = input.x;
 
-    const step = WALK * time;
+    const step = 425 * time;
     if (input.press.left) this.pos.x -= step;
     else if (input.press.right) this.pos.x += step;
     else if (aiming) {
@@ -370,7 +365,7 @@ class Light extends ent.Entity {
     super();
     this.pos.x = x;
     this.pos.y = y;
-    this.gfx.fill(mine ? FLASH : BLACK).circle(0, 0, mine ? 26 : 17);
+    this.gfx.fill(mine ? 0xffffcc : BLACK).circle(0, 0, mine ? 26 : 17);
   }
 
   update() {
@@ -624,6 +619,6 @@ export function update(dt) {
   // Between waves the bar is being spent or refilled, and the drain is off.
   if (wave === null) return;
 
-  energy -= ent.game.time * 100 / 120; // a full bar is two minutes still
+  energy -= ent.game.time * 100 / 120; // a full bar is two minutes unspent
   if (energy <= 0) player.explode();
 }
