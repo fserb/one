@@ -18,7 +18,7 @@
 import * as ent from "./lib/entity.js";
 import { delay } from "./lib/effects.js";
 import { shake } from "./lib/camera.js";
-import { gameOver } from "./lib/one.js";
+import { gameOver, score } from "./lib/one.js";
 import * as play from "./lib/sounds.js";
 
 export { render } from "./lib/entity.js";
@@ -26,14 +26,16 @@ export { render } from "./lib/entity.js";
 export const meta = {
   title: "hypermania",
   desc: `
-arrows move, space shoots
+arrows or the mouse move, space or a click shoots
 the bar is the clock, and every shot spends it
 `,
   bg: "#04a2fc",
   fg: "#024972",
+  // The board is light enough that the picker would put black over it; white is
+  // what the ship and the enemies are drawn in.
+  overlay: "#ffffff",
   scoreMax: true,
   date: "2014-04-13",
-  draft: true,
   dpad: true,
 };
 
@@ -44,14 +46,24 @@ const PANEL = 0x024972;
 const DEEP = 0x011f30;
 const ORANGE = 0xe65205;
 const FLASH = 0xffffcc;
-const EMBER = 0xb23f04;
 
 // The game's own bar, along the bottom.
 const BARH = 105;
 const BOT = 1024 - BARH;
 
-const EW = 850;
+// The gauge starts 87 in, where it sat when it was centred in the bar, and ends
+// at 896 rather than 937: the panel past it is the total's, not spare room.
+const EX = 87;
+const EW = 809;
 const EH = 26;
+
+// The total sits on the gauge's row and grows leftwards off a right edge 24
+// short of the board's, so the digits already drawn do not shift when one is
+// added. Six of them clear the gauge with room. The 2 down centres the digits on
+// it: the text sits by its em box, and digits with no descender ride high in it.
+const TOTALSIZE = 26;
+const TOTALX = 1024 - 24;
+const TOTALY = BOT + BARH / 2 + 2;
 
 // Rests 60 above the bar, drops to 21 on the recoil, climbs back at 215.
 const PY = BOT - 60;
@@ -150,12 +162,19 @@ let energy = 0;
 let wave = null;
 let waves = 0;
 let player = null;
-// Earned but not yet shown: the bar releases it a pop at a time.
-let buffer = 0;
+// The ship is steered by the pointer until an arrow key is pressed, and by the
+// keys until the pointer moves again. `lastx` is how a move is noticed.
+let aiming = false;
+let lastx = null;
 let dying = 0;
 
+// Score arrives in fractions while the bar is spent, and score.value is whole,
+// so the fraction is kept here and only the whole part goes out.
+let earned = 0;
+
 function addScore(v) {
-  buffer += v;
+  earned += v;
+  score.value = Math.floor(earned);
 }
 
 class Bar extends ent.Entity {
@@ -174,14 +193,41 @@ class Bar extends ent.Entity {
     const left = Math.max(0, energy) / 100;
     this.gfx.clear()
       .fill(PANEL).rect(-512, -BARH / 2, 1024, BARH)
-      .fill(DEEP).rect(-EW / 2, y, EW, EH)
-      .fill(ORANGE).rect(-EW / 2, y, EW * left, EH);
+      .fill(DEEP).rect(EX - 512, y, EW, EH)
+      .fill(ORANGE).rect(EX - 512, y, EW * left, EH);
+  }
+}
 
-    if (buffer < 1 || this.age < 0.2) return;
-    const n = Math.floor(buffer);
-    buffer -= n;
-    this.age = 0;
-    ent.addScore(n, 512 + EW / 2 - 32, BOT - 21, { color: ORANGE });
+// The running total, in the panel past the right end of the gauge. It does not
+// jump to the score: each second it closes two and a half times the distance it
+// is behind, and 10 a second when that is slower, so a kill rolls the last
+// digits for a moment and a whole bar spent runs them for a couple of seconds
+// after the spending stops.
+class Total extends ent.Text {
+  static screen = true;
+
+  constructor() {
+    super({
+      text: "0",
+      x: TOTALX,
+      y: TOTALY,
+      size: TOTALSIZE,
+      color: ORANGE,
+      align: "right middle",
+    });
+    this.visualScore = 0;
+  }
+
+  update() {
+    const gap = score.value - this.visualScore;
+    if (gap > 0) {
+      const rate = Math.max(20, gap * 2);
+      this.visualScore = Math.min(
+        score.value,
+        this.visualScore + rate * ent.game.time,
+      );
+    }
+    this.text = String(Math.floor(this.visualScore));
   }
 }
 
@@ -193,11 +239,18 @@ class Player extends ent.Entity {
     this.bullet = null;
     this.combo = 0;
     this.hitBox(48, 72);
-    // One path under the cockpit, so no join shows in it.
-    this.gfx.size(48, 72).fill(WHITE)
-      .circle(0, -17, 17)
-      .mt(-6, -14).lt(6, -14).lt(6, -2).lt(24, 10).lt(24, 36).lt(11, 36)
-      .lt(11, 22).lt(-11, 22).lt(-11, 36).lt(-24, 36).lt(-24, 10).lt(-6, -2);
+    // An octagonal cockpit on a stem, between two thrusters a crossbar joins,
+    // on 6-unit cells where an enemy's are 13. One shape, as the enemy grid is.
+    this.gfx.fill(WHITE).rects([
+      [-6, -36, 12, 6],
+      [-12, -30, 24, 6],
+      [-18, -24, 36, 12],
+      [-12, -12, 24, 6],
+      [-6, -6, 12, 18],
+      [-24, 0, 12, 36],
+      [12, 0, 12, 36],
+      [-24, 12, 48, 12],
+    ]);
   }
 
   explode() {
@@ -233,14 +286,25 @@ class Player extends ent.Entity {
       }
     } else {
       this.bullet.pos.x = this.pos.x;
-      this.bullet.pos.y -= 1070 * time;
-      if (this.bullet.pos.y < 19) this.bullet.explode(false);
+      this.bullet.pos.y -= 1177 * time;
+      // Its own height past the top edge, so the last of it is off the board.
+      if (this.bullet.pos.y < -18) this.bullet.explode(false);
     }
 
-    if (input.press.left) this.pos.x = Math.max(PX, this.pos.x - WALK * time);
-    else if (input.press.right) {
-      this.pos.x = Math.min(1024 - PX, this.pos.x + WALK * time);
+    if (lastx !== null && input.x !== lastx) aiming = true;
+    if (input.press.left || input.press.right) aiming = false;
+    lastx = input.x;
+
+    const step = WALK * time;
+    if (input.press.left) this.pos.x -= step;
+    else if (input.press.right) this.pos.x += step;
+    else if (aiming) {
+      // A place, not a direction: it stops under the pointer, and at the same
+      // speed the keys walk it, so the mouse dodges no faster than the keys.
+      const d = input.x - this.pos.x;
+      this.pos.x += Math.abs(d) <= step ? d : Math.sign(d) * step;
     }
+    this.pos.x = Math.min(1024 - PX, Math.max(PX, this.pos.x));
   }
 }
 
@@ -261,7 +325,7 @@ class Bullet extends ent.Entity {
         x: this.pos.x,
         y: this.pos.y,
         size: 40,
-        color: EMBER,
+        color: ORANGE,
         vel: [0, -107],
         duration: 0.5,
       });
@@ -534,10 +598,13 @@ export function init() {
   energy = 0;
   wave = null;
   waves = 0;
-  buffer = 0;
+  earned = 0;
   dying = 0;
+  aiming = false;
+  lastx = null;
 
   new Bar();
+  new Total();
   player = new Player();
   beginLevel();
 }
