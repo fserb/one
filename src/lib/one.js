@@ -13,7 +13,7 @@
 import { register as registerPlus2d } from "../alma/src/gfx/plus2d.js";
 import { Screen } from "../alma/src/screen.js";
 import * as effects from "./effects.js";
-import { init as initInput, input, poll as pollInput } from "./input.js";
+import { dropAct, init as initInput, input, poll as pollInput } from "./input.js";
 import * as overlay from "./overlay.js";
 
 export { input };
@@ -90,6 +90,9 @@ export async function run(game, { target = null } = {}) {
 }
 
 export function start() {
+  // The act that dismissed the finish screen is let go of here, so a game
+  // reading press.act does not act on it.
+  dropAct();
   op.act?.reset();
   // Reset to the whole board, so init() changes only what it needs to.
   op.camera?.moveTo({ x: 512, y: 512, scale: 1, angle: 0 }).settle();

@@ -230,6 +230,23 @@ export function init(scr, { dpad = false } = {}) {
   if (dpad) bindPad(on);
 }
 
+/*
+ * Let go of act, as if it had been released: the press that ended the finish
+ * screen is still down on the new round's first frame, and a game reading
+ * press.act acts on it. The real release finds nothing held and reports
+ * nothing; the next press is a press again.
+ *
+ * Only act. A direction held when a round starts is the player's hand on the
+ * key, and on the pad it never goes through `held` anyway.
+ */
+export function dropAct() {
+  held.delete("act");
+  prev.act = false;
+  input.press.act = false;
+  input.just.act = false;
+  input.release.act = false;
+}
+
 export function poll() {
   const p = screen.toLogical(ptr.x, ptr.y);
   input.x = p.x;
