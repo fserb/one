@@ -42,7 +42,7 @@ function fmt {
 
 function deploy {
   build
-  rsync -a --partial --progress www/ metaphora:one/
+  rsync -a --delete --partial --progress www/ metaphora:one/
 }
 
 function help {
