@@ -42,6 +42,7 @@ touching it costs you size
   fg: "#FFC21E",
   scoreMax: true,
   date: "2014-03-30",
+  release: true,
 };
 
 // A ring point's radius at scale 1. A body's own pr is this times its scale.

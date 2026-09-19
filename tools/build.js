@@ -236,21 +236,22 @@ function gallery(entries) {
 
 async function build(game) {
   const m = await meta(game);
-  // A draft is built for its size and nothing else: the page is never written,
-  // and a game marked draft after it was built has its old directory removed.
+  // A game without `release` is built for its size and nothing else: the page
+  // is never written, and a game that loses `release` after it was built has
+  // its old directory removed.
   const js = await bundle(game);
   const html = page(game, m, js, await shot(game));
-  if (m.draft) {
+  if (m.release) {
+    await Deno.mkdir(new URL(`${game}/`, WWW), { recursive: true });
+    await Deno.writeTextFile(new URL(`${game}/index.html`, WWW), html);
+  } else {
     await Deno.remove(new URL(`${game}/`, WWW), { recursive: true }).catch(
       () => {},
     );
-  } else {
-    await Deno.mkdir(new URL(`${game}/`, WWW), { recursive: true });
-    await Deno.writeTextFile(new URL(`${game}/index.html`, WWW), html);
   }
   const raw = new Blob([html]).size;
   console.log(
-    `  ${game.padEnd(12)} ${kb(raw).padStart(10)}${m.draft ? "  draft" : ""}`,
+    `  ${game.padEnd(12)} ${kb(raw).padStart(10)}${m.release ? "" : "  draft"}`,
   );
   return [game, m];
 }
@@ -259,12 +260,12 @@ const wanted = Deno.args.length > 0 ? Deno.args : await games();
 const entries = [];
 for (const game of wanted) entries.push(await build(game));
 
-// Every game, not only the ones just rebuilt. Drafts do not count.
+// Every game, not only the ones just rebuilt. Unreleased games do not count.
 const all = [];
 for (const game of await games()) {
   const found = entries.find(([g]) => g === game);
   const entry = found ?? [game, await meta(game)];
-  if (entry[1].draft) continue;
+  if (!entry[1].release) continue;
   const s = await shot(game);
   await copyShot(game, s);
   all.push([...entry, s]);

@@ -32,7 +32,6 @@ loop every planet, then leave the quadrant
   fg: "#323431",
   scoreMax: true,
   date: "2014-08-24",
-  draft: true,
   dpad: true,
 };
 

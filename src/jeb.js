@@ -34,7 +34,6 @@ drag to aim the nose, hold to burn
   fg: "#EEB62F",
   scoreMax: true,
   date: "2014-03-30",
-  draft: true,
 };
 
 // Where the ship is fixed on the board.

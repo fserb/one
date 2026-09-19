@@ -30,7 +30,6 @@ slide to catch coins and dodge tomatoes
   fg: "#F7E26B",
   scoreMax: true,
   date: "2014-03-31",
-  draft: true,
 };
 
 // The lane along the top.

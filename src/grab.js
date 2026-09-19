@@ -28,7 +28,6 @@ grab a ghost, its colour becomes the floor
   fg: "#FAFAFA",
   scoreMax: true,
   date: "2015-04-18",
-  draft: true,
   dpad: true,
 };
 

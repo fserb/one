@@ -28,7 +28,6 @@ stay alive
   fg: "#402F2E",
   scoreMax: true,
   date: "2021-05-23",
-  draft: true,
 };
 
 const CAVE = "#1D1515";

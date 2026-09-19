@@ -32,7 +32,6 @@ off the face you are standing on
   fg: "#EDF2F4",
   scoreMax: true,
   date: "2026-09-12",
-  draft: true,
 };
 
 const TAU = 2 * Math.PI;

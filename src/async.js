@@ -25,7 +25,6 @@ to build mega blocks
   fg: "#424B54",
   scoreMax: true,
   date: "2021-05-28",
-  draft: true,
 };
 
 const PIECE = ["#F02299", "#26ABF6", "#FCFF00", "#16DB93"];

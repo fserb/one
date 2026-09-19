@@ -451,9 +451,9 @@
           return { name, error: String(err) };
         }
       }));
-      // A draft is what is being worked on, so its section is at the top of
-      // the page. A module that threw has no meta, so nothing says whether it
-      // is a draft; it goes up there too, where work in progress goes.
+      // A draft is any game without `release`, so it is what is being worked
+      // on and its section is at the top of the page. A module that threw has
+      // no meta, so it is a draft too, where work in progress goes.
       const newest = (a, b) =>
         (b.date ?? "").localeCompare(a.date ?? "") ||
         a.name.localeCompare(b.name);
@@ -462,8 +462,8 @@
         <h1>one · dev</h1>
         <p class=by>${games.length} games from src/</p>
       </header>` +
-        section("drafts", games.filter((g) => g.draft || g.error), theme) +
-        section("games", games.filter((g) => !g.draft && !g.error), theme);
+        section("drafts", games.filter((g) => !g.release), theme) +
+        section("games", games.filter((g) => g.release), theme);
 
       play([...document.querySelectorAll(".cards video")]);
 

@@ -26,6 +26,7 @@ which pushes you off it
   fg: "#33302B",
   scoreMax: true,
   date: "2014-03-30",
+  release: true,
   dpad: true,
 };
 

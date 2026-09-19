@@ -33,7 +33,6 @@ up drives, left and right switch
   fg: "#1C140D",
   scoreMax: true,
   date: "2014-04-27",
-  draft: true,
   dpad: true,
 };
 

@@ -28,7 +28,6 @@ until the board is gone
   fg: "#333333",
   scoreMax: true,
   date: "2025-08-27",
-  draft: true,
 };
 
 const WIDTH = 7;

@@ -30,7 +30,6 @@ click a merged block to destroy it
   fg: "#386B99",
   scoreMax: true,
   date: "2025-07-26",
-  draft: true,
 };
 
 const BOARD_WIDTH = 4;

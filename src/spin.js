@@ -29,7 +29,6 @@ the needle says which way the room turns
   fg: "#FF6819",
   scoreMax: true,
   date: "2015-10-04",
-  draft: true,
   dpad: true,
 };
 

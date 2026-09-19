@@ -25,7 +25,6 @@ they leave their bodies behind
   fg: "#2F3E46",
   scoreMax: true,
   date: "2022-01-02",
-  draft: true,
   dpad: true,
 };
 

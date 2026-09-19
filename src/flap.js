@@ -24,7 +24,6 @@ catch the coin before it goes
   fg: "#533846",
   scoreMax: true,
   date: "2015-03-29",
-  draft: true,
 };
 
 const DARK = 0x533846;

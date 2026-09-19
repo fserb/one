@@ -28,7 +28,6 @@ don't let the eye escape
   fg: "#402F2E",
   scoreMax: true,
   date: "2021-05-09",
-  draft: true,
 };
 
 const GROUND = "#7E6352";

@@ -35,7 +35,6 @@ shoot the core; what you leave standing scores
   fg: "#222222",
   scoreMax: true,
   date: "2014-05-01",
-  draft: true,
 };
 
 const WHITE = 0xecebec;

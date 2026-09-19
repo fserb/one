@@ -36,6 +36,7 @@ the bar is the clock, and every shot spends it
   overlay: "#ffffff",
   scoreMax: true,
   date: "2014-04-13",
+  release: true,
   dpad: true,
 };
 
