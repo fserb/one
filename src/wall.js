@@ -52,61 +52,29 @@ const ORANGE = 0xff6819;
 // Outside the light, where the room is drawn as a flat plan.
 const DIMFLOOR = 0x3c3c3c;
 const DIMWALL = 0x252528;
-const TINT = 0.12;
-// A coin you cannot see yet, drawn through the dark so there is somewhere to go.
-const MARK = 0.45;
 const DOT = 13;
 const ARROW = 19;
 
 // A round ends when the coins stop: a hunter moves closer only when the edge of
 // the light comes in or a wall covers it.
 const LIGHT = 425;
-const LIGHT_MAX = 470;
-const LIGHT_MIN = 0;
-const DRAIN = 11;
-const FEED = 60;
 const RAYS = 64;
-// A ray continues this far past the wall it stops on, so the light falls on the
-// wall's face rather than stopping at it.
-const BLEED = 9;
 // A nudge either side of a corner: one ray becomes the two edges of its shadow.
 const NUDGE = 0.00001;
 // Always lit, whatever the walls say, so the sprite never draws half clipped.
 const NEAR = 23;
 
-// Units a second.
-const WALK = 360;
-const HUNT = 435;
-const CAM = 425;
-
 // Well under the tile, and a clipped corner is slid off rather than stopped
 // against, so a one-tile gap is a gap.
 const HALF = 13;
 const EDGE = 0.01;
-const TAKE = 26;
-const GRAB = 23;
 
 // Straight segments dropped into the room, each 2 to 6 tiles long.
 const BLOCKS = 26;
-const SEGMIN = 2;
-const SEGVARY = 5;
-
-const COINS = 4;
-const PER_HUNTER = 4;
-const HUNTERS = 5;
-const COIN_GAP = 190;
-const HUNT_GAP = 770;
-// Hunters hold this long at the start of a round.
-const GRACE = 2.5;
-// On top of the hitstop.
-const DEATH = 0.7;
 
 // The nearest hunter, seen or not: the only information the dark gives you.
 const BEAT_NEAR = 640;
 const BEAT_FAST = 0.22;
-const BEAT_SLOW = 1;
-
-// The vols are the original game's own volumes.
 
 let range = LIGHT;
 
@@ -207,7 +175,8 @@ class Sight {
     for (const a of dirs) {
       const dx = Math.cos(a);
       const dy = Math.sin(a);
-      const t = Math.min(range, this.reach(fx, fy, dx, dy) + BLEED);
+      // 9 past the wall it stops on, so the light falls on the wall's face.
+      const t = Math.min(range, this.reach(fx, fy, dx, dy) + 9);
       out.push({
         a: (a + 2 * Math.PI) % (2 * Math.PI),
         x: fx + dx * t,
@@ -220,8 +189,7 @@ class Sight {
 }
 
 // A one-tile border, then straight segments dropped at random, each needing a
-// clear tile all round before it is laid: two segments are then never adjacent,
-// so nothing a segment does can close a way through.
+// clear tile all round: two are never adjacent, so nothing closes a way.
 function buildMap() {
   map.fill(0);
   for (let x = 0; x < GW; ++x) {
@@ -234,7 +202,7 @@ function buildMap() {
   }
 
   for (let n = 0, tries = 0; n < BLOCKS && tries < 40 * BLOCKS; ++tries) {
-    const len = SEGMIN + Math.floor(SEGVARY * Math.random());
+    const len = 2 + Math.floor(5 * Math.random());
     const flat = Math.random() < 0.5;
     const w = flat ? len : 1;
     const h = flat ? 1 : len;
@@ -257,8 +225,8 @@ function vacant(x, y, w, h) {
   return true;
 }
 
-// Blocked tiles merged into as few rects as they go, with a one-tile offset
-// that keeps the two rects of a corner from overlapping.
+// Blocked tiles merged into as few rects as they go, offset a tile so the two
+// rects of a corner do not overlap.
 function buildSight() {
   const s = new Sight();
   const free = new Uint8Array(GW * GH);
@@ -292,7 +260,7 @@ function buildSight() {
 }
 
 // Tile steps from `at` over free tiles, -1 for anything unreached. Filling
-// `open` from the player's tile is what says where a coin may go.
+// `open` from the player's tile says where a coin may go.
 function flood(at, into, list = null) {
   into.fill(-1);
   into[at] = 0;
@@ -315,8 +283,8 @@ function flood(at, into, list = null) {
   }
 }
 
-// Each axis on its own, so a diagonal into a wall still slides along it, and in
-// steps no longer than a tile, so nothing crosses a wall at speed.
+// Each axis on its own, so a diagonal into a wall slides along it, and in steps
+// no longer than a tile, so nothing crosses a wall at speed.
 function slide(p, dx, dy) {
   const n = Math.max(1, Math.ceil(Math.max(Math.abs(dx), Math.abs(dy)) / TILE));
   for (let i = 0; i < n; ++i) {
@@ -342,8 +310,8 @@ function step(p, dx, dy) {
 }
 
 // The box straddles two tiles across the way it is going and only one is
-// blocked, so this step is a clipped corner: move off the blocked one instead
-// of stopping. A flat wall is untouched, both tiles ahead of it being blocked.
+// blocked, so this is a clipped corner: move off the blocked one instead of
+// stopping. A flat wall has both tiles ahead blocked and is untouched.
 function assist(p, x, y, dx, dy) {
   const d = Math.abs(dx) + Math.abs(dy);
   if (dx !== 0) {
@@ -419,7 +387,7 @@ class Player extends ent.Entity {
     const l = Math.hypot(mx, my);
     if (l === 0) return;
     if (mx !== 0) this.flipX = mx > 0;
-    const s = WALK * ent.game.time / l;
+    const s = 360 * ent.game.time / l;
     slide(this.pos, mx * s, my * s);
   }
 }
@@ -445,7 +413,7 @@ class Hunter extends ent.Entity {
       player.pos.x - this.pos.x,
       player.pos.y - this.pos.y,
     );
-    if (d < GRAB) {
+    if (d < 23) {
       die();
       return;
     }
@@ -463,7 +431,7 @@ class Hunter extends ent.Entity {
     const l = Math.hypot(ax, ay);
     if (l === 0) return;
     this.flipX = ax > 0;
-    const s = HUNT * ent.game.time / l;
+    const s = 435 * ent.game.time / l;
     slide(this.pos, ax * s, ay * s);
   }
 }
@@ -502,11 +470,11 @@ class Coin extends ent.Entity {
       player.pos.x - this.pos.x,
       player.pos.y - this.pos.y,
     );
-    if (d > TAKE) return;
+    if (d > 26) return;
 
     score.value += 1;
     taken += 1;
-    range = Math.min(LIGHT_MAX, range + FEED);
+    range = Math.min(470, range + 60);
     play.coin();
     new ent.Particle({
       x: this.pos.x,
@@ -519,12 +487,12 @@ class Coin extends ent.Entity {
     });
     this.remove();
     addCoin();
-    if (taken % PER_HUNTER === 0) addHunter();
+    if (taken % 4 === 0) addHunter();
   }
 }
 
-// The best of a sample rather than the first to clear `gap`, so a tight room
-// still gets its coin, just a nearer one.
+// The best of a sample and not the first to clear `gap`, so a tight room still
+// gets its coin, just a nearer one.
 function pick(gap, avoid) {
   let at = open[0];
   let best = -1;
@@ -544,20 +512,20 @@ function pick(gap, avoid) {
 }
 
 function addCoin() {
-  new Coin(pick(COIN_GAP, ent.get(Coin)));
+  new Coin(pick(190, ent.get(Coin)));
 }
 
 function addHunter() {
-  if (hunting >= HUNTERS) return;
+  if (hunting >= 5) return;
   hunting += 1;
-  new Hunter(pick(HUNT_GAP, ent.get(Hunter)));
+  new Hunter(pick(770, ent.get(Hunter)));
   play.power();
   msg(`${hunting} HUNTING`);
 }
 
 function die() {
   if (dying > 0) return;
-  dying = DEATH;
+  dying = 0.7; // on top of the hitstop
   shake(0.5);
   play.lose();
   new ent.Particle({
@@ -590,13 +558,13 @@ export function init() {
 
   player = new Player(cx(flowAt), cy(flowAt));
   range = LIGHT;
-  hold = GRACE;
+  hold = 2.5; // hunters hold this long at the start of a round
   dying = 0;
   beat = 0;
   taken = 0;
   hunting = 0;
 
-  for (let i = 0; i < COINS; ++i) addCoin();
+  for (let i = 0; i < 4; ++i) addCoin();
   addHunter();
 
   camera.moveTo({ x: player.pos.x });
@@ -616,12 +584,11 @@ export function update(dt) {
   // The entities' own timer, so a hitstop pauses it too.
   const t = ent.game.time;
   hold = Math.max(0, hold - t);
-  if (hold <= 0 && dying <= 0) range = Math.max(LIGHT_MIN, range - DRAIN * t);
+  if (hold <= 0 && dying <= 0) range = Math.max(0, range - 11 * t);
 
-  // A constant-speed follow rather than approach(): it catches the player
-  // exactly, and standing still is the one thing that centres them.
+  // A constant-speed follow and not approach(): it catches the player exactly.
   const d = player.pos.x - camera.x;
-  const m = CAM * t;
+  const m = 425 * t;
   camera.moveTo({ x: camera.x + (Math.abs(d) <= m ? d : Math.sign(d) * m) });
 
   poly = sight.cast(player.pos.x, player.pos.y);
@@ -647,7 +614,7 @@ function pulse(t) {
   beat -= t;
   if (beat > 0) return;
   const f = near / BEAT_NEAR;
-  beat = BEAT_FAST + (BEAT_SLOW - BEAT_FAST) * f;
+  beat = BEAT_FAST + (1 - BEAT_FAST) * f;
   play.hit({ detune: -6 * (1 - f) });
 }
 
@@ -664,20 +631,19 @@ export function render(ctx) {
   ctx.moveTo(poly[0].x, poly[0].y);
   for (let i = 1; i < poly.length; ++i) ctx.lineTo(poly[i].x, poly[i].y);
   ctx.closePath();
-  // Without it, the two rays either side of a corner can cut a sliver of the
-  // player out of their own light.
+  // Without it the two rays either side of a corner cut a sliver out of the
+  // player's own light.
   ctx.moveTo(player.pos.x + NEAR, player.pos.y);
   ctx.arc(player.pos.x, player.pos.y, NEAR, 0, 2 * Math.PI);
   ctx.clip();
 
   drawRoom(ctx, FLOOR, WALL);
-  ctx.globalAlpha = TINT;
+  ctx.globalAlpha = 0.12;
   ctx.fillStyle = ent.css(CYAN);
   ctx.fillRect(0, LY, RW, RH);
   ctx.globalAlpha = 1;
 
-  // A clip is in device space once set, so dropping back to `base` keeps it
-  // while ent.render() puts the camera on again itself.
+  // A clip is in device space once set, so dropping back to `base` keeps it.
   ctx.setTransform(base);
   ent.render(ctx);
 
@@ -704,7 +670,7 @@ function drawRoom(ctx, floor, wall) {
 }
 
 function drawMarks(ctx) {
-  ctx.globalAlpha = MARK;
+  ctx.globalAlpha = 0.45; // a coin not yet seen, through the dark
   ctx.fillStyle = ent.css(CYAN);
   for (const c of ent.get(Coin)) {
     const s = camera.toScreen(c.pos.x, c.pos.y);
@@ -713,8 +679,8 @@ function drawMarks(ctx) {
       continue;
     }
 
-    // Held ARROW off the edge and read back into the world, since this draws
-    // under the camera.
+    // Held ARROW off the edge and read back into the world, drawn under the
+    // camera.
     const m = camera.pixels(ARROW);
     const p = camera.toWorld(clamp(s.x, m, 1024 - m), clamp(s.y, m, 1024 - m));
     ctx.save();

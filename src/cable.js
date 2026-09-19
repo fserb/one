@@ -47,39 +47,14 @@ const DARKRED = 0xe25458;
 const GLOW = 20;
 
 const LEVELS = [2, 3, 5, 8, 10, 15, 20, 30, 50];
-const EXTRA = 17;
 
-// Seconds on the clock: BASE, plus PER per planet. FIRST is long enough to read
-// the board; the level after it is 12.1 seconds.
-const BASE = 7;
-const PER = 1.7;
-const FIRST = 40;
-// How often the bar flips colour over the last fifth of the clock.
-const FLIP = 0.1;
-
-const PSIZE = 64;
-const PVARY = 43;
 const PGAP = 128;
 
 const PUSH = 2100;
 const BUMP = 15000;
 // The earth sits far enough below the start that only a badly aimed opening
 // reaches it.
-const PW = 34;
-const PH = 51;
 const EARTH = 640;
-const EARTHY = 1515;
-
-// Inside the earth, so the cable emerges from under the surface.
-const ROOTX = 512;
-const ROOTY = 1024;
-const HALF = 3; // the cable is 6 across, so it catches 3 out from a rim
-const SLACK = Math.PI / 4;
-const REACH = 1024 + 512; // drag is quadratic in the free stretch over this
-
-const WIPE = 1;
-const FADE = 1.5;
-const FLASH = 0.05;
 
 // The planets gauge sits just under the overlay's msg() label, which takes the
 // top of the board down to 54.
@@ -87,7 +62,6 @@ const PIECES_X = 128;
 const PIECES_Y = 117;
 const CLOCK_X = 128;
 const CLOCK_Y = 970;
-const ZONE_ALPHA = 0.25;
 
 let level = 0;
 let planets = [];
@@ -111,7 +85,7 @@ class Player extends ent.Entity {
       .circle(-17, 17, 9)
       .circle(17, 17, 9)
       .circle(0, 0, 17);
-    this.hitBox(PW, PH);
+    this.hitBox(34, 51);
   }
 
   update() {
@@ -129,7 +103,8 @@ class Player extends ent.Entity {
     this.accelerate(-this.vel.x, -this.vel.y);
 
     // Quadratic in speed and in how much cable is out.
-    const f = Math.hypot(tip.tp.x, tip.tp.y) / REACH;
+    // Quadratic in the free stretch over a screen and a half.
+    const f = Math.hypot(tip.tp.x, tip.tp.y) / (1024 + 512);
     const k = (-0.00047 - 0.0047 * f * f) * Math.hypot(this.vel.x, this.vel.y);
     this.accelerate(this.vel.x * k, this.vel.y * k);
 
@@ -148,13 +123,12 @@ class Player extends ent.Entity {
 
     this.accelerate(ux * BUMP, uy * BUMP);
     shake(0.2);
-    flash(ent.css(WHITE), FLASH);
+    flash(ent.css(WHITE), 0.05);
     play.hit();
   }
 
   render(ctx) {
-    // Glow in one pass and the drawing in another, or the last circle's halo
-    // lands on top of the ones before it.
+    // Glow in one pass and the drawing in another, or a halo lands on top.
     ctx.save();
     ctx.shadowColor = ent.css(WHITE);
     ctx.shadowBlur = GLOW * scale;
@@ -165,9 +139,9 @@ class Player extends ent.Entity {
 }
 
 // One straight stretch of cable, from `pos` to `pos + tp`. Every one starts as
-// the free stretch, running from wherever the cable last caught to the player;
-// a wrap fixes it in place and gives the player a new one. They chain back to
-// the earth through `prev`, and only the free stretch updates.
+// the free stretch, from wherever the cable last caught to the player; a wrap
+// fixes it and gives the player a new one. They chain back to the earth
+// through `prev`, and only the free stretch updates.
 class Rope extends ent.Entity {
   constructor(x, y) {
     super();
@@ -178,7 +152,7 @@ class Rope extends ent.Entity {
     this.root = null;
     this.rootdir = false;
     this.rootpos = null;
-    this.roll = SLACK;
+    this.roll = Math.PI / 4;
     this.prev = null;
     this.stretch(player.pos);
     tip = this;
@@ -244,8 +218,7 @@ class Rope extends ent.Entity {
     delay(0.01);
   }
 
-  // This stretch and the one that laid it are removed, and the one before is
-  // restored exactly as it was.
+  // This stretch and the one that laid it go; the one before is restored.
   unwrap() {
     const q = this.prev;
     const r = new Rope(q.pos.x, q.pos.y);
@@ -310,7 +283,7 @@ class Earth extends ent.Entity {
   constructor() {
     super();
     this.pos.x = 512;
-    this.pos.y = EARTHY;
+    this.pos.y = 1515;
     this.gfx.fill(WHITE).circle(0, 0, EARTH);
     this.hitCircle(EARTH);
   }
@@ -320,8 +293,8 @@ class Earth extends ent.Entity {
   }
 }
 
-// The box the planets were scattered in, with half a screen of margin on every
-// side. Leaving it with every planet linked ends the level.
+// The scatter box plus half a screen. Leaving it with every planet linked ends
+// the level.
 class Zone extends ent.Entity {
   constructor(dimx, dimy) {
     super();
@@ -341,7 +314,7 @@ class Zone extends ent.Entity {
   }
 
   render(ctx) {
-    ctx.globalAlpha = ZONE_ALPHA;
+    ctx.globalAlpha = 0.25;
     ctx.strokeStyle = ent.css(BLACK);
     ctx.lineWidth = 8;
     ctx.setLineDash([21, 21]);
@@ -363,7 +336,7 @@ function angleOf(v) {
 }
 
 // Not true tangents: two units inside the edge, on the diameter square to the
-// line of sight, which is where a wrapped cable leaves the circle.
+// line of sight, where a wrapped cable leaves the circle.
 function tangents(p, from) {
   const d = sub(p.pos, from);
   const a = angleOf(d);
@@ -384,7 +357,7 @@ function nearTangent(p, from, to) {
   return d1 <= d2 ? t1 : t2;
 }
 
-// The segment's nearest point to the centre, inside the edge plus HALF.
+// The segment's nearest point to the centre, just inside the edge.
 function crosses(rope, p) {
   const dx = rope.tp.x;
   const dy = rope.tp.y;
@@ -394,7 +367,7 @@ function crosses(rope, p) {
   const t = l2 === 0 ? 0 : clamp((ox * dx + oy * dy) / l2, 0, 1);
   const nx = ox - t * dx;
   const ny = oy - t * dy;
-  const r = p.size + HALF;
+  const r = p.size + 3; // the cable is 6 across, so it catches 3 out
   return nx * nx + ny * ny <= r * r;
 }
 
@@ -404,8 +377,7 @@ const cubicOut = (t) => (t - 1) * (t - 1) * (t - 1) + 1;
 const elasticOut = (t) => Math.sin(-13 * (t + 1) * Math.PI / 2) * 2 ** (-10 * t) + 1;
 
 // Five to a screen, PGAP apart. It gives up after ten tries a planet, so a
-// level can come out with fewer than it asked for and is counted on what it
-// got.
+// level can come out with fewer than it asked for.
 function buildPlanets(total) {
   const dim = Math.ceil(total / 5);
   const dimx = Math.ceil(Math.sqrt(dim));
@@ -416,7 +388,7 @@ function buildPlanets(total) {
   while (n < total && skipped < 10 * total) {
     const x = 512 - dimx * 512 + dimx * 1024 * Math.random();
     const y = -1024 * dimy + 1024 * dimy * Math.random();
-    const s = PSIZE + PVARY * Math.random();
+    const s = 64 + 43 * Math.random();
 
     const near = planets.some((p) =>
       Math.hypot(x - p.pos.x, y - p.pos.y) < s + p.size + PGAP
@@ -442,12 +414,13 @@ function buildLevel() {
 
   player = new Player();
   new Earth();
-  new Rope(ROOTX, ROOTY);
-  buildPlanets(level < LEVELS.length ? LEVELS[level] : (level - 5) * EXTRA);
+  new Rope(512, 1024); // inside the earth, so the cable emerges from under it
+  buildPlanets(level < LEVELS.length ? LEVELS[level] : (level - 5) * 17);
 
   clock = {
     spent: 0,
-    total: level === 0 ? FIRST : BASE + planets.length * PER,
+    // 40s to read the first board; the level after it is 12.1 seconds.
+    total: level === 0 ? 40 : 7 + planets.length * 1.7,
     flip: 0,
     warn: false,
   };
@@ -457,7 +430,7 @@ function buildLevel() {
 function nextLevel() {
   transition = true;
   fade = { cover: true, t: 0 };
-  wipe = WIPE;
+  wipe = 1;
 }
 
 export function init() {
@@ -485,7 +458,7 @@ export function update(dt) {
 
   // The entities' own timer, so a hitstop pauses the hand-drawn parts too.
   const t = ent.game.time;
-  if (fade !== null && (fade.t += t) >= FADE) fade = null;
+  if (fade !== null && (fade.t += t) >= 1.5) fade = null;
 
   let done = 0;
   for (const p of planets) {
@@ -506,7 +479,7 @@ export function update(dt) {
       clock.warn = true;
       if (clock.flip >= 2) clock.flip -= 2;
     }
-    clock.flip += t / FLIP;
+    clock.flip += t / 0.1; // the bar flips colour ten times a second
   }
   if (clock.spent >= clock.total && !transition) gameOver({ score: true });
 }

@@ -41,15 +41,9 @@ const MINGAP = 21;
 
 // A push out along the normal, drag on the square of the speed, and a spring
 // back. They settle at REACH.
-const SPEED = 170;
 const THRUST = 1070;
-const DRAG = 0.047;
 const SPRING = 10;
 const REACH = THRUST / SPRING;
-
-// A pull is nowhere near this long. It is here so holding the button cannot
-// move the bead round to its own takeoff, leaving the splice nothing to cut.
-const SPAN = 0.35;
 
 const SMOOTH = 0.2;
 
@@ -58,18 +52,9 @@ const SMOOTH = 0.2;
 const BEAD = 17;
 const GOLDR = 15;
 
-const GOLDS = 3;
 const NEAR = 51;
-const FAR = REACH - 30;
-const RAMP = 12;
 
-// HOLDCOST is on top of the second a second already costs, so holding the
-// button the whole round spends 1.75 seconds a second.
 const START = 12;
-const BONUS = 2;
-const HOLDCOST = 0.75;
-
-const PAD = 51;
 
 const TAU = 2 * Math.PI;
 const mod = (a, b) => ((a % b) + b) % b;
@@ -134,8 +119,7 @@ class Path extends ent.Entity {
       a.at = this.len;
       a.seg = Math.hypot(b.x - a.x, b.y - a.y);
       this.len += a.seg;
-      // Square to the chord either side, which for the opening ring's winding
-      // points away from the middle.
+      // Square to the chord either side, which points away from the middle.
       const fx = b.x - c.x;
       const fy = b.y - c.y;
       const d = Math.hypot(fx, fy) || 1;
@@ -144,7 +128,7 @@ class Path extends ent.Entity {
     }
   }
 
-  // Laplacian, every cut. A node on a fifty-node circle moves three hundredths
+  // Laplacian, every cut: a node on a fifty-node circle moves three hundredths
   // of a unit, and a spike loses a noticeable amount.
   smooth() {
     const p = this.pts;
@@ -265,8 +249,8 @@ class Path extends ent.Entity {
     this.arc.push({ x, y });
   }
 
-  // The stretch from takeoff to landing is discarded and the arc replaces it.
-  // The loop re-cuts to start under the bead, so this returns zero.
+  // The arc replaces the stretch from takeoff to landing. The loop re-cuts to
+  // start under the bead, so this returns zero.
   close(t) {
     const arc = this.arc;
     this.arc = null;
@@ -333,8 +317,7 @@ class Path extends ent.Entity {
 }
 
 // The bead moves along the loop at a fixed speed whatever else it is doing:
-// `h` is how far it is off the curve, and the button is the only thing that
-// moves it out.
+// `h` is how far off the curve it is, and the button is what moves it out.
 class Cursor extends ent.Entity {
   constructor() {
     super();
@@ -352,7 +335,9 @@ class Cursor extends ent.Entity {
   update() {
     const dt = ent.game.time;
     const hold = ent.game.input.press.act;
-    const push = hold && (!this.up || path.span(this.t) < SPAN * path.len);
+    // The 0.35 is here so holding the button cannot move the bead round to
+    // its own takeoff, leaving the splice nothing to cut.
+    const push = hold && (!this.up || path.span(this.t) < 0.35 * path.len);
 
     this.pushing = push;
 
@@ -362,8 +347,8 @@ class Cursor extends ent.Entity {
     }
 
     let ha = push ? THRUST * scale : 0;
-    // DRAG has a length in it, so the scale divides it rather than multiplies.
-    ha -= Math.sign(this.hv) * this.hv * this.hv * DRAG / scale;
+    // The drag has a length in it, so the scale divides rather than multiplies.
+    ha -= Math.sign(this.hv) * this.hv * this.hv * 0.047 / scale;
     ha -= this.h * SPRING;
     ha *= dt;
     this.h += dt * (this.hv + ha / 2);
@@ -373,7 +358,7 @@ class Cursor extends ent.Entity {
       this.hv = 0;
     }
 
-    const step = dt * SPEED * scale;
+    const step = dt * 170 * scale;
     const was = this.t;
     this.t += step;
     const foot = path.at(this.t);
@@ -381,8 +366,7 @@ class Cursor extends ent.Entity {
     this.pos.x = foot.x + this.n.x * this.h;
     this.pos.y = foot.y + this.n.y * this.h;
 
-    // Before the cut below: a cut re-parameterises the loop, and both ends of
-    // this test are in the parameters the frame started with.
+    // Before the cut below, since a cut re-parameterises the loop.
     const r = (BEAD + GOLDR) * scale;
     for (const g of [...golds]) {
       if (mod(g.t - was, path.len) > step) continue;
@@ -460,7 +444,7 @@ function drop(g) {
 function take(g) {
   drop(g);
   score.value += 1;
-  clock = Math.min(START, clock + BONUS);
+  clock = Math.min(START, clock + 2);
   new ent.Particle({
     x: g.pos.x,
     y: g.pos.y,
@@ -493,7 +477,7 @@ function lose(g) {
 // Beyond the loop and ahead of the bead, further out the more has been taken.
 // Not somewhere the loop already covers, and not on top of other gold.
 function place() {
-  const far = NEAR + Math.min(1, score.value / RAMP) * (FAR - NEAR);
+  const far = NEAR + Math.min(1, score.value / 12) * (REACH - 30 - NEAR);
   let last = null;
   for (let i = 0; i < 12; ++i) {
     const t = cursor.t + (0.15 + 0.75 * Math.random()) * path.len;
@@ -510,8 +494,8 @@ function place() {
   golds.push(new Gold(last.x, last.y));
 }
 
-// The loop, the gold, and PAD of space around all of it. The box is square, so
-// the diameter is one number and the scale one division.
+// The loop, the gold, and 51 of space around it. The box is square, so the
+// diameter is one number and the scale one division.
 function frame() {
   let [x0, y0, x1, y1] = path.box;
   for (const g of golds) {
@@ -521,7 +505,7 @@ function frame() {
     x1 = Math.max(x1, g.pos.x + r);
     y1 = Math.max(y1, g.pos.y + r);
   }
-  const d = Math.max(x1 - x0, y1 - y0) + 2 * PAD * scale;
+  const d = Math.max(x1 - x0, y1 - y0) + 2 * 51 * scale;
   return { x: (x0 + x1) / 2, y: (y0 + y1) / 2, scale: 1024 / d };
 }
 
@@ -534,7 +518,7 @@ export function init() {
   golds = [];
   path = new Path();
   cursor = new Cursor();
-  for (let i = 0; i < GOLDS; ++i) place();
+  for (let i = 0; i < 3; ++i) place();
   camera.moveTo(frame());
 }
 
@@ -554,11 +538,12 @@ export function update(dt) {
     }
   }
 
-  // approach() is a 6%-a-frame lerp written as a rate, which a 120Hz frame does
-  // not change: 0.06 a frame at 60Hz is -60 * ln(0.94) a second.
+  // approach() is a 6%-a-frame lerp written as a rate, so 120Hz matches 60.
   camera.approach(frame(), dt, { x: 3.71, y: 3.71, scale: 2.45 });
 
-  clock -= dt * (1 + (cursor.pushing ? HOLDCOST : 0));
+  // The hold is on top of the second a second already costs, so holding the
+  // button the whole round spends 1.75 seconds a second.
+  clock -= dt * (1 + (cursor.pushing ? 0.75 : 0));
   if (clock <= 0) {
     clock = 0;
     gameOver({ score: true });

@@ -63,54 +63,33 @@ const HW = 15;
 const HH = 17;
 const EDGE = 0.01;
 
-// Per second, but KICKED is seconds: how long the kick overrides the controls.
-const GRAV = 2100;
-const WALK = 350;
+// Per second, except the 0.16 kick, which is how long it holds the controls.
 const JUMP = 900;
-const CLIP = 315;
 const KICK = 545;
-const KICKED = 0.16;
-const SLIDE = 400;
-// Coyote time, and the rise speed the sprite stretches at.
-const COYOTE = 0.1;
-const BIG = 315;
 
-// TURNS doubles for a half turn.
+// The needle turns, holds, then the room follows; the last doubles for a half.
 const WIND = 0.4;
-const HELD = 0.5;
-const TURNS = 0.6;
 
-// A turn costs 1.5 seconds itself, 2.1 for a half, so EVERY_MIN is what leaves
-// a stretch to play between two.
+// A turn costs 1.5 seconds itself, 2.1 for a half, so the floor of 4 is what
+// leaves a stretch to play between two.
 const EVERY = 7;
-const EVERY_OFF = 0.3;
-const EVERY_MIN = 4;
 
-// DRAIN_UP is the late game: turns stop getting closer together at EVERY_MIN
-// and a mark keeps adding FEED, so without it one mark every four seconds never
-// loses.
-const TIME = 25;
+// The drain rising with score is the late game: turns stop getting closer
+// together at 4 seconds and a mark keeps adding 6, so without it one mark every
+// four seconds never loses.
 const TIME_MAX = 30;
-const FEED = 6;
-const DRAIN_UP = 0.05;
 const RING_R = 57;
-const RING_W = 8;
 const ARROW = 27;
 
-const MARK_GAP = 315;
-const MARK_R = 15;
-// Tiles the flood lets a jump climb. JUMP*JUMP/(2*GRAV) is 193 units, so four
+// Tiles the flood lets a jump climb: 900*900/(2*2100) is 193 units, so four
 // 42-unit tiles is a shade under.
 const CLIMB = 4;
-// How often the mark's reachability is checked, and how long it may fail.
+// How often the mark's reachability is checked; two seconds of failing move it.
 const LOOK = 0.4;
-const LOST = 2;
 
-// The head sits HEAD_X off centre the way the figure faces, and `big` adds
-// BIG_H to the body while it is rising, which the box grows with, so the feet
-// stay under it.
+// The head sits HEAD_X off centre the way the figure faces, and `big` adds 18
+// to the body while it is rising, which the box grows with.
 const FIG = 42;
-const BIG_H = 18;
 const HEAD_X = 3;
 
 // 0 wall, 1 one-way platform, anything else air.
@@ -204,8 +183,7 @@ function spinPoint(p) {
   p.y = ROOMY + x;
 }
 
-// A platform is solid from above alone, read off the position the move started
-// from so nothing pops up through one it was standing on.
+// A platform is solid from above alone, read off where the move started.
 function blocked(i, j, bot) {
   if (i < 0 || j < 0 || i >= GRID || j >= GRID) return true;
   const t = map[j * GRID + i];
@@ -228,8 +206,8 @@ function open(x, y, bot) {
   return true;
 }
 
-// Each axis on its own, so a diagonal into a wall still slides along it, and in
-// steps no longer than a tile, so nothing crosses one at speed.
+// Each axis on its own, so a diagonal into a wall slides along it, and in steps
+// no longer than a tile, so nothing crosses one at speed.
 function move(p, dx, dy) {
   const bot = p.y + HH;
   const n = Math.max(1, Math.ceil(Math.max(Math.abs(dx), Math.abs(dy)) / TILE));
@@ -294,7 +272,7 @@ class Player extends ent.Entity {
 
   paint() {
     this.painted = this.face;
-    const h = this.big ? FIG + BIG_H : FIG;
+    const h = this.big ? FIG + 18 : FIG;
     const dx = this.face < 0 ? -HEAD_X : HEAD_X;
     this.gfx.clear().size(FIG, h).fill(CYAN)
       .circle(dx, 10 - h / 2, 10)
@@ -321,22 +299,22 @@ class Player extends ent.Entity {
     let kicked = false;
     if (touch & T_DOWN) {
       this.vel.y = 0;
-      this.coyote = COYOTE;
+      this.coyote = 0.1;
     } else {
-      this.accelerate(0, GRAV);
+      this.accelerate(0, 2100);
       if (touch === T_RIGHT || touch === T_LEFT) {
-        this.vel.y = Math.min(this.vel.y, SLIDE);
+        this.vel.y = Math.min(this.vel.y, 400);
         if (jump) {
           this.vel.y = -JUMP;
           this.vel.x = touch === T_RIGHT ? -KICK : KICK;
-          this.kicked = KICKED;
+          this.kicked = 0.16;
           this.face = touch === T_RIGHT ? -1 : 1;
           this.coyote = 0;
           kicked = true;
           play.jump();
         }
       } else if (!held) {
-        this.vel.y = Math.max(this.vel.y, -CLIP);
+        this.vel.y = Math.max(this.vel.y, -315);
       }
     }
 
@@ -353,19 +331,18 @@ class Player extends ent.Entity {
     if (mx !== 0) this.face = mx;
 
     this.kicked = Math.max(0, this.kicked - t);
-    if (this.kicked <= 0) this.vel.x = mx * WALK;
+    if (this.kicked <= 0) this.vel.x = mx * 350;
 
-    // The head is on the side it faces, so a turn repaints it as a stretch
-    // does.
-    const big = this.vel.y < -BIG;
+    // The head is on the side it faces, so a turn repaints it as a stretch does.
+    const big = this.vel.y < -315;
     if (big !== this.big || this.face !== this.painted) {
       this.big = big;
       this.paint();
     }
   }
 
-  // entity.js integrates without knowing about walls, so this puts the box
-  // back and steps it through them, after the frame's own move.
+  // entity.js integrates without knowing about walls, so this puts the box back
+  // and steps it through them after the frame's own move.
   postUpdate() {
     if (locked) return;
     const dx = this.pos.x - this.was.x;
@@ -384,7 +361,7 @@ class Mark extends ent.Entity {
     this.pos.y = ey(j) + TILE / 2;
     this.phase = 2 * Math.PI * Math.random();
     this.gfx.fill(ORANGE).circle(0, 0, 12);
-    this.hitCircle(MARK_R);
+    this.hitCircle(15);
   }
 
   update() {
@@ -393,8 +370,8 @@ class Mark extends ent.Entity {
     if (!this.hit(player)) return;
 
     score.value += 1;
-    clock = Math.min(TIME_MAX, clock + FEED);
-    every = Math.max(EVERY_MIN, every - EVERY_OFF);
+    clock = Math.min(TIME_MAX, clock + 6);
+    every = Math.max(4, every - 0.3);
     play.coin();
     new ent.Particle({
       x: this.pos.x,
@@ -459,8 +436,8 @@ function step(i, j, climbed) {
   queue.push(at, climbed);
 }
 
-// The best of a sample rather than the first that clears the gap, so a turn
-// that left the room tight still gets its mark, just a nearer one.
+// The best of a sample and not the first that clears the gap, so a tight room
+// still gets its mark, just a nearer one.
 function addMark() {
   flood(tx(player.pos.x), ty(player.pos.y));
   const spots = [];
@@ -486,7 +463,7 @@ function addMark() {
       best = d;
       at = s;
     }
-    if (d >= MARK_GAP) break;
+    if (d >= 315) break;
   }
   new Mark(at % GRID, Math.floor(at / GRID));
 }
@@ -513,7 +490,7 @@ function turnClock(t) {
     return;
   }
   if (phase === HOLDING) {
-    if (since < HELD) return;
+    if (since < 0.5) return;
     phase = TURNING;
     since = 0;
     locked = true;
@@ -521,7 +498,7 @@ function turnClock(t) {
     return;
   }
 
-  const run = TURNS * Math.abs(dir);
+  const run = 0.6 * Math.abs(dir);
   const z = ease(Math.min(1, since / run));
   turned = span * z;
   needle = span * (1 - z);
@@ -544,8 +521,8 @@ function turnClock(t) {
   moveStray();
 }
 
-// A mark with no route to it is not a mark, and walking into a pocket the flood
-// cannot climb out of is as much a cause as a turn, so this runs on a timer.
+// A mark with no route is not a mark, and walking into a pocket is as much a
+// cause as a turn, so this runs on a timer.
 function checkMark(t) {
   looked += t;
   if (looked < LOOK) return;
@@ -555,7 +532,7 @@ function checkMark(t) {
     return;
   }
   lost += LOOK;
-  if (lost < LOST) return;
+  if (lost < 2) return;
   moveStray();
 }
 
@@ -579,7 +556,7 @@ export function init() {
 
   load();
   player = new Player(2, GRID - 2);
-  clock = TIME;
+  clock = 25;
   every = EVERY;
   waited = 0;
   phase = IDLE;
@@ -599,7 +576,7 @@ export function update(dt) {
 
   turnClock(t);
   checkMark(t);
-  clock -= t * (1 + DRAIN_UP * score.value);
+  clock -= t * (1 + 0.05 * score.value);
   if (clock > 0) return;
   clock = 0;
   gameOver({ score: true });
@@ -647,7 +624,7 @@ function drawRoom(ctx) {
 
 function drawNeedle(ctx) {
   // A full circle is TIME_MAX, running out anticlockwise from straight up.
-  ctx.lineWidth = RING_W;
+  ctx.lineWidth = 8;
   ctx.strokeStyle = ent.css(RING_BG);
   ctx.beginPath();
   ctx.arc(CX, CY, RING_R, 0, 2 * Math.PI);

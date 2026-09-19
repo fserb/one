@@ -21,6 +21,8 @@ import { shake } from "./lib/camera.js";
 import { gameOver } from "./lib/one.js";
 import * as play from "./lib/sounds.js";
 
+export { render } from "./lib/entity.js";
+
 export const meta = {
   title: "hypermania",
   desc: `
@@ -50,46 +52,25 @@ const BOT = 1024 - BARH;
 
 const EW = 850;
 const EH = 26;
-const EY = BOT + (BARH - EH) / 2;
 
-// Rests 60 above the bar, drops to 21 on the recoil, climbs back at RISE.
+// Rests 60 above the bar, drops to 21 on the recoil, climbs back at 215.
 const PY = BOT - 60;
-const PDIP = BOT - 21;
-const RISE = 215;
 const WALK = 425;
 const PX = 38;
 
 // A shot leaves from above the ship whatever the recoil is doing.
 const SHOTY = PY - 38;
-const UP = 1070;
-const DOWN = 850;
-const CEIL = 19;
-const SINK = BOT + 21;
 
-// A full bar is two minutes of holding still.
-const DRAIN = 100 / 120;
-const COST = 100 / 200;
-const DUMP = 1.5;
-const FILL = 0.75;
-const BEAT = 0.1;
-
-// Wider than the screen on both axes, so an enemy leaving one side is already
-// in place at the other. Wrapping happens 11 past the foot of the field.
-const WRAPX = 1024 + 32;
+// An enemy leaving one side is already in place at the other, wrapping 11 past
+// the foot of the field.
 const BANDX = 1024 + 64;
-const WRAPY = BOT + 11;
 const BANDY = 917;
 
 const COLS = 5;
 const ROWS = 4;
 const PIXEL = 13;
 
-const DEATH = 0.4;
-const LIGHT = 0.05;
 const WHITEOUT = 0.1;
-const POP = 0.2;
-
-// All at 0.2 except the spend, which plays ten times a second.
 
 // `across` spawns w by h off the left edge and moves them right; the other
 // spawns a column every dx and moves them down. At t == 0, `xmove(row, t)` is
@@ -150,9 +131,8 @@ const STRATS = [
   },
 ];
 
-// Extra substeps the formation takes this frame, on top of its ten. A wave runs
-// a tenth of a step a substep, so 20 is three times speed and -2 is four fifths
-// of it, and the formation's own timer runs at the same rate.
+// Extra substeps the formation takes this frame, on top of its ten: 20 is three
+// times speed and -2 is four fifths of it.
 const TICKERS = [
   () => 0,
   (t) => Math.trunc(t) % 2 === 0 ? 0 : 10,
@@ -189,16 +169,15 @@ class Bar extends ent.Entity {
   }
 
   update() {
-    // Frame and gauge in one entity: three rectangles a frame is not worth
-    // splitting to keep the frame cached.
-    const y = EY - this.pos.y;
+    // Frame and gauge in one entity: three rectangles a frame is cheap.
+    const y = BOT + (BARH - EH) / 2 - this.pos.y;
     const left = Math.max(0, energy) / 100;
     this.gfx.clear()
       .fill(PANEL).rect(-512, -BARH / 2, 1024, BARH)
       .fill(DEEP).rect(-EW / 2, y, EW, EH)
       .fill(ORANGE).rect(-EW / 2, y, EW * left, EH);
 
-    if (buffer < 1 || this.age < POP) return;
+    if (buffer < 1 || this.age < 0.2) return;
     const n = Math.floor(buffer);
     buffer -= n;
     this.age = 0;
@@ -236,12 +215,12 @@ class Player extends ent.Entity {
       duration: 1.5,
     });
     shake(1);
-    dying = DEATH;
+    dying = 0.4;
   }
 
   update() {
     const { input, time } = ent.game;
-    this.pos.y = Math.max(PY, this.pos.y - RISE * time);
+    this.pos.y = Math.max(PY, this.pos.y - 215 * time);
 
     // Flown from here, not from itself: steer while it climbs and it follows.
     if (this.bullet === null) {
@@ -249,13 +228,13 @@ class Player extends ent.Entity {
         play.shoot();
         this.bullet = new Bullet(this.pos.x);
         new Light(this.pos.x, SHOTY, true);
-        energy -= COST;
-        this.pos.y = PDIP;
+        energy -= 100 / 200;
+        this.pos.y = BOT - 21;
       }
     } else {
       this.bullet.pos.x = this.pos.x;
-      this.bullet.pos.y -= UP * time;
-      if (this.bullet.pos.y < CEIL) this.bullet.explode(false);
+      this.bullet.pos.y -= 1070 * time;
+      if (this.bullet.pos.y < 19) this.bullet.explode(false);
     }
 
     if (input.press.left) this.pos.x = Math.max(PX, this.pos.x - WALK * time);
@@ -315,12 +294,12 @@ class EnemyBullet extends ent.Entity {
 
     if (this.hit(player)) player.explode();
 
-    this.pos.y += DOWN * ent.game.time;
-    if (this.pos.y >= SINK) this.remove();
+    this.pos.y += 850 * ent.game.time;
+    if (this.pos.y >= BOT + 21) this.remove();
   }
 }
 
-// One frame is 16ms on one screen and 8 on another, so it holds for LIGHT.
+// One frame is 16ms on one screen and 8 on another, so it holds for 0.05s.
 class Light extends ent.Entity {
   constructor(x, y, mine) {
     super();
@@ -330,7 +309,7 @@ class Light extends ent.Entity {
   }
 
   update() {
-    if (this.age >= LIGHT) this.remove();
+    if (this.age >= 0.05) this.remove();
   }
 }
 
@@ -347,8 +326,7 @@ class Enemy extends ent.Entity {
     this.draw(BLACK);
   }
 
-  // One shape and not one cell at a time: two cells that share an edge, filled
-  // separately, leave a line along the join.
+  // One shape, since two cells filled separately leave a line along the join.
   draw(c) {
     const cells = [];
     for (let y = 0; y < ROWS; ++y) {
@@ -408,11 +386,10 @@ class Enemy extends ent.Entity {
   }
 }
 
-// It owns its enemies rather than reading them back out of the group, because
-// it moves them itself: an enemy has no velocity, only a place in the pattern.
+// It owns its enemies rather than reading them back out of the group: an enemy
+// has no velocity, only a place in the pattern.
 class Wave extends ent.Entity {
-  // Not begin(): the wave is built and pushed off its entry edge in the same
-  // call, and begin() runs a frame later.
+  // Not begin(): the wave is built and pushed off its entry edge in one call.
   constructor() {
     super();
     this.strat = STRATS[waves % STRATS.length];
@@ -464,8 +441,7 @@ class Wave extends ent.Entity {
     const { xmove, ymove, shooting } = this.strat;
     const steps = 10 + this.ticker(this.age);
 
-    // Reservoir sampling: each of the n on screen gets the same 1/n chance
-    // without counting them first.
+    // Reservoir sampling: the same 1/n chance without counting them first.
     const shoot = Math.random() < shooting * time * 2;
     let shooter = null;
     let seen = 0;
@@ -477,10 +453,10 @@ class Wave extends ent.Entity {
         e.pos.y += ymove(t) * time / 10;
       }
 
-      if (e.pos.x >= WRAPX) e.pos.x -= BANDX;
+      if (e.pos.x >= 1024 + 32) e.pos.x -= BANDX;
       if (!across) {
         if (e.pos.x <= -32) e.pos.x += BANDX;
-        if (e.pos.y >= WRAPY) e.pos.y -= BANDY;
+        if (e.pos.y >= BOT + 11) e.pos.y -= BANDY;
       }
 
       if (!shoot || e.pos.y <= 0) continue;
@@ -498,8 +474,7 @@ class Wave extends ent.Entity {
 }
 
 // Mirrored left to right, generated again until it has enough set pixels to be
-// legible at 65 units across. The count is how many particles it comes apart
-// into.
+// legible at 65 across. The count is how many particles it comes apart into.
 function pattern() {
   for (;;) {
     const pat = new Array(COLS * ROWS);
@@ -515,7 +490,7 @@ function pattern() {
   }
 }
 
-// Spend what is left of the bar, at DUMP for a full one.
+// Spend what is left of the bar, over 1.5s for a full one.
 function nextLevel() {
   if (wave === null) return;
   waves += 1;
@@ -524,13 +499,13 @@ function nextLevel() {
   let beat = 0;
   ent.every(0, () => {
     const was = energy;
-    energy = Math.max(1, energy - ent.game.time * 100 / DUMP);
+    energy = Math.max(1, energy - ent.game.time * 100 / 1.5);
     addScore(waves * 2 * (was - energy));
 
     beat -= ent.game.time;
     if (beat <= 0) {
       play.blip();
-      beat += BEAT;
+      beat += 0.1;
     }
 
     if (energy > 1) return true;
@@ -544,7 +519,7 @@ function beginLevel() {
   play.power();
 
   ent.every(0, () => {
-    energy = Math.min(100, energy + ent.game.time * 100 / FILL);
+    energy = Math.min(100, energy + ent.game.time * 100 / 0.75);
     if (energy < 100) return true;
     wave = new Wave();
     return false;
@@ -568,8 +543,8 @@ export function init() {
 }
 
 export function update(dt) {
-  // Entities first: entity.js holds a hit by running a frame at dt 0 rather
-  // than skipping it, which the drain below only sees by running after.
+  // Entities first: entity.js holds a hit by running a frame at dt 0, which
+  // the drain below only sees by running after.
   ent.update(dt);
 
   if (dying > 0) {
@@ -581,8 +556,6 @@ export function update(dt) {
   // Between waves the bar is being spent or refilled, and the drain is off.
   if (wave === null) return;
 
-  energy -= ent.game.time * DRAIN;
+  energy -= ent.game.time * 100 / 120; // a full bar is two minutes still
   if (energy <= 0) player.explode();
 }
-
-export { render } from "./lib/entity.js";

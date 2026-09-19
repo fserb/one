@@ -3,9 +3,8 @@
  * is Blitzcrank's hook.
  *
  * The floor is one of four colours and the ghost of that colour is off the
- * board.
- * Hook one of the other three and reel it in: its colour becomes the floor, it
- * leaves, and the old floor colour walks back on.
+ * board. Hook one of the other three and reel it in: its colour becomes the
+ * floor, it leaves, and the old floor colour walks back on.
  *
  * It needs a keyboard or gamepad to move and a pointer to aim. Alone in the
  * collection, it is not playable with either one alone.
@@ -16,6 +15,8 @@ import { delay } from "./lib/effects.js";
 import { shake } from "./lib/camera.js";
 import { gameOver, score } from "./lib/one.js";
 import * as play from "./lib/sounds.js";
+
+export { render, update } from "./lib/entity.js";
 
 export const meta = {
   title: "grab",
@@ -34,8 +35,8 @@ grab a ghost, its colour becomes the floor
 const BLACK = 0x010101;
 const WHITE = 0xfafafa;
 
-// Named as the write-up named them, which is not what two of them look like:
-// its `cyan` is this purple and its `purple` this pink.
+// Named as the write-up named them: its `cyan` is this purple and its `purple`
+// this pink.
 const YELLOW = 0xffdc3b;
 const PINK = 0xff54b1;
 const PURPLE = 0xaa00ff;
@@ -48,9 +49,6 @@ const EDGE = 21;
 const PR = 34;
 const PUSH = 3600;
 const DRAG = 5;
-// The hitstop the death holds for, and how fast the black quad's corners move.
-const HITSTOP = 0.2;
-const FLY = 10700;
 
 const IDLE = 0;
 const OUT = 1;
@@ -149,7 +147,7 @@ class Player extends ent.Entity {
     this.clearHits();
     this.vel.x = this.vel.y = 0;
     this.dying = true;
-    delay(HITSTOP);
+    delay(0.2);
     shake(0.5);
     new EndGame(this.pos.x, this.pos.y);
   }
@@ -163,14 +161,13 @@ class Hook extends ent.Entity {
     this.arm = 0;
     this.action = IDLE;
     this.target = null;
-    // A hit shape does not turn with `angle`, so the circle is on the entity's
-    // origin and draw() puts the claw there.
+    // A hit shape does not turn with `angle`, so the circle is on the origin.
     this.hitCircle(CLAW);
     this.draw();
   }
 
   // The claw is the origin and the arm extends back from it, so size() keeps
-  // the drawing's centre fixed as the arm changes length.
+  // the centre fixed as the arm changes length.
   draw() {
     this.gfx.clear()
       .size(2 * CLAW, 2 * Math.max(21, this.arm))
@@ -234,8 +231,7 @@ class Hook extends ent.Entity {
       }
     }
 
-    // The claw is 23 out plus the arm's length, so the arm's far end stays
-    // 23 out whatever the arm does.
+    // The claw is 23 out plus the arm, so the arm's far end stays 23 out.
     this.pos.x = p.x + (23 + this.arm) * Math.cos(this.angle - Math.PI / 2);
     this.pos.y = p.y + (23 + this.arm) * Math.sin(this.angle - Math.PI / 2);
   }
@@ -254,8 +250,7 @@ class Bullet extends ent.Entity {
   }
 
   update() {
-    // Pink's and purple's are steered directly; only the ones fired and left
-    // alone leave the board.
+    // Pink's and purple's are steered directly; only fired ones leave.
     if (this.color === PINK || this.color === PURPLE) return;
     const { x, y } = this.pos;
     if (x < 0 || x > 1024 || y < 0 || y > 1024) this.remove();
@@ -290,8 +285,7 @@ class Ghost extends ent.Entity {
   update() {
     this.wait = Math.max(0, this.wait - ent.game.time);
 
-    // The floor's colour is out of play, so a ghost leaves when its own is put
-    // down.
+    // The floor's colour is out of play, so a ghost leaves when its own lands.
     if (this.color === floor) {
       this.remove();
       this.bullet?.remove();
@@ -400,9 +394,8 @@ class Ghost extends ent.Entity {
 }
 
 // A black square on the spot where you died, whose corners then move to the
-// four corners of the board. One at a time and each waiting for the one before
-// it: all four at once would expand the square, where one at a time stretches
-// the black out of the shape.
+// four corners of the board, one at a time: all four at once would expand the
+// square, where one at a time stretches the black out of the shape.
 // [corner, x, y]: top-left, bottom-left, top-right, bottom-right.
 const SWEEP = [[0, 0, 0], [3, 0, 1024], [1, 1024, 0], [2, 1024, 1024]];
 
@@ -425,15 +418,14 @@ class EndGame extends ent.Entity {
 
     const [i, tx, ty] = SWEEP[this.stage];
     const p = this.p[i];
-    towards(p, tx, ty, FLY * ent.game.time);
+    towards(p, tx, ty, 10700 * ent.game.time);
     if (p.x === tx && p.y === ty) this.stage += 1;
     this.draw();
 
     if (this.stage === SWEEP.length) gameOver({ score: true });
   }
 
-  // size() fixes the box to the whole board, so the corners moving inside it do
-  // not move the drawing's own centre with them.
+  // size() fixes the box to the board, so a corner moving does not shift it.
   draw() {
     const [a, b, c, d] = this.p;
     this.gfx.clear().size(1024, 1024, 512, 512).fill(BLACK)
@@ -511,5 +503,3 @@ export function init() {
   ];
   for (const [color, x, y] of corners) new Ghost(color, x, y);
 }
-
-export { render, update } from "./lib/entity.js";

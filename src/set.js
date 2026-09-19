@@ -10,14 +10,13 @@
  *
  * The cursor follows the pointer when it moves and the arrows when it is still,
  * so there is no mode and a tap plays with one finger.
- *
- * Sixteen cards almost always hold a set, and almost always is not never, so a
- * board without one is dealt again.
  */
 
 import * as ent from "./lib/entity.js";
 import { shake } from "./lib/camera.js";
 import { gameOver, msg, score } from "./lib/one.js";
+
+export { render } from "./lib/entity.js";
 
 export const meta = {
   title: "set",
@@ -41,17 +40,13 @@ const INK = 0x010101;
 const COLS = 4;
 const CELLS = COLS * COLS;
 
-// A card draws in a 100-unit box scaled to CELL, so the eighteen units of pitch
-// left over are the gap.
+// A card draws in a 100-unit box scaled to CELL; the rest of the pitch is gap.
 const PITCH = 216;
 const CELL = 198;
 const MARK = CELL - 17;
 
-// 188 leaves the same margin each side, so MID lands on 512.
 const X0 = 188;
 const Y0 = 160;
-// The clock spans these and the last set is right aligned to them, so the three
-// line up as one column.
 const LEFT = X0 - CELL / 2;
 const RIGHT = X0 + PITCH * (COLS - 1) + CELL / 2;
 const MID = (LEFT + RIGHT) / 2;
@@ -61,17 +56,12 @@ const CLOCK_H = 17;
 
 const GRAVE = 64;
 const GRAVE_PITCH = 58;
-const GRAVE_X = RIGHT - GRAVE / 2 - GRAVE_PITCH * 2;
-const GRAVE_Y = 981;
 
-// One maximum, so a set refills the bar rather than extending past its end.
-// Ten seconds a set is the pace a player who can read the board holds.
 const CLOCK_MAX = 45;
 const SET_TIME = 10;
 const MISS_TIME = 5;
 
-// The sixteen on the board are in neither, so the deck refills out of the
-// discards without repeating one.
+// The sixteen on the board are in neither, so no card repeats before a refill.
 let deck = [];
 let discard = [];
 
@@ -146,8 +136,7 @@ function cellAt(x, y) {
   return col + row * COLS;
 }
 
-// A half width and a height each: there is no hatch, so a striped card is a
-// shape with four lines inside it.
+// A half width and a height each: a striped card is a shape with lines in it.
 const STRIPES = [
   [[10, -6], [10, -2], [10, 2], [10, 6]],
   [[7, -6], [10, -2], [10, 2], [7, 6]],
@@ -177,7 +166,6 @@ function symbol(gfx, x, y, color, fill, type) {
 }
 
 // Built in the constructor so it is on screen the frame it replaces one.
-// gfx.size(100) fixes the box, so every coordinate below runs -50..50.
 class Card extends ent.Entity {
   constructor(code, x, y) {
     super();
@@ -208,8 +196,8 @@ class Card extends ent.Entity {
 
   entomb(i) {
     this.scale = GRAVE / 100;
-    this.pos.x = GRAVE_X + GRAVE_PITCH * i;
-    this.pos.y = GRAVE_Y;
+    this.pos.x = RIGHT - GRAVE / 2 - GRAVE_PITCH * (2 - i);
+    this.pos.y = 981;
   }
 }
 
@@ -227,7 +215,6 @@ class Cursor extends ent.Entity {
   constructor() {
     super();
     this.selected = 4;
-    // Last frame's pointer, which is how a moved one is told from a still one.
     this.px = -1;
     this.py = -1;
     this.over = null;
@@ -239,7 +226,6 @@ class Cursor extends ent.Entity {
   update() {
     const { input } = ent.game;
 
-    // The pointer takes the cursor when it moves, the arrows when it is still.
     this.moved = input.x !== this.px || input.y !== this.py;
     this.px = input.x;
     this.py = input.y;
@@ -274,8 +260,7 @@ class Clock extends ent.Entity {
     if (msg() === 0) clock = Math.max(0, clock - ent.game.time);
 
     const w = RIGHT - LEFT;
-    // The empty track fixes the bounding box, so the bar shortens from the right
-    // instead of recentring as it goes.
+    // The empty track fixes the box, so the bar shortens from the right.
     this.gfx.clear()
       .fill(INK, 0.12).rect(-w / 2, -CLOCK_H / 2, w, CLOCK_H)
       .fill(INK).rect(-w / 2, -CLOCK_H / 2, w * clock / CLOCK_MAX, CLOCK_H);
@@ -364,8 +349,7 @@ function mark(cell) {
   marks.push(new Mark(cell));
   if (marks.length < 3) return;
 
-  // Board order and not click order, so the last set is laid out across the
-  // corner the way it was across the board.
+  // Board order and not click order, so the corner matches the board.
   const cells = marks.map((m) => m.cell).sort((a, b) => a - b);
   for (const m of marks) m.remove();
   marks = [];
@@ -399,10 +383,7 @@ export function update(dt) {
 
   const cursor = ent.one(Cursor);
   if (cursor === null || !ent.game.input.just.act) return;
-  // A tap off the board moves the pointer and acts on the same frame. It asked
-  // for nothing, not for the cell the arrows left the cursor on.
+  // A tap off the board asked for nothing, not for the cell under the cursor.
   if (cursor.moved && cursor.over === null) return;
   mark(cursor.selected);
 }
-
-export { render } from "./lib/entity.js";

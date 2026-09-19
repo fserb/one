@@ -21,6 +21,8 @@ import { shake } from "./lib/camera.js";
 import { gameOver, score } from "./lib/one.js";
 import * as play from "./lib/sounds.js";
 
+export { render } from "./lib/entity.js";
+
 export const meta = {
   title: "metro",
   desc: `
@@ -52,23 +54,16 @@ const RINGS = [[17, DOT], [13, HOLE], [9, DOT]];
 
 const TAU = 2 * Math.PI;
 
-// Four screens a side. Stations land no closer than GAP, and TRIES attempts
-// fill it with about 375.
+// Four screens a side. Stations land no closer than GAP, and 3000 tries fill
+// it with about 375.
 const DIM = 1024 * 4;
 const GAP = 160;
-const TRIES = 3000;
 // Also how far off screen a station must be before none of its tunnels reach.
 const LONG = 425;
 
-// Half-turns a second, then units a second.
-const TURN = 2;
-const ACC = 425;
-const ETURN = 1.5;
-const EACC = 170;
+const ACC = 425; // units a second
 
 const CAR = [-36, -17, 36, -17, 36, 17, -36, 17];
-
-const DEATH = 0.5; // on top of the hitstop
 
 const BAR = 576;
 const OFF = 1070;
@@ -92,7 +87,7 @@ function build() {
   const grid = new Array(n * n).fill(null);
   const pts = [];
 
-  for (let t = 0; t < TRIES; ++t) {
+  for (let t = 0; t < 3000; ++t) {
     const x = Math.floor(DIM * Math.random());
     const y = Math.floor(DIM * Math.random());
     const gx = Math.floor(x / cell);
@@ -129,7 +124,7 @@ function build() {
   edges = [];
   for (const s of stations) {
     // By heading, so left and right step around the station's exits rather
-    // than through them in the order Delaunay found them.
+    // than in the order Delaunay found them.
     s.conn.sort((a, b) =>
       Math.atan2(a.y - s.y, a.x - s.x) - Math.atan2(b.y - s.y, b.x - s.x)
     );
@@ -166,8 +161,8 @@ function tunnels(pts) {
     }
     tris = keep;
 
-    // An edge two dropped triangles shared is inside the hole; what is left
-    // once every pair cancels is its outline.
+    // An edge two dropped triangles shared is inside the hole; what survives
+    // the cancelling is its outline.
     for (let j = 0; j < hole.length; j += 2) {
       if (hole[j] < 0) continue;
       let solo = true;
@@ -343,7 +338,7 @@ class Train extends ent.Entity {
     const dx = this.to.x - this.pos.x;
     const dy = this.to.y - this.pos.y;
     const full = Math.hypot(dx, dy);
-    const aligned = turn(this, dx, dy, TURN);
+    const aligned = turn(this, dx, dy, 2);
 
     if (input.just.left) {
       play.select();
@@ -413,7 +408,7 @@ class Train extends ent.Entity {
     play.explode();
     this.clearHits();
     this.gfx.clear();
-    this.dying = DEATH;
+    this.dying = 0.5; // on top of the hitstop
     shake(1);
     delay(0.15);
     new ent.Particle({
@@ -447,10 +442,10 @@ class Enemy extends ent.Entity {
     const dx = this.to.x - this.pos.x;
     const dy = this.to.y - this.pos.y;
     const full = Math.hypot(dx, dy);
-    const aligned = turn(this, dx, dy, ETURN);
+    const aligned = turn(this, dx, dy, 1.5);
     if (!aligned) return;
 
-    const step = Math.min(full, EACC * ent.game.time);
+    const step = Math.min(full, 170 * ent.game.time);
     if (step >= full) return this.pick();
     this.pos.x += dx / full * step;
     this.pos.y += dy / full * step;
@@ -472,9 +467,8 @@ class Enemy extends ent.Entity {
   }
 }
 
-// Reaching a station adds to the same timer and raises the combo, and the next
-// one is worth more and allowed a good deal less time, so a chain ends by
-// itself.
+// Reaching a station adds to the same timer and raises the combo; the next is
+// worth more and allowed less time, so a chain ends by itself.
 class Mission extends ent.Entity {
   constructor() {
     super();
@@ -543,8 +537,8 @@ class Mission extends ent.Entity {
     this.gfx.fill(WHITE).arc(BAR - 32, 32, 21, 0, swept, TAU);
   }
 
-  // The bar centres on its own box, so the text's place in that box is its
-  // position less half the bar: left of centre, clear of the pie chart.
+  // The bar centres on its own box, so the text sits at its position less half
+  // the bar: left of centre, clear of the pie chart.
   render(ctx) {
     this.gfx.render(ctx);
     ctx.fillStyle = ent.css(WHITE);
@@ -630,7 +624,7 @@ export function update(dt) {
   ent.update(dt);
   if (train.dying > 0) return;
 
-  // Steep at the start, flat later, and none of them ever leaves. Everything
+  // Steep at the start, flat later, and none of them ever leaves: everything
   // else about the round is flat, so this is the whole difficulty.
   const want = 5 * Math.sqrt(ent.game.totalTime);
   while (enemies < want) {
@@ -640,5 +634,3 @@ export function update(dt) {
 
   score.value += dt * Math.sqrt(enemies) / 50;
 }
-
-export { render } from "./lib/entity.js";

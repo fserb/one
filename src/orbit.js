@@ -23,6 +23,8 @@ import { shake } from "./lib/camera.js";
 import { gameOver, msg, score } from "./lib/one.js";
 import * as play from "./lib/sounds.js";
 
+export { render } from "./lib/entity.js";
+
 export const meta = {
   title: "orbit",
   desc: `
@@ -51,31 +53,17 @@ const CY = 512;
 
 // 425, reaching 507 out with the recoil and the shield ring.
 const ORBIT = 425;
-const RECOIL = 43;
-const FALLBACK = 107;
-const SETTLE = 107;
 const ANGSPEED = Math.PI / 4;
-const RELOAD = 0.5;
 const SHIELD = 36;
-// Half thickness of a chunk at full health.
-const THICK = 13;
 
 const BSPEED = 640;
 const BR = 13;
 
 // One ring gets a new target angle every REPOINT seconds over the ring count.
-const SPIN = 5;
 const REPOINT = 12;
 
-const ENEMY_R = 36;
-const ENEMY_TURN = 10;
-// 2.2s to the opening shot, 3.3s to the one past the shield.
-const ENEMY_FIRST = 1.5;
 // Frames of player angle the turret averages to lead its shot.
 const HISTORY = 60;
-
-const SHIELD_BONUS = 50;
-const DEATH = 0.6; // on top of the hitstop
 
 // A ring is a pattern and a weight read digit by digit: a pattern digit is how
 // many slots that chunk covers, so the digits sum to the ring's slots, and the
@@ -139,8 +127,7 @@ class Player extends ent.Entity {
     this.draw();
   }
 
-  // size() centres the drawing on the shield, so losing the shield does
-  // not move the ship.
+  // size() centres the drawing on the shield, so losing it does not move it.
   draw() {
     this.gfx.clear().size(2 * SHIELD)
       .fill(WHITE).mt(0, -26).lt(21, 21).lt(0, 9).lt(-21, 21).fill();
@@ -167,19 +154,19 @@ class Player extends ent.Entity {
     this.angle += (this.clockwise ? -ANGSPEED : ANGSPEED) * dt;
     this.angle = mod(this.angle, TAU);
 
-    this.radius = Math.max(ORBIT, this.radius - FALLBACK * dt);
+    this.radius = Math.max(ORBIT, this.radius - 107 * dt);
     this.pos.x = CX + this.radius * Math.cos(this.angle + Math.PI / 2);
     this.pos.y = CY + this.radius * Math.sin(this.angle + Math.PI / 2);
 
     if (!transition) this.reload -= dt;
     if (this.reload > 0) return;
-    this.reload += RELOAD;
+    this.reload += 0.5;
 
     const c = Math.cos(this.angle);
     const s = Math.sin(this.angle);
     new Bullet(this.pos.x - 4 * c + 26 * s, this.pos.y - 4 * s - 26 * c, this.angle);
     play.shoot();
-    this.radius += RECOIL;
+    this.radius += 43;
   }
 }
 
@@ -194,8 +181,8 @@ class Bullet extends ent.Entity {
     // Seconds left of the puff. Zero while the bullet is live.
     this.gone = 0;
     this.hitCircle(BR);
-    // Every drawing here is built in the constructor, not begin(): a group is
-    // rendered with whatever the constructor added this frame.
+    // Built in the constructor, not begin(): a group is rendered with whatever
+    // the constructor added this frame.
     this.gfx.cache(0).fill(WHITE).circle(0, 0, BR);
   }
 
@@ -258,8 +245,7 @@ class EnemyBullet extends ent.Entity {
       return;
     }
 
-    // Not aimed for: the gun aims itself, so this only happens where the two
-    // paths cross.
+    // Not aimed for: the gun aims itself, so this is where the paths cross.
     const b = this.hitGroup(Bullet);
     if (b === null) return;
     play.break();
@@ -288,9 +274,9 @@ class Chunk extends ent.Entity {
 
   draw() {
     const r = (6 + 20 * this.health / 5) / 2;
-    // size() keeps the centre of the ring on the entity, which is what `angle`
+    // size() keeps the ring's centre on the entity, which is what `angle`
     // turns about; the arc's own box is off to one side.
-    this.gfx.clear().size(2 * (this.radius + THICK))
+    this.gfx.clear().size(2 * (this.radius + 13))
       .fill(mix(COLOR, BLACK, this.health / 5))
       .arc(
         0,
@@ -303,8 +289,8 @@ class Chunk extends ent.Entity {
   }
 
   // The band is a distance test, the sweep an angle one widened by what the
-  // circle subtends. The arcs turn the opposite way to the screen and `angle`
-  // turns the drawing, so a screen direction s is at `angle - s`.
+  // circle subtends. The arcs turn against the screen, so a screen direction s
+  // is at `angle - s`.
   covers(x, y, r) {
     const dx = x - this.pos.x;
     const dy = y - this.pos.y;
@@ -324,13 +310,13 @@ class Chunk extends ent.Entity {
     const dy = CY - this.pos.y;
     const d = Math.hypot(dx, dy);
     if (d > 0) {
-      const k = Math.min(1, SETTLE * dt / d);
+      const k = Math.min(1, 107 * dt / d);
       this.pos.x += dx * k;
       this.pos.y += dy * k;
     }
 
-    // A ring builds slowly and drains fast. Written as a reach, not a clamp,
-    // so a hitstop frame at dt 0 cannot end the move a step short.
+    // A reach and not a clamp, so a hitstop frame at dt 0 cannot end the move
+    // a step short.
     if (this.want >= 0) {
       const left = this.want - this.health;
       const step = left < 0 ? -dt / 0.05 : dt / 0.2;
@@ -408,7 +394,7 @@ class Level extends ent.Entity {
     }
 
     this.repoint = REPOINT / this.want.length;
-    new Enemy(ENEMY_FIRST);
+    new Enemy(1.5); // 2.2s to the opening shot, 3.3s to the one past the shield
   }
 
   update() {
@@ -426,7 +412,7 @@ class Level extends ent.Entity {
       // of a ring has the same angle.
       const a = this.layers[i][0].angle;
       if (a === this.want[i]) continue;
-      const max = SPIN * dt;
+      const max = 5 * dt;
       const da = extra.clamp(turn(a, this.want[i]), -max, max);
       for (const c of this.layers[i]) c.angle += da;
     }
@@ -447,9 +433,8 @@ class Enemy extends ent.Entity {
     this.pos.y = CY;
     // Facing away, so the barrel has half a turn to swing before it can fire.
     this.angle = (player?.angle ?? 0) + Math.PI;
-    this.hitCircle(ENEMY_R);
-    // Background colour, drawing nothing: it keeps the box centred on the
-    // body, the way size() does.
+    this.hitCircle(36);
+    // Background colour, drawing nothing: it keeps the box on the body.
     this.gfx.fill(COLOR).rect(-43, -43, 86, 86)
       .fill(BLACK).circle(0, 0, 21)
       .fill(BLACK).mt(0, -43).lt(21, 0).lt(-21, 0).fill();
@@ -499,7 +484,7 @@ class Enemy extends ent.Entity {
     // Damping that never quite settles, so the barrel oscillates around the
     // player rather than tracking them.
     const t = turn(this.angle, aim);
-    if (t !== 0) this.angvel += Math.sign(t) * ENEMY_TURN * dt;
+    if (t !== 0) this.angvel += Math.sign(t) * 10 * dt;
     this.angvel *= Math.pow(0.9, dt * 60);
     this.angle += this.angvel * dt;
 
@@ -511,9 +496,8 @@ class Enemy extends ent.Entity {
   }
 }
 
-// The drain scores the chunk it finds on every tick rather than once a chunk,
-// so one left at health h scores h + (h-1) + ... + 1 times one plus its ring
-// index, against the flat h that shooting it scores.
+// The drain scores a chunk on every tick, so one left at health h scores
+// h + (h-1) + ... + 1 times one plus its ring index.
 function finishLevel() {
   ent.one(Enemy)?.explode();
   delay(0.05);
@@ -543,12 +527,12 @@ function finishLevel() {
 function nextLevel() {
   level++;
   msg(`level ${level + 1}`);
-  // An enemy round outlives the level that fired it, so a round can end during
-  // the drain with nobody left to build for.
+  // An enemy round outlives the level that fired it, so a round can end with
+  // nobody left to build for.
   if (player === null) return;
 
   if (!player.shield) player.addShield();
-  else if (level > 0) score.value += SHIELD_BONUS;
+  else if (level > 0) score.value += 50;
 
   rings = new Level(level);
   play.power();
@@ -584,7 +568,7 @@ function die() {
   });
   delay(0.05);
   shake(0.5);
-  ent.after(DEATH, () => gameOver({ score: true }));
+  ent.after(0.6, () => gameOver({ score: true })); // on top of the hitstop
 }
 
 // Past the hand-made levels: four rings out of HARD, up to eight.
@@ -629,5 +613,3 @@ export function update(dt) {
   // Half a point a second alive, nothing while a level builds or drains.
   if (!transition) score.value += ent.game.time / 2;
 }
-
-export { render } from "./lib/entity.js";

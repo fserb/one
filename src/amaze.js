@@ -35,8 +35,7 @@ tap to jump one wall, hold to walk
 // 15 cells of 64 is 960, leaving a margin either side.
 const N = 15;
 const CELL = 64;
-const MAZE = N * CELL;
-const MX = (1024 - MAZE) / 2;
+const MX = (1024 - N * CELL) / 2;
 const MY = MX;
 // Where the maze grows from, and where you start.
 const MID = (N - 1) / 2;
@@ -52,36 +51,18 @@ const SIDES = [
   { bit: W_W, off: -1, back: E_W },
 ];
 
-const LINE = 6;
-
-// Cells a second.
-const WALK = 4;
-const PATROL = 2.5;
-const CHASE = 5;
 // How near the middle of a cell a turn takes, in cells.
 const ALIGN = 0.1;
-// Seconds to recharge, and how far into a move a release still cancels it.
-const COOL = 3;
+// How far into a move a release still cancels it.
 const BAIL = 0.94;
 // A press let go inside this is a jump; held past it, it walks.
 const TAP = 0.15;
 
 const YOU_R = 16;
-const YOU_BOX = 32;
-const BOT_R = 12;
-const BOT_BOX = 28;
 const KEY_BOX = 20;
 const GATE_BOX = 40;
 
-// Still, then aiming, then charging. STILL is there because a bot walking
-// inward otherwise catches a player who has had no time to be anywhere else.
-const STILL = 1.5;
-const AIM_AT = 2;
-const CHASE_AT = 5;
-
 const WIPE = 0.35;
-const SHOW = 0.5;
-const DEATH = 0.5;
 
 const WALL = 0xeeeeee;
 const DARK = 0x444444;
@@ -116,10 +97,8 @@ const ci = (x) => Math.round((x - MX) / CELL - 0.5);
 const cj = (y) => Math.round((y - MY) / CELL - 0.5);
 
 // A randomised Prim's from the middle cell out: a cell still at 15, every wall
-// up, has not been reached. The order is the part that matters. It depends on
-// which direction the cell is from the centre: the two perpendicular directions
-// first, then away, then back toward the middle, which runs the corridors
-// around the centre rather than radiating out of it.
+// up, has not been reached. The order is the part that matters, and it is by
+// which direction the cell is from the centre.
 function generate() {
   map.fill(15);
   const border = [];
@@ -190,8 +169,7 @@ function wall(i, j, bit) {
   return (map[j * N + i] & bit) !== 0;
 }
 
-// Once a level, from both sides: a second copy of each, and no need to work out
-// which side owns it.
+// Once a level, from both sides, so nothing works out which side owns a wall.
 function buildWalls() {
   walls.length = 0;
   for (let j = 0; j < N; ++j) {
@@ -219,7 +197,7 @@ class Player extends ent.Entity {
     this.facing = N_W;
     this.cool = 0;
     this.leaving = -1; // counts down from 1 while folding into the gate
-    this.hitBox(YOU_BOX);
+    this.hitBox(32);
   }
 
   door() {
@@ -287,8 +265,8 @@ class Player extends ent.Entity {
       }
       if (d !== 0) this.moveTo(d);
 
-      // Per axis, in two separate tests: without that, turning into a wall
-      // mid-step leaves the old target moving you sideways indefinitely.
+      // Per axis: turning into a wall mid-step would otherwise leave the old
+      // target moving you sideways for good.
       const across = d === E_W || d === W_W;
       const along = d === N_W || d === S_W;
       if (
@@ -302,7 +280,7 @@ class Player extends ent.Entity {
     const dx = cx(this.tx) - this.pos.x;
     const dy = cy(this.ty) - this.pos.y;
     const l = Math.hypot(dx, dy);
-    const step = WALK * CELL * t;
+    const step = 4 * CELL * t; // cells a second
     if (l <= step) {
       this.pos.x = cx(this.tx);
       this.pos.y = cy(this.ty);
@@ -316,10 +294,10 @@ class Player extends ent.Entity {
       if (this.leaving === 0) leave();
       return;
     }
-    this.cool = Math.max(0, this.cool - t / COOL);
+    this.cool = Math.max(0, this.cool - t / 3); // seconds to recharge
   }
 
-  // A circle with a rect of background over it. The flat rises as the jump
+  // A circle with a rect of background over it: the flat rises as the jump
   // comes back, and is the only gauge there is.
   render(ctx) {
     const r = this.leaving >= 0 ? YOU_R * this.leaving : YOU_R;
@@ -353,25 +331,27 @@ class Bot extends ent.Entity {
     this.evil = false;
     this.pos.x = cx(this.mx);
     this.pos.y = cy(this.my);
-    this.hitBox(BOT_BOX);
+    this.hitBox(28);
   }
 
   update() {
     if (dying > 0 || phase !== PLAY) return;
-    if (ent.game.totalTime < STILL) return;
+    // Still, then aiming, then charging: a bot walking inward from the first
+    // frame catches a player who has had no time to be anywhere else.
+    if (ent.game.totalTime < 1.5) return;
     const t = ent.game.time;
 
     const dx = cx(this.mx) - this.pos.x;
     const dy = cy(this.my) - this.pos.y;
     const l = Math.hypot(dx, dy);
-    const step = (this.evil ? CHASE : PATROL) * CELL * t;
+    const step = (this.evil ? 5 : 2.5) * CELL * t; // cells a second
     if (l >= step) {
       this.pos.x += dx / l * step;
       this.pos.y += dy / l * step;
     } else {
       this.pos.x = cx(this.mx);
       this.pos.y = cy(this.my);
-      if (ent.game.totalTime >= CHASE_AT) this.chase();
+      if (ent.game.totalTime >= 5) this.chase();
       for (let n = 0; n < 40 && this.mx === this.tx && this.my === this.ty; ++n) {
         this.retarget();
       }
@@ -385,9 +365,8 @@ class Bot extends ent.Entity {
     if (this.hit(player)) die();
   }
 
-  // How far a straight run goes before a wall stops it. On patrol it also gives
-  // up early at any way out, more readily the further it has come, which turns
-  // a corridor sweep into a wander.
+  // How far a straight run goes before a wall stops it. On patrol it gives up
+  // early at any way out, which turns a corridor sweep into a wander.
   runX(x0, y, dx, wander) {
     // Zero is not a direction, and it is what `retarget` asks for whenever the
     // bot is already in the player's column.
@@ -423,7 +402,7 @@ class Bot extends ent.Entity {
   }
 
   retarget() {
-    if (player !== null && ent.game.totalTime >= AIM_AT) {
+    if (player !== null && ent.game.totalTime >= 2) {
       if (Math.random() < 0.5) {
         const k = this.runX(this.mx, this.my, Math.sign(player.mx - this.mx), true);
         if (k !== this.mx) {
@@ -476,7 +455,7 @@ class Bot extends ent.Entity {
 
   render(ctx) {
     ctx.beginPath();
-    ctx.arc(0, 0, BOT_R, 0, 2 * Math.PI);
+    ctx.arc(0, 0, 12, 0, 2 * Math.PI);
     if (this.evil) {
       ctx.fillStyle = ent.css(BOT);
       ctx.fill();
@@ -548,7 +527,7 @@ class Gate extends ent.Entity {
 
 function die() {
   if (dying > 0) return;
-  dying = DEATH;
+  dying = 0.5;
   shake(0.4);
   play.lose();
   new ent.Particle({
@@ -579,9 +558,8 @@ function buildLevel() {
   generate();
 
   player = new Player();
-  // Point symmetric about the middle, `p1 = 15*15 - 1 - p0`, so a level is
-  // always a there and a back. Not the middle itself: p1 is its own mirror
-  // there, and both would land underfoot.
+  // Point symmetric about the middle, so a level is always a there and a back.
+  // Not the middle itself: p1 is its own mirror there.
   const home = MID + N * MID;
   let p0 = home;
   while (p0 === home) p0 = Math.floor(N * N * Math.random());
@@ -603,8 +581,7 @@ export function init() {
 }
 
 export function update(dt) {
-  // Off input.js directly, not entity.js's copy, which the player would read a
-  // frame behind during ent.update().
+  // Off input.js directly, not entity.js's copy, which lags a frame here.
   tapped = input.release.act && pressed > 0 && pressed <= TAP;
   pressed = input.press.act ? pressed + dt : 0;
 
@@ -621,7 +598,7 @@ export function update(dt) {
     phaseT = 0;
     phase = SHOWING;
     buildLevel();
-  } else if (phase === SHOWING && phaseT >= SHOW) {
+  } else if (phase === SHOWING && phaseT >= 0.5) {
     phaseT = 0;
     phase = WIPE_IN;
   } else if (phase === WIPE_IN && phaseT >= WIPE) {
@@ -632,7 +609,7 @@ export function update(dt) {
 
 export function render(ctx) {
   ctx.strokeStyle = ent.css(WALL);
-  ctx.lineWidth = LINE;
+  ctx.lineWidth = 6;
   ctx.lineCap = "square";
   ctx.beginPath();
   for (let i = 0; i < walls.length; i += 4) {

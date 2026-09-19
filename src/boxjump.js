@@ -20,6 +20,8 @@ import { shake } from "./lib/camera.js";
 import { gameOver, msg, score } from "./lib/one.js";
 import * as play from "./lib/sounds.js";
 
+export { render } from "./lib/entity.js";
+
 export const meta = {
   title: "boxjump",
   desc: `
@@ -48,31 +50,18 @@ const BH = 45;
 const OUT = 85;
 
 // No two circumcircles come within GAP. EDGE is RIDE plus half the blob, so the
-// blob standing on the face nearest the edge is still on the board.
+// blob on the face nearest the edge is still on the board.
 const GAP = 47;
 const EDGE = 47;
 
 // The size a piece is drawn at, before FAT. The range is cut into `n` bands and
-// each piece chosen inside its own: independent choices come out all-medium
-// often enough to notice. The top of the range falls with the count, which is
-// what keeps six of them fitting.
+// each piece chosen inside its own, since independent choices come out
+// all-medium. The top falls with the count, which keeps six of them fitting.
 const SMIN = 47;
-const SMAX = 183;
-const PER = 13;
 
 // A triangle of the same circumradius looks much smaller, hence FAT.
 const SHAPES = [3, 4, 6];
 const FAT = { 3: 1.32, 4: 1.12, 6: 1.02 };
-
-// Radians a second, before the level's ramp. The spread is the point: a slow
-// shape is a longer wait for the face and a wider press when it comes, a fast
-// one the opposite. The slowest is five seconds for a full turn.
-const SPIN = 1.2;
-const SPIN_VAR = 1.4;
-
-// Seconds the board holds after the last piece goes, and after the blob does.
-const CLEAR = 0.8;
-const DEATH = 0.35;
 
 let level = 0;
 let clearing = 0; // seconds left of the pause between levels, 0 while playing
@@ -89,10 +78,8 @@ class Piece extends ent.Entity {
     this.angle = TAU * Math.random();
     this.pop = 0; // fades from 1 on the launch that took a number off
 
-    // size() is the circumcircle's square, and it is required: Gfx centres
-    // on its own bounding box, and a triangle's box is not centred on its
-    // circumcentre, so without it the outline sits a quarter of a radius off
-    // the geometry the blob lands against.
+    // size() is the circumcircle's square, and it is required: a triangle's
+    // bounding box is not centred on its circumcentre.
     this.gfx.size(2 * this.r).fill(CHALK);
     this.gfx.mt(this.pts[0][0], this.pts[0][1]);
     for (const [x, y] of this.pts.slice(1)) this.gfx.lt(x, y);
@@ -106,8 +93,7 @@ class Piece extends ent.Entity {
   }
 
   // The outline turns and the number does not: a digit coming round upside down
-  // is a digit nobody reads at a glance. 0.74r is the size that puts a digit's
-  // cap at 0.54r, so the number grows with the piece.
+  // is a digit nobody reads at a glance.
   render(ctx) {
     this.gfx.render(ctx);
     ctx.rotate(-this.angle);
@@ -164,9 +150,8 @@ class Piece extends ent.Entity {
   }
 }
 
-// Riding holds the contact in the piece's local coordinates, `ax, ay` on the
-// face and `nx, ny` out of it, so the piece's turn is the only thing that moves
-// the blob and nothing accumulates.
+// Riding holds the contact in the piece's local coordinates, so the piece's
+// turn is the only thing that moves the blob and nothing accumulates.
 class Player extends ent.Entity {
   constructor(x, y, dx, dy) {
     super();
@@ -190,9 +175,8 @@ class Player extends ent.Entity {
       .fill(BOARD).rect(-6, 9 - BH / 2, 13, 9, 9);
   }
 
-  // The press is read here and not in ride(), which land() also calls: a press
-  // on the frame the blob touches down would launch it straight back out of a
-  // face it never stood on.
+  // The press is read here and not in ride(), which land() also calls: it would
+  // launch the blob straight back out of a face it never stood on.
   update() {
     this.squash *= Math.max(0, 1 - 11 * ent.game.time);
     if (this.piece === null) {
@@ -301,7 +285,7 @@ class Player extends ent.Entity {
     this.remove();
     play.lose();
     shake(0.3);
-    ent.after(DEATH, () => gameOver({ score: true }));
+    ent.after(0.35, () => gameOver({ score: true }));
   }
 
   // Local y is the normal, so a landing flattens the blob against the face and
@@ -400,8 +384,8 @@ function dist(a, b) {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
-// It drops the piece rather than shrink one, since a shape's size is the
-// shape of the jump off it; over 3000 boards of six it never had to.
+// It drops the piece rather than shrink one, since a shape's size is the shape
+// of the jump off it; over 3000 boards of six it never had to.
 function place(pieces, r) {
   const m = r + EDGE;
   for (let i = 0; i < 300; ++i) {
@@ -421,22 +405,19 @@ function reach(x, y, dx, dy) {
 }
 
 function clear() {
-  clearing = CLEAR;
+  clearing = 0.8;
   score.value += 1;
   play.power();
   flash(ent.css(CHALK), 0.05);
 }
 
-// Both caps are there because every death replays from level 1: seven pieces of
-// up to 4 averages 17 launches. The turn keeps ramping past them, and it is the
-// real difficulty anyway.
 function buildLevel() {
   ent.reset([Piece, Player, ent.Particle]);
 
   const n = Math.min(3 + (level >> 1), 6);
   const most = Math.min(1 + Math.ceil(level / 2), 3);
   const ramp = Math.min(1.6, 1 + 0.04 * level);
-  const big = SMAX - PER * n;
+  const big = 183 - 13 * n;
   const pieces = [];
 
   for (let i = 0; i < n; ++i) {
@@ -446,7 +427,9 @@ function buildLevel() {
     const r = s * FAT[sides];
     const at = place(pieces, r);
     if (at === null) continue;
-    const spin = (SPIN + SPIN_VAR * Math.random()) * ramp;
+    // Radians a second: a slow shape is a longer wait for the face and a wider
+    // press when it comes, a fast one the opposite.
+    const spin = (1.2 + 1.4 * Math.random()) * ramp;
     pieces.push(
       new Piece(
         at.x,
@@ -484,5 +467,3 @@ export function update(dt) {
   level += 1;
   buildLevel();
 }
-
-export { render } from "./lib/entity.js";

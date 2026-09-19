@@ -1,23 +1,18 @@
 /*
  * musician - "Street Musician".
  *
- * The idea the whole game is built on: the tempo is the speed. A grid step is a
- * sixteenth, 60/(4*bpm) seconds, and a note covers STEP in one, so a step is 32
- * units wide at every tempo and notes stay 160 apart however fast it gets. Only
- * the speed ramps.
+ * The tempo is the speed. A grid step is a sixteenth, 60/(4*bpm) seconds, and a
+ * note covers 32 units in one, so notes stay 160 apart however fast it gets.
  *
- * A throw is an arc arriving at its own apex rather than a straight shot up
- * through the lane: an arc is easier to see in peripheral vision than a
- * straight line at constant speed.
+ * A throw is an arc arriving at its own apex rather than a straight shot up the
+ * lane: an arc is easier to see in peripheral vision.
  *
  * The tempo rises with notes played and not with score and combo: a tempo from
- * score accelerates and drops back on every miss, so failing makes it easier.
+ * score drops back on every miss, so failing would make it easier.
  *
- * The pointer places the busker and a click plays the note, the same gesture on
- * purpose: from one pointer the press that begins a drag is the same edge as
- * the tap that strikes, and the pointer gives the position directly, so a tap
- * plays where the busker already is. Splitting the screen in two does not work,
- * because alma's Input averages every pointer into one.
+ * The pointer places the busker and a click plays the note, one gesture: the
+ * press that begins a drag is the same edge as the tap that strikes. Splitting
+ * the screen in two does not work, since alma's Input averages the pointers.
  */
 
 import * as ent from "./lib/entity.js";
@@ -38,68 +33,34 @@ slide to catch coins and dodge tomatoes
   draft: true,
 };
 
-// The lane along the top, and where a note comes on from.
+// The lane along the top.
 const LANE = 160;
 const BAND = 64;
 const MARK = 512;
-const SPAWN = 1090;
-const FIRST = 915;
 
-// The pivot is off the bottom of the screen, so the walk is a shallow curve:
-// 36 degrees each way, 527 of the 1024 across and 86 of it down.
+// The pivot is off the bottom, so the walk is a shallow curve: 36 degrees each
+// way, 527 of the 1024 across and 86 of it down.
 const PIVX = 512;
-const PIVY = 981;
 const ARM = 448;
 const LEAN = Math.PI / 5;
-// Radians a second: the keys, then an untouched lean unwinding.
-const TURN = 2 * Math.PI / 3;
-const RETURN = 1.2;
-// The fraction of the lean the figure is drawn and collides at; the whole 36
-// degrees is falling over, not leaning.
-const TILT = 0.5;
 
-// A throw starts off the bottom, arrives at the middle of the arc, and is gone
-// past FLOOR on the way back down. Each arrives at the top of its own arc, so
-// the time sets its gravity, and that is the only difference between the two.
 const THROW = 1110;
-const REACH = 565;
 const FLOOR = 1195;
-const COIN_TIME = 1;
-const TOMATO_TIME = 1.6;
-// The launch window, which is most of the arc.
-const AIM0 = 256;
-const AIM1 = 768;
 
 // Notes arrive at bpm/75 a second, so the tempo is its own derivative and
 // PER_NOTE fixes the doubling time at 22 seconds.
 const BPM0 = 60;
 const PER_NOTE = 2.4;
-const DENSITY = 0.2;
-const TICK = 4; // four sixteenths between ticks, so the tick is the beat
 // A note covers one grid step in a sixteenth, so the speed follows the tempo.
-const STEP = 32;
-const SPEED = 4 * STEP / 60; // units a second per bpm
-// WINDOW is the two 40-unit boxes overlapping and PAY is exactly centred. The
-// run is the tempo too, so an uncapped combo in the coin as well would make the
-// score the square of the game.
+const SPEED = 4 * 32 / 60; // units a second per bpm
 const WINDOW = 40;
 const PAY = 9;
-const COMBO_CAP = 9;
-// A played note rises and a dropped one falls, at SETTLE, fading over FADE.
 const SETTLE = 215;
 const FADE = 0.5;
 
 // Half the body: what a tomato has to reach.
 const BODYW = 55;
 const BODYH = 77;
-// How far off the body a coin still counts, and the tomato's radius.
-const CATCH = 34;
-const SPLAT = 16;
-
-const HATX = 512;
-const HATY = 768;
-
-const DEATH = 0.6;
 
 // Arne's palette.
 const GREY = 0x697175;
@@ -109,13 +70,12 @@ const PINK = 0xde65e2;
 const YELLOW = 0xf7e26b;
 const GREEN = 0x44891a;
 const BLACK = 0x000000;
-// The one colour outside that palette: it separates instrument from street.
+// The one colour outside it: the instrument against the street.
 const LANE_BG = "#383838";
 
 // The mark is the note's own diamond as an outline, so a note arriving sits
 // inside the shape it has to land in.
 const NOTE_R = 16;
-const MARK_R = 20;
 
 let player = null;
 let bpm = BPM0;
@@ -126,8 +86,7 @@ let step = 0;
 let steps = 0;
 let strike = false;
 let dying = 0;
-// Only a pointer that has moved takes over, so a stationary mouse does not move
-// the busker on frame one. A held key takes it back.
+// Only a pointer that has moved takes over; a held key takes it back.
 let aiming = false;
 let lastx = null;
 
@@ -138,15 +97,14 @@ function diamond(gfx, r) {
   gfx.mt(0, -r).lt(r, 0).lt(0, r).lt(-r, 0).lt(0, -r);
 }
 
-// Notes are 32 apart and 40 wide, so three can cover the mark at once and
-// only the leftmost unresolved one is yours. Picked here, ahead of the Note
-// group, which is what the draw order in init() is doing.
+// Notes are 32 apart and 40 wide, so three can cover the mark at once and only
+// the leftmost unresolved one is yours. Picked ahead of the Note group.
 class Mark extends ent.Entity {
   constructor() {
     super();
     this.pos.x = MARK;
     this.pos.y = LANE;
-    diamond(this.gfx.line(6, BLACK), MARK_R);
+    diamond(this.gfx.line(6, BLACK), 20);
   }
 
   update() {
@@ -161,7 +119,7 @@ class Mark extends ent.Entity {
 }
 
 class Note extends ent.Entity {
-  constructor(x = SPAWN) {
+  constructor(x = 1090) {
     super();
     this.pos.x = x;
     this.pos.y = LANE;
@@ -207,7 +165,7 @@ class Note extends ent.Entity {
     combo += 1;
     resolved += 1;
     play.blip();
-    const run = Math.min(COMBO_CAP, combo);
+    const run = Math.min(9, combo);
     new Coin(Math.round(run + PAY * (1 - off / WINDOW)));
   }
 
@@ -221,13 +179,12 @@ class Note extends ent.Entity {
 }
 
 // It reaches the top of its own arc on the busker's line, so `time` is the
-// whole shape of it: the gravity that puts the apex there follows, and so does
-// the speed it arrives at.
+// whole shape of it: the gravity that puts the apex there follows.
 function lob(e, time) {
   e.pos.x = Math.random() * 1024;
   e.pos.y = THROW;
-  e.grav = 2 * (THROW - REACH) / (time * time);
-  e.vel.x = (AIM0 + (AIM1 - AIM0) * Math.random() - e.pos.x) / time;
+  e.grav = 2 * (THROW - 565) / (time * time);
+  e.vel.x = (256 + 512 * Math.random() - e.pos.x) / time;
   e.vel.y = -e.grav * time;
 }
 
@@ -235,11 +192,10 @@ class Coin extends ent.Entity {
   constructor(value) {
     super();
     this.value = value;
-    lob(this, COIN_TIME);
+    lob(this, 1);
     this.gfx.fill(YELLOW).circle(0, 0, 10);
-    // A coin counts from further out than a tomato, so two aimed at the same
-    // place is a choice and not a trap.
-    this.hitCircle(CATCH);
+    // A coin counts from further out than a tomato, so a pair is a choice.
+    this.hitCircle(34);
   }
 
   update() {
@@ -261,10 +217,10 @@ class Coin extends ent.Entity {
 class Tomato extends ent.Entity {
   constructor() {
     super();
-    lob(this, TOMATO_TIME);
+    lob(this, 1.6);
     this.gfx.fill(RED).circle(0, 0, 16)
       .fill(GREEN).rect(-4, -20, 8, 13).mt(3, -20).lt(15, -20).lt(3, -9);
-    this.hitCircle(SPLAT);
+    this.hitCircle(16);
   }
 
   update() {
@@ -317,8 +273,8 @@ class Player extends ent.Entity {
   // The hit polygon turns by `angle`, so a tomato hits what is on screen.
   place() {
     this.pos.x = PIVX + ARM * Math.sin(this.lean);
-    this.pos.y = PIVY - ARM * Math.cos(this.lean);
-    this.angle = this.lean * TILT;
+    this.pos.y = 981 - ARM * Math.cos(this.lean);
+    this.angle = this.lean * 0.5;
   }
 
   update() {
@@ -334,7 +290,7 @@ class Player extends ent.Entity {
     if (input.press.left) mx -= 1;
     if (input.press.right) mx += 1;
 
-    const rate = TURN * t;
+    const rate = 2 * Math.PI / 3 * t;
     if (mx !== 0) {
       this.lean += mx * rate;
     } else if (aiming) {
@@ -343,20 +299,19 @@ class Player extends ent.Entity {
       const d = want - this.lean;
       this.lean += Math.abs(d) <= rate ? d : Math.sign(d) * rate;
     } else {
-      this.lean -= this.lean * RETURN * t;
+      this.lean -= this.lean * 1.2 * t;
     }
     this.lean = clamp(this.lean, -LEAN, LEAN);
     this.place();
   }
 }
 
-// Scenery, colliding with nothing, and the only thing on screen that shows
-// this is a street.
+// Scenery, colliding with nothing: the one thing that says this is a street.
 class Hat extends ent.Entity {
   constructor() {
     super();
-    this.pos.x = HATX;
-    this.pos.y = HATY;
+    this.pos.x = 512;
+    this.pos.y = 768;
     this.gfx.size(68, 34).fill(BLACK)
       .rect(-34, -17, 68, 9, 6)
       .mt(-25, -9).lt(25, -9).lt(18, 17).lt(-18, 17);
@@ -365,7 +320,7 @@ class Hat extends ent.Entity {
 
 function die() {
   if (dying > 0) return;
-  dying = DEATH;
+  dying = 0.6;
   shake(0.5);
   play.lose();
 }
@@ -376,7 +331,7 @@ export function init() {
   new Hat();
   new Mark();
   // On screen, not off it, so frame one shows what the lane is for.
-  new Note(FIRST);
+  new Note(915);
   player = new Player();
 
   bpm = BPM0;
@@ -391,8 +346,7 @@ export function init() {
 }
 
 export function update(dt) {
-  // This frame's, not entity.js's copy, which only refreshes inside
-  // ent.update(). Every note has to see the same answer.
+  // This frame's, not entity.js's copy: every note sees the same answer.
   const { input } = ent.game;
   strike = dying <= 0 && (input.just.act || input.just.up);
 
@@ -405,9 +359,9 @@ export function update(dt) {
     step += t;
     while (step >= grid) {
       step -= grid;
-      if (steps % TICK === 0) play.select();
+      if (steps % 4 === 0) play.select(); // four sixteenths to a beat
       steps += 1;
-      if (Math.random() < DENSITY) new Note();
+      if (Math.random() < 0.2) new Note();
     }
   }
 

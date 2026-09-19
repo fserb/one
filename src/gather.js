@@ -19,6 +19,8 @@ import { shake } from "./lib/camera.js";
 import { gameOver, ramp, score, time } from "./lib/one.js";
 import * as play from "./lib/sounds.js";
 
+export { render } from "./lib/entity.js";
+
 export const meta = {
   title: "gather",
   desc: `
@@ -39,38 +41,18 @@ const COLORS = [0xff6819, 0xc0dc61, 0x1ebed8, 0xfec804, 0xe284cc];
 
 const COLS = 9;
 const ROWS = 11;
-// ORIGIN is the centre of cell (0, 0) with the board unscrolled.
 const CELL = 82;
-const X0 = 184;
-const Y0 = 151;
 
-// The lines the board starts from and ends on, and the depth a cursor dies at.
+// The lines the board starts from and ends on.
 const HEAD = 110;
 const FOOT = 1012;
-const DIE = 973;
 
-// TRAY_Y is a centre and not a top edge, so a tray of one row and a tray of
-// five are centred on the same line rather than aligned to the same top edge.
+// TRAY_Y is a centre and not a top edge, so trays of one row and of five are
+// centred on the same line.
 const TRAY_R = 896;
 const TRAY_Y = HEAD / 2;
-const FLY = 0.3;
-const FLYUP = 43;
 
-const DEATH = 0.35;
-const GROW = 0.3;
-const HELD = 0.5;
-
-// 11/CELL is an eighth of a row a second; the multipliers move the board.
-const CRAWL = 11;
 const NEAR = 512;
-const NEARRATE = 9 / 150;
-// Snaps on rather than ramping in: the test is against 260 and the measure runs
-// from 512, so the multiplier is already 4.4 the frame it applies.
-const HIGH = 260;
-const HIGHRATE = 5 / 367;
-// Per cell. (hard() - 1) / 15 reaches it a minute in, where the ramp is at 1.6:
-// one cell in twenty-five.
-const HOLE = 0.04;
 
 // A box is 81 across: 72 of colour under a 9-thick black edge, rounded by that
 // same 9. A cursor is four corner brackets, 9 thick and 27 along each side.
@@ -131,11 +113,11 @@ let introAt = INTRO.length;
 let noteAt = NOTES.length;
 
 function cellX(x) {
-  return X0 + CELL * x;
+  return 184 + CELL * x; // 184, 151 is the centre of cell (0, 0) unscrolled
 }
 
 function cellY(y) {
-  return scroll + Y0 + CELL * y;
+  return scroll + 151 + CELL * y;
 }
 
 // A cursor scrolls past the last row before it dies, so y is out of range for a
@@ -209,7 +191,7 @@ class Piece extends ent.Entity {
     this.pos.y = cellY(this.py);
     if (this.pos.y > 1033) return this.remove();
 
-    const step = ent.game.time / GROW;
+    const step = ent.game.time / 0.3;
     if (this.popping) {
       this.scale = Math.max(0, this.scale - step);
       this.draw();
@@ -220,7 +202,7 @@ class Piece extends ent.Entity {
     if (this.targeted) {
       this.eye.x = this.pos.x;
       this.eye.y = this.pos.y;
-      const s = Math.max(HELD, this.scale - step);
+      const s = Math.max(0.5, this.scale - step);
       if (s === this.scale) return;
       this.scale = s;
     } else {
@@ -260,8 +242,8 @@ class Cursor extends ent.Entity {
   }
 }
 
-// One row per colour, longest first, one square per box: the whole readout the
-// win condition needs, equal rows and two of them or more.
+// One row per colour, longest first: the whole readout the win needs, equal
+// rows and two of them or more.
 class Tray extends ent.Entity {
   constructor() {
     super();
@@ -300,8 +282,8 @@ class Tray extends ent.Entity {
 
   update() {
     if (!this.moving) return;
-    const t = this.age / FLY;
-    this.pos.y = TRAY_Y - (TRAY_Y + FLYUP) * t * t;
+    const t = this.age / 0.3;
+    this.pos.y = TRAY_Y - (TRAY_Y + 43) * t * t;
     this.alpha = Math.max(0, 1 - t * t);
     if (t <= 1) return;
     addScore(this.points);
@@ -309,8 +291,7 @@ class Tray extends ent.Entity {
   }
 }
 
-// The strips an incoming row slides out from behind and a dropped one slides
-// away under.
+// The strips a row slides out from behind and a dropped one slides away under.
 class Frame extends ent.Entity {
   constructor() {
     super();
@@ -346,8 +327,8 @@ function say(m) {
   });
 }
 
-// one.js's ramp over the seconds since the script ended. It climbs through the
-// script as well, and `from` drops it back to 1 for the first real row.
+// one.js's ramp over the seconds since the script ended: `from` drops it back
+// to 1 for the first real row.
 function hard() {
   return ramp(time - from);
 }
@@ -356,7 +337,8 @@ function hard() {
 function nextRow() {
   if (introAt < 0) {
     const row = [];
-    const hole = Math.min(HOLE, (hard() - 1) / 15);
+    // Per cell, reached a minute in: one cell in twenty-five.
+    const hole = Math.min(0.04, (hard() - 1) / 15);
     for (let x = 0; x < COLS; ++x) {
       const c = Math.floor(Math.random() * COLORS.length);
       row.push(Math.random() < hole ? _ : c);
@@ -407,9 +389,11 @@ function advance(dt) {
     high = Math.min(high, y);
   }
 
-  let speed = CRAWL * hard();
-  if (low < NEAR) speed *= 1 + NEARRATE * (NEAR - low);
-  if (high < HIGH) speed *= 1 + HIGHRATE * (NEAR - high);
+  // 11/CELL is an eighth of a row a second; the multipliers move the board.
+  // The high test is against 260 off a measure from 512, so it snaps on at 4.4.
+  let speed = 11 * hard();
+  if (low < NEAR) speed *= 1 + 9 / 150 * (NEAR - low);
+  if (high < 260) speed *= 1 + 5 / 367 * (NEAR - high);
 
   scroll += speed * dt;
   if (scroll <= 0) return;
@@ -499,7 +483,7 @@ function control() {
 function die() {
   play.lose();
   shake(1);
-  dying = DEATH;
+  dying = 0.35;
 }
 
 export function init() {
@@ -537,10 +521,8 @@ export function update(dt) {
     if (dying <= 0) return gameOver({ score: true });
   } else {
     advance(dt);
-    if (chain.some((c) => cellY(c.py) >= DIE)) die();
+    if (chain.some((c) => cellY(c.py) >= 973)) die();
     else control();
   }
   ent.update(dt);
 }
-
-export { render } from "./lib/entity.js";

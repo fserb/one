@@ -13,6 +13,8 @@ import * as extra from "./alma/src/utils/extra.js";
 import * as ent from "./lib/entity.js";
 import { gameOver } from "./lib/one.js";
 
+export { render, update } from "./lib/entity.js";
+
 export const meta = {
   title: "berzerk",
   desc: `
@@ -36,52 +38,24 @@ const TAU = Math.PI * 2;
 const EDGE = 85;
 const SAFE = 425;
 
-// The middle, not a corner: a corner has two ways out and a chaser crosses SAFE
-// in two seconds, where the middle has eight.
 const START = 512;
 const SPEED = 256;
-const RELOAD = 0.3;
 const PR = 23;
 
 const BW = 42;
 const BH = 13;
-// A hit box does not turn and a bullet does, so it collides as a circle.
-const BR = 13;
-const BULLET_MIN = 210;
-const BULLET_MAX = 850;
-// Slower than the player's 850. This board has no cover, so a shot has to be
-// one you can step out of, and it makes the turret under-lead.
-const ENEMY_MAX = 470;
-const BULLET_ACC = 850;
-// Distance over this is how far ahead an enemy aims.
-const LEAD = 530;
 
 const TR = 26;
 const BARREL = 36;
-const TURRET_TURN = Math.PI / 2;
-// At 2 seconds flat the first shot kills a player still reading the hint, and
-// all three opening shots go off together.
-const TURRET_FIRST = 3;
 const TURRET_EVERY = 3;
 
 const CHASE = 170;
 const CHASER = 42;
-const CHASER_TURN = Math.PI;
-// A shot costs a third of a second still and a chaser closes 51 units in that
-// time, so three converging leave no gap wide enough to shoot from. Two do.
-const CHASERS_MAX = 2;
-// A replacement arrives a moment later and not on the same frame: that moment
-// is the window to collect the box it left.
 const RESPAWN = 2;
 
-const BOX = 42;
-
-// What the next box collected is worth. Boxes take it when they drop, so three
-// lying around are all worth the same.
 let next = 1;
 
-// Counted here and not off ent.get(): one made this frame has not begun, and
-// would go uncounted until it was on top of you.
+// Not off ent.get(): one made this frame has not begun.
 let chasers = 0;
 
 class Player extends ent.Entity {
@@ -95,8 +69,7 @@ class Player extends ent.Entity {
     const { input, time } = ent.game;
     this.reload = Math.max(0, this.reload - time);
 
-    // Solid when the gun is ready, hollow while it is not: a frozen player is a
-    // target.
+    // Solid when the gun is ready, hollow while it is not.
     if (this.reload > 0) this.gfx.cache(1).line(6, WHITE).circle(0, 0, PR - 3);
     else this.gfx.cache(0).fill(WHITE).circle(0, 0, PR);
 
@@ -114,16 +87,15 @@ class Player extends ent.Entity {
     // Fire before the velocity is scaled, so the shooting frame moves at full
     // speed and the freeze starts on the next.
     if (input.press.act) {
-      new Bullet(this, WHITE, Math.atan2(this.vel.y, this.vel.x), BULLET_MAX);
-      this.reload = RELOAD;
+      new Bullet(this, WHITE, Math.atan2(this.vel.y, this.vel.x), 850);
+      this.reload = 0.3;
     }
     this.vel.x *= SPEED / l;
     this.vel.y *= SPEED / l;
   }
 
   postUpdate() {
-    // Nothing draws the walls, but the box is the board: without it you walk
-    // off the side where nothing can reach you.
+    // Nothing draws the walls, but the box is the board.
     this.pos.x = extra.clamp(this.pos.x, PR, 1024 - PR);
     this.pos.y = extra.clamp(this.pos.y, PR, 1024 - PR);
 
@@ -146,15 +118,15 @@ class Bullet extends ent.Entity {
     this.owner = owner;
     this.angle = angle;
     this.top = top;
-    this.speed = BULLET_MIN;
+    this.speed = 210;
     this.pos.x = owner.pos.x;
     this.pos.y = owner.pos.y;
-    this.hitCircle(BR);
+    this.hitCircle(13);
     this.gfx.fill(color).rect(0, 0, BW, BH);
   }
 
   update() {
-    this.speed = Math.min(this.top, this.speed + BULLET_ACC * ent.game.time);
+    this.speed = Math.min(this.top, this.speed + 850 * ent.game.time);
     this.vel.x = Math.cos(this.angle) * this.speed;
     this.vel.y = Math.sin(this.angle) * this.speed;
 
@@ -165,7 +137,7 @@ class Bullet extends ent.Entity {
 
 class EnemyTurret extends ent.Entity {
   begin() {
-    this.bullettime = TURRET_FIRST + Math.random() * TURRET_EVERY;
+    this.bullettime = 3 + Math.random() * TURRET_EVERY;
     this.hitCircle(TR);
     // size() keeps the centre on the body while the barrel is to one side.
     this.gfx.size(2 * BARREL, 2 * TR).fill(BLACK)
@@ -174,12 +146,12 @@ class EnemyTurret extends ent.Entity {
   }
 
   update() {
-    this.angle = aim(this, this.angle, TURRET_TURN);
+    this.angle = aim(this, this.angle, Math.PI / 2);
 
     this.bullettime -= ent.game.time;
     if (this.bullettime <= 0) {
       this.bullettime = TURRET_EVERY;
-      new Bullet(this, BLACK, this.angle, ENEMY_MAX);
+      new Bullet(this, BLACK, this.angle, 470);
     }
 
     const b = hitBullet(this);
@@ -203,8 +175,6 @@ class EnemyChaser extends ent.Entity {
   begin() {
     this.dir = 0;
     this.hitBox(CHASER);
-    // The turret is a disc with a barrel, so what chases you reads as the
-    // other thing on the board.
     this.gfx.size(42, 42).fill(BLACK)
       .rect(-21, -21, 42, 30, 16)
       .rects([[-21, 3, 6, 18], [-9, 3, 6, 18], [3, 3, 6, 18], [15, 3, 6, 18]])
@@ -212,7 +182,7 @@ class EnemyChaser extends ent.Entity {
   }
 
   update() {
-    this.dir = aim(this, this.dir, CHASER_TURN);
+    this.dir = aim(this, this.dir, Math.PI);
     this.vel.x = Math.cos(this.dir) * CHASE;
     this.vel.y = Math.sin(this.dir) * CHASE;
 
@@ -222,8 +192,7 @@ class EnemyChaser extends ent.Entity {
       return kill(this);
     }
 
-    // A chaser that runs into another enemy takes it with it, and the pair
-    // leaves one box. Worth luring.
+    // A chaser that runs into another enemy takes it with it, for one box.
     const e = this.hitGroup(EnemyTurret) ?? this.hitGroup(EnemyChaser);
     if (e === null) return;
     burst(e.pos);
@@ -245,7 +214,7 @@ class ScoreBox extends ent.Entity {
     this.pos.x = x;
     this.pos.y = y;
     this.n = next;
-    this.hitBox(BOX);
+    this.hitBox(42);
   }
 
   update() {
@@ -268,7 +237,7 @@ function aim(e, from, rate) {
   const p = ent.one(Player);
   if (p === null) return from;
 
-  const lead = Math.hypot(p.pos.x - e.pos.x, p.pos.y - e.pos.y) / LEAD;
+  const lead = Math.hypot(p.pos.x - e.pos.x, p.pos.y - e.pos.y) / 530;
   const to = Math.atan2(
     p.pos.y + p.vel.y * lead - e.pos.y,
     p.pos.x + p.vel.x * lead - e.pos.x,
@@ -328,7 +297,7 @@ function newEnemy(delay = 0) {
     ent.after(delay, () => newEnemy());
     return;
   }
-  const chase = chasers < CHASERS_MAX && Math.random() < 0.5;
+  const chase = chasers < 2 && Math.random() < 0.5;
   place(chase ? new EnemyChaser() : new EnemyTurret());
 }
 
@@ -338,11 +307,7 @@ export function init() {
   next = 1;
   chasers = 0;
   new Player();
-  // One chaser to open with, not a coin flip three times: two in the first two
-  // seconds is not a round anyone can start.
   place(new EnemyChaser());
   place(new EnemyTurret());
   place(new EnemyTurret());
 }
-
-export { render, update } from "./lib/entity.js";

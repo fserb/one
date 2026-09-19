@@ -6,7 +6,7 @@
  *
  * No camera: the world moves and the view does not, so the ship stays at a
  * fixed 512 across and never above the pin at 425. The field is a grid of world
- * cells, each filled once as the view nears it with its pieces jittered inside.
+ * cells, each filled once as the view nears it.
  */
 
 import * as ent from "./lib/entity.js";
@@ -246,8 +246,8 @@ function fill() {
   const x1 = Math.floor((camX + 1024 + MARGIN) / CELL);
   const y0 = Math.floor((camY - 1024 - MARGIN) / CELL);
   const y1 = Math.floor((camY + 1024) / CELL);
-  // Pieces a cell: half of one at the start, two one ramp on. Every cell takes
-  // the whole number and the fraction is the share that take one more.
+  // Pieces a cell: half of one at the start, two one ramp on. The fraction is
+  // the share of cells that take one more.
   const n = 0.5 + (ramp() - 1) * 1.5;
 
   for (let cy = y0; cy <= y1; cy++) {
@@ -260,9 +260,8 @@ function fill() {
   }
 }
 
-// `k` pieces into cell `cx, cy`, one to a box off an `m` by `m` split of the
-// cell, so a cell holding two does not hold them in one spot. The boxes are
-// drawn without replacement.
+// `k` pieces into cell `cx, cy`, one to a box off an `m` by `m` split, so a cell
+// holding two does not hold them in one spot. Drawn without replacement.
 function deal(cx, cy, k) {
   const m = Math.ceil(Math.sqrt(k));
   // 75 off each edge, split m ways, so a piece never lands against an edge.
@@ -277,7 +276,7 @@ function deal(cx, cy, k) {
     const x = box(cx, s % m) - camX;
     const y = box(cy, Math.floor(s / m)) - camY;
     // The opening fill covers the screen the ship starts on, so keep the 220
-    // around it clear rather than start the round inside a rock.
+    // around it clear.
     if (Math.hypot(x - player.pos.x, y - player.pos.y) < 220) continue;
 
     if (Math.random() < 0.09) new Gold(x, y);
@@ -286,9 +285,7 @@ function deal(cx, cy, k) {
 }
 
 // One whoosh every 0.07s however many engines fired. x pans and y pitches, so
-// the left flame is heard on the left and the top engine is the bright one, and
-// two opposite engines average to the middle as their push does. The clock is
-// totalTime rather than a countdown, so a release needs no reset.
+// the left flame is heard on the left and the top engine is the bright one.
 function burn() {
   if (burnN > 0 && ent.game.totalTime >= burnAt) {
     burnAt = ent.game.totalTime + 0.07;

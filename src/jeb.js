@@ -1,8 +1,8 @@
 /*
  * jeb - "Jebediah's Revenge".
  *
- * The green line out of the nose is where you go if you do nothing, drawn AHEAD
- * seconds ahead through the same gravity.
+ * The green line out of the nose is where you go if you do nothing, drawn
+ * seven seconds ahead through the same gravity.
  *
  * The landing rule is the whole of it: over CRASH is a crash, more than a
  * quarter turn off the upright of where you touched down is a crash, otherwise
@@ -15,7 +15,7 @@
  * or a frame of thrust moves it less than the resting rule puts back.
  *
  * Gravity is every planet at once, so the force does not jump when the nearest
- * changes. MU is per unit of radius squared, so every planet has the same
+ * changes. The pull is per unit of radius squared, so every planet has the same
  * gravity at its surface, and THRUST is chosen against that.
  */
 
@@ -45,48 +45,23 @@ const EYEY = 512;
 // radius is PX times its own cell count.
 const WORLD = 2350;
 const EDGE = 280;
-const PLANETS = 6;
-const GAP = 320;
 const PX = 9;
 const CELL_MIN = 6;
-const CELL_MAX = 11;
 
-// Per unit of radius squared, so the surface pull is the same on every planet;
-// an actual planet pulls MU*r*r/d/d. 680 of thrust against a surface pull of
-// 256 leaves the ground at 424, so take-off is not most of a tank.
-const MU = 256;
 const THRUST = 680;
 const TURN = Math.PI;
 const CRASH = 132;
-const TILT = Math.PI / 4;
 
-// One pointer has to aim and burn, so AIM_LAG separates them: a lander that
-// cannot turn without firing cannot be landed.
 const SHIP_R = 18;
-const DEAD = 21;
-const AIM_LAG = 0.18;
 
-// REFILL_OFF is the whole of the ramp: the drain and the burn stay fixed, and a
-// run ends when a tankful stops covering the trip.
 const TANK = 100;
-const START = 90;
-const LIFE = 2.2;
-const BURN = 7;
-const FILL = 54;
-const FILL_OFF = 3.5;
-const FILL_MIN = 12;
 
-// STEP is entity.js's own integration at 30Hz, so the line draws what the ship
-// does, near enough.
-const AHEAD = 7;
+// entity.js's own integration rate, so the line draws what the ship does.
 const STEP = 1 / 30;
 
 // The patch tiles, so there are stars wherever the ship goes. Nothing stops you
-// leaving the system, and out there the stars and the arrow are all that shows
-// which way is back.
+// leaving the system, and out there the stars and the arrow are all there is.
 const PATCH = 1500;
-const STARS = 150;
-const STAR = 3.4;
 
 const BAR_Y = 1024 - 28;
 const BAR_H = 11;
@@ -108,8 +83,7 @@ const LINE_BAD = "#be2633";
 
 let ship = null;
 // Not read back out of entity.js: ent.get() hides entities that have not begun,
-// which is all of them while init() runs, and predict() asks two hundred times
-// a frame.
+// which is all of them while init() runs.
 const planets = [];
 let target = null;
 let fuel = 0;
@@ -123,8 +97,7 @@ let landsAt = 0;
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
 // Signed, in [-PI, PI). JS's % keeps the sign of its left side, so the usual
-// one-liner gives three quarters of a turn for a quarter turn once enough left
-// turns have taken `angle` below -3*PI.
+// one-liner breaks once enough left turns take `angle` below -3*PI.
 function apart(a, b) {
   const d = (a - b) % (2 * Math.PI);
   if (d < -Math.PI) return d + 2 * Math.PI;
@@ -140,7 +113,9 @@ class Planet extends ent.Entity {
     this.pos.x = x;
     this.pos.y = y;
     this.r = PX * cells;
-    this.gm = MU * this.r * this.r;
+    // 680 of thrust against a surface pull of 256 leaves the ground at 424,
+    // so take-off is not most of a tank.
+    this.gm = 256 * this.r * this.r;
     this.lit = false;
     this.cells = cells;
     this.paint();
@@ -206,7 +181,7 @@ class Ship extends ent.Entity {
     if (!input.press.left && !input.press.right && aiming) {
       const dx = input.x - EYEX;
       const dy = input.y - EYEY;
-      if (Math.hypot(dx, dy) > DEAD) want = Math.atan2(dy, dx) + Math.PI / 2;
+      if (Math.hypot(dx, dy) > 21) want = Math.atan2(dy, dx) + Math.PI / 2;
     }
     if (want !== null) {
       const d = apart(want, this.angle);
@@ -216,7 +191,8 @@ class Ship extends ent.Entity {
     this.angle = apart(this.angle, 0);
 
     this.burning = fuel > 0 &&
-      (input.press.up || (input.press.act && this.pressed > AIM_LAG));
+      // One pointer has to aim and burn, so the lag separates them.
+      (input.press.up || (input.press.act && this.pressed > 0.18));
     if (this.burning) {
       // The nose is -y at angle 0, so the push is a quarter turn back.
       const a = this.angle - Math.PI / 2;
@@ -254,8 +230,8 @@ class Ship extends ent.Entity {
       const nx = dx / d;
       const ny = dy / d;
 
-      // Without this the ship can never leave: a frame of thrust moves it a
-      // fraction of a unit and the resting rule below puts it back.
+      // Without this a frame of thrust moves the ship a fraction of a unit
+      // and the resting rule below puts it back.
       const a = this.angle - Math.PI / 2;
       if (
         this.landed === p && this.burning &&
@@ -278,7 +254,7 @@ class Ship extends ent.Entity {
         wreck();
         return;
       }
-      if (Math.abs(apart(this.angle, up)) > TILT) {
+      if (Math.abs(apart(this.angle, up)) > Math.PI / 4) {
         wreck();
         return;
       }
@@ -320,7 +296,9 @@ function wreck() {
 
 function arrive(p) {
   score.value += 1;
-  fuel = Math.min(TANK, fuel + Math.max(FILL_MIN, FILL - FILL_OFF * score.value));
+  // The falloff is the whole of the ramp: the drain and the burn stay fixed,
+  // and a run ends when a tankful stops covering the trip.
+  fuel = Math.min(TANK, fuel + Math.max(12, 54 - 3.5 * score.value));
   play.land();
   new ent.Particle({
     x: ship.pos.x,
@@ -352,19 +330,19 @@ function pickTarget(from) {
   target.light(true);
 }
 
-// Failing to place one is fine, the system is just smaller, and the tries are
-// capped because a run of unlucky rolls can take a while to find the last spot.
+// Failing to place one is fine, the system is just smaller; the tries are
+// capped because unlucky rolls take a while to find the last spot.
 function makeSystem() {
   planets.length = 0;
-  for (let n = 0; n < 400 && planets.length < PLANETS; ++n) {
+  for (let n = 0; n < 400 && planets.length < 6; ++n) {
     const cells = CELL_MIN +
-      Math.floor((CELL_MAX - CELL_MIN + 1) * Math.random());
+      Math.floor((11 - CELL_MIN + 1) * Math.random());
     const r = PX * cells;
     const x = EDGE + (WORLD - 2 * EDGE) * Math.random();
     const y = EDGE + (WORLD - 2 * EDGE) * Math.random();
     let ok = true;
     for (const p of planets) {
-      if (Math.hypot(p.pos.x - x, p.pos.y - y) > GAP + r + p.r) continue;
+      if (Math.hypot(p.pos.x - x, p.pos.y - y) > 320 + r + p.r) continue;
       ok = false;
       break;
     }
@@ -374,16 +352,16 @@ function makeSystem() {
 
 function makeStars() {
   stars.length = 0;
-  for (let i = 0; i < STARS; ++i) {
+  for (let i = 0; i < 150; ++i) {
     stars.push(
       PATCH * Math.random(),
       PATCH * Math.random(),
-      STAR * (0.5 + Math.random()),
+      3.4 * (0.5 + Math.random()),
     );
   }
 }
 
-// AHEAD seconds of coasting, stepped the way entity.js steps, stopping at the
+// Seven seconds of coasting, stepped the way entity.js steps, stopping at the
 // first planet it would touch.
 function predict() {
   path.length = 0;
@@ -392,7 +370,7 @@ function predict() {
   let y = ship.pos.y;
   let vx = ship.vel.x;
   let vy = ship.vel.y;
-  for (let t = 0; t < AHEAD; t += STEP) {
+  for (let t = 0; t < 7; t += STEP) {
     gravity(x, y, pull);
     const ax = pull.x * STEP;
     const ay = pull.y * STEP;
@@ -419,7 +397,7 @@ export function init() {
   ship = new Ship(home);
   target = null;
   pickTarget(home);
-  fuel = START;
+  fuel = 90;
   dying = 0;
   lastx = null;
   path.length = 0;
@@ -434,7 +412,7 @@ export function update(dt) {
     return;
   }
 
-  fuel -= (LIFE + (ship.burning ? BURN : 0)) * t;
+  fuel -= (2.2 + (ship.burning ? 7 : 0)) * t;
   predict();
   if (fuel > 0) return;
   fuel = 0;
@@ -456,8 +434,7 @@ function expire() {
   });
 }
 
-// What shows a mouse is in use: on a mouse the nose aims without firing, and on
-// a finger there is no pointer except while it is down.
+// On a mouse the nose aims without firing; a finger has no pointer while up.
 let lastx = null;
 let lasty = 0;
 

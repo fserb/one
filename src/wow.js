@@ -30,8 +30,8 @@ const ROWS = 4;
 const TILE = 234;
 // The art is drawn at 2x and downsampled by drawImage.
 const ART = TILE * 2;
-// Every tile drops its shadow down and right, so the block the puzzle makes is
-// this much wider and taller than the grid, and centring counts it.
+// Every tile drops its shadow down and right, so the block is this much wider
+// and taller than the grid, and centring counts it.
 const SHADOW_OFF = 15;
 
 let pieces;
@@ -47,7 +47,6 @@ function drawTiles() {
   c.fillStyle = PAPER;
   c.fillRect(0, 0, COLS * ART, ROWS * ART);
 
-  // The big target circle, straddling the bottom six tiles.
   c.fillStyle = meta.fg;
   c.fillCircle(cx, 1170, 600);
   c.fillStyle = GREEN;
@@ -57,7 +56,6 @@ function drawTiles() {
   c.fillStyle = PAPER;
   c.fillCircle(cx, 1170, 600 - r * 3);
 
-  // The small circle that has to end up inside it.
   c.fillStyle = meta.fg;
   c.fillCircle(cx, 234, 150);
   c.fillStyle = GREEN;
@@ -118,7 +116,6 @@ export function update() {
   const px = Math.floor((input.x - ox) / TILE);
   const py = Math.floor((input.y - oy) / TILE);
 
-  // Only the four tiles orthogonally touching the hole can move.
   if (Math.abs(empty.x - px) + Math.abs(empty.y - py) !== 1) return;
 
   const target = pieces.find((p) => p.x === px && p.y === py);

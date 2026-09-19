@@ -12,6 +12,8 @@
 import * as ent from "./lib/entity.js";
 import { gameOver, score } from "./lib/one.js";
 
+export { render, update } from "./lib/entity.js";
+
 export const meta = {
   title: "flap",
   desc: `
@@ -44,9 +46,6 @@ const BOTTOM = 984;
 // Sideways speed never changes, only a wall turns it.
 const SPEED = 210;
 const FLAP = 420;
-const GRAVITY = 630;
-
-const BODY_R = 22;
 
 class Bird extends ent.Entity {
   begin() {
@@ -54,7 +53,7 @@ class Bird extends ent.Entity {
     this.left = false;
     this.gfx.size(80, 52)
       .fill(BIRD_LIPS).mt(10, -11).lt(38, 0).lt(10, 11)
-      .fill(BIRD).line(5, DARK).circle(-6, 0, BODY_R)
+      .fill(BIRD).line(5, DARK).circle(-6, 0, 22)
       .fill(BIRD_DARK).line(null).rect(-24, 3, 20, 11, 11)
       .fill(WHITE).line(4, DARK).circle(6, -9, 9)
       .fill(DARK).line(null).circle(9, -9, 4);
@@ -74,7 +73,7 @@ class Bird extends ent.Entity {
       this.vel.y = -Math.abs(this.vel.y) * 0.75;
     }
 
-    this.accelerate(0, GRAVITY);
+    this.accelerate(0, 630);
     this.vel.x = this.left ? -SPEED : SPEED;
     this.flipX = this.left;
 
@@ -87,11 +86,9 @@ class Coin extends ent.Entity {
 
   begin() {
     const bird = ent.one(Bird);
-    // Along the path the bird is already on, so never a round trip away.
     const d = 210 + Math.random() * 600;
     this.pos.x = along(bird.pos.x, bird.left ? -1 : 1, d);
 
-    // No further off its height than it can climb on the way.
     const span = (d / SPEED) * FLAP * 0.7;
     const lo = Math.max(TOP + 40, bird.pos.y - span);
     const hi = Math.min(BOTTOM - 40, bird.pos.y + span);
@@ -154,5 +151,3 @@ export function init() {
   new Bird();
   new Coin();
 }
-
-export { render, update } from "./lib/entity.js";

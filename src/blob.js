@@ -157,8 +157,8 @@ function buildPool(shape) {
     r: Math.max(head[0], tail[0]),
   };
 
-  // Path2D is the browser's and tools/build.js imports this module under Deno
-  // to read `meta`, so the two paths are built the first time one is drawn.
+  // Path2D is the browser's and the build imports this under Deno, so the two
+  // paths are built the first time one is drawn.
   let fillPath = null;
   let linePath = null;
 
@@ -221,11 +221,8 @@ const LIGHT_Y = -180;
 // Eight fills at 0.0724 compound to 1 - (1 - a)^8 = 0.45 at the core.
 const SHADOW_STEPS = 8;
 
-const FLASH = 0.3;
-
-// Both cooldowns are read off `age`, so a merge sets them once and nothing
-// decrements them. `body.scale` is the rail's squeeze, the solver's own number,
-// not Entity's `scale`, which stays at 1 here.
+// Both cooldowns are read off `age`, so a merge sets them once. `body.scale` is
+// the rail's squeeze, the solver's own number, not Entity's `scale`.
 class Blob extends ent.Entity {
   constructor(index, cx, cy) {
     super();
@@ -254,7 +251,7 @@ class Blob extends ent.Entity {
 
   get flash() {
     if (!this.flashes) return 0;
-    const u = this.age / FLASH;
+    const u = this.age / 0.3;
     return u >= 1 ? 0 : 1 - u * u;
   }
 
@@ -264,8 +261,7 @@ class Blob extends ent.Entity {
     super.remove();
   }
 
-  // `setScale` takes the point radius with it, or the ring's points crowd and
-  // its edge thickens.
+  // `setScale` takes the point radius with it, or the edge thickens.
   setBar(on) {
     this.bar = on;
     this.body.wall = on ? clampMouth : null;
@@ -286,7 +282,7 @@ class Blob extends ent.Entity {
   update() {
     const b = this.body;
     if (this.bar || b.scale >= 1) return;
-    sim.setScale(b, Math.min(1, b.scale + GROW_RATE * ent.game.time));
+    sim.setScale(b, Math.min(1, b.scale + (1 - BAR_SHRINK) / 0.22 * ent.game.time));
   }
 
   // The body path scaled about the centroid, offset onto the lit face.
@@ -502,8 +498,7 @@ function resample(b, path) {
 }
 
 // Two arcs joined at their ends start narrow in the middle, and this takes some
-// of that out. Positions only, with `ox` carried along, so it makes no
-// velocity.
+// of that out. Positions only, so it makes no velocity.
 function round(b) {
   const { px, py, ox, oy } = sim;
   const s = b.start;
@@ -548,8 +543,7 @@ function merge(a, b, hitA, hitB) {
   const n = new Blob(a.tier.index + 1, cx, cy);
   resample(n.body, path);
   noteMerge(a, b, n);
-  // Scored by what came out, so a cascade is worth more than the same merges
-  // spread over a minute.
+  // Scored by what came out, so a cascade beats the same merges spread out.
   score.value += n.tier.value;
   // After noteMerge, whose squeeze sets the rest radius this rounds toward.
   round(n.body);
@@ -566,7 +560,6 @@ function merge(a, b, hitA, hitB) {
 
 const AIM_MAX = 260;
 const BAR_SHRINK = 0.65;
-const GROW_RATE = (1 - BAR_SHRINK) / 0.22;
 const FEED_PERIOD = 0.5;
 const FEED_COOL = 0.7;
 // Merges needed before a tier joins the deal, permanently.
@@ -616,8 +609,7 @@ function solveRail(h) {
       const d = Math.abs(dx);
       const want = ba.ent.radius + bc.ent.radius + 12;
       if (d >= want) continue;
-      // On the pair's approach, so a queue sliding inward as one is not
-      // resisted.
+      // On the pair's approach, so a queue sliding inward is not resisted.
       const s = dx < 0 ? -1 : 1;
       const rate = (bc.mvx - ba.mvx) * s;
       const push = (600 * (want - d) - 18 * rate) * h * s;
@@ -898,8 +890,7 @@ class Arrow extends ent.Entity {
     const [sx, sy] = shot(); // the shot, not the draw: a lob is a short arrow
     const p = Math.min(1, Math.hypot(sx, sy) / AIM_MAX);
     const ang = (40 - (40 - 22) * p) * Math.PI / 180;
-    // Fixed length back down the shaft, limited to half of it so it cannot
-    // exceed it.
+    // Fixed length back down the shaft, at most half of it.
     const h = -Math.min(31, len / 2) / len;
     const hx = aimX * h;
     const hy = aimY * h;
@@ -919,15 +910,13 @@ function shockLife(tier) {
   return Math.PI * tier.outer * tier.outer / 28000;
 }
 
-// One copy of the frame, so the bands read it and not the canvas they draw
-// into: a blit that samples its own target breaks the render pass on a
-// tile-based GPU.
+// One copy of the frame: a blit that samples its own target breaks the render
+// pass on a tile-based GPU.
 const scratch = new Layer({ attr: { alpha: false } });
 const SHOCK_BANDS = 8;
 
 // Every shock front in one entity: a front displaces what is on the canvas
-// rather than drawing anything of its own, and all of them read the one copy
-// taken before any had moved it.
+// rather than drawing anything, and all of them read one copy of it.
 class Shocks extends ent.Entity {
   constructor() {
     super();
@@ -969,8 +958,7 @@ class Shocks extends ent.Entity {
   }
 
   // Displacing a thin ring outward by one amount is a uniform scale about the
-  // centre, so a front is a blit clipped to the ring, the clip in board units
-  // and the blit in device ones.
+  // centre, so a front is a blit clipped to the ring.
   render(ctx) {
     if (this.waves.length === 0) return;
     const m = ctx.getTransform();
@@ -981,9 +969,8 @@ class Shocks extends ent.Entity {
       const wide = w.r * 0.1;
       const amp = 7 * (w.life / w.life0);
       if (amp < 0.2) continue;
-      // A clipped blit costs its clip's bounding box, which for a ring is the
-      // whole disc, so a wave past the furthest corner is a full copy for
-      // nothing.
+      // A clipped blit costs its clip's bounding box, the whole disc, so a
+      // wave past the furthest corner is a full copy for nothing.
       const far = 1.4 * Math.max(
         Math.hypot(w.x, w.y),
         Math.hypot(1024 - w.x, w.y),
@@ -1020,8 +1007,8 @@ const DANGER_HOLD = 1.0;
 
 const cover = new Uint8Array(Math.ceil(1024 / DANGER_PITCH) + 2);
 
-// measure() is a call from step() and not update(): it reads the pile where the
-// solve left it, and ent.update() runs before sim.step().
+// Called from step() and not update(): it reads the pile where the solve left
+// it, and ent.update() runs before sim.step().
 class Danger extends ent.Entity {
   constructor() {
     super();
@@ -1083,8 +1070,7 @@ class Danger extends ent.Entity {
     if (start >= 0) spans.push(l + start * DANGER_PITCH, r);
     this.fill = covered / n;
 
-    // Drains rather than resetting, or a small fluctuation delays the loss
-    // indefinitely.
+    // Drains rather than resetting, or a fluctuation delays the loss for good.
     this.held = gap * DANGER_PITCH < 2 * TIER_RADIUS
       ? Math.min(DANGER_HOLD, this.held + dt)
       : Math.max(0, this.held - dt * 2);
@@ -1129,11 +1115,9 @@ class Danger extends ent.Entity {
 }
 
 // The knock: a jet into a bore, which is what the fit found in a mallet on
-// metal, driven up 466 to 1062Hz over the 83ms the file ran. lp(375) sits
-// under the whole sweep, so what is heard is the bore and not the jet. `gain`
-// is the level the fit normalised away: at 4.5 the energy is the file's, and
-// the peak lands 1.4x over it, the two sounds having different shapes.
-// playMerge() plays it at the tier's rate.
+// metal, driven up 466 to 1062Hz over 83ms. lp(375) sits under the whole sweep,
+// so what is heard is the bore and not the jet. `gain` is the level the fit
+// normalised away. playMerge() plays it at the tier's rate.
 sound.make("merge", {
   osc: { type: blow, feed: 0.546 },
   freq: [466, 1062],
@@ -1142,10 +1126,9 @@ sound.make("merge", {
   fx: [lp(375)],
 });
 
-// The plip: a sine climbing 197 to 907Hz through a band the two filters
-// leave between them, which is the drop, and a triangle under its first
-// 96ms, which is the water it lands in. 245ms rendered, and playFeed()
-// plays it at 0.6.
+// The plip: a sine climbing 197 to 907Hz through the band the two filters leave
+// between them, which is the drop, and a triangle under its first 96ms, which is
+// the water. 245ms rendered, played at 0.6.
 sound.make("feed", {
   osc: [
     {
@@ -1315,8 +1298,7 @@ function paintVignette(ctx) {
   ctx.fillRect(0, 0, 1024, 1024);
 }
 
-// Under the camera the lean and the recoil would move the dark corners off the
-// corners they darken.
+// Under the camera the lean and the recoil would move the dark off the corners.
 class Vignette extends ent.Entity {
   static screen = true;
 
@@ -1332,8 +1314,7 @@ class Vignette extends ent.Entity {
   }
 }
 
-// Keyed on the screen scale alone: the shape, the lamp and the gradients are
-// all fixed in board units.
+// Keyed on the screen scale alone: everything else is fixed in board units.
 const poolLayer = new Layer();
 const vigLayer = new Layer();
 
@@ -1440,8 +1421,7 @@ export function init() {
 }
 
 export function update(dt) {
-  // one.js has already run the camera this frame, so a press lands on what was
-  // shown, and the earned steps run after the input.
+  // one.js has already run the camera, so a press lands on what was shown.
   handleInput(dt);
   fixed(60, step);
 }

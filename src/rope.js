@@ -43,19 +43,14 @@ const SAW = "#C6424F";
 // The world is in metres. This many of them fill the screen.
 const VIEW = 13;
 const ZOOM = 1.5;
-// Ropes further than this from the player are generated ahead / culled behind.
+// Ropes are generated two screens ahead of the player and culled three behind.
 const REACH = VIEW * 2;
 const CULL = VIEW * 3;
-// Two strings summed, so two nodes: a list in fx is a chain, which would put
-// one through the other. comb is the Karplus loop with the excitation left to
-// the caller, and `blend` is the chance a sign survives a round trip: 1 is a
-// string and .5 is the paper's drum. pluck cannot write the second one, and
-// removes the DC that most of this sound is.
-//
-// The decays are seconds for a sound 100ms long, which is deliberate: the
-// loop barely decays over the sound and the envelope does the shaping. Longer
-// only costs time, since a comb renders its own decay before the parent cuts
-// it.
+// Two strings summed, so two nodes: a list in fx is a chain, which would put one
+// through the other. comb is the Karplus loop with the excitation left to the
+// caller, and `blend` is the chance a sign survives a round trip: 1 is a string
+// and .5 is the paper's drum. The decays are long for a 100ms sound on purpose,
+// so the loop barely decays and the envelope does the shaping.
 const FLAT = (d) => [0, d, 1e-4];
 const PLUCK = (f, blend, decay) => ({
   osc: { osc: "white", env: FLAT(f === 100 ? 0.01 : 0.02) },
@@ -101,8 +96,8 @@ let enemyNatural;
 const at = (b) => ({ x: b.x, y: b.y });
 
 export function init() {
-  // The engine holds 32 worlds for the life of the page, so the round that
-  // just ended has to release its slot.
+  // The engine holds 32 worlds for the life of the page, so the last round has
+  // to release its slot.
   world?.destroy();
   world = new World({ gravity: { x: 0, y: 9.8 } });
   world.presolve = presolve;
@@ -130,8 +125,6 @@ export function init() {
   camera.moveTo({ x: 0, y: 0, scale: 1024 / (VIEW * ZOOM) });
 }
 
-// BODIES ///
-
 function createEnemy() {
   enemyPath = 0;
   enemyStep = 0;
@@ -147,8 +140,7 @@ function createEnemy() {
     canSleep: false,
     data: "enemy",
   });
-  // A wide, thin sensor bar. Only the head's category meets it, and the head
-  // meets nothing else.
+  // A wide, thin sensor bar, which only the head's category meets.
   const dim = 6.5 * 4;
   enemy.box({
     w: 2 * dim,
@@ -159,8 +151,8 @@ function createEnemy() {
   });
 }
 
-// Head, two tail segments, two arms. Each arm is hand -> elbow -> head, held
-// by a link() at each step of the chain.
+// Head, two tail segments, two arms. Each arm is hand -> elbow -> head, with a
+// link() at each step.
 function createPlayer() {
   player = {
     arms: [
@@ -183,19 +175,15 @@ function createPlayer() {
   const density = 1 / 10;
 
   player.head = world.body({ x: 0, y: 0, type: "dynamic", data: "head" });
-  // A category of its own, which only the saw has and only the saw's mask
-  // includes. box2d asks the broadphase for the sensor's mask against the
-  // shape's category before the two are tested, and a category of 0 fails
-  // every query, so the saw would pass straight over the head.
+  // A category of its own, which only the saw's mask includes. A category of 0
+  // fails the broadphase query, so the saw would pass straight over the head.
   player.head.circle({ r: 0.6, density, filter: { category: 8, mask: 8 } });
 
   let last = player.head;
   for (let i = 0; i < 2; ++i) {
     // box2d solves the length limit softly and returns the energy, so undamped
-    // the tail winds round the head at 5.2 turns a second. The joint does not
-    // constrain that, a tail spinning round the head not changing its length,
-    // so damping is what is left: at 3 it winds 1.48 turns a second and stays
-    // 1.30 metres off the head.
+    // the tail winds round the head at 5.2 turns a second, which the joint does
+    // not constrain. At a damping of 3 it winds 1.48 turns a second.
     const o = world.body({ x: 0, y: i, type: "dynamic", damping: 3 });
     o.radius = 0.4 - i * 0.2;
     o.circle({
@@ -224,10 +212,9 @@ function createPlayer() {
       data: "hand",
     });
     // A small solid one that meets rope, a wide sensor for a click near the
-    // hand, and a tiny one for the pointer query. Only the solid one has mass:
-    // a sensor weighs what its density says, and the 1.2 metre one at density 1
-    // would make the hand 4.8 kg against 0.28. The dense shape is built first,
-    // since box2d asserts on a massless body.
+    // hand, and a tiny one for the pointer query. Only the solid one has mass,
+    // since a sensor weighs what its density says. It is built first, because
+    // box2d asserts on a massless body.
     a.hand.circle({
       r: 0.3,
       density: 1,
@@ -333,12 +320,9 @@ function addRopeOne(a, length = 5) {
   return addRopeTwo(a, { x: a.x, y: a.y + length }, false);
 }
 
-// THE CAVE ///
-
-// Extends the path a band at a time until it is REACH ahead. Each band is a
-// slice across the path's width in `divs` columns; a column gets a horizontal
-// rope, a hanging one, or nothing. pathHorizon is the clear air left in each
-// column, so bands never stack.
+// Extends the path a band at a time. Each band is a slice across the path's
+// width in `divs` columns; a column gets a horizontal rope, a hanging one, or
+// nothing. pathHorizon is the clear air left per column, so bands never stack.
 function stepPath() {
   const here = at(player.head);
   const last = path[path.length - 1];
@@ -462,15 +446,13 @@ function updateMap() {
 
   for (const r of ropes) {
     if (vec.len(vec.sub(at(r[0]), pos)) < CULL) continue;
-    // A rope a hand still holds stays: destroying it takes the hold joint with
-    // it and leaves the arm pointing at a dead one.
+    // A rope a hand still holds stays: destroying it leaves the arm pointing
+    // at a dead one.
     if (player.arms.some((a) => a.hold && r.includes(a.hold.b))) continue;
     for (const x of r) x.destroy();
     ropes.delete(r);
   }
 }
-
-// CONTACTS ///
 
 function pair(a, b, first, second) {
   const x = a.data === first ? a : b.data === first ? b : null;
@@ -483,8 +465,8 @@ function armOf(hand) {
 }
 
 // A hand holding something passes through rope, and so does one that just let
-// go: 300ms for the rope it left, 50ms for any other. Dropping the contact here
-// is also what prevents the grab, since it never reaches begin().
+// go: 300ms for the rope it left, 50ms for any other. Dropping the contact is
+// also what prevents the grab, since it never reaches begin().
 function presolve(fa, fb) {
   const hit = pair(fa.body, fb.body, "hand", "rope");
   if (!hit) return true;
@@ -521,8 +503,6 @@ function begin(contact) {
   arm.holder = rope.parent;
   arm.holderTime = -1;
 }
-
-// UPDATE ///
 
 function updatePlayer(dt) {
   player.breath = Math.sin(TAU * time * 0.12);
@@ -578,8 +558,7 @@ function updateCamera(dt) {
   const angle = Math.abs(ang) < TAU / 40 ? 0 : ang;
 
   // approach()'s rates are per second: 3 is its default for the pan, and the
-  // lean follows slower. Slowing the pan loses the player, who is moving over a
-  // metre a second late in a run on a 19.5 metre screen.
+  // lean follows slower. Slowing the pan loses the player.
   camera.approach({ x: p.x, y: p.y, angle }, dt, { angle: 2.45 });
 }
 
@@ -602,9 +581,8 @@ function updateShot() {
       }
     }
 
-    // Metres, like every other point here: a click and a release inside one
-    // frame skips the press branch below, and a target in 1024-space would be
-    // a 600 metre drag.
+    // Metres, like every other point here: a target in 1024-space would be a
+    // 600 metre drag.
     if (hand !== null) shot = { hand, offset: 0, target: at(hand) };
   }
 
@@ -678,8 +656,8 @@ function updateEnemy() {
 export function update(dt) {
   time += dt;
 
-  // The saw shares the physics clock: its speeds are per-step, not per-second.
-  // Events are read inside the loop, since a step clears the one before it.
+  // The saw shares the physics clock, so its speeds are per-step. Events are
+  // read inside the loop, since a step clears the one before it.
   fixed(60, (h) => {
     world.step(h);
     for (const c of world.began) begin(c);
@@ -696,8 +674,6 @@ export function update(dt) {
   updateShot();
   updateMap();
 }
-
-// RENDER ///
 
 export function render(ctx) {
   ctx.fillStyle = CAVE;
@@ -799,8 +775,7 @@ function renderPlayer(ctx) {
     ctx.fillCircle(arm.hand.x, arm.hand.y, arm.hold ? 0.22 : 0.3);
   }
 
-  // The first segment is pulled back toward the midpoint so it cannot fold
-  // through the head.
+  // The first segment is pulled back so it cannot fold through the head.
   const b = player.body[1];
   const p = at(b);
   const mid = vec.mul(vec.add(h, p), 0.5);

@@ -7,23 +7,18 @@
  * and the score is seconds of running clock plus 2 a rock and 10 a ship.
  *
  * Both spawn clocks are divided by one.js's ramp read on that running clock and
- * not on the wall clock, so aiming from a frozen board costs nothing: three
- * minutes of running clock in, rocks and waves arrive twice as often. How many
- * ships a wave brings is WAVE_GROW and nothing else.
+ * not on the wall clock, so aiming from a frozen board costs nothing.
  *
- * The enemy AI is one rule: pick a wandering target weighted towards the player
- * by age, and steer by mirroring the heading about the line to it, which
- * overshoots and is why they weave.
- *
- * Both ships collide as their own triangle: a circle over this shape is wrong
- * either way round, and at a fiftieth speed you watch the bullet arrive and can
- * see which. entity.js gained hitPoly() for this game.
+ * Both ships collide as their own triangle: at a fiftieth speed you watch the
+ * bullet arrive and can see which. entity.js gained hitPoly() for this game.
  */
 
 import * as ent from "./lib/entity.js";
 import { shake } from "./lib/camera.js";
 import { gameOver, ramp, score } from "./lib/one.js";
 import * as play from "./lib/sounds.js";
+
+export { render } from "./lib/entity.js";
 
 export const meta = {
   title: "asteroid",
@@ -35,7 +30,6 @@ time crawls until you thrust or shoot
   fg: "#FFFFFF",
   scoreMax: true,
   date: "2014-04-03",
-  draft: true,
   dpad: true,
 };
 
@@ -44,10 +38,6 @@ const BLACK = 0x000000;
 
 const TAU = 2 * Math.PI;
 
-const SLOW = 50;
-// How long input is ignored, and the whole length of the end screen.
-const DYING = 2.5;
-const FLIP = 1;
 const FLIP_GAP = 256;
 
 // dart()'s shape, moved from the corner of the sprite's 52x52 box onto the
@@ -61,46 +51,23 @@ const TOP_SPEED = 425;
 // Nothing clamps it, so firing over your shoulder is the one way past
 // TOP_SPEED.
 const RECOIL = 75;
-const RELOAD = 0.35;
 
 const SHOT = [-15, -6, 15, -6, 15, 6, -15, 6];
 const SHOT_SPEED = 640;
-const SHOT_LIFE = 2;
 
 // Only a rock this big splits, so the halves it leaves are the end of it.
 const ROCK_MIN = 64;
-const ROCK_VAR = 43;
 const ROCK_SPEED = 215;
-const SPLIT_SPEED = 107;
-const ROCK_FIRST = 2;
-const ROCK_EVERY = 23;
 
-// Each wave is a tenth bigger than the last until the count rolls over into
-// another ship.
-const WAVE_EVERY = 5;
-const WAVE_GROW = 1.1;
-
-const ENEMY_FIRST = 1.5;
-const ENEMY_RELOAD = 0.75;
-const AIM_TURN = Math.PI;
-const STEER_TURN = 1.5 * Math.PI;
-const ARRIVE = 68;
-// Over CRUISE an enemy stops steering and aims; under SLOW_SPEED it thrusts
-// whichever way it points.
-const CRUISE = 215;
-const STALLED = 43;
 const CONE = Math.PI / 6;
-const SIGHT = Math.PI / 12;
 
 let realtime = 0;
-// Seconds of running clock the round has had: the ramp is read off this, not off
-// one.js's `time`, which counts the seconds a frozen board sits there.
+// Seconds of running clock: the ramp is read off this, not off one.js's `time`.
 let clock = 0;
 let rockTime = 0;
 let waveTime = 0;
 let wave = 1;
-// Not off ent.get(): one made this frame has not begun, and the wave clock
-// would read a board that just filled as empty and fill it again.
+// Not off ent.get(): one made this frame has not begun.
 let alive = 0;
 let dying = 0;
 let flip = false;
@@ -127,7 +94,7 @@ class Player extends ent.Entity {
     this.reload = Math.max(0, this.reload - time);
     if (input.press.act && this.reload <= 0) {
       fire(this, true, play.shoot);
-      this.reload += RELOAD;
+      this.reload += 0.35;
     }
 
     wrap(this, 26);
@@ -146,7 +113,7 @@ class Bullet extends ent.Entity {
     super();
     this.fromPlayer = fromPlayer;
     this.angle = src.angle;
-    this.life = SHOT_LIFE;
+    this.life = 2;
     this.pos.x = src.pos.x + MUZZLE * Math.cos(this.angle);
     this.pos.y = src.pos.y + MUZZLE * Math.sin(this.angle);
     this.vel.x = SHOT_SPEED * Math.cos(this.angle);
@@ -237,7 +204,7 @@ class Enemy extends Target {
   begin() {
     dart(this, BLACK);
     this.hitPoly(SHIP);
-    this.reload = ENEMY_FIRST;
+    this.reload = 1.5;
 
     if (Math.random() < 0.5) {
       this.pos.x = 1024 * Math.random();
@@ -273,8 +240,7 @@ class Enemy extends Target {
     const { time } = ent.game;
     const tx = this.target.x - this.pos.x;
     const ty = this.target.y - this.pos.y;
-    // Steer for the target until within ARRIVE of it, then pick another.
-    if (Math.hypot(tx, ty) < ARRIVE) this.findTarget();
+    if (Math.hypot(tx, ty) < 68) this.findTarget();
 
     const p = ent.one(Player);
     const speed = Math.hypot(this.vel.x, this.vel.y);
@@ -282,11 +248,12 @@ class Enemy extends Target {
       ? 0
       : Math.atan2(p.pos.y - this.pos.y, p.pos.x - this.pos.x);
 
+    // Over 215 it stops steering and aims; under 43 it thrusts as it points.
     if (
-      p !== null && speed >= CRUISE &&
+      p !== null && speed >= 215 &&
       between(tx, ty, this.vel.x, this.vel.y) <= CONE
     ) {
-      steer(this, toPlayer, AIM_TURN);
+      steer(this, toPlayer, Math.PI);
     } else {
       let dx = tx;
       let dy = ty;
@@ -304,15 +271,15 @@ class Enemy extends Target {
         dy = -this.vel.y;
       }
 
-      const off = steer(this, Math.atan2(dy, dx), STEER_TURN);
-      if (off < CONE || speed < STALLED) thrust(this, THRUST * time);
+      const off = steer(this, Math.atan2(dy, dx), 1.5 * Math.PI);
+      if (off < CONE || speed < 43) thrust(this, THRUST * time);
     }
 
     if (p !== null) {
       this.reload = Math.max(0, this.reload - time);
-      if (Math.abs(fold(toPlayer - this.angle)) < SIGHT && this.reload <= 0) {
+      if (Math.abs(fold(toPlayer - this.angle)) < Math.PI / 12 && this.reload <= 0) {
         fire(this, false, play.shoot, -500);
-        this.reload += ENEMY_RELOAD;
+        this.reload += 0.75;
       }
     }
 
@@ -382,9 +349,8 @@ function explode(p) {
   shake(0.5);
   play.lose();
   p.remove();
-  dying = DYING;
-  // `flip` starts true and turns over on the first frame, so the title is the
-  // face seen first.
+  dying = 2.5;
+  // `flip` starts true and turns over at once, so the title is seen first.
   flip = true;
   flipTime = 0;
 }
@@ -418,11 +384,11 @@ function debris(pos, color, count, life) {
 }
 
 function split(pos, size, angle) {
-  new Rock(size, pos.x, pos.y, angle, SPLIT_SPEED);
+  new Rock(size, pos.x, pos.y, angle, 107);
 }
 
 function newRock() {
-  const size = ROCK_MIN + ROCK_VAR * Math.random();
+  const size = ROCK_MIN + 43 * Math.random();
   const angle = TAU * Math.random();
   if (Math.random() < 0.5) {
     const y = Math.random() < 0.5 ? -size : 1024 + size;
@@ -433,8 +399,7 @@ function newRock() {
   new Rock(size, x, 1024 * Math.random(), angle, ROCK_SPEED);
 }
 
-// Back on a unit short of the threshold it would leave by. `s` is how far past
-// the edge an entity runs first, which is its width.
+// Back on a unit short of the threshold it would leave by; `s` is the width.
 function wrap(e, s) {
   const { pos } = e;
   if (pos.x < -s / 2) pos.x = 1024 + s / 2 - 1;
@@ -451,8 +416,7 @@ function fold(a) {
   return x;
 }
 
-// 0 to PI. A standing ship has no heading, and PI is the value that sends it
-// to the steering branch.
+// 0 to PI. A standing ship has no heading, and PI sends it to the steering.
 function between(ax, ay, bx, by) {
   const l = Math.hypot(ax, ay) * Math.hypot(bx, by);
   if (l === 0) return Math.PI;
@@ -464,7 +428,7 @@ export function init() {
 
   realtime = 0;
   clock = 0;
-  rockTime = ROCK_FIRST;
+  rockTime = 2;
   waveTime = 0;
   wave = 1;
   alive = 0;
@@ -483,7 +447,7 @@ export function update(dt) {
     dying -= dt;
     flipTime -= dt;
     if (flipTime <= 0) {
-      flipTime += FLIP;
+      flipTime += 1;
       turnOver();
     }
     ent.update(dt);
@@ -492,13 +456,13 @@ export function update(dt) {
   }
 
   const { input } = ent.game;
-  const time = input.press.up || input.press.act ? dt : dt / SLOW;
+  const time = input.press.up || input.press.act ? dt : dt / 50;
   clock += time;
   const hard = ramp(clock);
 
   rockTime -= time;
   if (rockTime <= 0) {
-    rockTime = ROCK_EVERY / hard;
+    rockTime = 23 / hard;
     newRock();
   }
 
@@ -506,8 +470,9 @@ export function update(dt) {
   if (waveTime <= 0) {
     const n = Math.floor(wave);
     for (let i = 0; i < n; ++i) new Enemy();
-    waveTime += WAVE_EVERY * n / hard;
-    wave *= WAVE_GROW;
+    // Each wave is a tenth bigger than the last, rolling over into a ship.
+    waveTime += 5 * n / hard;
+    wave *= 1.1;
   }
 
   if (alive === 0) rockTime = waveTime = 0;
@@ -515,5 +480,3 @@ export function update(dt) {
   score.value += time;
   ent.update(time);
 }
-
-export { render } from "./lib/entity.js";

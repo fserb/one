@@ -39,13 +39,6 @@ const TENT_HEAD = "#82CED5";
 const W = 13;
 const H = 13;
 const CELL = 72;
-const OX = (1024 - W * CELL) / 2;
-const OY = (1024 - H * CELL) / 2;
-
-// Every tentacle gains a segment this often, and a new one arrives this often.
-const GROW = 6;
-const SPAWN = 40;
-const START_LEN = 4;
 
 // Keyed by input.js's button names, so a turn is whichever one just went down.
 const DIRS = {
@@ -74,9 +67,8 @@ let tentacles;
 let turn;
 let dead;
 
-// A source has no level of its own and the chain runs after the envelope, so
-// a stage that cares about level sits on a nested node under FLAT, and the
-// parent does the shaping.
+// A source has no level of its own and the chain runs after the envelope, so a
+// stage that cares about level sits on a nested node under FLAT.
 const FLAT = (d) => [0, d, 1e-4];
 
 sound.make("step", {
@@ -110,8 +102,6 @@ sound.make("caught", {
   },
   env: [0.02, 0.5],
 });
-
-// GRID ///
 
 function get(x, y) {
   if (x < 0 || y < 0 || x >= W || y >= H) return null;
@@ -173,9 +163,8 @@ function placeCrate(free) {
   for (const c of free) {
     const cells = shape.map(([dx, dy]) => get(c.x + dx, c.y + dy));
     if (cells.some((v) => v === null || v.entity !== null)) continue;
-    // One object shared by every cell, so the shape moves as one: they share
-    // the same `req`, and each cell's move is legal because the one in front of it
-    // is the same object, moving too.
+    // One object shared by every cell, so the shape moves as one: each cell's
+    // move is legal because the one in front of it is moving too.
     const crate = { crate: true, req: null, dx: 0, dy: 0 };
     for (const v of cells) v.entity = crate;
     return;
@@ -190,12 +179,10 @@ function spawn() {
   if (edge.length === 0) return;
 
   const base = edge[Math.floor(edge.length * Math.random())];
-  const t = { cells: [base], len: START_LEN, grow: 1 };
+  const t = { cells: [base], len: 4, grow: 1 };
   base.tent = t;
   tentacles.push(t);
 }
-
-// MOVEMENT ///
 
 // A crate cannot push another crate: doMove cancels the chain if it tries.
 function doPush() {
@@ -331,10 +318,11 @@ function tick(dir) {
     return;
   }
 
-  if (turn % GROW === 0) {
+  // A segment every six turns, another tentacle every forty.
+  if (turn % 6 === 0) {
     for (const t of tentacles) t.len++;
   }
-  if (turn % SPAWN === 0) spawn();
+  if (turn % 40 === 0) spawn();
 
   buildAStar();
 }
@@ -346,10 +334,11 @@ export function update() {
   }
 }
 
-// RENDER ///
-
 function px(c) {
-  return { x: OX + c.x * CELL, y: OY + c.y * CELL };
+  return {
+    x: (1024 - W * CELL) / 2 + c.x * CELL,
+    y: (1024 - H * CELL) / 2 + c.y * CELL,
+  };
 }
 
 export function render(ctx) {

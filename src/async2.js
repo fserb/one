@@ -40,22 +40,15 @@ const COLORS = ["#386B99", "#F3C62C", "#E74C3C", "#AB7390"];
 const MARGIN_RATIO = 0.03;
 
 const SPRING_CONSTANT = 0.12;
-const DEPTH_DAMPING = 0.8;
-const ROTATION_DAMPING = 0.85;
-// The springs are tuned per 60Hz step, so dt is measured against one.
-const TIME_SCALE_FACTOR = 0.016;
 const TARGET_BOARD_ROTATION = 0.1;
-const ROTATION_STRENGTH = 0.15;
 
 const ANIM_SWAP_TIME = 0.25;
-const ANIM_DESTROY_TIME = 0.3;
-const ANIM_DROP_TIME = 0.25;
 
 const PERSPECTIVE = 1000;
 
-// Arithmetic rather than a layout solve: outer margin, board, gap, spine, gap,
-// board, outer margin across the width, the pair centred in what is left of the
-// height. The width binds, which is why 4x6 leaves board colour above and below.
+// Arithmetic rather than a layout solve: margin, board, gap, spine, gap, board,
+// margin across the width, the pair centred in the height. The width binds,
+// which is why 4x6 leaves board colour above and below.
 const MARGIN = 1024 * 0.04;
 const SPINE = 1024 * 0.025;
 const BOARD_ASPECT = (BOARD_WIDTH + (BOARD_WIDTH - 1) * MARGIN_RATIO) /
@@ -133,7 +126,7 @@ function isValidPosition(board, x, y, width, height, excludeBlock) {
 }
 
 // Every cell in the target box has to hold a block of the same colour that fits
-// inside the box: a bigger neighbour poking out makes the union non-rectangular.
+// inside it: a bigger neighbour poking out leaves the union non-rectangular.
 function isValidResize(block, boardIndex, dx, dy) {
   const maxX = block.x + block.width + dx;
   const maxY = block.y + block.height + dy;
@@ -206,8 +199,7 @@ function fillEmptySpacesInit() {
 }
 
 // `displacement` is how many cells a block is drawn short of where it already
-// is, tweened to zero, so the model settles first and the tween is only the
-// picture catching up.
+// is, tweened to zero, so the tween is only the picture catching up.
 async function applyGravityAndFill() {
   const animated = [];
   const before = blocks.map((b) => ({ block: b, x: b.x }));
@@ -251,8 +243,8 @@ async function applyGravityAndFill() {
     const fresh = [];
     const outsideX = boardIndex === 0 ? -1 : BOARD_WIDTH;
 
-    // One displacement for the whole board, taken off the furthest hole, so a
-    // row of new blocks slides in as a row rather than each on its own.
+    // One displacement for the whole board, off the furthest hole, so a row of
+    // new blocks slides in as a row.
     let maxDisplacement = 1;
     for (let y = 0; y < BOARD_HEIGHT; y++) {
       for (const x of feedOrder(boardIndex)) {
@@ -272,14 +264,12 @@ async function applyGravityAndFill() {
 
   if (animated.length === 0) return;
   await Promise.all(
-    animated.map((block) =>
-      act(block).attr("displacement", 0, ANIM_DROP_TIME, ease.quadIn)
-    ),
+    animated.map((block) => act(block).attr("displacement", 0, 0.25, ease.quadIn)),
   );
 }
 
 // Largest growth first per block, until a pass finds nothing. The merged block
-// keeps the identity of its top-left corner and the rest are dropped.
+// keeps the identity of its top-left corner.
 function mergeBlocks() {
   if (act.is()) return;
 
@@ -358,13 +348,11 @@ function getBlockQuadPoints(block, withMargin = true) {
     interpolateQuad(boardQuad, u1, v2, block.depth, block.board),
   ]);
 
-  // Forward blocks grow and back ones shrink, which is the parallax the depth
-  // offset alone does not give.
+  // Forward blocks grow and back ones shrink: the parallax the offset misses.
   const depthScale = block.depth >= 0 ? 1 / (1 + block.depth) : (1 - block.depth);
   let out = quad.scale(depthScale);
 
-  // In cells, drawn outward: the left board's blocks are held back to the left
-  // of where the model already has them.
+  // In cells, drawn outward: the left board's blocks are held back left.
   if (block.displacement !== 0) {
     const pixels = block.displacement *
       (boards[block.board].layout.width / BOARD_WIDTH);
@@ -376,11 +364,12 @@ function getBlockQuadPoints(block, withMargin = true) {
 }
 
 function updatePhysics(dt) {
-  const timeScale = dt / TIME_SCALE_FACTOR;
+  // The springs are tuned per 60Hz step, so dt is measured against one.
+  const timeScale = dt / 0.016;
 
   for (const block of blocks) {
     const restore = (block.targetDepth - block.depth) * SPRING_CONSTANT;
-    block.depthVelocity = (block.depthVelocity + restore) * DEPTH_DAMPING;
+    block.depthVelocity = (block.depthVelocity + restore) * 0.8;
     block.depth += block.depthVelocity * timeScale;
   }
 
@@ -388,7 +377,7 @@ function updatePhysics(dt) {
     const target = board.id === 0 ? -TARGET_BOARD_ROTATION : TARGET_BOARD_ROTATION;
     const restore = (target - board.rotation) * SPRING_CONSTANT;
     board.rotationVelocity = (board.rotationVelocity + restore) *
-      ROTATION_DAMPING;
+      0.85;
     board.rotation += board.rotationVelocity * timeScale;
   }
 }
@@ -416,11 +405,10 @@ async function handleClick(x, y) {
   }
   if (!clicked) return;
 
-  // The square root makes the edge only twice the push of a quarter out rather
-  // than four times.
+  // The square root makes the edge twice the push of a quarter out, not four.
   const { layout } = boards[clicked.board];
   const dist = (x - (layout.x + layout.width * 0.5)) / layout.width;
-  boards[clicked.board].rotationVelocity += -ROTATION_STRENGTH *
+  boards[clicked.board].rotationVelocity += -0.15 *
     (Math.abs(dist) ** 0.5) * Math.sign(dist);
 
   const crossBoard = selectedBlock && selectedBoard !== null &&
@@ -433,7 +421,7 @@ async function handleClick(x, y) {
     await act(clicked).attr(
       "destroyScale",
       0.0,
-      ANIM_DESTROY_TIME,
+      0.3,
       ease.quadIn,
     );
 
@@ -466,8 +454,7 @@ async function handleClick(x, y) {
     return;
   }
 
-  // One block per board, so a second click on the same board moves the
-  // selection rather than trying to swap.
+  // One block per board, so a second click on the same board reselects.
   selectedBlock = clicked;
   selectedBoard = clicked.board;
   selectedBlock.targetDepth = -0.25;

@@ -145,13 +145,12 @@ function shuffle(a) {
 /*
  * The cut: a rectangle into orthogonally-connected regions under a per-size
  * quota. solve() is a backtracking search that always fills from the emptiest
- * cell, which is what keeps a single cell from being left unassigned: a cell
- * with one free neighbour has to be taken now or never. growSmartRegion() then
- * prefers the candidate with the most neighbours, so a region encloses a gap
- * rather than going around it.
+ * cell, since a cell with one free neighbour has to be taken now or never.
+ * growSmartRegion() prefers the candidate with the most neighbours, so a region
+ * encloses a gap rather than going around it.
  *
- * A region one row or one column wide is rejected: it looks like a line rather
- * than a shape, and the puzzle is played by shape.
+ * A region one row or one column wide is rejected: the puzzle is played by
+ * shape, and a line has none.
  */
 class GridFiller {
   constructor(width, height, constraints) {

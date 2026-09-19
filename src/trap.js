@@ -51,9 +51,8 @@ sound.make("hit", {
   env: [0, 0.1, 0.2],
 });
 
-// The brown sits under the saw at half level, which costs a node: a bare
-// source has no gain of its own. gain is the ring modulator, depth 1 of 0
-// being a bare ring.
+// The brown sits under the saw at half level, which costs a node: a bare source
+// has no gain of its own. gain is the ring modulator, depth 1 of 0 being bare.
 sound.make("drop", {
   osc: {
     osc: ["saw", { osc: "brown", gain: 0.5, env: FLAT(0.3) }],
@@ -65,8 +64,6 @@ sound.make("drop", {
   env: [0, 0.05, 0.25],
 });
 
-// The envelope is the length here, 0.75s. The old 0.65s track cut 100ms off
-// the release; that tail plays now.
 sound.make("move", {
   osc: "sine",
   freq: (t) => 400 + 800 * t - 6000 * t * t,
@@ -164,8 +161,6 @@ export function init() {
   nextLevel();
 }
 
-// LEVEL ///
-
 function nextLevel() {
   level++;
   build(PROG[level] ?? 5);
@@ -194,8 +189,7 @@ function build(number) {
   }
   buildAStar();
 
-  // What the cull cut off is gone too. Four or more steps from an edge is
-  // somewhere the eye can start.
+  // Four or more steps from an edge is somewhere the eye can start.
   avail.length = 0;
   for (const v of all()) {
     if (v.astar === -1) v.v = false;
@@ -296,8 +290,6 @@ async function cleanupLoose(audible = true) {
   await Promise.all(wait);
 }
 
-// THE EYE ///
-
 // Legs first, then the head catches up and overshoots, then the trailing leg.
 // In pixels and not hex coordinates, so escapeAlien can aim off the board.
 function actAlien(to) {
@@ -345,8 +337,7 @@ function moveAlien() {
   return actAlien(grid.toPixel(dec.pos)).then(escapeAlien);
 }
 
-// It walks to a point outside the camera; alien.pos stays on the hex it left,
-// since there is no hex to land on.
+// It walks to a point outside the camera; alien.pos stays on the hex it left.
 function escapeAlien() {
   const v = grid.get(alien.pos);
   if (!v.border) return;
@@ -407,8 +398,6 @@ function recenter() {
   return act(camera).delay(dur);
 }
 
-// UPDATE ///
-
 function updateNext() {
   buildAStar();
   cleanupLoose();
@@ -456,8 +445,6 @@ export function update(dt) {
   pending++;
   act(v).attr("s", 0, 0.5, ease.quadIn);
 }
-
-// RENDER ///
 
 export function render(ctx) {
   ctx.save();
@@ -559,8 +546,6 @@ function renderAlien(ctx, head, legs) {
   ctx.restore();
 }
 
-// HEX GRID ///
-
 function* all(invalid = false) {
   for (const v of grid.values()) {
     if (invalid || v.v) yield v;
@@ -580,7 +565,7 @@ function connections(p) {
   return n;
 }
 
-// A unit hexagon, scaled at draw time. Built on first use, not at module
+// A unit hexagon, scaled at draw time. Built on first use and not at module
 // scope: the build imports this under Deno, where there is no Path2D.
 let hexPath = null;
 

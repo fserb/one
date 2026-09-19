@@ -43,8 +43,6 @@ const BOARDPOS = [
 // Belt units draw in a unit square, scaled up by this.
 const SZ = 100;
 const STRIDE = 1.2;
-// The belt is in the strip above the boards, clear of the overlay's panels.
-const BELT_Y = 117;
 
 const board = [];
 const selected = [null, null];
@@ -89,8 +87,6 @@ export function init() {
   fillEmpty();
 }
 
-// BOARD ///
-
 function createBlock(p) {
   const o = Object.assign({
     b: -1,
@@ -99,8 +95,8 @@ function createBlock(p) {
     v: Math.floor(colors * Math.random()),
     w: 1,
     h: 1,
-    // Render offset, animated to zero, so a block sits at its new grid
-    // position while drawn at the old one.
+    // Render offset, animated to zero, so a block sits at its new grid cell
+    // while drawn at the old one.
     d: { x: 0, y: 0 },
     scale: 1,
     selected: false,
@@ -211,8 +207,6 @@ async function fallBlocks(fillstep = 0) {
   needsMerge = true;
 }
 
-// MERGING ///
-
 // True when growing b by (dx, dy) covers only same-coloured blocks, none
 // sticking out of the rectangle that results.
 function isValidResize(b, dx, dy) {
@@ -255,8 +249,7 @@ function canGrow(b) {
   return exp.x > 0 || exp.y > 0;
 }
 
-// Grows one block, absorbing what it covers, then starts over: a merge opens
-// up the next.
+// Grows one block, absorbing what it covers, then starts over.
 function tryMergeBlocks() {
   for (const b of board) {
     const exp = getMaxSquare(b);
@@ -278,12 +271,10 @@ function tryMergeBlocks() {
 }
 
 // A swap is allowed only if it leaves some block able to merge, which is what
-// stops the board deadlocking. A useless swap silently does nothing.
+// stops the board deadlocking.
 function isValidSwitch() {
   return board.some(canGrow);
 }
-
-// THE BELT ///
 
 // type: 0 blocks, 1 shape, 2 bps, 3 sync, 4 or. color -1 means any.
 function createOrder(type, color = null) {
@@ -476,8 +467,6 @@ function updateBelt(dt) {
   for (const v of vs) v.value = Math.max(0, v.value - dt * v.speed);
 }
 
-// UPDATE ///
-
 async function updateClick() {
   if (!input.just.act) return;
 
@@ -516,8 +505,7 @@ async function updateClick() {
     if (!isValidSwitch()) {
       [s0.v, s1.v] = [s1.v, s0.v];
     } else {
-      // Only the colours moved, so animate each from where the other is back
-      // to zero and the swap looks like two things crossing.
+      // Only the colours moved, so each animates from where the other is.
       const p0 = toScreen(s0);
       const p1 = toScreen(s1);
       s0.d = vec.sub(p1, p0);
@@ -574,8 +562,6 @@ export function update(dt) {
   }
 }
 
-// RENDER ///
-
 export function render(ctx) {
   camera.apply(ctx);
 
@@ -629,7 +615,7 @@ function renderPiece(ctx, p) {
 
 function renderBelt(ctx) {
   ctx.save();
-  ctx.translate(0, BELT_Y);
+  ctx.translate(0, 117); // the strip above the boards, clear of the panels
   ctx.scale(SZ, SZ);
 
   let p = (beltPos - 1) * STRIDE;
