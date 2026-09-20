@@ -1,20 +1,17 @@
-/*
- * rope - swing up an endless cave on two hands.
- *
- * Each rope is a chain of rigid bodies and the cave generates itself ahead
- * along a wandering path. The only game that needs a physics engine, so the
- * only one that includes alma's rigid.js and the Box2D behind it.
- */
+// rope, May 2021.
 
 import * as ease from "./alma/src/ease.js";
 import * as extra from "./alma/src/utils/extra.js";
 import * as vec from "./alma/src/geom/vec.js";
 import { World } from "./alma/src/rigid.js";
+import * as ent from "./lib/entity.js";
 import { camera } from "./lib/camera.js";
 import { act } from "./lib/act.js";
-import { fixed, gameOver, input, score } from "./lib/one.js";
+import { fixed, gameOver, score, time } from "./lib/one.js";
 import { comb, lp } from "./alma/src/sfx.js";
 import * as sound from "./lib/sound.js";
+
+export { render } from "./lib/entity.js";
 
 const { clamp, lerp, TAU } = extra;
 
@@ -23,6 +20,7 @@ export const meta = {
   bg: "#000000",
   fg: "#402F2E",
   scoreMax: true,
+  release: true,
   date: "2021-05-23",
 };
 
@@ -35,28 +33,31 @@ const SKIN = "#5F556A";
 const BODY = "#352B42";
 const SAW = "#C6424F";
 
-// The world is in metres. This many of them fill the screen.
+// The world is in metres, and this many of them fill the screen.
 const VIEW = 13;
 const ZOOM = 1.5;
-// Ropes are generated two screens ahead of the player and culled three behind.
 const REACH = VIEW * 2;
 const CULL = VIEW * 3;
-// Two strings summed, so two nodes: a list in fx is a chain, which would put one
-// through the other. comb is the Karplus loop with the excitation left to the
-// caller, and `blend` is the chance a sign survives a round trip: 1 is a string
-// and .5 is the paper's drum. The decays are long for a 100ms sound on purpose,
-// so the loop barely decays and the envelope does the shaping.
+// Radians the path turns by, at most, per band.
+const TURN = 0.1;
+// Bands of cave before the saw starts and the score runs.
+const START = 12;
+
+// Two strings summed, so two nodes: a list in fx is a chain, which would put
+// one through the other. `blend` is the chance a sign survives a round trip: 1
+// is a string and .5 is the paper's drum. The decays are long for a 100ms sound
+// on purpose, so the loop barely decays and the envelope does the shaping.
 const FLAT = (d) => [0, d, 1e-4];
-const PLUCK = (f, blend, decay) => ({
-  osc: { osc: "white", env: FLAT(f === 100 ? 0.01 : 0.02) },
+const PLUCK = (f, blend, decay, hit) => ({
+  osc: { osc: "white", env: FLAT(hit) },
   fx: comb(f, { blend, decay, damp: 0.05 }),
 });
 
 sound.make("hold", {
   osc: {
     osc: [
-      PLUCK(100, 1, 3),
-      { ...PLUCK(50, 0.5, 1), gain: 1.6 },
+      PLUCK(100, 1, 3, 0.01),
+      { ...PLUCK(50, 0.5, 1, 0.02), gain: 1.6 },
       { osc: "white", gain: 0.3, env: FLAT(0.1) },
     ],
     env: FLAT(0.1),
@@ -67,138 +68,375 @@ sound.make("hold", {
 });
 
 let world;
-let ropes;
-let player;
-let shot;
-let time;
 
-let path;
-let pathDir;
-let pathVel;
-// Free height left in each of eight columns across the path's width.
-let pathHorizon;
-
-let enemy;
-let enemyPath;
-let enemySpeed;
-let enemyPhase;
-let enemyStep;
-let enemyReset;
-// Rises by one every enemyReset steps, and enemyReset itself shortens.
-let enemyNatural;
-
-// A body's position as a point, which is what every vec call here wants.
-const at = (b) => ({ x: b.x, y: b.y });
-
-export function init() {
-  // The engine holds 32 worlds for the life of the page, so the last round has
-  // to release its slot.
-  world?.destroy();
-  world = new World({ gravity: { x: 0, y: 9.8 } });
-  world.presolve = presolve;
-
-  ropes = new Set();
-  shot = null;
-  time = 0;
-
-  path = [{ x: 0, y: -5 }];
-  pathDir = { x: 0, y: -1 };
-  pathVel = 0;
-  pathHorizon = [0, 0, 0, 0, 0, 0, 0, 0];
-
-  createPlayer();
-
-  // The opening handholds, so the first swing is always the same.
-  addRopeTwo({ x: -2, y: 0 }, { x: 2, y: 0 });
-  addRopeTwo({ x: -4, y: 2 }, { x: 4, y: 2 });
-  addRopeOne({ x: -3.5, y: -6 }, 5);
-  addRopeOne({ x: 0, y: -6 }, 4);
-  addRopeOne({ x: 3.5, y: -6 }, 5);
-
-  createEnemy();
-
-  camera.moveTo({ x: 0, y: 0, scale: 1024 / (VIEW * ZOOM) });
-}
-
-function createEnemy() {
-  enemyPath = 0;
-  enemyStep = 0;
-  enemyReset = 1000;
-  enemySpeed = 1;
-  enemyNatural = 0;
-  enemyPhase = 0;
-
-  // Kinematic, since it is moved by hand every step, and never asleep.
-  enemy = world.body({
-    y: 5 * ZOOM,
-    type: "kinematic",
-    canSleep: false,
-    data: "enemy",
-  });
-  // A wide, thin sensor bar, which only the head's category meets.
-  const dim = 6.5 * 4;
-  enemy.box({
-    w: 2 * dim,
-    h: dim / 4,
-    y: dim / 8,
-    sensor: true,
-    filter: { category: 8, mask: 8 },
+// The hard limit and the give in one joint: below `max` a spring at `hertz`
+// pulls toward `length`, and `max` is where it stops extending. At the default
+// 0 hertz the spring is off and the joint is a rope, which is the tail.
+function link(a, b, { max, length = max, hertz, damping, localB = [0, 0] }) {
+  return world.distance(a, b, {
+    localA: [0, 0],
+    localB,
+    length,
+    min: 0,
+    max,
+    spring: true,
+    hertz,
+    damping,
+    collide: false,
   });
 }
 
-// Head, two tail segments, two arms. Each arm is hand -> elbow -> head, with a
-// link() at each step.
-function createPlayer() {
-  player = {
-    arms: [
-      { hold: null, hand: null, joint: null, holder: null, holderTime: -1 },
-      { hold: null, hand: null, joint: null, holder: null, holderTime: -1 },
-    ],
-    onair: 0,
-    head: null,
-    body: [],
-    eye: { x: 0, y: 0 },
-    eyelook: { x: 0, y: 0 },
-    focuson: null,
-    pupil: 0,
-    blink: 0,
-    blinking: 1,
-    looking: 2,
-    breath: 0,
-  };
+// The hand and the rope of a contact between the two, or null.
+function handRope(a, b) {
+  if (b.data === "hand") [a, b] = [b, a];
+  return a.data === "hand" && b.data === "rope" ? [a, b] : null;
+}
 
-  const density = 1 / 10;
+// A hand holding something passes through rope, and so does one that just let
+// go: 300ms for the rope it left, 50ms for any other. Dropping the contact is
+// also what prevents the grab, since it never reaches hold().
+function presolve(fa, fb) {
+  const hit = handRope(fa.body, fb.body);
+  if (!hit) return true;
+  const [hand, rope] = hit;
 
-  player.head = world.body({ x: 0, y: 0, type: "dynamic", data: "head" });
-  // A category of its own, which only the saw's mask includes. A category of 0
-  // fails the broadphase query, so the saw would pass straight over the head.
-  player.head.circle({ r: 0.6, density, filter: { category: 8, mask: 8 } });
+  if (hand.hold !== null) return false;
+  if (hand.dropped === null) return true;
+  return time - hand.dropped > (hand.holder === rope.ent ? 0.3 : 0.05);
+}
 
-  let last = player.head;
-  for (let i = 0; i < 2; ++i) {
-    // box2d solves the length limit softly and returns the energy, so undamped
-    // the tail winds round the head at 5.2 turns a second, which the joint does
-    // not constrain. At a damping of 3 it winds 1.48 turns a second.
-    const o = world.body({ x: 0, y: i, type: "dynamic", damping: 3 });
-    o.radius = 0.4 - i * 0.2;
-    o.circle({
-      r: o.radius,
-      density,
-      sensor: true,
-      filter: { group: -1, category: 0 },
-    });
+function hold(contact) {
+  const hit = handRope(contact.a.body, contact.b.body);
+  if (!hit) return;
+  const [hand, rope] = hit;
+  if (hand.hold !== null) return;
 
-    link(last, o, { max: 1 - i * 0.4 });
-    last = o;
-    player.body.push(o);
+  const p = contact.points[0];
+  sound.play("hold", { detune: 800 * (2 * Math.random() - 1) });
+  hand.hold = world.distance(hand, rope, {
+    localA: [0, 0],
+    localB: rope.toLocal(p.x, p.y),
+    length: 0,
+    spring: true,
+    hertz: 10,
+    damping: 0.5,
+    collide: false,
+  });
+  hand.holder = rope.ent;
+  hand.dropped = null;
+}
+
+// The cave's centre line, grown a band at a time. `horizon` is the clear air
+// left in each of eight columns across the path's width, so bands never stack.
+class Cave extends ent.Entity {
+  constructor() {
+    super();
+    this.path = [{ x: 0, y: -5 }];
+    this.dir = { x: 0, y: -1 };
+    this.turning = 0;
+    this.horizon = [0, 0, 0, 0, 0, 0, 0, 0];
   }
 
-  let first = true;
-  for (const a of player.arms) {
-    const side = first ? -1 : 1;
-    first = false;
+  update() {
+    const head = ent.one(Player).head;
+    while (vec.distance(this.path.at(-1), head) <= REACH) this.grow();
+    if (this.path.length > START) score.value += ent.game.time;
+  }
 
-    a.hand = world.body({
+  // One band: a slice across the path's width in `divs` columns, each taking a
+  // rope across the band, one hanging off it, or nothing.
+  grow() {
+    const horizon = this.horizon;
+    const last = this.path.at(-1);
+    const step = VIEW / (4 + 2 * Math.random());
+    const next = vec.add(last, vec.mul(this.dir, step));
+
+    const length = VIEW + 7 * Math.random();
+    const yv = vec.mul(vec.normalize(this.dir), step);
+    const xv = vec.mul(vec.normalize(vec.perp(yv)), length);
+
+    // A turn moves the outside of the bend further than the inside.
+    let lastDir = vec.sub(last, this.path.at(-2) ?? last);
+    if (lastDir.x === 0 && lastDir.y === 0) lastDir = { x: 0, y: -1 };
+    const lastNorm = vec.mul(vec.normalize(vec.perp(lastDir)), length);
+
+    for (let i = 0; i < horizon.length; ++i) {
+      const p = i / horizon.length - 0.5;
+      const a = vec.add(yv, vec.mul(xv, p));
+      const b = vec.mul(lastNorm, p);
+      horizon[i] -= vec.distance(a, b) / step;
+    }
+
+    // Resampled down to this band's columns, keeping the worst case.
+    const divs = Math.floor(length / (2 + Math.random()));
+    const span = (i) => [
+      Math.floor(horizon.length * i / divs),
+      Math.ceil(horizon.length * (i + 1) / divs),
+    ];
+
+    const horiz = [];
+    for (let i = 0; i < divs; ++i) {
+      const [h0, h1] = span(i);
+      let max = -1;
+      for (let x = h0; x < h1; x++) max = Math.max(max, horizon[x]);
+      horiz.push(max);
+    }
+
+    // A column takes a rope once 0.4 of clear air has opened under it.
+    const space = [];
+    for (let i = 0; i < divs; ++i) {
+      if (horiz[i] > -0.4) space.push(null);
+      else space.push(Math.random() < 0.5 ? "line" : "hang");
+    }
+    const isLine = (i) => space[i] === "line";
+
+    // Never three across in a row, then drop some so the band stays climbable.
+    let cut = Math.max(1, divs - 4);
+    for (let i = 0; i < divs - 2; ++i) {
+      if (isLine(i) && isLine(i + 1) && isLine(i + 2)) {
+        space[i + 2] = null;
+        cut--;
+      }
+    }
+    for (let i = 0; i < cut; i++) {
+      space[Math.floor(divs * Math.random())] = null;
+    }
+
+    // How upright the path runs decides which kind comes out level. That one is
+    // pinned at both ends; the steep one hangs from its top.
+    const upright = Math.abs(vec.dot(vec.normalize(this.dir), { x: 0, y: -1 }));
+    const pinLine = upright >= 0.25;
+    const pinHang = upright <= 0.75;
+    const band = (x, y = 0) =>
+      vec.add(next, vec.add(vec.mul(xv, x / divs - 0.5), vec.mul(yv, y)));
+
+    for (let i = 0; i < divs; ++i) {
+      if (space[i] === "hang") {
+        const near = horiz[i] + 0.5;
+        const far = near + 0.75 + 1.5 * Math.random();
+        horiz[i] = far;
+        new Rope(band(i + 0.5, far), band(i + 0.5, near), pinHang);
+        continue;
+      }
+      if (!isLine(i)) continue;
+
+      // Two adjacent columns make one long rope instead of two short ones.
+      const end = isLine(i + 1) ? i + 1 : i;
+      for (let x = i; x <= end; x++) horiz[x] = 0;
+      new Rope(band(i), band(end + 1), pinLine);
+      i = end;
+    }
+
+    for (let i = 0; i < divs; ++i) {
+      const [h0, h1] = span(i);
+      for (let x = h0; x < h1; x++) {
+        horizon[x] = Math.max(horizon[x], horiz[i]);
+      }
+    }
+
+    this.path.push(next);
+
+    this.turning = clamp(this.turning + TURN * (Math.random() - 0.5), -TURN, TURN);
+    const turn = vec.mul(vec.normalize(vec.perp(this.dir)), this.turning);
+    this.dir = vec.normalize(vec.add(this.dir, turn));
+  }
+}
+
+// Bricks parallaxed back by BGZOOM, on a hash of the cell so nothing is stored.
+const BGZOOM = 4;
+const BGSEED = 1 + Math.random();
+
+class Bricks extends ent.Entity {
+  render(ctx) {
+    ctx.fillStyle = CAVE;
+
+    const half = 7.5 * ZOOM * BGZOOM;
+    const x0 = Math.round(camera.x - half);
+    const y0 = Math.round(camera.y - half);
+    const x1 = Math.round(camera.x + half);
+    const y1 = Math.round(camera.y + half);
+
+    for (let x = x0; x <= x1; x++) {
+      for (let y = y0; y <= y1; y++) {
+        const v = Math.floor(BGSEED * (x + y * x + y + x * x * y));
+        if (v % 346 !== 0) continue;
+
+        ctx.beginPath();
+        ctx.roundRect(
+          (x - camera.x) / BGZOOM + camera.x,
+          (y - camera.y) / BGZOOM + camera.y,
+          2,
+          1.24,
+          0.2,
+        );
+        ctx.fill();
+      }
+    }
+  }
+}
+
+// Links plus slack have to fit the span; if not, pull the ends in and retry.
+function fit(a, b) {
+  const len = vec.distance(a, b);
+  const diff = len - (Math.round(len) * 1.1 + 0.1);
+  if (diff <= -0.05) return [a, b];
+  const d = vec.mul(vec.normalize(vec.sub(b, a)), Math.max(diff, 0.05) / 2);
+  return fit(vec.add(a, d), vec.sub(b, d));
+}
+
+class Rope extends ent.Entity {
+  // A chain of one-metre links from a to b, pinned at the far end when `close`
+  // and hanging otherwise. Heaviest link first, so a rope does not whip.
+  constructor(from, to, close = true) {
+    super();
+    const [a, b] = fit(from, to);
+    const v = vec.normalize(vec.sub(b, a));
+    const n = vec.perp(v);
+    const parts = Math.round(vec.distance(a, b));
+
+    // A hanging rope starts pushed to one side, so it does not balance upright.
+    const dir = close || Math.random() < 0.5 ? 1 : -1;
+    const angle = vec.angle(v) - Math.PI / 2;
+
+    this.pos.x = a.x;
+    this.pos.y = a.y;
+    this.parts = [world.body(a)];
+
+    for (let i = 0; i < parts; ++i) {
+      const p = world.body({
+        x: a.x + v.x * (i + 1) + dir * n.x * 0.5,
+        y: a.y + v.y * (i + 1) + dir * n.y * 0.5,
+        angle,
+        type: "dynamic",
+        damping: 0.25,
+        data: "rope",
+      });
+      p.ent = this;
+      p.box({
+        w: 0.05,
+        h: 1,
+        y: -0.5,
+        density: 9.5 - i * 0.2,
+        filter: { group: -3, category: 4, mask: 4 },
+      });
+      this.parts.push(p);
+    }
+
+    if (close) this.parts.push(world.body(b));
+
+    for (let i = 0; i < this.parts.length - 1; ++i) {
+      // The last link meets the far anchor at its centre, not at its tip.
+      const tip = close && i === this.parts.length - 2 ? [0, 0] : [0, -1];
+      link(this.parts[i], this.parts[i + 1], {
+        max: 0.1,
+        hertz: 10,
+        damping: 0.5,
+        localB: tip,
+      });
+    }
+  }
+
+  update() {
+    const player = ent.one(Player);
+    if (vec.distance(this.parts[0], player.head) < CULL) return;
+    // A rope a hand still holds stays: destroying it leaves the arm pointing
+    // at a dead one.
+    if (player.hands.some((h) => h.hold?.b.ent === this)) return;
+    this.remove();
+  }
+
+  remove() {
+    for (const p of this.parts) p.destroy();
+    super.remove();
+  }
+
+  // _draw translated to pos, and the bodies are in world metres. The curve runs
+  // through the centres of mass, with the link origins as the controls.
+  render(ctx) {
+    ctx.translate(-this.pos.x, -this.pos.y);
+
+    const r = this.parts;
+    const end = r.at(-1);
+
+    ctx.strokeStyle = ROPE;
+    ctx.lineWidth = 0.1;
+    ctx.beginPath();
+    ctx.moveTo(r[0].x, r[0].y);
+    for (let i = 1; i < r.length; ++i) {
+      ctx.quadraticCurveTo(r[i - 1].x, r[i - 1].y, r[i].cx, r[i].cy);
+    }
+    ctx.lineTo(end.x, end.y);
+    ctx.stroke();
+
+    ctx.fillStyle = ANCHOR;
+    ctx.fillCircle(r[0].x, r[0].y, 0.2);
+    if (end.data !== "rope") ctx.fillCircle(end.x, end.y, 0.2);
+  }
+}
+
+const SHOULDER = 0.6;
+const WRIST = 0.15;
+
+// `ra` wide across a and `rb` across b, bent through c.
+function taper(ctx, a, ra, c, b, rb) {
+  const n = vec.normalize(vec.perp(vec.sub(b, a)));
+  ctx.beginPath();
+  ctx.moveTo(a.x + n.x * ra, a.y + n.y * ra);
+  ctx.quadraticCurveTo(c.x, c.y, b.x + n.x * rb, b.y + n.y * rb);
+  ctx.lineTo(b.x - n.x * rb, b.y - n.y * rb);
+  ctx.quadraticCurveTo(c.x, c.y, a.x - n.x * ra, a.y - n.y * ra);
+  ctx.closePath();
+}
+
+class Player extends ent.Entity {
+  constructor() {
+    super();
+    this.eye = { x: 0, y: 0 };
+    this.eyelook = { x: 0, y: 0 };
+    this.focuson = null;
+    this.onair = 0;
+    this.pupil = 0;
+    this.blink = 0;
+    this.blinking = 1;
+    this.looking = 2;
+    this.breath = 0;
+
+    const density = 1 / 10;
+
+    this.head = world.body({ x: 0, y: 0, type: "dynamic", data: "head" });
+    // A category of its own, which only the saw's mask includes. A category of
+    // 0 fails the broadphase query, so the saw would pass over the head.
+    this.head.circle({ r: 0.6, density, filter: { category: 8, mask: 8 } });
+    this.pos.x = this.head.x;
+    this.pos.y = this.head.y;
+
+    this.tail = [];
+    let last = this.head;
+    for (let i = 0; i < 2; ++i) {
+      // box2d solves the length limit softly and returns the energy, so
+      // undamped the tail winds round the head at 5.2 turns a second, which the
+      // joint does not constrain. At a damping of 3 it winds 1.48 a second.
+      const o = world.body({ x: 0, y: i, type: "dynamic", damping: 3 });
+      o.radius = 0.4 - i * 0.2;
+      o.circle({
+        r: o.radius,
+        density,
+        sensor: true,
+        filter: { group: -1, category: 0 },
+      });
+
+      link(last, o, { max: 1 - i * 0.4 });
+      last = o;
+      this.tail.push(o);
+    }
+
+    this.hands = [this.makeHand(-1), this.makeHand(1)];
+  }
+
+  // Hand to elbow to head, with a link() at each step. The hand carries its own
+  // state: the joint holding a rope, the rope it last held, and when it let go.
+  makeHand(side) {
+    const hand = world.body({
       x: 1.5 * side,
       y: -1,
       type: "dynamic",
@@ -210,730 +448,454 @@ function createPlayer() {
     // hand, and a tiny one for the pointer query. Only the solid one has mass,
     // since a sensor weighs what its density says. It is built first, because
     // box2d asserts on a massless body.
-    a.hand.circle({
+    hand.circle({
       r: 0.3,
       density: 1,
       preSolveEvents: true,
       filter: { category: 4, mask: 4 },
     });
-    a.hand.circle({ r: 0.8 * ZOOM, sensor: true, density: 0 });
-    a.hand.circle({ r: 0.1, density: 0, filter: { group: 3 } });
+    hand.circle({ r: 0.8 * ZOOM, sensor: true, density: 0 });
+    hand.circle({ r: 0.1, density: 0, filter: { group: 3 } });
 
-    a.joint = world.body({ x: side, y: -0.5, type: "dynamic" });
-    a.joint.circle({ r: 0.1, density: 0.1 });
+    hand.elbow = world.body({ x: side, y: -0.5, type: "dynamic" });
+    hand.elbow.circle({ r: 0.1, density: 0.1 });
 
-    for (const [x, y] of [[a.hand, a.joint], [a.joint, player.head]]) {
-      link(x, y, { max: 0.9, length: 0.85, hertz: 10, damping: 0.5 });
+    const give = { max: 0.9, length: 0.85, hertz: 10, damping: 0.5 };
+    link(hand, hand.elbow, give);
+    link(hand.elbow, this.head, give);
+
+    hand.hold = null;
+    hand.holder = null;
+    hand.dropped = null;
+    return hand;
+  }
+
+  update() {
+    const dt = ent.game.time;
+    this.pos.x = this.head.x;
+    this.pos.y = this.head.y;
+
+    this.breath = Math.sin(TAU * time * 0.12);
+    this.pupil = Math.cos(333 + TAU * time * 0.035);
+
+    this.blinking -= dt;
+    if (this.blinking <= 0 && this.blink === 0) {
+      act(this)
+        .attr("blink", 1, 0.15, ease.quadIn).then()
+        .attr("blink", 0, 0.15, ease.quadIn);
+      this.blinking = 2 + 8 * Math.random();
+    }
+
+    this.eye.x = lerp(this.eye.x, this.eyelook.x, 0.15);
+    this.eye.y = lerp(this.eye.y, this.eyelook.y, 0.15);
+
+    if (this.hands.every((h) => h.hold === null)) {
+      this.eyelook.x = this.eyelook.y = 0;
+      this.looking = 5 + Math.random();
+      this.onair += dt;
+      if (this.onair > 5) gameOver({ score: true });
+      return;
+    }
+    this.onair = 0;
+
+    // Watching holds the wander timer off, so the eye drifts only once both
+    // hands are on a rope and nothing is in flight.
+    const watch = ent.one(Throw)?.hand ??
+      this.hands.find((h) => h.hold === null);
+    if (watch) {
+      this.focuson = watch;
+      this.looking = 5 + Math.random();
+    }
+
+    this.looking -= dt;
+    if (this.looking <= 0) {
+      this.looking = 5 + 3 * Math.random();
+      this.eyelook.x = -1 + 2 * Math.random();
+      this.eyelook.y = -1 + 2 * Math.random();
+    } else if (this.focuson) {
+      const d = vec.normalize(vec.sub(this.focuson, this.head));
+      this.eyelook.x = d.x;
+      this.eyelook.y = d.y;
     }
   }
-}
 
-// The hard limit and the give in one joint: below `max` a spring at `hertz`
-// pulls toward `length`, and `max` is where it stops extending. At the default
-// 0 hertz the spring is off and the joint is a rope, which is the tail.
-function link(a, b, { max, length = max, hertz, damping, localB }) {
-  return world.distance(a, b, {
-    localA: [0, 0],
-    localB: localB ?? [0, 0],
-    length,
-    min: 0,
-    max,
-    spring: true,
-    hertz,
-    damping,
-    collide: false,
-  });
-}
+  postUpdate() {
+    const off = this.pos.x - camera.x;
+    const angle = Math.abs(off) < 1 ? 0 : -TAU * off / 40;
 
-// A chain of one-metre links from a to b. `close` pins the far end; an open
-// rope hangs. Links are heaviest-first so a rope does not whip.
-function addRopeTwo(a, b, close = true) {
-  const r = vec.sub(b, a);
-  const v = vec.normalize(r);
-  const n = vec.perp(v);
-  const len = vec.len(r);
-  const size = 1;
-  const parts = Math.round(len);
+    // approach()'s rates are per second: 3 is its default for the pan, and the
+    // lean follows slower. Slowing the pan loses the player.
+    const to = { x: this.pos.x, y: this.pos.y, angle };
+    camera.approach(to, ent.game.time, { angle: 2.45 });
+  }
 
-  // Links plus slack have to fit the span; if not, pull the ends in and retry.
-  let diff = len - (parts * (size + 0.1) + 0.1);
-  if (diff > -0.05) {
-    diff = Math.max(diff, 0.05);
-    return addRopeTwo(
-      vec.add(a, vec.mul(v, diff / 2)),
-      vec.add(b, vec.mul(v, -diff / 2)),
-      close,
+  // _draw translated to pos, and the bodies are in world metres.
+  render(ctx) {
+    ctx.translate(-this.pos.x, -this.pos.y);
+
+    ctx.fillStyle = BODY;
+    for (const hand of this.hands) {
+      taper(ctx, hand, WRIST, hand.elbow, this.head, SHOULDER);
+      ctx.fill();
+    }
+
+    ctx.fillStyle = SKIN;
+    for (const hand of this.hands) {
+      ctx.fillCircle(hand.x, hand.y, hand.hold ? 0.22 : 0.3);
+    }
+
+    this.renderTail(ctx);
+    this.renderHead(ctx);
+  }
+
+  // Not a taper(): the tip turns with the tail while the head end stays square
+  // to the neck, so each end has its own normal and control, and the tip is
+  // capped.
+  renderTail(ctx) {
+    const h = this.head;
+    const tip = this.tail[1];
+    const r = tip.radius;
+
+    // The middle is pulled back so it cannot fold through the head.
+    const mid = vec.lerp(h, tip, 0.5);
+    const m = vec.add(mid, vec.clamp(vec.sub(this.tail[0], mid), 0, 0.3));
+
+    const nh = vec.normalize(vec.perp(vec.sub(h, m)));
+    const along = vec.normalize(vec.sub(m, tip));
+    const nt = vec.perp(along);
+
+    ctx.fillStyle = BODY;
+    ctx.beginPath();
+    ctx.moveTo(tip.x - nt.x * r, tip.y - nt.y * r);
+    ctx.quadraticCurveTo(
+      m.x - nt.x * 0.3,
+      m.y - nt.y * 0.3,
+      h.x - nh.x * SHOULDER,
+      h.y - nh.y * SHOULDER,
     );
+    ctx.lineTo(h.x + nh.x * SHOULDER, h.y + nh.y * SHOULDER);
+    ctx.quadraticCurveTo(
+      m.x + nt.x * 0.3,
+      m.y + nt.y * 0.3,
+      tip.x + nt.x * r,
+      tip.y + nt.y * r,
+    );
+    ctx.arcTo(
+      tip.x - along.x * r * 5,
+      tip.y - along.y * r * 5,
+      tip.x - nt.x * r,
+      tip.y - nt.y * r,
+      r,
+    );
+    ctx.closePath();
+    ctx.fill();
   }
 
-  const ang = vec.angle(v) - Math.PI / 2;
-  const obj = [];
+  // Drawn in the same 38-unit space trap uses, then scaled down to metres.
+  renderHead(ctx) {
+    ctx.save();
+    ctx.translate(this.head.x, this.head.y);
+    ctx.scale(0.45 / 38, 0.45 / 38);
 
-  const ha = world.body(a);
-  obj.push(ha);
+    ctx.fillStyle = BODY;
+    ctx.fillCircle(0, 0, 51 + this.breath);
+    ctx.fillStyle = WHITE;
+    ctx.fillCircle(0, 0, 38);
 
-  // A hanging rope starts pushed to one side, so it does not balance upright.
-  const dir = close ? 1 : Math.sign(2 * Math.random() - 1);
-  for (let i = 0; i < parts; ++i) {
-    const p = world.body({
-      x: a.x + v.x * size * (i + 1) + dir * n.x * 0.5,
-      y: a.y + v.y * size * (i + 1) + dir * n.y * 0.5,
-      angle: ang,
-      type: "dynamic",
-      damping: 0.25,
-      data: "rope",
-    });
-    p.parent = obj;
-    p.box({
-      w: 0.05,
-      h: size,
-      y: -size / 2,
-      density: 9.5 - i * 0.2,
-      filter: { group: -3, category: 4, mask: 4 },
-    });
-    obj.push(p);
-  }
+    const ER = 16;
+    const rb = 20.5 - this.pupil;
+    const rx = rb - 5 * vec.len(this.eye);
+    const ang = vec.angle(this.eye);
 
-  if (close) obj.push(world.body(b));
+    ctx.fillStyle = IRIS;
+    ctx.beginPath();
+    ctx.ellipse(this.eye.x * ER, this.eye.y * ER, rx, rb, ang, 0, TAU);
+    ctx.fill();
 
-  for (let i = 0; i < obj.length - 1; ++i) {
-    // The last link meets the far anchor at its centre, not at its tip.
-    const tip = close && i === obj.length - 2 ? [0, 0] : [0, -size];
-    link(obj[i], obj[i + 1], {
-      max: 0.1,
-      hertz: 10,
-      damping: size / 2,
-      localB: tip,
-    });
-  }
+    const f = Math.sin((vec.len(this.eye) / Math.SQRT2) * Math.PI / 2) ** 2;
+    const ff = 4 + 2 * f;
+    const d = rb / 4 + (rb / 10) * f;
+    ctx.fillStyle = WHITE;
+    ctx.beginPath();
+    ctx.ellipse(
+      this.eye.x * ER - d,
+      this.eye.y * ER - d,
+      rx / ff,
+      rb / ff,
+      ang,
+      0,
+      TAU,
+    );
+    ctx.fill();
 
-  ropes.add(obj);
-  return obj;
-}
-
-function addRopeOne(a, length = 5) {
-  return addRopeTwo(a, { x: a.x, y: a.y + length }, false);
-}
-
-// Extends the path a band at a time. Each band is a slice across the path's
-// width in `divs` columns; a column gets a horizontal rope, a hanging one, or
-// nothing. pathHorizon is the clear air left per column, so bands never stack.
-function stepPath() {
-  const here = at(player.head);
-  const last = path[path.length - 1];
-  if (vec.len(vec.sub(last, here)) > REACH) return;
-
-  const step = VIEW / (4 + 2 * Math.random());
-  const next = vec.add(last, vec.mul(pathDir, step));
-
-  const length = VIEW + 7 * Math.random();
-  const yv = vec.mul(vec.normalize(pathDir), step);
-  const xv = vec.mul(vec.normalize(vec.perp(yv)), length);
-
-  // A turn moves the outside of the bend further than the inside.
-  let lastDir = vec.sub(last, path[path.length - 2] ?? last);
-  if (lastDir.x === 0 && lastDir.y === 0) lastDir = { x: 0, y: -1 };
-  const lastNorm = vec.mul(vec.normalize(vec.perp(lastDir)), length);
-
-  for (let i = 0; i < pathHorizon.length; ++i) {
-    const p = (2 * (i / pathHorizon.length) - 1) / 2;
-    const a = vec.add(yv, vec.mul(xv, p));
-    const b = vec.mul(lastNorm, p);
-    pathHorizon[i] -= vec.len(vec.sub(a, b)) / step;
-  }
-
-  // Resample the horizon down to this band's columns, keeping the worst case.
-  const divs = Math.floor(length / (2 + Math.random()));
-  const horiz = [];
-  for (let i = 0; i < divs; ++i) {
-    const h0 = Math.floor(pathHorizon.length * i / divs);
-    const h1 = Math.ceil(pathHorizon.length * (i + 1) / divs);
-    let max = -1;
-    for (let x = h0; x < h1; x++) max = Math.max(max, pathHorizon[x] ?? -1);
-    horiz.push(max);
-  }
-
-  // true: horizontal rope. false: hanging. null: empty.
-  const space = [];
-  for (let i = 0; i < divs; ++i) {
-    if (horiz[i] > -0.4) {
-      space.push(null);
-      continue;
-    }
-    const opts = [true];
-    if (horiz[i] < 0.25) opts.push(false);
-    space[i] = opts[Math.floor(opts.length * Math.random())];
-  }
-
-  // Never three horizontal in a row, then remove some so the band is climbable.
-  let cut = Math.max(1, divs - 4);
-  for (let i = 0; i < divs - 2; ++i) {
-    if (space[i] === true && space[i + 1] === true && space[i + 2] === true) {
-      space[i + 2] = null;
-      cut--;
-    }
-  }
-  for (let i = 0; i < cut; i++) {
-    space[Math.floor(divs * Math.random())] = null;
-  }
-
-  const line = [];
-  const norm = [];
-  for (let idx = 0; idx < divs; ++idx) {
-    if (space[idx] === null) continue;
-
-    if (space[idx] === false) {
-      const height = 0.75 + 1.5 * Math.random();
-      const end = horiz[idx] + 0.5;
-      norm.push([idx, end + height, end]);
-      horiz[idx] = end + height;
-      continue;
+    if (this.blink > 0) {
+      ctx.fillStyle = BODY;
+      ctx.beginPath();
+      ctx.arc(0, 0, 39, Math.PI, TAU);
+      if (this.blink < 0.5) {
+        ctx.ellipse(0, 0, 39, lerp(39, 0, this.blink * 2), 0, 0, Math.PI, true);
+      } else {
+        ctx.ellipse(0, 0, 39, lerp(0, 39, (this.blink - 0.5) * 2), 0, 0, Math.PI);
+      }
+      ctx.fill();
     }
 
-    // Two adjacent columns make one long rope instead of two short ones.
-    if (space[idx + 1] === true) {
-      horiz[idx] = horiz[idx + 1] = 0;
-      line.push([idx, idx + 1]);
-      idx++;
-    } else {
-      horiz[idx] = 0;
-      line.push([idx, idx]);
+    ctx.restore();
+  }
+}
+
+// The pull is backwards: dragging one way throws the hand the other. `hand` is
+// null between throws, and the entity outlives each one.
+class Throw extends ent.Entity {
+  constructor() {
+    super();
+    this.hand = null;
+    this.target = { x: 0, y: 0 };
+  }
+
+  update() {
+    const input = ent.game.input;
+    if (this.hand === null) {
+      if (input.just.act) this.grab();
+      return;
     }
-  }
-
-  // Whichever kind runs along the path is pinned at both ends.
-  const direc = Math.abs(vec.dot(vec.normalize(pathDir), { x: 0, y: -1 }));
-  const lineclose = direc >= 0.25;
-  const normclose = direc <= 0.75;
-
-  for (const [idx, y0, y1] of norm) {
-    const x = (idx + 0.5) / divs - 0.5;
-    const at = (y) => vec.add(next, vec.add(vec.mul(xv, x), vec.mul(yv, y)));
-    addRopeTwo(at(y0), at(y1), normclose);
-  }
-
-  for (const [a, b] of line) {
-    const at = (x) => vec.add(next, vec.mul(xv, x / divs - 0.5));
-    addRopeTwo(at(a), at(b + 1), lineclose);
-  }
-
-  for (let i = 0; i < divs; ++i) {
-    const h0 = Math.floor(pathHorizon.length * i / divs);
-    const h1 = Math.ceil(pathHorizon.length * (i + 1) / divs);
-    for (let x = h0; x <= h1; x++) {
-      pathHorizon[x] = Math.max(pathHorizon[x] ?? 0, horiz[i]);
+    if (input.press.act) {
+      this.drag();
+      return;
     }
+    this.release();
   }
 
-  path.push(next);
+  // The hand under the pointer, unless it is loose and moving fast.
+  grab() {
+    const p = ent.game.input;
 
-  const MAXV = 0.1;
-  pathVel = clamp(pathVel + MAXV * (2 * Math.random() - 1) * 0.5, -MAXV, MAXV);
-  const n = vec.mul(vec.normalize(vec.perp(pathDir)), pathVel);
-  pathDir = vec.normalize(vec.add(pathDir, n));
-
-  stepPath();
-}
-
-function updateMap() {
-  const pos = at(player.head);
-  stepPath();
-
-  for (const r of ropes) {
-    if (vec.len(vec.sub(at(r[0]), pos)) < CULL) continue;
-    // A rope a hand still holds stays: destroying it leaves the arm pointing
-    // at a dead one.
-    if (player.arms.some((a) => a.hold && r.includes(a.hold.b))) continue;
-    for (const x of r) x.destroy();
-    ropes.delete(r);
-  }
-}
-
-function pair(a, b, first, second) {
-  const x = a.data === first ? a : b.data === first ? b : null;
-  const y = a.data === second ? a : b.data === second ? b : null;
-  return x && y ? [x, y] : null;
-}
-
-function armOf(hand) {
-  return player.arms[0].hand === hand ? player.arms[0] : player.arms[1];
-}
-
-// A hand holding something passes through rope, and so does one that just let
-// go: 300ms for the rope it left, 50ms for any other. Dropping the contact is
-// also what prevents the grab, since it never reaches begin().
-function presolve(fa, fb) {
-  const hit = pair(fa.body, fb.body, "hand", "rope");
-  if (!hit) return true;
-  const [hand, rope] = hit;
-
-  const arm = armOf(hand);
-  if (arm.hold !== null) return false;
-  if (arm.holderTime === -1) return true;
-
-  const delta = performance.now() - arm.holderTime;
-  const grace = arm.holder === rope.parent ? 300 : 50;
-  return delta > grace;
-}
-
-function begin(contact) {
-  const hit = pair(contact.a.body, contact.b.body, "hand", "rope");
-  if (!hit) return;
-  const [hand, rope] = hit;
-
-  const arm = armOf(hand);
-  if (arm.hold !== null) return;
-
-  const p = contact.points[0];
-  sound.play("hold", { detune: 800 * (2 * Math.random() - 1) });
-  arm.hold = world.distance(hand, rope, {
-    localA: [0, 0],
-    localB: rope.toLocal(p.x, p.y),
-    length: 0,
-    spring: true,
-    hertz: 10,
-    damping: 0.5,
-    collide: false,
-  });
-  arm.holder = rope.parent;
-  arm.holderTime = -1;
-}
-
-function updatePlayer(dt) {
-  player.breath = Math.sin(TAU * time * 0.12);
-  player.pupil = Math.cos(333 + TAU * time * 0.035);
-
-  player.blinking -= dt;
-  if (player.blinking <= 0 && player.blink === 0) {
-    act(player)
-      .attr("blink", 1, 0.15, ease.quadIn).then()
-      .attr("blink", 0, 0.15, ease.quadIn);
-    player.blinking = 2 + 8 * Math.random();
-  }
-
-  player.eye.x = lerp(player.eye.x, player.eyelook.x, 0.15);
-  player.eye.y = lerp(player.eye.y, player.eyelook.y, 0.15);
-
-  // Holding nothing: look straight ahead and start the fall timer.
-  if (player.arms[0].hold === null && player.arms[1].hold === null) {
-    player.eyelook.x = player.eyelook.y = 0;
-    player.looking = 5 + Math.random();
-    player.onair += dt;
-    if (player.onair > 5) gameOver({ score: true });
-    return;
-  }
-  player.onair = 0;
-
-  const free = player.arms[0].hold ? player.arms[1] : player.arms[0];
-  if (free.hold === null) {
-    player.focuson = free.hand;
-    player.looking = 5 + Math.random();
-  }
-  if (shot !== null) {
-    player.focuson = shot.hand;
-    player.looking = 5 + Math.random();
-  }
-
-  player.looking -= dt;
-  if (player.looking <= 0) {
-    player.looking = 5 + 3 * Math.random();
-    player.eyelook.x = -1 + 2 * Math.random();
-    player.eyelook.y = -1 + 2 * Math.random();
-  } else if (player.focuson) {
-    const d = vec.normalize(vec.sub(at(player.focuson), at(player.head)));
-    player.eyelook.x = d.x;
-    player.eyelook.y = d.y;
-  }
-}
-
-function updateCamera(dt) {
-  const p = at(player.head);
-
-  const ang = TAU * -(p.x - camera.x) / 40;
-  const angle = Math.abs(ang) < TAU / 40 ? 0 : ang;
-
-  // approach()'s rates are per second: 3 is its default for the pan, and the
-  // lean follows slower. Slowing the pan loses the player.
-  camera.approach({ x: p.x, y: p.y, angle }, dt, { angle: 2.45 });
-}
-
-// The pull is backwards: dragging one way throws the hand the other.
-function updateShot() {
-  if (input.just.act) {
-    const p = camera.toWorld(input.x, input.y);
-
-    let hand = null;
+    let best = null;
     let dist = Infinity;
     for (const f of world.pick(p.x, p.y)) {
       const b = f.body;
       if (b.data !== "hand") continue;
-      if (!armOf(b).hold && vec.len({ x: b.vx, y: b.vy }) > 5) continue;
+      if (!b.hold && Math.hypot(b.vx, b.vy) > 5) continue;
 
-      const d = vec.len(vec.sub(p, at(b)));
-      if (d < dist) {
-        hand = b;
-        dist = d;
-      }
+      const d = vec.distance(p, b);
+      if (d >= dist) continue;
+      best = b;
+      dist = d;
     }
 
-    // Metres, like every other point here: a target in 1024-space would be a
-    // 600 metre drag.
-    if (hand !== null) shot = { hand, offset: 0, target: at(hand) };
+    if (best === null) return;
+    this.hand = best;
+    this.drag();
   }
 
-  if (!shot) return;
-  shot.offset += 1;
-
-  if (input.press.act) {
-    const p = camera.toWorld(input.x, input.y);
-    const o = at(shot.hand);
-    shot.target = vec.add(o, vec.clamp(vec.sub(p, o), 0, 3));
-    return;
+  drag() {
+    const pull = vec.clamp(vec.sub(ent.game.input, this.hand), 0, 3);
+    this.target = vec.add(this.hand, pull);
+    this.pos.x = this.hand.x;
+    this.pos.y = this.hand.y;
+    this.angle = vec.angle(pull);
   }
 
-  if (!input.release.act) return;
+  release() {
+    const hand = this.hand;
+    this.hand = null;
 
-  const p = at(shot.hand);
-  const v = vec.sub(p, shot.target);
-  const l = vec.len(v);
-  // Too short a drag is a tap, not a throw.
-  if (l < 1) {
-    shot = null;
-    return;
-  }
+    const v = vec.sub(hand, this.target);
+    const l = vec.len(v);
+    // Too short a drag is a tap, not a throw.
+    if (l < 1) return;
 
-  const arm = armOf(shot.hand);
-  if (arm.hold) {
-    arm.hold.destroy();
-    arm.holderTime = performance.now();
-    arm.hold = null;
-  }
-  const f = vec.mul(v, 50 * l);
-  shot.hand.push(f.x, f.y);
-  shot = null;
-}
-
-// Speeds up over time, and sprints if the player gets too far ahead.
-function updateEnemy() {
-  enemyPhase = (enemyPhase + 1) % TEETH_PHASE;
-  if (enemyPath >= path.length || path.length <= 12) return;
-
-  const here = path[enemyPath];
-  const last = path[enemyPath - 1] ?? { x: 0, y: 0 };
-  const target = {
-    x: here.x,
-    y: here.y,
-    angle: vec.angle(vec.sub(here, last)) + TAU / 4,
-  };
-
-  const p = at(enemy);
-  const mv = 0.001 * enemySpeed;
-  const full = vec.sub(target, p);
-  const next = vec.add(p, vec.clamp(full, -mv, mv));
-
-  const a = enemy.angle;
-  let da = (target.angle - a + Math.PI) % TAU - Math.PI;
-  if (da < -Math.PI) da += TAU;
-  enemy.moveTo(next.x, next.y, a + clamp(da, -0.0035, 0.0035));
-
-  if (vec.len(full) < 0.001) enemyPath++;
-
-  if (++enemyStep > enemyReset) {
-    enemyStep -= enemyReset;
-    enemyReset = Math.max(300, enemyReset * 0.9);
-    enemyNatural++;
-  }
-
-  const away = vec.len(vec.sub(at(player.head), p));
-  enemySpeed = away > 20 ? 100 : enemyNatural;
-}
-
-export function update(dt) {
-  time += dt;
-
-  // The saw shares the physics clock, so its speeds are per-step. Events are
-  // read inside the loop, since a step clears the one before it.
-  fixed(60, (h) => {
-    world.step(h);
-    for (const c of world.began) begin(c);
-    for (const s of world.sensorBegan) {
-      if (s.visitor.body.data === "head") gameOver({ score: true });
+    if (hand.hold) {
+      hand.hold.destroy();
+      hand.hold = null;
+      hand.dropped = time;
     }
-    updateEnemy();
-  });
-
-  if (path.length > 12) score.value += dt;
-
-  updatePlayer(dt);
-  updateCamera(dt);
-  updateShot();
-  updateMap();
-}
-
-export function render(ctx) {
-  ctx.fillStyle = CAVE;
-  ctx.fillRect(0, 0, 1024, 1024);
-
-  camera.apply(ctx);
-
-  // The camera rotates, so clip to the square it covers: outside is cave wall.
-  const d = 1024 / camera.scale;
-  const x = camera.x - d / 2;
-  const y = camera.y - d / 2;
-  ctx.fillStyle = meta.bg;
-  ctx.fillRect(x, y, d, d);
-  ctx.beginPath();
-  ctx.rect(x, y, d, d);
-  ctx.clip();
-
-  renderBG(ctx);
-  for (const r of ropes) renderRope(ctx, r);
-  renderPlayer(ctx);
-  renderShot(ctx);
-  renderEnemy(ctx);
-}
-
-// Bricks parallaxed back by BGZOOM, on a hash of the cell so nothing is stored.
-const BGZOOM = 4;
-const BGSEED = 1 + Math.random();
-
-function renderBG(ctx) {
-  ctx.fillStyle = CAVE;
-
-  const half = 7.5 * ZOOM * BGZOOM;
-  const x0 = Math.round(camera.x - half);
-  const y0 = Math.round(camera.y - half);
-  const x1 = Math.round(camera.x + half);
-  const y1 = Math.round(camera.y + half);
-
-  for (let x = x0; x <= x1; x++) {
-    for (let y = y0; y <= y1; y++) {
-      const v = Math.floor(BGSEED * (x + y * x + y + x * x * y));
-      if (v % 346 !== 0) continue;
-
-      ctx.beginPath();
-      ctx.roundRect(
-        (x - camera.x) / BGZOOM + camera.x,
-        (y - camera.y) / BGZOOM + camera.y,
-        2,
-        1.24,
-        0.2,
-      );
-      ctx.fill();
-    }
+    const f = vec.mul(v, 50 * l);
+    hand.push(f.x, f.y);
   }
-}
 
-function renderRope(ctx, r) {
-  let prev = at(r[0]);
+  // _draw put the hand at the origin and the target on +x.
+  render(ctx) {
+    if (this.hand === null) return;
 
-  ctx.strokeStyle = ROPE;
-  ctx.lineWidth = 0.1;
-  ctx.beginPath();
-  for (const p of r) {
-    ctx.quadraticCurveTo(prev.x, prev.y, p.cx, p.cy);
-    prev = at(p);
-  }
-  ctx.lineTo(prev.x, prev.y);
-  ctx.stroke();
+    const len = vec.distance(this.target, this.hand);
+    const BR = 0.4;
+    const SR = 0.05;
 
-  ctx.fillStyle = ANCHOR;
-  ctx.fillCircle(r[0].x, r[0].y, 0.2);
-
-  const end = r[r.length - 1];
-  if (end.data !== "rope") ctx.fillCircle(end.x, end.y, 0.2);
-}
-
-const BIGARM = 0.6;
-const SMALLARM = 0.15;
-
-function renderPlayer(ctx) {
-  const h = at(player.head);
-
-  // Tapered, wide at the shoulder and narrow at the hand, bent at the elbow.
-  ctx.fillStyle = BODY;
-  for (const arm of player.arms) {
-    const p = at(arm.hand);
-    const j = at(arm.joint);
-    const n = vec.normalize(vec.perp(vec.sub(h, p)));
+    ctx.strokeStyle = SAW;
+    ctx.lineWidth = 0.075;
+    ctx.setLineDash([0.2, 0.2]);
+    ctx.lineDashOffset = this.age * 0.4; // one dash period a second
 
     ctx.beginPath();
-    ctx.moveTo(p.x + n.x * SMALLARM, p.y + n.y * SMALLARM);
-    ctx.quadraticCurveTo(j.x, j.y, h.x + n.x * BIGARM, h.y + n.y * BIGARM);
-    ctx.lineTo(h.x - n.x * BIGARM, h.y - n.y * BIGARM);
-    ctx.quadraticCurveTo(j.x, j.y, p.x - n.x * SMALLARM, p.y - n.y * SMALLARM);
-    ctx.fill();
+    ctx.moveTo(len, -SR);
+    ctx.arcTo(len + 10, 0, len, SR, SR);
+    ctx.lineTo(0, BR);
+    ctx.arcTo(-10, 0, 0, -BR, BR);
+    ctx.closePath();
+    ctx.stroke();
   }
-
-  ctx.fillStyle = SKIN;
-  for (const arm of player.arms) {
-    ctx.fillCircle(arm.hand.x, arm.hand.y, arm.hold ? 0.22 : 0.3);
-  }
-
-  // The first segment is pulled back so it cannot fold through the head.
-  const b = player.body[1];
-  const p = at(b);
-  const mid = vec.mul(vec.add(h, p), 0.5);
-  const m = vec.add(mid, vec.clamp(vec.sub(at(player.body[0]), mid), 0, 0.3));
-
-  const nm = vec.normalize(vec.perp(vec.sub(h, m)));
-  const v = vec.sub(m, p);
-  const vn = vec.normalize(v);
-  const n = vec.normalize(vec.perp(v));
-  const j1 = vec.add(m, vec.mul(n, 0.3));
-  const j2 = vec.add(m, vec.mul(n, -0.3));
-
-  ctx.fillStyle = BODY;
-  ctx.beginPath();
-  ctx.moveTo(p.x - n.x * b.radius, p.y - n.y * b.radius);
-  ctx.quadraticCurveTo(j2.x, j2.y, h.x - nm.x * 0.6, h.y - nm.y * 0.6);
-  ctx.lineTo(h.x + nm.x * 0.6, h.y + nm.y * 0.6);
-  ctx.quadraticCurveTo(j1.x, j1.y, p.x + n.x * b.radius, p.y + n.y * b.radius);
-  ctx.arcTo(
-    p.x - vn.x * b.radius * 5,
-    p.y - vn.y * b.radius * 5,
-    p.x - n.x * b.radius,
-    p.y - n.y * b.radius,
-    b.radius,
-  );
-  ctx.closePath();
-  ctx.fill();
-
-  renderHead(ctx, h);
-}
-
-// Drawn in the same 38-unit space trap uses, then scaled down to metres.
-function renderHead(ctx, h) {
-  ctx.save();
-  ctx.translate(h.x, h.y);
-  ctx.scale(0.45 / 38, 0.45 / 38);
-
-  ctx.fillStyle = BODY;
-  ctx.fillCircle(0, 0, 51 + player.breath);
-  ctx.fillStyle = WHITE;
-  ctx.fillCircle(0, 0, 38);
-
-  const ER = 16;
-  const rb = 20.5 - player.pupil;
-  const rx = rb - 5 * vec.len(player.eye);
-  const ang = vec.angle(player.eye);
-
-  ctx.fillStyle = IRIS;
-  ctx.beginPath();
-  ctx.ellipse(player.eye.x * ER, player.eye.y * ER, rx, rb, ang, 0, TAU);
-  ctx.fill();
-
-  const f = Math.sin((vec.len(player.eye) / Math.SQRT2) * Math.PI / 2) ** 2;
-  const ff = 4 + 2 * f;
-  const d = rb / 4 + (rb / 10) * f;
-  ctx.fillStyle = WHITE;
-  ctx.beginPath();
-  ctx.ellipse(
-    player.eye.x * ER - d,
-    player.eye.y * ER - d,
-    rx / ff,
-    rb / ff,
-    ang,
-    0,
-    TAU,
-  );
-  ctx.fill();
-
-  if (player.blink > 0) {
-    ctx.fillStyle = BODY;
-    ctx.beginPath();
-    ctx.arc(0, 0, 39, Math.PI, TAU);
-    if (player.blink < 0.5) {
-      ctx.ellipse(0, 0, 39, lerp(39, 0, player.blink * 2), 0, 0, Math.PI, true);
-    } else {
-      ctx.ellipse(0, 0, 39, lerp(0, 39, (player.blink - 0.5) * 2), 0, 0, Math.PI);
-    }
-    ctx.fill();
-  }
-
-  ctx.restore();
-}
-
-function renderShot(ctx) {
-  if (!shot) return;
-
-  const p = at(shot.hand);
-  const t = vec.sub(shot.target, p);
-  const v = vec.normalize(t);
-  const n = vec.perp(v);
-
-  ctx.save();
-  ctx.translate(p.x, p.y);
-  ctx.strokeStyle = SAW;
-  ctx.lineWidth = 0.075;
-  ctx.setLineDash([0.2, 0.2]);
-  ctx.lineDashOffset = shot.offset / 150;
-
-  const BR = 0.4;
-  const SR = 0.05;
-  ctx.beginPath();
-  ctx.moveTo(t.x - n.x * SR, t.y - n.y * SR);
-  ctx.arcTo(t.x + 10 * v.x, t.y + 10 * v.y, t.x + n.x * SR, t.y + n.y * SR, SR);
-  ctx.lineTo(BR * n.x, BR * n.y);
-  ctx.arcTo(-10 * v.x, -10 * v.y, -BR * n.x, -BR * n.y, BR);
-  ctx.closePath();
-  ctx.stroke();
-
-  ctx.setLineDash([]);
-  ctx.restore();
 }
 
 const TEETH = 20;
 const TEETH_PHASE = 50;
+const TOOTH = 1;
+const TOOTH_UP = TOOTH / 3;
 
-// An infinite line, so draw only the span crossing the view.
-function renderEnemy(ctx) {
-  const pos = at(enemy);
-  const dir = vec.rotate({ x: 1, y: 0 }, enemy.angle);
-  const centre = { x: camera.x, y: camera.y };
+// The shortest way round to an angle.
+const wrap = (a) => a - TAU * Math.round(a / TAU);
 
-  const half = 1024 / camera.scale / 2;
-  const b = half * Math.SQRT2;
-  if (distanceLinePoint(pos, dir, centre) > b) return;
+class Saw extends ent.Entity {
+  constructor() {
+    super();
+    // Kinematic, since it is moved by hand every step, and never asleep.
+    this.body = world.body({ y: 5 * ZOOM, type: "kinematic", canSleep: false });
+    // A sensor filling the space behind the line the teeth ride, wider than the
+    // view, and a category only the head's mask includes.
+    const depth = 6.5;
+    this.body.box({
+      w: 52,
+      h: depth,
+      y: depth / 2,
+      sensor: true,
+      filter: { category: 8, mask: 8 },
+    });
 
-  const adv = projectPointLine(pos, dir, centre);
-  const best = vec.add(pos, vec.mul(dir, adv));
-  const p0 = vec.add(best, vec.mul(dir, -b));
-  const p1 = vec.add(best, vec.mul(dir, b));
-  const other = vec.perp(dir);
-  const p2 = vec.add(p1, vec.mul(other, half * 2));
-  const p3 = vec.add(p0, vec.mul(other, half * 2));
-
-  const size = b * 2 / (TEETH - 1);
-  const h = 1;
-  // Anchored to the world, so the teeth do not drift as the view moves.
-  const dd = size * (-enemyPhase / TEETH_PHASE) - (adv % size);
-  const a0 = vec.add(vec.add(p0, vec.mul(other, h / 3)), vec.mul(dir, dd));
-  const b0 = vec.add(p1, vec.mul(other, h / 3));
-
-  ctx.fillStyle = SAW;
-  ctx.beginPath();
-  ctx.moveTo(a0.x, a0.y);
-  for (let i = 0; i < TEETH; ++i) {
-    const a = vec.add(a0, vec.mul(dir, size * i));
-    const m = vec.add(a0, vec.mul(dir, size * (i + 0.5)));
-    const u = vec.add(m, vec.mul(other, -h));
-    const c = vec.add(a0, vec.mul(dir, size * (i + 1)));
-    ctx.lineTo(a.x, a.y);
-    ctx.lineTo(u.x, u.y);
-    ctx.lineTo(c.x, c.y);
+    this.at = 0;
+    this.phase = 0;
+    // The pace rises by one every `wait` steps, and `wait` itself shortens.
+    this.pace = 0;
+    this.wait = 1000;
+    this.since = 0;
   }
-  ctx.lineTo(b0.x, b0.y);
-  ctx.lineTo(p2.x, p2.y);
-  ctx.lineTo(p3.x, p3.y);
-  ctx.fill();
+
+  // One physics step, since every rate here is per step and not per second.
+  step() {
+    this.phase = (this.phase + 1) % TEETH_PHASE;
+
+    const path = ent.one(Cave).path;
+    if (path.length <= START || this.at >= path.length) return;
+
+    const body = this.body;
+    const here = path[this.at];
+    const last = path[this.at - 1] ?? { x: 0, y: 0 };
+
+    // It sprints if the player gets too far ahead.
+    const away = vec.distance(ent.one(Player).head, body);
+    const reach = 0.001 * (away > 20 ? 100 : this.pace);
+    const full = vec.sub(here, body);
+    const next = vec.add(body, vec.clamp(full, 0, reach));
+
+    const aim = vec.angle(vec.sub(here, last)) + TAU / 4;
+    const turn = clamp(wrap(aim - body.angle), -0.0035, 0.0035);
+    body.moveTo(next.x, next.y, body.angle + turn);
+
+    if (vec.len(full) < 0.001) this.at++;
+
+    if (++this.since > this.wait) {
+      this.since -= this.wait;
+      this.wait = Math.max(300, this.wait * 0.9);
+      this.pace++;
+    }
+  }
+
+  update() {
+    this.pos.x = this.body.x;
+    this.pos.y = this.body.y;
+    this.angle = this.body.angle;
+  }
+
+  // An infinite line, so only the span crossing the view is drawn. _draw put
+  // the line on the x axis with the filled side at +y.
+  render(ctx) {
+    const half = 1024 / camera.scale / 2;
+    const b = half * Math.SQRT2;
+
+    const view = vec.rotate(vec.sub(camera, this.pos), -this.angle);
+    if (Math.abs(view.y) > b) return;
+
+    // Anchored to the world, so the teeth do not drift as the view moves.
+    const size = 2 * b / (TEETH - 1);
+    const x0 = view.x - b - size * this.phase / TEETH_PHASE - view.x % size;
+
+    ctx.fillStyle = SAW;
+    ctx.beginPath();
+    ctx.moveTo(x0, TOOTH_UP);
+    for (let i = 0; i < TEETH; ++i) {
+      ctx.lineTo(x0 + size * i, TOOTH_UP);
+      ctx.lineTo(x0 + size * (i + 0.5), TOOTH_UP - TOOTH);
+      ctx.lineTo(x0 + size * (i + 1), TOOTH_UP);
+    }
+    ctx.lineTo(view.x + b, TOOTH_UP);
+    ctx.lineTo(view.x + b, half * 2);
+    ctx.lineTo(view.x - b, half * 2);
+    ctx.fill();
+  }
 }
 
-function distanceLinePoint(a, ab, p) {
-  const u = ((p.x - a.x) * ab.x + (p.y - a.y) * ab.y) / vec.lsq(ab);
-  return vec.len({ x: a.x + u * ab.x - p.x, y: a.y + u * ab.y - p.y });
+// The board is the square the camera covers, which the turn leaves corners of
+// the canvas outside. Those are cave wall, painted over the world.
+class Wall extends ent.Entity {
+  static screen = true;
+
+  constructor() {
+    super();
+    this.pos.x = this.pos.y = 512;
+  }
+
+  update() {
+    this.angle = -camera.angle;
+  }
+
+  render(ctx) {
+    // Half the canvas diagonal, so the outer square covers it at any turn.
+    const out = 512 * Math.SQRT2;
+    ctx.fillStyle = CAVE;
+    ctx.beginPath();
+    ctx.rect(-out, -out, 2 * out, 2 * out);
+    ctx.rect(-512, -512, 1024, 1024);
+    ctx.fill("evenodd");
+  }
 }
 
-function projectPointLine(a, ab, p) {
-  return ((p.x - a.x) * ab.x + (p.y - a.y) * ab.y) / vec.lsq(ab);
+export function init() {
+  // The engine holds 32 worlds for the life of the page, so the last round has
+  // to release its slot.
+  world?.destroy();
+  world = new World({ gravity: { x: 0, y: 9.8 } });
+  world.presolve = presolve;
+
+  ent.reset([Cave, Bricks, Rope, Player, Throw, Saw, Wall]);
+
+  new Cave();
+  new Bricks();
+  new Player();
+  new Throw();
+  new Saw();
+  new Wall();
+
+  // The opening handholds, so the first swing is always the same.
+  new Rope({ x: -2, y: 0 }, { x: 2, y: 0 });
+  new Rope({ x: -4, y: 2 }, { x: 4, y: 2 });
+  new Rope({ x: -3.5, y: -6 }, { x: -3.5, y: -1 }, false);
+  new Rope({ x: 0, y: -6 }, { x: 0, y: -2 }, false);
+  new Rope({ x: 3.5, y: -6 }, { x: 3.5, y: -1 }, false);
+
+  camera.moveTo({ x: 0, y: 0, scale: 1024 / (VIEW * ZOOM) });
+}
+
+export function update(dt) {
+  const saw = ent.one(Saw);
+
+  // Events are read inside the loop, since a step clears the one before it.
+  fixed(60, (h) => {
+    world.step(h);
+    for (const c of world.began) hold(c);
+    for (const s of world.sensorBegan) {
+      if (s.visitor.body.data === "head") gameOver({ score: true });
+    }
+    saw?.step();
+  });
+
+  ent.update(dt);
 }
