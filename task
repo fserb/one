@@ -26,13 +26,13 @@ function media {
   build "$@"
 }
 
-# Record each game with nobody at the keyboard, and turn the recordings into
-# cards. With no name: every game that has no card yet, since a card recorded by
-# hand is better than one nobody played. A game that only moves when it is
-# played is listed at the end as one to record by hand.
+# Record each game on src/dev/play.js's random input, and turn the recordings
+# into cards. With no name: every game that has no card yet, since a card
+# recorded by hand is better than one a random player made. A game the input
+# never moved is listed at the end as one to record by hand.
 function record {
   deno run -A tools/record.js "$@"
-  media
+  media "$@"
 }
 
 function fmt {

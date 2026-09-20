@@ -1,15 +1,15 @@
 /*
- * record.js - records a game's gallery clip with nobody at the keyboard.
+ * record.js - records a game's gallery clip with random input in place of a
+ * player.
  *
  * It serves this directory, opens dev.html?game=<name> in headless Chrome over
  * CDP and calls src/dev/rec.js's rec.auto(). The zip is sent back over CDP and
  * written into ~/Downloads under the name the rec button would have used, so
  * `./task media` reads it without knowing the difference.
  *
- * It sends no input, so it records the round running on its own. For a game
- * that waits for a player that is a still board, and motion() detects it: the
- * recording has no motion and the game is listed at the end as one to record by
- * hand.
+ * src/dev/play.js plays it: random held directions, a travelling pointer and
+ * clicks, and no knowledge of the game. A take it never moved, and one whose
+ * round ended early, are listed at the end to record by hand.
  */
 
 const ROOT = new URL("..", import.meta.url).pathname.replace(/\/$/, "");
@@ -221,16 +221,20 @@ const url = `http://127.0.0.1:${web.port}`;
 const browser = await chrome();
 const cdp = await connect(browser.port);
 
-const idle = []; // nothing moved: the game waits for a player
+const idle = []; // nothing moved, with the random input running
 const short = []; // the round ended before the take did
 let failed = 0;
-for (const game of names) {
-  const label = `${game}`.padEnd(12);
+const out = new TextEncoder();
+for (const [i, game] of names.entries()) {
+  const count = names.length > 1 ? `[${i + 1}/${names.length}] ` : "";
+  // The name goes out before the take, not after it: a take runs twelve
+  // seconds, and the rest of its line lands once it is done.
+  Deno.stdout.writeSync(out.encode(`${count}${game}`.padEnd(count.length + 12)));
   try {
     const take = await record(cdp, url, game);
     if (!take.zip) {
       idle.push(game);
-      console.log(`${label} nothing moved: it needs a player`);
+      console.log("nothing moved under the random input");
       continue;
     }
     // A take is short only when the round ended inside it, and what was
@@ -238,19 +242,19 @@ for (const game of names) {
     const secs = take.frames / take.fps;
     if (secs < 1) {
       short.push(game);
-      console.log(`${label} ${secs.toFixed(1)}s: the round ended at once`);
+      console.log(`${secs.toFixed(1)}s: the round ended at once`);
       continue;
     }
     if (take.frames < take.full) short.push(game);
     const path = write(take);
     const pct = Math.round(take.moved * 100);
     console.log(
-      `${label} ${secs.toFixed(1)}s` +
+      `${secs.toFixed(1)}s` +
         `${pct < 90 ? ` · ${pct}% moving` : ""} · ${path.split("/").pop()}`,
     );
   } catch (err) {
     failed++;
-    console.log(`${label} ${err.message.split("\n")[0]}`);
+    console.log(err.message.split("\n")[0]);
   }
 }
 

@@ -13,6 +13,7 @@
 
 import { zipSync } from "../alma/src/3rdp/fflate.js";
 import { msg } from "../lib/one.js";
+import * as play from "./play.js";
 
 const FPS = 30; // capture cadence, an exact half of a 60Hz display
 const TAKE = 10; // seconds in a take
@@ -238,7 +239,7 @@ async function keep() {
   ui.note.textContent = `${file} · ./task media ${name}`;
 }
 
-// One recording with nobody at the keyboard, for tools/record.js, returned as
+// One recording with play.js at the keyboard, for tools/record.js, returned as
 // base64 over CDP. A take with no motion is returned as zip: null, so record.js
 // reports it rather than writing a still card.
 export async function auto() {
@@ -248,8 +249,10 @@ export async function auto() {
   // which are most of them.
   while (msg() > 0) await new Promise((r) => requestAnimationFrame(r));
   const take = new Promise((r) => (waiting = r));
+  play.start(screen.canvas);
   record();
   const { end, moved } = await take;
+  play.stop();
   const bytes = moved === 0 ? null : await zipTake(end);
   idle();
   return {
