@@ -43,6 +43,7 @@ function fmt {
 function deploy {
   build
   rsync -a --delete --partial --progress www/ metaphora:one/
+  git push
 }
 
 function help {
