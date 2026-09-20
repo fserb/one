@@ -19,7 +19,6 @@ import { theme } from "../src/lib/overlay.js";
 const SRC = new URL("../src/", import.meta.url);
 const WWW = new URL("../www/", import.meta.url);
 const MEDIA = new URL("../media/", import.meta.url);
-const ASSETS = new URL("../assets/", import.meta.url);
 const BASE = "https://one.fserb.com";
 const REPO = "https://github.com/fserb/one";
 
@@ -87,11 +86,11 @@ const TEMPLATE = {
   card: (await tpl("card")).trimEnd(), // joined with newlines, so no trailing
 };
 
-// assets/vera.css carries its own woff2 in the url(), so inlining it here is
-// the whole of it: a page has the font it is set in and fetches nothing. It
-// gets a <style> of its own, the one block squeeze() leaves alone.
+// assets/fonts/vera.css carries its own woff2 in the url(), so inlining it
+// here is the whole of it: a page has the font it is set in and fetches
+// nothing. It gets a <style> of its own, the one block squeeze() leaves alone.
 const FONTS = await press(
-  await Deno.readTextFile(new URL("vera.css", ASSETS)),
+  await Deno.readTextFile(new URL("../assets/fonts/vera.css", import.meta.url)),
   "css",
 );
 
