@@ -4,32 +4,20 @@ IFS=$'\n\t'
 
 cd "$(dirname "$0")"
 
-# Build every game, or just the ones named, into www/. With no name it starts
-# from an empty www/, so a game that was renamed, deleted or turned into a
-# draft leaves no page behind. With a name, the rest of www/ stays.
 function build {
   if [[ $# -eq 0 ]]; then rm -rf www; fi
   deno run -A tools/build.js "$@"
 }
 
-# Where a bundle's bytes went. With no game named, every game and then every
-# module multiplied by the number of games that include it.
 function size {
   deno run -A tools/size.js "$@"
 }
 
-# Turn the newest recorder zip into media/<game>/card.{mp4,png}, for the
-# games named or, with no name, for every game whose zip is newer than its card.
-# src/dev/rec.js downloads the zip; this is the other half of that.
 function media {
   deno run -A tools/media.js "$@"
   build "$@"
 }
 
-# Record each game on src/dev/play.js's random input, and turn the recordings
-# into cards. With no name: every game that has no card yet, since a card
-# recorded by hand is better than one a random player made. A game the input
-# never moved is listed at the end as one to record by hand.
 function record {
   deno run -A tools/record.js "$@"
   media "$@"
