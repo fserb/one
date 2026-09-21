@@ -28,7 +28,6 @@
  * next board, one colour wider and worth one more.
  */
 
-import { newCanvas } from "./alma/src/utils/utils.js";
 import * as ent from "./lib/entity.js";
 import { shake } from "./lib/camera.js";
 import { gameOver } from "./lib/one.js";
@@ -38,33 +37,26 @@ export { render } from "./lib/entity.js";
 
 export const meta = {
   title: "spinner",
-  bg: "#15131D",
-  fg: "#F0ECE4",
+  bg: "#BFB09A",
+  fg: "#1A1712",
   scoreMax: true,
   date: "2026-09-21",
 };
 
 const TAU = 2 * Math.PI;
 
-const ROOM = 0x232031; // inside the four walls
-const FLOOR = 0x2c2840; // inside the gun's track
-const FG = 0xf0ece4;
-// The axle is machined, not moulded: flat bands with hard edges between them,
-// and no lamp on it at all.
-const NUT = 0x6f6b64;
-const NUT_FACE = 0xb8b4ad;
-const NUT_SOCKET = 0x4a463f;
+const ROOM = 0xd8cbb4; // inside the four walls
+const FLOOR = 0xcdbfa6; // inside the gun's track
+// Every line on the board is this one, and everything the game draws is cut
+// out of the board with it.
+const INK = 0x1a1712;
+// What the axle and the chamber are filled with.
+const PAPER = 0xfff8ea;
 
-// Lit, mid, dark, as avoid's paint() reads them. The first three are what board
-// one is played with, so they are the three furthest apart.
-const TONES = [
-  ["#ff8f86", "#f2483f", "#a81d18"],
-  ["#ffd98a", "#f5a623", "#a86400"],
-  ["#8fe3ff", "#35b8e8", "#12688f"],
-  ["#9fe89a", "#4fbf52", "#1f7a33"],
-  ["#ffb3d9", "#f25a9e", "#a82263"],
-  ["#c9b3ff", "#8f6ae0", "#4f3399"],
-];
+// The six a bubble can be. Board one is played with the first three, so those
+// are the three furthest apart. Each one is saturated and none is near INK: a
+// bubble that close to the line reads as a hole cut in the board.
+const COLORS = [0xf2483f, 0xf5a623, 0x35b8e8, 0x4fbf52, 0xf25a9e, 0x8f6ae0];
 
 const R = 30; // a bubble, and the grid's cell centres sit 2R apart
 const STEP = 2 * R;
@@ -139,9 +131,6 @@ let reload = 0;
 // is, so a round does not open by swinging the gun at wherever it was left.
 const ptr = { x: 0, y: 0 };
 let aimed = false;
-// One baked sphere a colour. init() fills these in: the build imports this
-// module under Deno, where there is no canvas.
-let balls = [];
 
 const key = (q, r) => `${q},${r}`;
 const cellX = (q, r) => STEP * (q + r / 2);
@@ -155,95 +144,48 @@ function fold(a) {
   return x;
 }
 
-/*
- * avoid's paint(), worked out for a circle and baked once a colour rather than
- * run per bubble: the shadow under it, three tones each scaled toward the lamp
- * so the one before it is left as a crescent, the specular, and the white rim
- * inside the clip. The lamp is a direction and a distance here and not a point
- * on the board, so a bubble is lit the same wherever the blob carries it.
- *
- * The tone steps and the specular are avoid's numbers over a span of 2r.
- */
-const LAMP = 1000;
+// Where the crescent sits on a ball: up and to the left, and the same on every
+// one of them, since the crescent is the light in the room and not something
+// the bubble carries around the blob.
 const LX = -0.645;
 const LY = -0.764;
 const LA = Math.atan2(LY, LX);
-const SHADOW_STEPS = 4;
-// The sprite's half width over its radius, so one sprite draws at any size.
-const PAD = 1.34;
-const ART = 2; // drawn at 2x and downsampled by drawImage
+// The line under a ball, as a share of its radius, and where the crescent is
+// drawn and how wide it is.
+const CUT = 1.18;
+const SHINE = 0.62;
+const SHINE_W = 0.17;
 
-function sphere(tones, r) {
-  const half = r * PAD;
-  const [canvas, c] = newCanvas(2 * half * ART, 2 * half * ART);
-  c.scale(ART, ART);
-  c.translate(half, half);
-
-  const ring = () => {
-    c.beginPath();
-    c.arc(0, 0, r, 0, TAU);
-  };
-
-  const drop = r * 0.12;
-  const blur = r * 0.16;
-  c.fillStyle = "rgba(0, 0, 0, 0.22)";
-  for (let i = SHADOW_STEPS - 1; i >= 0; --i) {
-    c.save();
-    c.translate(-LX * drop, -LY * drop);
-    const grow = 1.04 + blur * i / (SHADOW_STEPS - 1) / r;
-    c.scale(grow, grow);
-    ring();
-    c.fill();
-    c.restore();
-  }
-
-  c.save();
-  ring();
-  c.clip();
-
-  const far = LAMP + r;
-  const steps = [0, Math.max(3.5, 0.04 * r), 0.56 * r];
-  for (let i = 0; i < steps.length; ++i) {
-    const k = 1 - steps[i] / far;
-    c.save();
-    c.translate(LX * LAMP, LY * LAMP);
-    c.scale(k, k);
-    c.translate(-LX * LAMP, -LY * LAMP);
-    c.fillStyle = tones[i];
-    ring();
-    c.fill();
-    c.restore();
-  }
-
-  c.save();
-  c.translate(LX * r * 0.52 - LY * r * 0.22, LY * r * 0.52 + LX * r * 0.22);
-  c.rotate(LA);
-  c.scale(0.34, 0.4);
-  c.rotate(-LA);
-  c.fillStyle = "rgba(255, 255, 255, 0.85)";
-  ring();
-  c.fill();
-  c.restore();
-
-  c.strokeStyle = "rgba(255, 255, 255, 0.8)";
-  c.lineWidth = Math.max(3, r * 0.07);
-  ring();
-  c.stroke();
-  c.restore();
-
-  return canvas;
+// A ball is one flat colour and one white crescent, and the line it is cut out
+// with is not its own: outline() lays that down for every ball on the board
+// before any of them is filled. Drawn per ball, the line of the one next door
+// lands on top of this one's colour and the pair reads as two discs with a gap
+// between rather than as one sheet.
+function outline(ctx, x, y, r) {
+  ctx.fillStyle = ent.css(INK);
+  ctx.beginPath();
+  ctx.arc(x, y, r * CUT, 0, TAU);
+  ctx.fill();
 }
 
-function ball(ctx, img, x, y, r) {
-  const half = r * PAD;
-  ctx.drawImage(img, x - half, y - half, 2 * half, 2 * half);
+function ball(ctx, color, r) {
+  ctx.fillStyle = ent.css(COLORS[color]);
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, TAU);
+  ctx.fill();
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.75)";
+  ctx.lineWidth = r * SHINE_W;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.arc(0, 0, r * SHINE, LA - 0.7, LA + 0.7);
+  ctx.stroke();
 }
 
 // The board under everything: the room, the floor, and the next colour, which
 // rides out past the chamber.
 //
-// One circle and not two. The floor ends exactly on the rail, so the only ring
-// on the board is the one the gun runs on. The line a bubble loses at is 42
+// One circle and not two. The floor ends exactly on the rail and the line
+// around it is the track the gun runs on. The line a bubble loses at is 42
 // inside that and is not drawn: two rings that close together read as a mark
 // rather than as a track, and the blob arriving under the gun says the same
 // thing.
@@ -254,14 +196,19 @@ class Rail extends ent.Entity {
     this.pos.y = CY;
     const half = 512 - MARGIN;
     this.gfx.fill(ROOM).rect(-half, -half, 2 * half, 2 * half)
-      .fill(FLOOR).circle(0, 0, RAIL);
+      .fill(FLOOR).circle(0, 0, RAIL)
+      .fill(null).line(8, INK).circle(0, 0, RAIL - 4);
   }
 
   render(ctx) {
     this.gfx.render(ctx);
-    const c = Math.cos(railA);
-    const sn = Math.sin(railA);
-    ball(ctx, balls[gun[1]], c * QUEUE, sn * QUEUE, QUEUE_R);
+    const x = Math.cos(railA) * QUEUE;
+    const y = Math.sin(railA) * QUEUE;
+    outline(ctx, x, y, QUEUE_R);
+    ctx.save();
+    ctx.translate(x, y);
+    ball(ctx, gun[1], QUEUE_R);
+    ctx.restore();
   }
 }
 
@@ -272,17 +219,23 @@ class Axle extends ent.Entity {
     super();
     this.pos.x = CX;
     this.pos.y = CY;
-    const g = this.gfx.fill(NUT).circle(0, 0, AXLE_R)
-      .fill(NUT_FACE).circle(0, 0, AXLE_R - 7)
-      .fill(NUT_SOCKET);
+    const g = this.gfx.fill(PAPER).line(6, INK).circle(0, 0, AXLE_R - 3)
+      .line(null).fill(INK);
     for (let i = 0; i < 6; ++i) {
       const a = i * TAU / 6;
-      g.lt(Math.cos(a) * 11, Math.sin(a) * 11);
+      g.lt(Math.cos(a) * 12, Math.sin(a) * 12);
     }
   }
 
   update() {
     this.angle = angle;
+  }
+}
+
+// The line under the whole blob, before any bubble in it is filled.
+class Outline extends ent.Entity {
+  render(ctx) {
+    for (const b of cells.values()) outline(ctx, b.pos.x, b.pos.y, R);
   }
 }
 
@@ -313,7 +266,7 @@ class Bubble extends ent.Entity {
   }
 
   render(ctx) {
-    ball(ctx, balls[this.color], 0, 0, R);
+    ball(ctx, this.color, R);
   }
 }
 
@@ -338,7 +291,8 @@ class Drop extends ent.Entity {
   }
 
   render(ctx) {
-    ball(ctx, balls[this.color], 0, 0, R);
+    outline(ctx, 0, 0, R);
+    ball(ctx, this.color, R);
   }
 }
 
@@ -404,7 +358,8 @@ class Shot extends ent.Entity {
   }
 
   render(ctx) {
-    ball(ctx, balls[this.color], 0, 0, R);
+    outline(ctx, 0, 0, R);
+    ball(ctx, this.color, R);
   }
 }
 
@@ -414,9 +369,9 @@ class Gun extends ent.Entity {
   constructor() {
     super();
     this.off = 0;
-    this.gfx.size(2 * 175).fill(FG)
-      .arc(0, 0, 40, 30, MOUTH, TAU - MOUTH)
-      .fill(FG, 0.3)
+    this.gfx.size(2 * 175).fill(PAPER).line(6, INK)
+      .arc(0, 0, 40, 28, MOUTH, TAU - MOUTH)
+      .line(null).fill(INK, 0.5)
       .circle(85, 0, 6).circle(125, 0, 6).circle(165, 0, 6);
     this.place();
   }
@@ -455,10 +410,11 @@ class Gun extends ent.Entity {
 
   render(ctx) {
     this.gfx.render(ctx);
-    // The chamber turns and the bubble in it does not: every ball on the board
-    // is lit from the same side.
+    // The chamber turns and the bubble in it does not: every crescent on the
+    // board is on the same side.
     ctx.rotate(-this.angle);
-    ball(ctx, balls[gun[0]], 0, 0, R);
+    outline(ctx, 0, 0, R);
+    ball(ctx, gun[0], R);
   }
 }
 
@@ -553,7 +509,7 @@ function same(b) {
 
 function pop(group) {
   // One colour by definition, so the number leaves in it.
-  const lit = ent.hex(TONES[group[0].color][0]);
+  const c = COLORS[group[0].color];
   let cx = 0;
   let cy = 0;
   for (const b of group) {
@@ -562,7 +518,7 @@ function pop(group) {
     new ent.Particle({
       x: b.pos.x,
       y: b.pos.y,
-      color: lit,
+      color: c,
       count: 9,
       size: [3, 5],
       speed: [60, 220],
@@ -571,7 +527,7 @@ function pop(group) {
     });
     b.remove();
   }
-  ent.addScore(10 * group.length * board, cx, cy, { color: lit });
+  ent.addScore(10 * group.length * board, cx, cy, { color: c });
   play.break();
   shake(0.1 + 0.02 * group.length);
 }
@@ -618,7 +574,7 @@ function cleared() {
 
 function nextBoard() {
   board += 1;
-  colors = Math.min(TONES.length, 2 + board);
+  colors = Math.min(COLORS.length, 2 + board);
   omega = 0;
   angle = 0;
   cosA = 1;
@@ -667,9 +623,7 @@ function build() {
 }
 
 export function init() {
-  if (balls.length === 0) balls = TONES.map((t) => sphere(t, R));
-
-  ent.reset([Rail, Gun, Axle, Bubble, Drop, Shot]);
+  ent.reset([Rail, Gun, Axle, Outline, Bubble, Drop, Shot]);
   cells.clear();
 
   angle = 0;
@@ -688,6 +642,7 @@ export function init() {
   new Rail();
   new Axle();
   new Gun();
+  new Outline();
 }
 
 export function update(dt) {
