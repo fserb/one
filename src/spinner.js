@@ -41,6 +41,7 @@ export const meta = {
   bg: "#BFB09A",
   fg: "#1A1712",
   scoreMax: true,
+  release: true,
   date: "2026-09-21",
 };
 
