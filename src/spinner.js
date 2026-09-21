@@ -10,13 +10,17 @@
  * with the shot's velocity over the blob's own moment, so one hit moves a small
  * blob further than a big one.
  *
- * The gun has no drive. It rides the rail, the bubble leaves the chamber at its
- * pivot, and the only thing that moves the carriage is what that shot pushed
- * back: aim across the rail and it slides, aim at the middle and it holds. So
- * every shot both plays the board and picks where the next one is fired from.
+ * The gun has no drive. It rides a circular rail, the bubble leaves the chamber
+ * at its pivot, and the only thing that moves the carriage is what that shot
+ * pushed back: aim across the rail and it slides, aim at the middle and it
+ * holds. So every shot both plays the board and picks where the next one is
+ * fired from.
  *
- * The rail is also the wall: shots reflect off the inside of it and are spent
- * on the sixth, which in a circle is enough to reach anything.
+ * What a shot bounces off is the room's four walls and never the rail, because
+ * reflection inside a circle conserves the distance from the middle to the
+ * shot's line: a shot that misses the axle by 200 misses it by 200 after every
+ * bounce, so a bank off a round wall can only turn the chord and never aim it
+ * in. A flat wall moves that number, which is what makes a bank worth taking.
  *
  * Three of a colour touching go, and whatever no longer reaches the axle falls
  * off: clearing the axle's six neighbours drops the board in one shot. A bubble
@@ -34,7 +38,7 @@ export { render } from "./lib/entity.js";
 
 export const meta = {
   title: "spinner",
-  bg: "#17151F",
+  bg: "#15131D",
   fg: "#F0ECE4",
   scoreMax: true,
   date: "2026-09-21",
@@ -42,9 +46,9 @@ export const meta = {
 
 const TAU = 2 * Math.PI;
 
+const ROOM = 0x232031; // inside the four walls
 const YARD = 0x2c2840; // where the blob is allowed to be
-const TRACK = 0x232031; // the band the shots and the gun cross
-const RAIL_C = 0x453f5e;
+const RAIL_C = 0x322d43;
 const FG = 0xf0ece4;
 // The axle is machined, not moulded: flat bands with hard edges between them,
 // and no lamp on it at all.
@@ -69,18 +73,25 @@ const ROW = STEP * Math.sqrt(3) / 2;
 
 const CX = 512;
 const CY = 512;
-const WALL = 470; // the rail, which shots bounce off the inside of
-const PIVOT = 430; // the gun's chamber, which is where a shot starts
-// A cell centre past this puts its bubble over the yard's edge, and leaves 10
-// between the furthest one and a shot leaving the chamber. Hex distance 6
-// reaches 360 at its furthest and 7 reaches 364 at its nearest, so the blob has
-// six rings to grow into whichever way it is turned.
-const FAR = PIVOT - 2 * R - 10;
+// The walls, inset from the board's edge, and where a shot's centre turns
+// around.
+const MARGIN = 22;
+const LOW = MARGIN + R;
+const HIGH = 1024 - MARGIN - R;
+// The circle the gun's pivot rides. What sets it is the row outward from it:
+// the chamber's 40, then the next ball, which has to sit clear of both the
+// chamber and the wall.
+const RAIL = 418;
+const QUEUE = 474;
+const QUEUE_R = 12;
+// A cell centre past this puts its bubble over the yard's edge, and leaves 72
+// between the furthest one and a shot leaving the chamber. Hex distance 5
+// reaches 300 at its furthest and 6 runs from 312 to 360, so the blob fills
+// five rings and keeps whichever part of the sixth it is turned to.
+const FAR = 346;
 
-// How far either side of straight at the middle the chamber turns. At the end
-// of it the shot passes 400 from the middle and so clears the yard: the widest
-// aim is the one that only moves the gun.
-const SWING = 1.2;
+// The chamber turns the whole way round. Pointing it straight out is the shot
+// that only banks, and straight in is the one that moves the gun not at all.
 const TURN = 1.6;
 const MOUTH = 0.7; // the half-angle the chamber is open over
 
@@ -102,6 +113,9 @@ const RECOIL = 1;
 const RAIL_DRAG = 1.6;
 
 const MATCH = 3;
+// What the drops off a cleared board get before the next one arrives. A Drop
+// lives one second, so this is that and a beat to read the empty board.
+const FALL = 2;
 
 const DIRS = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]];
 
@@ -119,9 +133,11 @@ let colors = 3;
 // The colour in the chamber, then the one waiting on the rail behind it.
 let gun = [];
 let reload = 0;
-// The pointer as the chamber last read it: a pointer that moved over the arena
-// aims it, and the keys have it the rest of the time.
-const ptr = { x: -1, y: -1 };
+// The pointer as the chamber last read it: a pointer that moved aims it, and
+// the keys have it the rest of the time. The first frame only records where it
+// is, so a round does not open by swinging the gun at wherever it was left.
+const ptr = { x: 0, y: 0 };
+let aimed = false;
 // One baked sphere a colour. init() fills these in: the build imports this
 // module under Deno, where there is no canvas.
 let balls = [];
@@ -130,7 +146,6 @@ const key = (q, r) => `${q},${r}`;
 const cellX = (q, r) => STEP * (q + r / 2);
 const cellY = (_q, r) => ROW * r;
 const taken = (q, r) => (q === 0 && r === 0) || cells.has(key(q, r));
-const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
 function fold(a) {
   const x = a % TAU;
@@ -223,22 +238,24 @@ function ball(ctx, img, x, y, r) {
   ctx.drawImage(img, x - half, y - half, 2 * half, 2 * half);
 }
 
-// The board under everything: the yard the blob has to stay inside, the track
-// the shots cross, the rail they bounce off, and the next colour waiting on it.
+// The board under everything: the yard the blob has to stay inside, the rail
+// the gun rides, and the next colour waiting on it.
 class Rail extends ent.Entity {
   constructor() {
     super();
     this.pos.x = CX;
     this.pos.y = CY;
-    this.gfx.fill(TRACK).circle(0, 0, WALL)
-      .fill(null).line(10, RAIL_C).circle(0, 0, WALL)
-      .fill(YARD).line(null).circle(0, 0, FAR + R);
+    const half = 512 - MARGIN;
+    this.gfx.fill(ROOM).rect(-half, -half, 2 * half, 2 * half)
+      .fill(null).line(4, RAIL_C).circle(0, 0, RAIL)
+      .line(null).fill(YARD).circle(0, 0, FAR + R);
   }
 
   render(ctx) {
     this.gfx.render(ctx);
-    const a = railA - 0.24;
-    ball(ctx, balls[gun[1]], Math.cos(a) * WALL, Math.sin(a) * WALL, 18);
+    const c = Math.cos(railA);
+    const sn = Math.sin(railA);
+    ball(ctx, balls[gun[1]], c * QUEUE, sn * QUEUE, QUEUE_R);
   }
 }
 
@@ -320,11 +337,11 @@ class Drop extends ent.Entity {
 }
 
 class Shot extends ent.Entity {
-  constructor(color, a) {
+  constructor(color, x, y, a) {
     super();
     this.color = color;
-    this.pos.x = CX + PIVOT * Math.cos(railA);
-    this.pos.y = CY + PIVOT * Math.sin(railA);
+    this.pos.x = x;
+    this.pos.y = y;
     this.dx = Math.cos(a);
     this.dy = Math.sin(a);
     this.left = BOUNCES;
@@ -342,23 +359,35 @@ class Shot extends ent.Entity {
     this.pos.x += this.dx * d;
     this.pos.y += this.dy * d;
 
-    const ox = this.pos.x - CX;
-    const oy = this.pos.y - CY;
-    const out = Math.hypot(ox, oy);
-    if (out > WALL - R) {
-      const nx = ox / out;
-      const ny = oy / out;
-      this.pos.x = CX + nx * (WALL - R);
-      this.pos.y = CY + ny * (WALL - R);
-      const into = 2 * (this.dx * nx + this.dy * ny);
-      this.dx -= into * nx;
-      this.dy -= into * ny;
-      play.bounce();
-      if (--this.left < 0) return this.spend();
+    if (this.pos.x < LOW) {
+      this.pos.x = LOW;
+      this.dx = -this.dx;
+      if (this.wall()) return;
+    } else if (this.pos.x > HIGH) {
+      this.pos.x = HIGH;
+      this.dx = -this.dx;
+      if (this.wall()) return;
+    }
+    if (this.pos.y < LOW) {
+      this.pos.y = LOW;
+      this.dy = -this.dy;
+      if (this.wall()) return;
+    } else if (this.pos.y > HIGH) {
+      this.pos.y = HIGH;
+      this.dy = -this.dy;
+      if (this.wall()) return;
     }
 
     const cell = struck(this.pos.x, this.pos.y);
     if (cell !== null) land(this, cell);
+  }
+
+  // True once it is spent, which is the caller's cue to stop stepping it.
+  wall() {
+    play.bounce();
+    if (--this.left >= 0) return false;
+    this.spend();
+    return true;
   }
 
   spend() {
@@ -378,15 +407,15 @@ class Gun extends ent.Entity {
     super();
     this.off = 0;
     this.gfx.size(2 * 175).fill(FG)
-      .arc(0, 0, 50, 36, MOUTH, TAU - MOUTH)
+      .arc(0, 0, 40, 30, MOUTH, TAU - MOUTH)
       .fill(FG, 0.3)
       .circle(85, 0, 6).circle(125, 0, 6).circle(165, 0, 6);
     this.place();
   }
 
   place() {
-    this.pos.x = CX + PIVOT * Math.cos(railA);
-    this.pos.y = CY + PIVOT * Math.sin(railA);
+    this.pos.x = CX + RAIL * Math.cos(railA);
+    this.pos.y = CY + RAIL * Math.sin(railA);
     this.angle = railA + Math.PI + this.off;
   }
 
@@ -398,20 +427,21 @@ class Gun extends ent.Entity {
 
     if (input.press.left) this.off -= TURN * time;
     else if (input.press.right) this.off += TURN * time;
-    else if (moved && Math.hypot(input.x - CX, input.y - CY) < WALL) {
+    else if (moved && aimed) {
       const at = Math.atan2(input.y - this.pos.y, input.x - this.pos.x);
       this.off = fold(at - railA - Math.PI);
     }
-    this.off = clamp(this.off, -SWING, SWING);
+    aimed = true;
+    this.off = fold(this.off);
     this.place();
 
     reload = Math.max(0, reload - time);
     if (!input.just.act || reload > 0 || ent.one(Shot) !== null) return;
 
-    new Shot(gun.shift(), this.angle);
+    new Shot(gun.shift(), this.pos.x, this.pos.y, this.angle);
     gun.push(pick());
     // The shot's momentum across the rail, pushed back into the carriage.
-    railV += SPEED * Math.sin(this.off) * RECOIL / PIVOT;
+    railV += SPEED * Math.sin(this.off) * RECOIL / RAIL;
     play.shoot();
   }
 
@@ -491,7 +521,7 @@ function resolve(b) {
     pop(group);
     dropLoose();
   }
-  if (cells.size === 0) return nextBoard();
+  if (cells.size === 0) return cleared();
   if (!b.dead && Math.hypot(b.lx, b.ly) > FAR) return lose();
   restock();
 }
@@ -565,12 +595,19 @@ function dropLoose() {
   play.drop();
 }
 
-function nextBoard() {
-  board += 1;
-  colors = Math.min(TONES.length, 2 + board);
+// The board is empty. The bonus and the sound land on the shot that did it;
+// the next board waits for what that shot knocked off to finish falling.
+function cleared() {
   ent.addScore(100 * board, CX, CY);
   play.power();
   shake(0.4);
+  reload = FALL + 0.6;
+  ent.after(FALL, nextBoard);
+}
+
+function nextBoard() {
+  board += 1;
+  colors = Math.min(TONES.length, 2 + board);
   omega = 0;
   angle = 0;
   cosA = 1;
@@ -633,7 +670,7 @@ export function init() {
   board = 1;
   colors = 3;
   reload = 0;
-  ptr.x = ptr.y = -1;
+  aimed = false;
 
   build();
   gun = [pick(), pick()];
