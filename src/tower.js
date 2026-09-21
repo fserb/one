@@ -7,9 +7,15 @@
  * chains out of its 1s.
  *
  * A region is legal when its numbers run consecutively and each one touches the
- * one before it; being connected comes with that. The score is how many
- * committed regions are ones the generator cut, which is not the same as
- * filling the board: a board admits dozens of whole partitions it never cut.
+ * one before it; being connected comes with that. The score is how many of the
+ * player's groups are ones the generator cut, which is not the same as filling
+ * the board: a board admits dozens of whole partitions it never cut.
+ *
+ * The groups are the whole of the state: a drag puts the cells it crosses into
+ * the group it started on, with whatever groups they were in. A cell comes out
+ * of its group by being clicked, or by the drag that started on it coming back
+ * into it. A group takes a colour once it is a legal region, and the round
+ * ends with every cell in one.
  *
  * A region is drawn as one shape rather than a row of tiles: each cell fills
  * into the margin on the sides it has a neighbour on, and rounds off on the
@@ -30,37 +36,28 @@ export const meta = {
 const WIDTH = 7;
 const HEIGHT = 10;
 const MARGIN = 12;
-
-// The strip under the board, with the two buttons and the working set.
-const STATUS_H = 120;
 const PAD = 36;
 
-// Whatever fits once the strip and the padding are off, which on a square is
-// the height: 7x10 is the taller way up.
+// Whatever fits once the padding is off, which on a square is the height: 7x10
+// is the taller way up.
 const CELL = Math.min(
   (1024 - 2 * PAD - (WIDTH - 1) * MARGIN) / WIDTH,
-  (1024 - 2 * PAD - STATUS_H - (HEIGHT - 1) * MARGIN) / HEIGHT,
+  (1024 - 2 * PAD - (HEIGHT - 1) * MARGIN) / HEIGHT,
 );
 const GRID_W = WIDTH * CELL + (WIDTH - 1) * MARGIN;
 const GRID_H = HEIGHT * CELL + (HEIGHT - 1) * MARGIN;
 const X0 = (1024 - GRID_W) / 2;
-const Y0 = PAD;
-
-const STATUS_Y = Y0 + GRID_H + STATUS_H / 2;
-const BTN_W = 170;
-const BTN_H = 56;
+const Y0 = (1024 - GRID_H) / 2;
 
 const CELL_BG = "#F5F5F5";
 const CELL_LINE = "#CCCCCC";
 const HOVER_BG = "#EEEEEE";
 const HOVER_LINE = "#999999";
-const WORKING_BG = "#E6F3FF";
+// A group that is not a legal region yet.
+const PARTIAL = "#E6F3FF";
 const INK = "#333333";
-const GOOD = "#2ECC71";
-const BAD = "#E74C3C";
-const BUTTON = "#4A90E2";
 
-// A region's fill, one per committed region in order.
+// A region's fill, one per group in the order they were made.
 const REGION = [
   "#FF6B6B",
   "#4ECDC4",
@@ -112,16 +109,16 @@ const REGION_FILL = REGION.map((c) => wash(c, 0.25));
 let solution = new Map();
 let grid = [];
 
-// The cells being dragged into shape, and the regions already committed.
-let working = [];
-let committed = [];
-let nextId = 0;
+// The player's groups, each {cells, color}; a cell holds its own in .group.
+let groups = [];
+let nextColor = 0;
 
 let hovered = null;
-// Fixed by the cell the drag started on, so one stroke does one thing and
-// crossing a cell twice does not undo it.
-let dragMode = null;
-let dragLast = null;
+// The group the drag is editing, the cell it started on, and every cell it has
+// crossed, so crossing one twice does not undo it.
+let dragGroup = null;
+let dragFrom = null;
+let dragSeen = new Set();
 
 function cellAt(x, y) {
   const col = Math.floor((x - X0) / (CELL + MARGIN));
@@ -472,23 +469,15 @@ function build() {
   grid = Array.from({ length: HEIGHT }, () => new Array(WIDTH).fill(null));
   for (const [id, group] of solution) {
     group.cells.forEach(({ x, y }, i) => {
-      grid[y][x] = {
-        x,
-        y,
-        number: i + 1,
-        groupId: id,
-        isSelected: false,
-        isCommitted: false,
-        committedId: -1,
-      };
+      grid[y][x] = { x, y, number: i + 1, groupId: id, group: null };
     });
   }
 }
 
 // A run of consecutive numbers, each touching the one before, which leaves the
-// region connected without asking. It need not start at 1: a leftover 3-4-5
-// commits and scores nothing, and without that a board gone wrong strands cells
-// nothing legal can take.
+// region connected without asking. It need not start at 1: a leftover 3-4-5 is
+// a region and scores nothing, and without that a board gone wrong strands
+// cells nothing legal can take.
 function isValid(group) {
   if (group.length === 0) return false;
 
@@ -515,126 +504,75 @@ function originalOf(group) {
   return 0;
 }
 
-function clearWorking() {
-  for (const c of working) c.isSelected = false;
-  working = [];
+function create(cell) {
+  const group = { cells: [cell], color: nextColor++ % REGION.length };
+  cell.group = group;
+  groups.push(group);
+  return group;
 }
 
-function commit() {
-  if (!isValid(working)) return false;
+function take(group, cell) {
+  cell.group = group;
+  group.cells.push(cell);
+}
 
-  const region = {
-    cells: [...working],
-    original: originalOf(working),
-    color: committed.length % REGION.length,
-    id: nextId++,
-  };
+function merge(group, other) {
+  for (const c of other.cells) take(group, c);
+  other.cells.length = 0;
+  groups.splice(groups.indexOf(other), 1);
+}
 
-  for (const c of working) {
-    c.isSelected = false;
-    c.isCommitted = true;
-    c.committedId = region.id;
-  }
-  committed.push(region);
-  working = [];
+function drop(cell) {
+  const group = cell.group;
+  cell.group = null;
+  group.cells.splice(group.cells.indexOf(cell), 1);
+  if (group.cells.length > 1) return;
 
-  let full = 0;
+  // One cell is no region to play with, so the group goes with it.
+  for (const c of group.cells) c.group = null;
+  group.cells.length = 0;
+  groups.splice(groups.indexOf(group), 1);
+}
+
+function done() {
   for (const row of grid) {
-    for (const c of row) {
-      if (c?.isCommitted) full++;
+    for (const cell of row) {
+      if (!cell.group) return false;
     }
   }
-  if (full === WIDTH * HEIGHT) {
-    score.value = committed.filter((r) => r.original !== 0).length;
-    gameOver({ win: true, score: true });
-  }
-
-  return true;
+  return groups.every((g) => isValid(g.cells));
 }
 
-// Back into the working set, so a wrong partition is taken apart in place.
-function decommit(region) {
-  committed.splice(committed.indexOf(region), 1);
-  clearWorking();
+function edit(cell) {
+  dragGroup ??= create(dragFrom);
 
-  for (const rc of region.cells) {
-    const c = grid[rc.y][rc.x];
-    c.isSelected = true;
-    c.isCommitted = false;
-    c.committedId = -1;
-    working.push(c);
-  }
-}
-
-function toggle(cell) {
-  if (cell.isCommitted) {
-    const region = committed.find((r) => r.id === cell.committedId);
-    if (!region) return;
-    // Committed first when it is legal and dropped when it is not: two half-built
-    // regions at once has no meaning.
-    if (working.length > 0 && !commit()) clearWorking();
-    decommit(region);
+  // Back into the group the drag started in takes the cell it started on out
+  // of it. There is one of those, so the stroke ends here.
+  if (cell.group === dragGroup) {
+    const from = dragFrom;
+    dragFrom = null;
+    dragGroup = null;
+    drop(from);
     return;
   }
 
-  const i = working.indexOf(cell);
-  if (i !== -1) {
-    working.splice(i, 1);
-    cell.isSelected = false;
-    return;
-  }
+  if (cell.group) merge(dragGroup, cell.group);
+  else take(dragGroup, cell);
 
-  working.push(cell);
-  cell.isSelected = true;
-}
-
-function inBox(x, y, bx, by, bw, bh) {
-  return x >= bx && x <= bx + bw && y >= by && y <= by + bh;
-}
-
-function clearBtn() {
-  return { x: X0, y: STATUS_Y - BTN_H / 2, w: BTN_W, h: BTN_H };
-}
-
-function commitBtn() {
-  return {
-    x: X0 + GRID_W - BTN_W,
-    y: STATUS_Y - BTN_H / 2,
-    w: BTN_W,
-    h: BTN_H,
-  };
-}
-
-function click(x, y) {
-  if (working.length > 0) {
-    const b = clearBtn();
-    if (inBox(x, y, b.x, b.y, b.w, b.h)) {
-      clearWorking();
-      return;
-    }
-  }
-
-  if (working.length > 0 && isValid(working)) {
-    const b = commitBtn();
-    if (inBox(x, y, b.x, b.y, b.w, b.h)) {
-      commit();
-      return;
-    }
-  }
-
-  const cell = cellAt(x, y);
-  if (cell) toggle(cell);
+  if (!done()) return;
+  score.value = groups.filter((g) => originalOf(g.cells) !== 0).length;
+  gameOver({ win: true, score: true });
 }
 
 export function init() {
   registerSquircle();
 
-  working = [];
-  committed = [];
-  nextId = 0;
+  groups = [];
+  nextColor = 0;
   hovered = null;
-  dragMode = null;
-  dragLast = null;
+  dragGroup = null;
+  dragFrom = null;
+  dragSeen = new Set();
   score.value = 0;
 
   build();
@@ -644,30 +582,23 @@ export function update() {
   hovered = cellAt(input.x, input.y);
 
   if (input.just.act) {
-    if (hovered && !hovered.isCommitted) {
-      dragMode = hovered.isSelected ? "remove" : "add";
-    }
-    click(input.x, input.y);
-    dragLast = hovered;
-  }
-
-  if (input.press.act && dragMode && hovered && hovered !== dragLast) {
-    dragLast = hovered;
-    if (!hovered.isCommitted) {
-      if (dragMode === "add" && !hovered.isSelected) {
-        working.push(hovered);
-        hovered.isSelected = true;
-      } else if (dragMode === "remove" && hovered.isSelected) {
-        working.splice(working.indexOf(hovered), 1);
-        hovered.isSelected = false;
-      }
-    }
+    dragFrom = hovered;
+    dragGroup = hovered?.group ?? null;
+    dragSeen = new Set(hovered ? [hovered] : []);
   }
 
   if (!input.press.act) {
-    dragMode = null;
-    dragLast = null;
+    // A click: the press cell is the only one the stroke touched, so it is the
+    // one that comes out.
+    if (dragFrom && dragSeen.size === 1 && dragFrom.group) drop(dragFrom);
+    dragFrom = null;
+    dragGroup = null;
+    return;
   }
+
+  if (!dragFrom || !hovered || dragSeen.has(hovered)) return;
+  dragSeen.add(hovered);
+  edit(hovered);
 }
 
 // It fills into half the margin on every side it has a neighbour on, and rounds
@@ -724,26 +655,19 @@ function regionArea(ctx, cells, fill) {
   for (const c of cells) regionCell(ctx, c, set, fill);
 }
 
-function button(ctx, text, b) {
-  ctx.fillStyle = BUTTON;
-  ctx.squircle(b.x, b.y, b.w, b.h, 14, 2);
-  ctx.fill();
-  ctx.fillStyle = "#FFFFFF";
-  ctx.text(text, b.x + b.w / 2, b.y + b.h / 2, 22);
-}
-
 export function render(ctx) {
-  regionArea(ctx, working, WORKING_BG);
-  for (const r of committed) regionArea(ctx, r.cells, REGION_FILL[r.color]);
+  for (const g of groups) {
+    const fill = isValid(g.cells) ? REGION_FILL[g.color] : PARTIAL;
+    regionArea(ctx, g.cells, fill);
+  }
 
   for (const row of grid) {
     for (const cell of row) {
-      if (!cell) continue;
       const x = cellX(cell.x);
       const y = cellY(cell.y);
 
-      // A cell in a region already has its background from regionArea().
-      if (!cell.isSelected && !cell.isCommitted) {
+      // A cell in a group already has its background from regionArea().
+      if (!cell.group) {
         const on = cell === hovered;
         ctx.fillStyle = on ? HOVER_BG : CELL_BG;
         ctx.squircle(x, y, CELL, CELL, CELL * 0.5, 2);
@@ -756,19 +680,5 @@ export function render(ctx) {
       ctx.fillStyle = INK;
       ctx.text(`${cell.number}`, x + CELL / 2, y + CELL / 2, CELL * 0.4);
     }
-  }
-
-  if (working.length === 0) return;
-
-  const valid = isValid(working);
-  button(ctx, "clear", clearBtn());
-  if (valid) button(ctx, "commit", commitBtn());
-
-  const numbers = working.map((c) => c.number).sort((a, b) => a - b);
-  ctx.fillStyle = valid ? GOOD : BAD;
-  ctx.text(`[${numbers.join(", ")}]`, 512, STATUS_Y - 12, 24);
-  if (valid) {
-    ctx.fillStyle = GOOD;
-    ctx.text("a region", 512, STATUS_Y + 18, 18);
   }
 }
