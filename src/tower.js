@@ -1,14 +1,16 @@
 /*
  * tower.
  *
- * A 7x10 board cut into regions, then shuffled. Every region held numbers 1..n
- * before the cut, so every number is a clue about the size and shape of the
- * region it belongs to.
+ * A 7x10 board cut into regions, each numbered 1..n along a path through its
+ * own cells. So a number says where the next one is: the cell numbered 4
+ * touches the 3 and the 5 of its region, and the board is read by following
+ * chains out of its 1s.
  *
- * A region is legal when it is orthogonally connected and its numbers are
- * exactly 1..n. The score is how many committed regions match one the generator
- * actually cut, which is not the same as filling the board: a board usually
- * admits partitions the generator never chose, and those all still score.
+ * A region is legal when its numbers run consecutively and each one touches the
+ * one before it; being connected comes with that. Only a whole 1..n region can
+ * be one the generator cut, and the score is how many committed regions are,
+ * which is not the same as filling the board: a board still admits chains the
+ * generator never cut, dozens of whole partitions of it, and those all score.
  *
  * A region is drawn as one shape rather than a row of tiles: each cell fills
  * into the margin on the sides it has a neighbour on, and rounds off on the
@@ -16,7 +18,7 @@
  */
 
 import { register as registerSquircle } from "./alma/src/gfx/squircle.js";
-import { gameOver, input, msg, score } from "./lib/one.js";
+import { gameOver, input, score } from "./lib/one.js";
 
 export const meta = {
   title: "tower",
@@ -55,7 +57,6 @@ const HOVER_BG = "#EEEEEE";
 const HOVER_LINE = "#999999";
 const WORKING_BG = "#E6F3FF";
 const INK = "#333333";
-const DIM = "#666666";
 const GOOD = "#2ECC71";
 const BAD = "#E74C3C";
 const BUTTON = "#4A90E2";
@@ -82,6 +83,15 @@ const REGION = [
 const MIN_REGION = 4;
 const MAX_REGION = 9;
 
+// How many ambiguous steps a board needs before it is worth playing, and how
+// many cuts to look at for one.
+const FORKS_MIN = 22;
+const BOARD_TRIES = 8;
+
+// A nine-cell blob has hundreds of numberings and the search does not need them
+// all, only enough to choose between.
+const PATHS_MAX = 200;
+
 // Flattened here rather than drawn as an alpha: the shape is filled in
 // overlapping passes, one a rounded corner, and a translucent fill would stack
 // up darker wherever two of them cross.
@@ -99,7 +109,7 @@ function wash(hex, amount) {
 
 const REGION_FILL = REGION.map((c) => wash(c, 0.25));
 
-// The generator's cut: group id -> the cells in it and their numbers.
+// The generator's cut: group id -> its cells, in the order they are numbered.
 let solution = new Map();
 let grid = [];
 
@@ -137,12 +147,51 @@ function shuffle(a) {
   return a;
 }
 
+// Every way to number a region: an order where each cell touches the one
+// before, from each cell it could start at. A shape with none, a T or a plus,
+// cannot be numbered and so is never cut. With one, the first found is enough.
+function paths(cells, width, one = false) {
+  const key = ([x, y]) => x + y * width;
+  const shape = new Set(cells.map(key));
+  const out = [];
+
+  function walk(path, seen) {
+    if (path.length === cells.length) {
+      out.push([...path]);
+      return;
+    }
+
+    const [x, y] = path[path.length - 1];
+    // x is bounds-checked: x - 1 off the left edge keys the previous row's
+    // right edge, which is not a neighbour. An out-of-range y keys nothing.
+    for (const next of [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]]) {
+      if (next[0] < 0 || next[0] >= width) continue;
+      const k = key(next);
+      if (!shape.has(k) || seen.has(k)) continue;
+
+      seen.add(k);
+      path.push(next);
+      walk(path, seen);
+      path.pop();
+      seen.delete(k);
+      if (out.length >= (one ? 1 : PATHS_MAX)) return;
+    }
+  }
+
+  for (const cell of shuffle([...cells])) {
+    walk([cell], new Set([key(cell)]));
+    if (out.length >= (one ? 1 : PATHS_MAX)) break;
+  }
+  return out;
+}
+
 /*
  * The cut: a rectangle into orthogonally-connected regions under a per-size
  * quota. solve() is a backtracking search that always fills from the emptiest
  * cell, since a cell with one free neighbour has to be taken now or never.
  * growSmartRegion() prefers the candidate with the most neighbours, so a region
- * encloses a gap rather than going around it.
+ * encloses a gap rather than going around it, and then numbers it by walking
+ * it: a shape with no Hamiltonian path, like a T or a plus, is rejected.
  *
  * A region one row or one column wide is rejected: the puzzle is played by
  * shape, and a line has none.
@@ -221,7 +270,7 @@ class GridFiller {
       return null;
     }
 
-    return region;
+    return paths(region, this.width, true).length > 0 ? region : null;
   }
 
   // A list of cells, or the id that every cell to set already holds.
@@ -270,7 +319,8 @@ class GridFiller {
   }
 
   getCountForSize(size) {
-    return Array.from(this.groups.values()).filter((s) => s === size).length;
+    return Array.from(this.groups.values()).filter((r) => r.length === size)
+      .length;
   }
 
   findBestEmptyCell() {
@@ -324,7 +374,7 @@ class GridFiller {
       if (!region) continue;
 
       this.setRegion(region, this.groupId);
-      this.groups.set(this.groupId, size);
+      this.groups.set(this.groupId, region);
       this.groupId++;
 
       if (this.solve()) return true;
@@ -338,27 +388,89 @@ class GridFiller {
   }
 }
 
-function build() {
+// One cut of the board into shapes, or null when the search did not cover it.
+function cut() {
   const filler = new GridFiller(WIDTH, HEIGHT, {
     minSize: MIN_REGION,
     maxSize: MAX_REGION,
     maxCountPerSize: { 4: 5, 5: 4, 6: 3, 7: 3, 8: 2, 9: 2 },
     minCountPerSize: { 4: 2, 6: 2 },
   });
-  filler.solve();
+  if (!filler.solve()) return null;
 
-  solution = new Map();
-  for (const [id, size] of filler.groups) {
-    const cells = [];
-    for (let y = 0; y < HEIGHT; y++) {
-      for (let x = 0; x < WIDTH; x++) {
-        if (filler.grid[y][x] === id) cells.push({ x, y });
-      }
+  return [...filler.groups.values()];
+}
+
+// Steps k -> k+1 where the k also touches a k+1 from another region, so the
+// player has to choose. A board with few of them traces itself out of its 1s.
+function forks(numbered) {
+  const num = Array.from({ length: HEIGHT }, () => new Array(WIDTH).fill(0));
+  for (const path of numbered) path.forEach(([x, y], i) => num[y][x] = i + 1);
+
+  let count = 0;
+  for (const path of numbered) {
+    for (let i = 0; i + 1 < path.length; i++) {
+      const [x, y] = path[i];
+      const next = [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]]
+        .filter(([nx, ny]) =>
+          nx >= 0 && nx < WIDTH && ny >= 0 && ny < HEIGHT &&
+          num[ny][nx] === i + 2
+        );
+      if (next.length > 1) count++;
     }
-    // Scattered: in order they would look like a path and show the shape.
-    const numbers = shuffle(Array.from({ length: size }, (_, i) => i + 1));
-    solution.set(id, { cells, size, numbers });
   }
+  return count;
+}
+
+// The numbering is chosen, not rolled: a region takes the numbering that puts
+// the most of its numbers beside the same number in another region. One region
+// at a time, against the numbering the rest currently have, until a pass moves
+// nothing. That is twice the forks of a random numbering, and what a solver
+// that only takes forced cells can cover drops from half the board to an
+// eighth.
+function number(shapes) {
+  const options = shapes.map((cells) => paths(cells, WIDTH));
+  const choice = options.map((ps) => ps[Math.floor(Math.random() * ps.length)]);
+
+  for (let pass = 0; pass < shapes.length; pass++) {
+    let moved = false;
+    for (let i = 0; i < choice.length; i++) {
+      let best = choice[i];
+      let most = forks(choice);
+      for (const p of options[i]) {
+        choice[i] = p;
+        const count = forks(choice);
+        if (count <= most) continue;
+        most = count;
+        best = p;
+        moved = true;
+      }
+      choice[i] = best;
+    }
+    if (!moved) break;
+  }
+
+  return choice;
+}
+
+function build() {
+  let best = null;
+  for (let i = 0; i < BOARD_TRIES || !best; i++) {
+    const shapes = cut();
+    if (!shapes) continue;
+
+    const numbered = number(shapes);
+    const count = forks(numbered);
+    if (!best || count > best.forks) best = { numbered, forks: count };
+    if (count >= FORKS_MIN) break;
+  }
+
+  solution = new Map(
+    best.numbered.map((path, id) => [id + 1, {
+      cells: path.map(([x, y]) => ({ x, y })),
+      size: path.length,
+    }]),
+  );
 
   grid = Array.from({ length: HEIGHT }, () => new Array(WIDTH).fill(null));
   for (const [id, group] of solution) {
@@ -366,7 +478,7 @@ function build() {
       grid[y][x] = {
         x,
         y,
-        number: group.numbers[i],
+        number: i + 1,
         groupId: id,
         isSelected: false,
         isCommitted: false,
@@ -376,38 +488,23 @@ function build() {
   }
 }
 
-// Orthogonally connected, and the numbers exactly 1..n.
+// A run of consecutive numbers, each touching the one before, which leaves the
+// region connected without asking. It need not start at 1 and need not be as
+// long as the generator cuts: a leftover 3-4-5 commits, it just matches no
+// region and scores nothing. Without that, a board gone wrong strands cells
+// that nothing legal can take, and the round cannot be finished at all.
 function isValid(group) {
-  if (group.length < MIN_REGION || group.length > MAX_REGION) return false;
+  if (group.length === 0) return false;
 
-  const numbers = group.map((c) => c.number).sort((a, b) => a - b);
-  for (let i = 0; i < numbers.length; i++) {
-    if (numbers[i] !== i + 1) return false;
+  const order = [...group].sort((a, b) => a.number - b.number);
+  for (let i = 1; i < order.length; i++) {
+    if (order[i].number !== order[0].number + i) return false;
+    const step = Math.abs(order[i].x - order[i - 1].x) +
+      Math.abs(order[i].y - order[i - 1].y);
+    if (step !== 1) return false;
   }
 
-  const key = (c) => c.x + c.y * WIDTH;
-  const inGroup = new Map(group.map((c) => [key(c), c]));
-  const seen = new Set([key(group[0])]);
-  const queue = [group[0]];
-
-  while (queue.length > 0) {
-    const c = queue.shift();
-    // x is bounds-checked rather than left to the index: x - 1 off the left
-    // edge lands on the previous row's right edge, which is not a neighbour.
-    const around = [
-      c.x > 0 ? key({ x: c.x - 1, y: c.y }) : -1,
-      c.x < WIDTH - 1 ? key({ x: c.x + 1, y: c.y }) : -1,
-      c.y > 0 ? key({ x: c.x, y: c.y - 1 }) : -1,
-      c.y < HEIGHT - 1 ? key({ x: c.x, y: c.y + 1 }) : -1,
-    ];
-    for (const k of around) {
-      if (k === -1 || seen.has(k) || !inGroup.has(k)) continue;
-      seen.add(k);
-      queue.push(inGroup.get(k));
-    }
-  }
-
-  return seen.size === group.length;
+  return true;
 }
 
 // The generator's group id this region reproduces, or 0 for none.
@@ -535,13 +632,6 @@ function click(x, y) {
 
 export function init() {
   registerSquircle();
-  msg(
-    `
-drag out a region of 1..n
-until the board is gone
-`,
-    { at: "bottom", hold: 3, once: true },
-  );
 
   working = [];
   committed = [];
@@ -673,11 +763,7 @@ export function render(ctx) {
     }
   }
 
-  if (working.length === 0) {
-    ctx.fillStyle = DIM;
-    ctx.text("drag cells into a region", 512, STATUS_Y, 22);
-    return;
-  }
+  if (working.length === 0) return;
 
   const valid = isValid(working);
   button(ctx, "clear", clearBtn());
