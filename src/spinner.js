@@ -47,8 +47,7 @@ export const meta = {
 const TAU = 2 * Math.PI;
 
 const ROOM = 0x232031; // inside the four walls
-const YARD = 0x2c2840; // where the blob is allowed to be
-const RAIL_C = 0x322d43;
+const FLOOR = 0x2c2840; // inside the gun's track
 const FG = 0xf0ece4;
 // The axle is machined, not moulded: flat bands with hard edges between them,
 // and no lamp on it at all.
@@ -84,8 +83,8 @@ const HIGH = 1024 - MARGIN - R;
 const RAIL = 418;
 const QUEUE = 474;
 const QUEUE_R = 12;
-// A cell centre past this puts its bubble over the yard's edge, and leaves 72
-// between the furthest one and a shot leaving the chamber. Hex distance 5
+// A cell centre past this leaves 72 between that bubble and a shot leaving the
+// chamber, which is 2R and a little. Hex distance 5
 // reaches 300 at its furthest and 6 runs from 312 to 360, so the blob fills
 // five rings and keeps whichever part of the sixth it is turned to.
 const FAR = 346;
@@ -96,6 +95,8 @@ const TURN = 1.6;
 const MOUTH = 0.7; // the half-angle the chamber is open over
 
 const SPEED = 1400;
+// Bounces before the shot gives up banking. It is never thrown away: the one
+// after this turns it at the axle, so every shot fired lands on the blob.
 const BOUNCES = 5;
 const RELOAD = 0.15;
 
@@ -238,8 +239,14 @@ function ball(ctx, img, x, y, r) {
   ctx.drawImage(img, x - half, y - half, 2 * half, 2 * half);
 }
 
-// The board under everything: the yard the blob has to stay inside, the rail
-// the gun rides, and the next colour waiting on it.
+// The board under everything: the room, the floor, and the next colour, which
+// rides out past the chamber.
+//
+// One circle and not two. The floor ends exactly on the rail, so the only ring
+// on the board is the one the gun runs on. The line a bubble loses at is 42
+// inside that and is not drawn: two rings that close together read as a mark
+// rather than as a track, and the blob arriving under the gun says the same
+// thing.
 class Rail extends ent.Entity {
   constructor() {
     super();
@@ -247,8 +254,7 @@ class Rail extends ent.Entity {
     this.pos.y = CY;
     const half = 512 - MARGIN;
     this.gfx.fill(ROOM).rect(-half, -half, 2 * half, 2 * half)
-      .fill(null).line(4, RAIL_C).circle(0, 0, RAIL)
-      .line(null).fill(YARD).circle(0, 0, FAR + R);
+      .fill(FLOOR).circle(0, 0, RAIL);
   }
 
   render(ctx) {
@@ -359,40 +365,42 @@ class Shot extends ent.Entity {
     this.pos.x += this.dx * d;
     this.pos.y += this.dy * d;
 
+    let hit = false;
     if (this.pos.x < LOW) {
       this.pos.x = LOW;
       this.dx = -this.dx;
-      if (this.wall()) return;
+      hit = true;
     } else if (this.pos.x > HIGH) {
       this.pos.x = HIGH;
       this.dx = -this.dx;
-      if (this.wall()) return;
+      hit = true;
     }
     if (this.pos.y < LOW) {
       this.pos.y = LOW;
       this.dy = -this.dy;
-      if (this.wall()) return;
+      hit = true;
     } else if (this.pos.y > HIGH) {
       this.pos.y = HIGH;
       this.dy = -this.dy;
-      if (this.wall()) return;
+      hit = true;
+    }
+
+    // A corner is one bounce, not two, which is also what keeps the second
+    // axis from flipping a direction the turn below has just set.
+    if (hit) {
+      play.bounce();
+      // Out of banks, so it goes at the axle and takes whatever the blob has
+      // turned into its way. It arrives along a radius, so it adds no spin: a
+      // shot that found nothing does not get to move the board either.
+      if (--this.left < 0) {
+        const d = Math.hypot(CX - this.pos.x, CY - this.pos.y) || 1;
+        this.dx = (CX - this.pos.x) / d;
+        this.dy = (CY - this.pos.y) / d;
+      }
     }
 
     const cell = struck(this.pos.x, this.pos.y);
     if (cell !== null) land(this, cell);
-  }
-
-  // True once it is spent, which is the caller's cue to stop stepping it.
-  wall() {
-    play.bounce();
-    if (--this.left >= 0) return false;
-    this.spend();
-    return true;
-  }
-
-  spend() {
-    this.remove();
-    reload = RELOAD;
   }
 
   render(ctx) {
@@ -504,7 +512,8 @@ function land(shot, cell) {
   omega += (dx * shot.dy - dy * shot.dx) * SPEED * SPIN / moment();
 
   const at = settle(cell, dx * cosA + dy * sinA, dy * cosA - dx * sinA);
-  shot.spend();
+  shot.remove();
+  reload = RELOAD;
   play.step();
   resolve(new Bubble(at.q, at.r, shot.color));
 }
@@ -543,6 +552,8 @@ function same(b) {
 }
 
 function pop(group) {
+  // One colour by definition, so the number leaves in it.
+  const lit = ent.hex(TONES[group[0].color][0]);
   let cx = 0;
   let cy = 0;
   for (const b of group) {
@@ -551,7 +562,7 @@ function pop(group) {
     new ent.Particle({
       x: b.pos.x,
       y: b.pos.y,
-      color: ent.hex(TONES[b.color][0]),
+      color: lit,
       count: 9,
       size: [3, 5],
       speed: [60, 220],
@@ -560,7 +571,7 @@ function pop(group) {
     });
     b.remove();
   }
-  ent.addScore(10 * group.length * board, cx, cy);
+  ent.addScore(10 * group.length * board, cx, cy, { color: lit });
   play.break();
   shake(0.1 + 0.02 * group.length);
 }
