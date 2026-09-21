@@ -6,6 +6,12 @@
  * button as well as the keys, so a game that only acts is playable with a
  * finger alone.
  *
+ * The pointer is read off the window and not the canvas, so the page around the
+ * board plays the game too: a press in the margin acts and the pointer keeps up
+ * with a mouse that has left the square. `x`/`y` is then outside 0 to 1024, and
+ * a game that reads a cell or an index off it has to say what it does with a
+ * press that is not on the board.
+ *
  * Directions come from the keys, and on a touch screen from the pad the page
  * draws below the board in HTML: `.dirs`, a cross, and `.act`, a button.
  * `meta.dpad` asks for one, and bindPad() is the whole connection to the page.
@@ -113,8 +119,15 @@ function releaseAll() {
   acting.clear();
 }
 
-// A pointer dragged off the element it came down on stops delivering move and
-// up there, leaving what it holds stuck down; capture reroutes it back.
+// What the game gets: the whole page, less the pad, which has its own handlers,
+// and less the links and buttons a page puts around the board. The target of
+// the press is the whole of what decides it.
+function forGame(e) {
+  return !e.target?.closest?.("a, button, .pad");
+}
+
+// A pointer dragged past the window's edge stops delivering move and up,
+// leaving what it holds stuck down; capture keeps it reporting.
 function capture(el, e) {
   try {
     el.setPointerCapture(e.pointerId);
@@ -200,20 +213,21 @@ export function init(scr, { dpad = false } = {}) {
   const el = screen.canvas;
   on(el, "contextmenu", (e) => e.preventDefault());
 
-  on(el, "pointerdown", (e) => {
+  on(globalThis, "pointerdown", (e) => {
+    if (e.button !== 0 || !forGame(e)) return;
     capture(el, e);
-    if (e.button !== 0) return;
     ptr.x = e.clientX;
     ptr.y = e.clientY;
     actDown(e);
   });
-  on(el, "pointermove", (e) => {
+  on(globalThis, "pointermove", (e) => {
     // With no button down too, for a mouse hovering a board.
+    if (!forGame(e)) return;
     ptr.x = e.clientX;
     ptr.y = e.clientY;
   });
-  on(el, "pointerup", actUp);
-  on(el, "pointercancel", actUp);
+  on(globalThis, "pointerup", actUp);
+  on(globalThis, "pointercancel", actUp);
 
   if (dpad) bindPad(on);
 }

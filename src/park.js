@@ -451,7 +451,9 @@ function tabs() {
     swallow = false;
     return false;
   }
-  if (input.just.act && input.y > 1024 - BAR) {
+  // The x test is the board's edge: the pointer is off the board when the mouse
+  // is in the page around it, and a tab index taken from there is not one.
+  if (input.just.act && input.y > 1024 - BAR && input.x >= 0 && input.x < 1024) {
     pick = Math.floor(input.x / (1024 / VEHICLES.length));
     init();
     swallow = true;
