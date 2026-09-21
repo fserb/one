@@ -3,9 +3,6 @@
  * the finish screen over the board the round ended on. Nothing is filled behind
  * either, so both draw in theme()'s colour, and nothing draws the score while
  * the round runs.
- *
- * Nothing here clears a click flag. one.js calls update() only between rounds
- * and render() after the game draws.
  */
 
 import { anchor, css, hex } from "./gfx.js";
@@ -38,11 +35,9 @@ const AT = {
 // How far the finish screen dims the board, and how long it takes to appear.
 const DIM = 0.8;
 const RISE = 0.26;
-// The shape of that rise, written out rather than taken from alma's ease.js.
-// Its fastOutSlowIn is cubic-bezier(.4, 0, .2, 1) as a 200-sample table, and
-// over 0.26s the two are not separable run side by side. Naming it was the one
-// thing keeping ease.js in seven bundles that use nothing else out of it, at
-// 1.1 to 1.2 KB each; the other twenty pull it in for themselves.
+// Written out rather than taken from alma's ease.js: over 0.26s it and
+// fastOutSlowIn are not separable, and importing ease.js for this alone cost
+// 1.1 KB in each of seven bundles.
 const ease = (t) => 1 - (1 - t) ** 3;
 const AGAIN = "TAP TO PLAY AGAIN";
 // A click this soon after the round ends is the click that ended it.
@@ -94,14 +89,9 @@ function clear() {
   finish.on = false;
 }
 
-/*
- * opts says what the finish screen shows, and an empty one shows nothing: the
- * board freezes and a click plays again.
- *
- *   msg    the title line. "" leaves the title out and keeps the rest.
- *   score  true adds the SCORE and BEST rows.
- *   win    uses WELL DONE instead of GAME OVER when msg is absent.
- */
+// `msg` is the title line, and "" leaves it out; `score` adds the SCORE and
+// BEST rows; `win` uses WELL DONE instead of GAME OVER. An empty opts shows
+// nothing: the board freezes and a click plays again.
 export function gameOver(
   { msg = null, score: wantScore = false, win = false } = {},
 ) {
@@ -275,21 +265,17 @@ function width(ctx, txt, size) {
   return ctx.mtext(txt, size).width;
 }
 
-/*
- * The colour everything over the board is drawn in, and the gallery card's
- * title, so tools/build.js calls this too. Nothing is filled behind any of it,
- * so the one thing it is chosen against is the board. meta.fg is never a
- * default: rope's is #402F2E on a #000000 board.
- */
+// The colour everything over the board is drawn in, and the gallery card's
+// title, so tools/build.js calls this too. meta.fg is never a default: rope's
+// is #402F2E on a #000000 board.
 export function theme(m) {
   return m.overlay ?? pick(m.bg);
 }
 
 // WCAG relative luminance of a #rrggbb colour. Linearising is the step that
-// matters: weighting the raw bytes calls #3DBF86 a 0.62 when it is a 0.40,
-// which is most of the distance to the wrong pair. Six-digit hex only, which is
-// what every meta.bg and meta.overlay is; alma's color().contrast() reads any
-// CSS colour and costs 12 KB a bundle.
+// matters: weighting the raw bytes calls #3DBF86 a 0.62 when it is a 0.40.
+// Six-digit hex only; alma's color().contrast() reads any CSS colour and costs
+// 12 KB a bundle.
 function lum(c) {
   const n = hex(c);
   let y = 0;
@@ -304,13 +290,9 @@ const L_DARK = lum(DARK);
 const L_LIGHT = lum(LIGHT);
 const ratio = (a, b) => (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
 
-/*
- * Whichever of DARK and LIGHT has the higher WCAG contrast ratio over `over`.
- * Not "is `over` light or dark": the crossover is at luminance 0.19, not at the
- * 0.5 midpoint, because a mid-tone colour is much closer to white than it
- * looks. Splitting at the midpoint puts berzerk's red on LIGHT at 3.3:1 where
- * DARK gives 5.0:1.
- */
+// Whichever of DARK and LIGHT has the higher WCAG contrast ratio over `over`.
+// The crossover is at luminance 0.19, not at the 0.5 midpoint: splitting at the
+// midpoint puts berzerk's red on LIGHT at 3.3:1 where DARK gives 5.0:1.
 function pick(over) {
   const y = lum(over);
   return ratio(y, L_DARK) >= ratio(y, L_LIGHT) ? DARK : LIGHT;

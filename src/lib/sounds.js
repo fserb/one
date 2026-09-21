@@ -3,31 +3,17 @@
  *
  * A game does not write sound params. It calls a name out of this list and the
  * same rendered sound answers in every game, with a little detune a play so the
- * tenth in a row is not the first again. The set was chosen by ear, three
- * rounds of designs.
+ * tenth in a row is not the first again. The set was chosen by ear.
  *
  * Each entry is the name, a note saying what makes the sound, `vol`, the level
- * it plays at, and `params`, alma's sfx object.
- *
- * Every one is a wave -- sine, tri, saw, square -- doing one definite thing: a
- * slide, a run of notes, a gate, or two voices a few cents apart, 60 to 700ms
- * long. Only whoosh is noise, and there it is a band that sweeps. Struck modes,
- * plucked loops, FM, bitcrush, grains and a bowed string were all offered over
- * three rounds and none were kept, so the whole set costs alma's `lp`, `bp`,
- * `drive` and the `square` generator and nothing else out of sfx.js.
- *
- * The four names that came last are built out of the ones settled before them:
- * hit is land's fall at four times the speed, break is a fall under alarm's
- * gate, explode is lose's slide an octave down, step is bounce's arc made
- * small. Five more names were offered and dropped, each one a sound the set
- * already had: click and tick, hurt, charge and thrust.
+ * it plays at, and `params`, alma's sfx object. Every one is a wave -- sine,
+ * tri, saw, square -- doing one definite thing, 60 to 700ms long, and only
+ * whoosh is noise, so the whole set costs alma's `lp`, `bp`, `drive` and the
+ * `square` generator and nothing else out of sfx.js.
  *
  * `vol` is measured and not chosen: it is set so that the loudest 50ms of every
  * sound reaches the same level, a third under it for the names that repeat and
- * a third over it for the ones that end a round. It is a starting point for the
- * ear, not a result.
- *
- * They render at 48000 with over 1, which is what sound.js does.
+ * a third over it for the ones that end a round.
  */
 
 import { bp, drive, lp } from "../alma/src/sfx.js";
@@ -39,15 +25,13 @@ import { make, play } from "./sound.js";
 const FLAT = (d) => [0, d, 1e-4];
 
 // A sound is the call that plays it, and each one is its own export, so a game
-// ships the sounds it names and not the set: `play.coin()` does not bring the
-// other seventeen. Both /* @__PURE__ */ marks below are what let the bundler
-// believe that. It cannot otherwise know one() has no side effect, and it
-// cannot know lp(2000) has none either, and a stage it has to keep keeps the
-// sound holding it, which keeps the set.
+// ships the sounds it names and not the set. Both /* @__PURE__ */ marks below
+// are what let the bundler believe that: it cannot otherwise know one() or
+// lp(2000) has no side effect, and a stage it has to keep keeps the sound
+// holding it, which keeps the set.
 //
-// It renders the first time it is played and not before, so a game pays for
-// what it calls. `vol` is the level the set was measured at and a caller can
-// still pass its own.
+// It renders the first time it is played and not before. `vol` is the level the
+// set was measured at, and a caller can still pass its own.
 function one(name, vol, params) {
   let made = false;
   const f = (opts) => {

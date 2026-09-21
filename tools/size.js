@@ -55,15 +55,12 @@ function* vlq(field) {
 const encoder = new TextEncoder();
 const bytes = (s) => encoder.encode(s).length;
 
-/*
- * Minified output bytes per source file. A mapping is a point and not a range,
- * so a segment accounts for the output from its own column to the next
- * segment's, or to the end of the line; the newline and anything before the
- * first segment are esbuild's own and are attributed to nothing.
- *
- * The source index is a delta accumulated across the whole file, and a segment
- * of one field has no source at all.
- */
+// Minified output bytes per source file. A mapping is a point and not a range,
+// so a segment accounts for the output from its own column to the next
+// segment's, or to the end of the line; the newline and anything before the
+// first segment are esbuild's own and are attributed to nothing. The source
+// index is a delta accumulated across the whole file, and a segment of one
+// field has no source at all.
 function attribute(code, map) {
   const lines = code.split("\n");
   const out = new Array(map.sources.length).fill(0);

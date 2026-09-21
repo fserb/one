@@ -7,10 +7,9 @@
  * chains out of its 1s.
  *
  * A region is legal when its numbers run consecutively and each one touches the
- * one before it; being connected comes with that. Only a whole 1..n region can
- * be one the generator cut, and the score is how many committed regions are,
- * which is not the same as filling the board: a board still admits chains the
- * generator never cut, dozens of whole partitions of it, and those all score.
+ * one before it; being connected comes with that. The score is how many
+ * committed regions are ones the generator cut, which is not the same as
+ * filling the board: a board admits dozens of whole partitions it never cut.
  *
  * A region is drawn as one shape rather than a row of tiles: each cell fills
  * into the margin on the sides it has a neighbour on, and rounds off on the
@@ -187,14 +186,13 @@ function paths(cells, width, one = false) {
 
 /*
  * The cut: a rectangle into orthogonally-connected regions under a per-size
- * quota. solve() is a backtracking search that always fills from the emptiest
- * cell, since a cell with one free neighbour has to be taken now or never.
- * growSmartRegion() prefers the candidate with the most neighbours, so a region
- * encloses a gap rather than going around it, and then numbers it by walking
- * it: a shape with no Hamiltonian path, like a T or a plus, is rejected.
+ * quota. solve() always fills from the emptiest cell, since a cell with one
+ * free neighbour has to be taken now or never. growSmartRegion() prefers the
+ * candidate with the most neighbours, so a region encloses a gap rather than
+ * going around it.
  *
- * A region one row or one column wide is rejected: the puzzle is played by
- * shape, and a line has none.
+ * Two shapes are rejected: one with no Hamiltonian path, a T or a plus, cannot
+ * be numbered, and one a single row or column has no shape to play by.
  */
 class GridFiller {
   constructor(width, height, constraints) {
@@ -423,11 +421,10 @@ function forks(numbered) {
 }
 
 // The numbering is chosen, not rolled: a region takes the numbering that puts
-// the most of its numbers beside the same number in another region. One region
-// at a time, against the numbering the rest currently have, until a pass moves
-// nothing. That is twice the forks of a random numbering, and what a solver
-// that only takes forced cells can cover drops from half the board to an
-// eighth.
+// the most of its numbers beside the same number in another region, one region
+// at a time, until a pass moves nothing. That is twice the forks of a random
+// numbering, and what a solver that only takes forced cells can cover drops
+// from half the board to an eighth.
 function number(shapes) {
   const options = shapes.map((cells) => paths(cells, WIDTH));
   const choice = options.map((ps) => ps[Math.floor(Math.random() * ps.length)]);
@@ -489,10 +486,9 @@ function build() {
 }
 
 // A run of consecutive numbers, each touching the one before, which leaves the
-// region connected without asking. It need not start at 1 and need not be as
-// long as the generator cuts: a leftover 3-4-5 commits, it just matches no
-// region and scores nothing. Without that, a board gone wrong strands cells
-// that nothing legal can take, and the round cannot be finished at all.
+// region connected without asking. It need not start at 1: a leftover 3-4-5
+// commits and scores nothing, and without that a board gone wrong strands cells
+// nothing legal can take.
 function isValid(group) {
   if (group.length === 0) return false;
 
@@ -676,9 +672,8 @@ export function update() {
 
 // It fills into half the margin on every side it has a neighbour on, and rounds
 // the corners where neither of the two sides meeting there is connected. A
-// corner is cut and not covered: board colour goes over the corner square
-// first, then a full-cell squircle is filled through it, which is why the fill
-// has to be opaque.
+// corner is cut and not covered: board colour goes over the corner square first
+// and a full-cell squircle is filled through it, so the fill has to be opaque.
 function regionCell(ctx, cell, set, fill) {
   const half = MARGIN / 2;
   const r = CELL * 0.5;

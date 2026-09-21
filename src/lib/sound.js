@@ -2,14 +2,13 @@
  * sound.js - sound effects, synthesised at load time.
  *
  * A game imports this itself and defines its sounds at module scope. Nothing
- * here uses the DOM until arm() gets the first gesture, so the build can
- * import a game to read its `meta`. A silent game leaves op.sound null and the
- * bundler drops the synth and alma's Audio.
+ * here uses the DOM until arm() gets the first gesture, so the build can import
+ * a game to read its `meta`. A silent game leaves op.sound null and the bundler
+ * drops the synth and alma's Audio.
  *
- * A game imports the sounds it plays out of sounds.js and calls them. `make()`
- * is what those are built on and what a game writes directly when the sound is
- * its own. A stage is a value you import, so a game ships the stages it names
- * and no others, and a sound is one too.
+ * Most games name a sound out of sounds.js instead. `make()` is what those are
+ * built on and what a game writes directly when the sound is its own; a stage
+ * is a value you import, so a game ships the stages it names and no others.
  *
  * ```js
  * import { crush, lp } from "./alma/src/sfx.js";
@@ -18,8 +17,6 @@
  *   osc: {osc: "brown", env: [0, .3, 1e-4], fx: [crush(4, 8000), lp(1600)]},
  *   env: ["expIn", .005, "expOut", .28],
  * });
- * import { coin } from "./lib/sounds.js";
- * coin();
  * sound.play("drop", { detune: 800 * (2 * Math.random() - 1) });
  * ```
  *
@@ -79,17 +76,15 @@ export function arm(target) {
   target.addEventListener("keydown", go, opts);
 }
 
-// alma's sfx, at the rate the mixer runs and with no supersampling. Both are
-// fixed here rather than per sound, because a game's sounds are tuned by ear
-// at one setting and `over` is not only a quality knob: alma's brown and pink
-// are one-pole filters whose corner follows rate * over, so raising it tilts
-// every noise about 10 dB across the band. It is also 6x cheaper at 1, and
-// nothing in the gallery aliases enough at 1 to hear.
+// alma's sfx, at the rate the mixer runs and with no supersampling. `over` is
+// not only a quality knob: alma's brown and pink are one-pole filters whose
+// corner follows rate * over, so raising it tilts every noise about 10 dB
+// across the band. It is 6x cheaper at 1, and nothing in the gallery aliases
+// enough at 1 to hear.
 export function make(name, params) {
   put(name, sfx(params, { rate: SAMPLE_RATE, over: 1 }));
 }
 
-// What the two synths share: a rendered buffer, at the rate it was rendered at.
 function put(name, samples, rate = SAMPLE_RATE) {
   add(name, () => audio.put(name, samples, rate));
 }

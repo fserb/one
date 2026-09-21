@@ -6,8 +6,7 @@
  * doing nothing at module scope: the build reads `meta` by importing it under
  * Deno, so nothing may use the DOM there.
  *
- * It also has the shared state: meta, score, op and the round clock the
- * difficulty is read off.
+ * It also holds the shared state: meta, score, op and `time`.
  */
 
 import { register as registerPlus2d } from "../alma/src/gfx/plus2d.js";
@@ -121,9 +120,9 @@ export function fixed(rate, func) {
 }
 
 /*
- * The one line of text over the board, and nothing is filled behind it. Setting
- * the text that is already up is a no-op, so a game can call this from update()
- * every frame; null or "" takes it away.
+ * The one line of text over the board. Setting the text that is already up is a
+ * no-op, so a game can call this from update() every frame; null or "" takes it
+ * away.
  *
  *   at      "top", the default, or "bottom", which is where a rule goes
  *   x, y    the anchor, default the slot's
@@ -134,9 +133,8 @@ export function fixed(rate, func) {
  *           stays until the game replaces it or the round does
  *   once    show it only once a page load, however many rounds are played
  *
- * With no arguments it returns the seconds a fading line has left, 0 once it is
- * gone or when the line is staying, so a game can delay an opening move while
- * the player is still reading.
+ * With no arguments it returns the seconds a fading line has left, and 0 once
+ * it is gone or when the line is staying.
  */
 export function msg(text, opts) {
   if (text === undefined) return overlay.left();

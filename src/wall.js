@@ -12,9 +12,8 @@
  * step inside freezes it, so only the edge moving in brings one closer. Without
  * the drain a bot following the flood fill to the nearest coin never died.
  *
- * The room is generated rather than hand-drawn: BLOCKS straight segments, each
- * needing a clear tile all round, so no segment closes off an area. Over 400
- * generated rooms every free tile was reachable from the start.
+ * The room is generated: BLOCKS straight segments, each needing a clear tile
+ * all round, so no segment closes off an area.
  */
 
 import * as ent from "./lib/entity.js";

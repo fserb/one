@@ -8,12 +8,9 @@
  *
  * The cab has two controls: ds, how far its rear axle goes, and a curvature k
  * with |k| <= kmax, which is all the wheels allow. Every link behind it just
- * follows its drawbar.
- *
- * Both halves aim the cab. A trailer is not steerable and not grabbable: getting
- * one where you want it is the driving, which is the game. Pointing at where a
- * trailer should end up would need the game to plan the shuffle for you, and
- * then the joints stop being the thing you are playing against.
+ * follows its drawbar, and neither mode aims one: getting a trailer where you
+ * want it is the driving, and pointing at where it should end up would have the
+ * game plan the shuffle instead.
  */
 
 import { Collider } from "./alma/src/collider.js";
@@ -48,11 +45,9 @@ const JACK = 1.4; // the angle across a joint that counts as jackknifed
 const BAR = 88; // the height of the strip of vehicle tabs
 const DONE = 1; // seconds parked with nothing pressed before the round ends
 
-/*
- * A body is measured from its own axle: `back` behind it, `front` ahead, and
- * `wide` across. A link hangs off a hitch `hitch` behind the axle of whatever
- * tows it, on a drawbar `bar` long.
- */
+// A body is measured from its own axle: `back` behind it, `front` ahead, and
+// `wide` across. A link hangs off a hitch `hitch` behind the axle of whatever
+// tows it, on a drawbar `bar` long.
 const VEHICLES = [
   {
     name: "car",
@@ -195,12 +190,10 @@ function centre(p, r) {
   return toWorld(p, (r.front - r.back) / 2, 0);
 }
 
-/*
- * One step of the whole rig, in place: the cab along an arc, then each link
- * turning by however much its drawbar was dragged across. A joint out of
- * travel holds at the limit and the rig keeps going, which is a trailer being
- * skidded sideways rather than a move the game refuses.
- */
+// One step of the whole rig, in place: the cab along an arc, then each link
+// turning by however much its drawbar was dragged across. A joint out of travel
+// holds at the limit and the rig keeps going, which is a trailer skidded
+// sideways rather than a move the game refuses.
 function step(st, ds, k) {
   const p = chain(st);
   const dth = k * ds;
@@ -229,29 +222,19 @@ function clone(st) {
 
 /* Driving. */
 
-/*
- * Turn the wheels towards k, as far as a rack turns in dt, and say whether
- * they are there yet. Point the wheels, then go: the car stands still while
- * they come round, so a full lock is something it can do without moving an
- * inch, and it never drives a curvature its wheels are not at.
- */
+// Turn the wheels towards k, as far as a rack turns in dt, and say whether they
+// are there yet. The car never drives a curvature its wheels are not at.
 function rack(k, dt) {
   const r = veh.kmax * RACK * dt;
   steer = clamp(k, steer - r, steer + r);
   return steer === k;
 }
 
-/*
- * How much of its speed the car has while the wheels are still coming round to
- * k: none while they are half a lock off it, all once they are there. A big
- * change in steering is a car that stands and turns before it sets off, and a
- * small one costs nothing.
- *
- * This and not waiting outright, which is right for one committed arc and
- * wrong for anything that aims every frame: a servo aims at a curvature that
- * moves as the car does, so waiting for it stalls all but a few frames in
- * every hundred.
- */
+// How much of its speed the car has while the wheels are still coming round to
+// k: none while they are half a lock off it, all once they are there. Waiting
+// outright is right for one committed arc and wrong for anything that aims
+// every frame, where the target moves as the car does and waiting for it stalls
+// all but a few frames in every hundred.
 function aligned(k) {
   return clamp(1 - Math.abs(steer - k) / (veh.kmax * ALIGN), 0, 1);
 }
@@ -291,14 +274,11 @@ function advance(ds, k) {
   return true;
 }
 
-/*
- * The held point sits at g on the cab, so it travels ds * (1 - k*g.y, k*g.x):
- * one direction per curvature, and that fan is everything the wheels can do
- * with it. This is the least squares fit of that fan to d, both in the cab's
- * own frame. The exact solve goes singular when d is square onto g - pulling
- * the nose straight sideways, say - so the two limits are candidates too and
- * the best of the three wins.
- */
+// The held point sits at g on the cab, so it travels ds * (1 - k*g.y, k*g.x):
+// one direction per curvature, and that fan is everything the wheels can do
+// with it. This is the least squares fit of that fan to d, both in the cab's
+// own frame. The exact solve goes singular when d is square onto g, so the two
+// limits are candidates too and the best of the three wins.
 function solve(g, d) {
   const den = g.x * d.x + g.y * d.y;
   const ks = [veh.kmax, -veh.kmax, 0];
@@ -311,9 +291,7 @@ function solve(g, d) {
     const ds = dot / (ux * ux + uy * uy);
     // The fit, less a little for how far the wheels would have to come. Where
     // no curvature helps much, full lock either way fits about as well, and on
-    // the raw fit the answer flips between them from one frame to the next;
-    // the wheels then chase a target that keeps swapping sides and the car
-    // never gets to drive.
+    // the raw fit the answer flips between them frame to frame.
     const score = ds * dot * (1 - HOLD * Math.abs(k - steer) / (2 * veh.kmax));
     if (score > best.score) best = { ds, k, score };
   }
@@ -380,22 +358,15 @@ function dragDraw(ctx) {
 
 /*
  * A press on the board: a spot. One arc, decided when it is pressed and then
- * not decided again - the curvature is fixed and `left` counts the distance down, so holding still
- * lands the cab in the outline exactly. Aiming at the spot every frame instead
- * is what made it wander, worst in reverse, where the arc reaching a point
- * just behind the axle swings wildly for a small move of that point.
+ * not decided again - the curvature is fixed and `left` counts the distance
+ * down, so holding still lands the cab in the outline exactly. Aiming at the
+ * spot every frame instead made it wander, worst in reverse.
  *
- * It only moves while the pointer is down, and letting go stops it where it
- * is, the spot and what is left of the arc both kept: press again inside DEAD
- * of that spot and it carries on the same arc into the same outline, however
- * many times it is let go of.
- *
- * Dragging the pointer off the spot is the other thing it does. The dead zone
- * guards only the first of those: once the pointer has been carried DEAD off
- * the spot, the rest of that press aims again every frame, and the car follows
- * a finger. So a press that stays put is a move with an end you can see and a
- * press that is dragged is steering, with nothing to switch between them.
- * Letting go is what ends it either way.
+ * It only moves while the pointer is down, and letting go keeps the spot and
+ * what is left of the arc: press again inside DEAD of that spot and it carries
+ * on. Carry the pointer DEAD off the spot and the rest of that press aims every
+ * frame instead, so a press that stays put is a move with an end you can see
+ * and a press that is dragged is steering.
  */
 // A spot on top of the rear axle asks for nothing, and the arc through it is
 // where the gear flips and the answer swings from a short move forward to most

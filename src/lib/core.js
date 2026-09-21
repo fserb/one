@@ -2,15 +2,13 @@
  * core.js - the entity model itself: the groups, the frame, and Entity. A game
  * imports entity.js, which re-exports this and props.js.
  *
- * The games are written in one's 1024 board, and render() draws in it directly.
- * With a camera that board is its opening framing, game.input's pointer is read
- * back through it, and apply() is what puts a shake on the world.
+ * With a camera the 1024 board is its opening framing, game.input's pointer is
+ * read back through it, and apply() is what puts a shake on the world.
  *
  * begin() cannot run from the constructor, since a subclass's field
  * initialisers run after super() returns and would overwrite it. It runs at the
  * top of the entity's first frame, so an entity is drawn on the frame it was
- * made with only what its constructor set, and one built inside another's
- * update() takes its first step on the next frame.
+ * made with only what its constructor set.
  */
 
 import { Collider } from "../alma/src/collider.js";

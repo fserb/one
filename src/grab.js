@@ -1,14 +1,5 @@
-/*
- * grab - "the name of the game is grab". Ludum Dare 32, April 2015; the weapon
- * is Blitzcrank's hook.
- *
- * The floor is one of four colours and the ghost of that colour is off the
- * board. Hook one of the other three and reel it in: its colour becomes the
- * floor, it leaves, and the old floor colour walks back on.
- *
- * It needs the keys or the pad to move and a pointer to aim. Alone in the
- * collection, it is not playable with either one alone.
- */
+// grab - "the name of the game is grab". Ludum Dare 32, April 2015; the weapon
+// is Blitzcrank's hook.
 
 import * as ent from "./lib/entity.js";
 import { delay } from "./lib/effects.js";
@@ -95,6 +86,8 @@ class Player extends ent.Entity {
     this.hitCircle(PR);
   }
 
+  // The keys or the pad move, and the pointer aims. Alone in the collection,
+  // this is not playable with either one alone.
   update() {
     const { input } = ent.game;
 

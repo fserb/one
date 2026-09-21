@@ -3,10 +3,9 @@
  * it: flash() and delay(). A game asks for one, and one.js runs it. The third,
  * shake(), is lib/camera.js's, since the camera is what carries it.
  *
- * step() is the clock. one.js calls it at the top of the frame, before anything
- * reads what it advanced, and render() draws the flash between the game and the
- * panels. The delay is read where the drawing it changes happens: entity.js's
- * update() asks `frozen` whether to step the world at dt 0.
+ * step() is the clock, run at the top of the frame before anything reads what
+ * it advanced. The delay is read where the drawing it changes happens:
+ * entity.js's update() asks `frozen` whether to step the world at dt 0.
  */
 
 let flashColor = null;
@@ -45,9 +44,8 @@ export function step(dt) {
   if (flashColor !== null && (flashLeft -= dt) <= 0) flashColor = null;
 }
 
-// one.js skips this on the frame the round ends, so the shot behind the finish
-// panel is the board without the flash: a game that flashes on death would
-// otherwise freeze the whole screen one colour.
+// one.js skips this on the frame the round ends: a game that flashes on death
+// would otherwise hold the whole screen one colour under the finish screen.
 export function render(ctx) {
   if (flashColor === null) return;
   ctx.fillStyle = flashColor;

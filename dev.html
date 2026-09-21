@@ -363,8 +363,7 @@
         dev.html?game=wow      that game, running, like the built page
         &rec=0                 without the recorder, for an embedded iframe
 
-      A game page also loads src/dev/rec.js, the recorder the "rec" button
-      runs. `./task build` makes the pages under www/ that are deployed.
+      A game page also loads src/dev/rec.js, the recorder the "rec" button runs.
     -->
     <script type="module">
     const params = new URLSearchParams(location.search);
@@ -432,14 +431,12 @@
      * The front page, with no build step: Caddy's `file_server browse` answers
      * a directory with JSON when the request asks for it, so src/ names the
      * games and media/ says which have a card, and meta comes from importing
-     * each module the way build.js does. So it shows what the front page will
+     * each module the way build.js does. It shows what the front page will
      * show, one commit early.
      *
-     * An idea is src/_<name>.js: gitignored, and this page is the only thing
-     * that reads one. Its card shows the name without the underscore, which is
-     * what renaming the file promotes it to. Serving one needs the
-     * `handle /one/*` block in the Caddyfile: boxer's rules 404 any path
-     * segment starting with an underscore and hide it from the listing.
+     * An idea is src/_<name>.js, and its card shows the name without the
+     * underscore. Serving one needs the `handle /one/*` block in the Caddyfile:
+     * boxer's rules 404 any path segment starting with an underscore.
      */
     async function index() {
       document.body.className = "index";

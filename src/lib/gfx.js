@@ -14,12 +14,10 @@
  * both through entity.js.
  *
  * Each shape is an alma Path2D, which records the calls and hands them to a
- * real Path2D the first time it is drawn, so a command list holds no DOM
- * object and the build can still import a game under Deno. bounds() there is
- * closed form on arcs and curves alike, and an arc stays an arc: Chromium
- * draws a radius 24 disc of four cubics 0.37% larger than the one ctx.arc
- * draws, over 67 partial coverage values against the arc's 83. rect(),
- * circle() and arc() stay arcs and never emit a curve.
+ * real Path2D the first time it is drawn, so a command list holds no DOM object
+ * and the build can still import a game under Deno. rect(), circle() and arc()
+ * stay arcs and never emit a curve: four cubics draw a radius 24 disc 0.37%
+ * larger than ctx.arc does.
  */
 
 import { Path2D } from "../alma/src/geom/path2d.js";
@@ -125,8 +123,7 @@ export class Gfx {
   }
 
   // Several rectangles as one shape, each [x, y, w, h]. Filled separately, two
-  // that share an edge each antialias against it, and 40% coverage over 60% of
-  // the same colour is 76%, not 100%, so the join shows as a line.
+  // that share an edge each antialias against it and the join shows as a line.
   rects(boxes) {
     if (this.disabled) return this;
     const path = new Path2D();

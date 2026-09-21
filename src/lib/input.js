@@ -2,30 +2,18 @@
  * input.js - every device onto five buttons and a pointer.
  *
  * `press`, `just` and `release` each hold `up`, `right`, `down`, `left` and
- * `act`, and `x`/`y` is the pointer in 1024-space. That is the whole
- * vocabulary: a tap is `just.act`, a drag is `press.act` with x/y, a charge is
- * `release.act` after counting frames of `press.act`. `act` carries the pointer
- * button as well as the keys, so a pointer press and an action press are the
- * same event and a game that only acts is playable with a finger alone.
+ * `act`, and `x`/`y` is the pointer in 1024-space. `act` carries the pointer
+ * button as well as the keys, so a game that only acts is playable with a
+ * finger alone.
  *
- * The board is a place in every game: a finger on it is the pointer the way a
- * mouse is, writing x/y and holding act. The four directions come from the
- * keys, and on a touch screen from the pad the page draws below the board, in
- * HTML and outside the canvas: `.dirs`, a cross, and `.act`, a button.
- * `meta.dpad` is what asks for one, ten games do, and bindPad() is the whole
- * connection to the page. It finds `.pad`, puts the `dpad` class on <body> for
- * the page's CSS to lay the board and the pad out with, and reads the two
- * elements; that CSS shows them only where `(pointer: coarse) and (hover:
- * none)`, a screen with no mouse on it. A page with none of that markup in it,
- * like the recorder's, leaves a dpad game on the keys.
+ * Directions come from the keys, and on a touch screen from the pad the page
+ * draws below the board in HTML: `.dirs`, a cross, and `.act`, a button.
+ * `meta.dpad` asks for one, and bindPad() is the whole connection to the page.
+ * A page with none of that markup, like the recorder's, leaves a dpad game on
+ * the keys.
  *
- * The cross is read as a stick and not as four buttons: the offset from its
- * centre picks one of eight sectors, and a direction owns the three facing it,
- * so a thumb holds two at once and slides from one direction to the next
- * without lifting.
- *
- * It declares `input` rather than one.js, so nothing here imports the rest of
- * src/lib and the one.js <-> input.js cycle never exists.
+ * It declares `input` rather than one.js, so the one.js <-> input.js cycle
+ * never exists.
  */
 
 const BUTTONS = ["up", "right", "down", "left", "act"];
@@ -230,15 +218,10 @@ export function init(scr, { dpad = false } = {}) {
   if (dpad) bindPad(on);
 }
 
-/*
- * Let go of act, as if it had been released: the press that ended the finish
- * screen is still down on the new round's first frame, and a game reading
- * press.act acts on it. The real release finds nothing held and reports
- * nothing; the next press is a press again.
- *
- * Only act. A direction held when a round starts is the player's hand on the
- * key, and on the pad it never goes through `held` anyway.
- */
+// Let go of act: the press that ended the finish screen is still down on the
+// new round's first frame, and a game reading press.act would act on it. Only
+// act, since a direction held when a round starts is the player's hand on the
+// key.
 export function dropAct() {
   held.delete("act");
   prev.act = false;
@@ -265,8 +248,7 @@ export function poll() {
 
   // The pad lights what it published rather than what a thumb is over, so a
   // player on the keys sees the same thing the game is reading. Written only
-  // when it changes, since this runs every frame and a hidden pad still has
-  // one of these on a page recording a card.
+  // when it changes, since this runs every frame.
   if (pad !== null) {
     const lit = DIRS.filter((b) => input.press[b]).join(" ");
     if (lit !== pad.dirs.dataset.held) pad.dirs.dataset.held = lit;
