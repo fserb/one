@@ -6,10 +6,10 @@
  * touches the 3 and the 5 of its region, and the board is read by following
  * chains out of its 1s.
  *
- * A region is legal when its numbers run consecutively and each one touches the
- * one before it; being connected comes with that. The score is how many of the
- * player's groups are ones the generator cut, which is not the same as filling
- * the board: a board admits dozens of whole partitions it never cut.
+ * A region is legal when its numbers run 1..n and each one touches the one
+ * before it; being connected comes with that. A board is only kept when one
+ * set of regions covers it and no other, so it has a single answer and the
+ * score is the seconds it took.
  *
  * The groups are the whole of the state: a drag puts the cells it crosses into
  * the group it started on, with whatever groups they were in. A cell comes out
@@ -23,13 +23,13 @@
  */
 
 import { register as registerSquircle } from "./alma/src/gfx/squircle.js";
-import { gameOver, input, score } from "./lib/one.js";
+import { gameOver, input, score, time } from "./lib/one.js";
 
 export const meta = {
   title: "tower",
   bg: "#FFFFFF",
   fg: "#333333",
-  scoreMax: true,
+  scoreMax: false, // the score is seconds
   date: "2025-08-27",
 };
 
@@ -79,10 +79,15 @@ const REGION = [
 const MIN_REGION = 4;
 const MAX_REGION = 9;
 
-// How many ambiguous steps a board needs before it is worth playing, and how
-// many cuts to look at for one.
-const FORKS_MIN = 22;
-const BOARD_TRIES = 8;
+// How many cuts to look at for one that can be numbered to a single answer.
+// Four cuts in five can be, so the budget is only there to end the loop, and
+// running it out is the one way a board with more answers is played.
+const BOARD_TRIES = 16;
+
+// How far the answers are counted while the numbering is chosen. Following
+// only 8 of them numbers half the cuts to one answer, 32 or more three
+// quarters, and past that the count costs time and finds nothing.
+const ANSWERS_MAX = 64;
 
 // A nine-cell blob has hundreds of numberings and the search does not need them
 // all, only enough to choose between.
@@ -105,8 +110,6 @@ function wash(hex, amount) {
 
 const REGION_FILL = REGION.map((c) => wash(c, 0.25));
 
-// The generator's cut: group id -> its cells, in the order they are numbered.
-let solution = new Map();
 let grid = [];
 
 // The player's groups, each {cells, color}; a cell holds its own in .group.
@@ -396,11 +399,85 @@ function cut() {
   return [...filler.groups.values()];
 }
 
+// The numbers as the player sees them, off the cut and its numbering.
+function board(numbered) {
+  const num = Array.from({ length: HEIGHT }, () => new Array(WIDTH).fill(0));
+  for (const path of numbered) path.forEach(([x, y], i) => num[y][x] = i + 1);
+  return num;
+}
+
+// Every legal region on a board: a chain 1..n, each cell touching the one
+// before. A cell can only follow the number below it, so a chain never
+// crosses itself and no visited set is needed. Length one is left out, the
+// way a group of one is.
+function chains(num) {
+  const out = [];
+  const path = [];
+
+  function walk(x, y) {
+    path.push(x + y * WIDTH);
+    if (path.length > 1) out.push([...path]);
+
+    for (const [nx, ny] of [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]]) {
+      if (nx < 0 || nx >= WIDTH || ny < 0 || ny >= HEIGHT) continue;
+      if (num[ny][nx] === path.length + 1) walk(nx, ny);
+    }
+
+    path.pop();
+  }
+
+  for (let y = 0; y < HEIGHT; y++) {
+    for (let x = 0; x < WIDTH; x++) {
+      if (num[y][x] === 1) walk(x, y);
+    }
+  }
+
+  return out;
+}
+
+// How many sets of regions cover the board, counted no further than `cap`.
+// The cell the fewest regions still fit over is filled first, so a dead end
+// comes up at once.
+function answers(numbered, cap) {
+  const list = chains(board(numbered));
+  const over = Array.from({ length: WIDTH * HEIGHT }, () => []);
+  list.forEach((cells, i) => {
+    for (const c of cells) over[c].push(i);
+  });
+
+  const taken = new Uint8Array(WIDTH * HEIGHT);
+  let found = 0;
+
+  function fill(left) {
+    if (left === 0) {
+      found++;
+      return;
+    }
+
+    let fewest = null;
+    for (let c = 0; c < taken.length; c++) {
+      if (taken[c]) continue;
+      const fits = over[c].filter((i) => list[i].every((cell) => !taken[cell]));
+      if (fits.length === 0) return;
+      if (!fewest || fits.length < fewest.length) fewest = fits;
+    }
+
+    for (const i of fewest) {
+      for (const c of list[i]) taken[c] = 1;
+      fill(left - list[i].length);
+      for (const c of list[i]) taken[c] = 0;
+      if (found >= cap) return;
+    }
+  }
+
+  fill(taken.length);
+  return found;
+}
+
 // Steps k -> k+1 where the k also touches a k+1 from another region, so the
 // player has to choose. A board with few of them traces itself out of its 1s.
 function forks(numbered) {
-  const num = Array.from({ length: HEIGHT }, () => new Array(WIDTH).fill(0));
-  for (const path of numbered) path.forEach(([x, y], i) => num[y][x] = i + 1);
+  const num = board(numbered);
 
   let count = 0;
   for (const path of numbered) {
@@ -417,25 +494,35 @@ function forks(numbered) {
   return count;
 }
 
-// The numbering is chosen, not rolled: a region takes the numbering that puts
-// the most of its numbers beside the same number in another region, one region
-// at a time, until a pass moves nothing. That is twice the forks of a random
-// numbering, and what a solver that only takes forced cells can cover drops
-// from half the board to an eighth.
+/*
+ * The numbering is chosen, not rolled: it decides both how many answers the
+ * board has and how much work each step is. A random numbering of a cut leaves
+ * one answer 2% of the time.
+ *
+ * So a region at a time takes the numbering that leaves the fewest answers,
+ * and the count is followed down rather than jumped to: a numbering that
+ * halves it is the way to one even when no single region reaches one on its
+ * own, which is the difference between numbering a sixth of the cuts and four
+ * fifths of them. A cut none of it gets to one is dropped.
+ *
+ * Then, without losing the single answer, a region takes the numbering that
+ * puts the most of its numbers beside the same number in another region, so
+ * the steps a player has to look past are as many as one answer allows.
+ */
 function number(shapes) {
   const options = shapes.map((cells) => paths(cells, WIDTH));
   const choice = options.map((ps) => ps[Math.floor(Math.random() * ps.length)]);
 
-  for (let pass = 0; pass < shapes.length; pass++) {
+  let count = answers(choice, ANSWERS_MAX);
+  for (let pass = 0; pass < shapes.length && count > 1; pass++) {
     let moved = false;
-    for (let i = 0; i < choice.length; i++) {
+    for (let i = 0; i < choice.length && count > 1; i++) {
       let best = choice[i];
-      let most = forks(choice);
       for (const p of options[i]) {
         choice[i] = p;
-        const count = forks(choice);
-        if (count <= most) continue;
-        most = count;
+        const n = answers(choice, ANSWERS_MAX);
+        if (n >= count) continue;
+        count = n;
         best = p;
         moved = true;
       }
@@ -443,65 +530,62 @@ function number(shapes) {
     }
     if (!moved) break;
   }
+  if (count > 1) return null;
+
+  for (let i = 0; i < choice.length; i++) {
+    let best = choice[i];
+    let most = forks(choice);
+    for (const p of options[i]) {
+      choice[i] = p;
+      if (answers(choice, 2) > 1) continue;
+      const n = forks(choice);
+      if (n <= most) continue;
+      most = n;
+      best = p;
+    }
+    choice[i] = best;
+  }
 
   return choice;
 }
 
 function build() {
-  let best = null;
-  for (let i = 0; i < BOARD_TRIES || !best; i++) {
+  let numbered = null;
+  let last = null;
+  for (let i = 0; i < BOARD_TRIES || !last; i++) {
     const shapes = cut();
     if (!shapes) continue;
 
-    const numbered = number(shapes);
-    const count = forks(numbered);
-    if (!best || count > best.forks) best = { numbered, forks: count };
-    if (count >= FORKS_MIN) break;
+    last = shapes;
+    numbered = number(shapes);
+    if (numbered) break;
   }
-
-  solution = new Map(
-    best.numbered.map((path, id) => [id + 1, {
-      cells: path.map(([x, y]) => ({ x, y })),
-      size: path.length,
-    }]),
-  );
+  // Past the budget: a board with more than one answer beats no board.
+  numbered ??= last.map((cells) => paths(cells, WIDTH)[0]);
 
   grid = Array.from({ length: HEIGHT }, () => new Array(WIDTH).fill(null));
-  for (const [id, group] of solution) {
-    group.cells.forEach(({ x, y }, i) => {
-      grid[y][x] = { x, y, number: i + 1, groupId: id, group: null };
-    });
+  for (const path of numbered) {
+    path.forEach(([x, y], i) => grid[y][x] = { x, y, number: i + 1, group: null });
   }
 }
 
-// A run of consecutive numbers, each touching the one before, which leaves the
-// region connected without asking. It need not start at 1: a leftover 3-4-5 is
-// a region and scores nothing, and without that a board gone wrong strands
-// cells nothing legal can take.
+// 1..n, each touching the one before, which leaves the region connected
+// without asking. Starting at 1 is what makes the board have one answer:
+// without it a region of four splits into its 1-2 and its 3-4 and both halves
+// are legal.
 function isValid(group) {
   if (group.length === 0) return false;
 
   const order = [...group].sort((a, b) => a.number - b.number);
+  if (order[0].number !== 1) return false;
   for (let i = 1; i < order.length; i++) {
-    if (order[i].number !== order[0].number + i) return false;
+    if (order[i].number !== i + 1) return false;
     const step = Math.abs(order[i].x - order[i - 1].x) +
       Math.abs(order[i].y - order[i - 1].y);
     if (step !== 1) return false;
   }
 
   return true;
-}
-
-// The generator's group id this region reproduces, or 0 for none.
-function originalOf(group) {
-  for (const [id, s] of solution) {
-    if (s.size !== group.length) continue;
-    const same = s.cells.every((sc) =>
-      group.some((c) => c.x === sc.x && c.y === sc.y)
-    );
-    if (same) return id;
-  }
-  return 0;
 }
 
 function create(cell) {
@@ -560,7 +644,7 @@ function edit(cell) {
   else take(dragGroup, cell);
 
   if (!done()) return;
-  score.value = groups.filter((g) => originalOf(g.cells) !== 0).length;
+  score.value = Math.round(time);
   gameOver({ win: true, score: true });
 }
 
