@@ -102,16 +102,14 @@ function fill(template, vars) {
   });
 }
 
-// Files under src/ that are not games.
-const NOT_GAMES = new Set(["alma", "lib"]);
-
+// src/_<name>.js is an idea: gitignored, read by dev.html and nothing else,
+// so it is never built, sized or recorded. Naming one still builds it.
 async function games() {
   const out = [];
   for await (const e of Deno.readDir(SRC)) {
     if (!e.isFile || !e.name.endsWith(".js")) continue;
-    const name = e.name.slice(0, -3);
-    if (NOT_GAMES.has(name) || name.startsWith("_")) continue;
-    out.push(name);
+    if (e.name.startsWith("_")) continue;
+    out.push(e.name.slice(0, -3));
   }
   return out.sort();
 }

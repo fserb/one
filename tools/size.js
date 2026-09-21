@@ -21,16 +21,14 @@
 
 const SRC = new URL("../src/", import.meta.url);
 
-// Files under src/ that are not games. The same list build.js keeps.
-const NOT_GAMES = new Set(["alma", "lib"]);
-
+// The same set build.js builds, so the src/_<name>.js ideas are not in it.
+// Naming one still sizes it.
 async function games() {
   const out = [];
   for await (const e of Deno.readDir(SRC)) {
     if (!e.isFile || !e.name.endsWith(".js")) continue;
-    const name = e.name.slice(0, -3);
-    if (NOT_GAMES.has(name) || name.startsWith("_")) continue;
-    out.push(name);
+    if (e.name.startsWith("_")) continue;
+    out.push(e.name.slice(0, -3));
   }
   return out.sort();
 }

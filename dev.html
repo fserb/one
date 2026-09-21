@@ -120,9 +120,10 @@
         pointer-events: auto;
       }
     }
-    /* The cards, when there is no ?game=: the front page's, in two sections,
-       the drafts the build skips and then the games it ships, plus the label
-       only dev shows, on a module that threw on import.
+    /* The cards, when there is no ?game=: the front page's, in three groups
+       that open and close, the src/_<name>.js ideas, the drafts the build
+       skips and the games it ships, plus the label only dev shows, on a module
+       that threw on import.
        The body is the scroller here, and border-box so that it is: at
        content-box its 100% height plus the padding runs 52px past the window,
        and html's overflow: hidden cuts that off the bottom of the last row. */
@@ -151,11 +152,22 @@
       font-size: 11px;
       color: #21212399;
     }
-    .index section + section {
+    .index details + details {
       margin-top: 30px;
     }
+    /* The heading is what opens the group, so the gap under it belongs to the
+       cards: a closed group is its one line and nothing else. */
+    .index summary {
+      width: fit-content;
+      cursor: pointer;
+      list-style: none;
+    }
+    .index summary::-webkit-details-marker {
+      display: none;
+    }
     .index h2 {
-      margin: 0 0 12px;
+      display: inline;
+      margin: 0;
       font: bold 13px/1.45 var(--sans);
       letter-spacing: .04em;
       text-transform: uppercase;
@@ -171,7 +183,7 @@
       flex-wrap: wrap;
       gap: var(--gap);
       list-style: none;
-      margin: 0;
+      margin: 12px 0 0;
       padding: 0;
     }
     @media (min-width: 560px) {
@@ -345,8 +357,9 @@
       Runs a game straight from src/, with no build step: the browser loads the
       same ES modules the bundler does. Needs ~/web served, not a file:// open.
 
-        dev.html               every game in src/: the drafts, then the games
-                               the build ships as the front page shows them
+        dev.html               every game in src/, in three groups that open
+                               and close: the ideas, the drafts, then the games
+                               the build ships, as the front page shows them
         dev.html?game=wow      that game, running, like the built page
         &rec=0                 without the recorder, for an embedded iframe
 
@@ -421,6 +434,12 @@
      * games and media/ says which have a card, and meta comes from importing
      * each module the way build.js does. So it shows what the front page will
      * show, one commit early.
+     *
+     * An idea is src/_<name>.js: gitignored, and this page is the only thing
+     * that reads one. Its card shows the name without the underscore, which is
+     * what renaming the file promotes it to. Serving one needs the
+     * `handle /one/*` block in the Caddyfile: boxer's rules 404 any path
+     * segment starting with an underscore and hide it from the listing.
      */
     async function index() {
       document.body.className = "index";
@@ -434,7 +453,11 @@
           `<code>dev.html?game=&lt;name&gt;</code></p>`;
         return;
       }
-      names = names.map((n) => n.slice(0, -3)).filter((n) => !n.startsWith("_"));
+      const found = names.map((n) => {
+        const file = n.slice(0, -3);
+        const scratch = file.startsWith("_");
+        return { file, name: scratch ? file.slice(1) : file, scratch };
+      });
 
       // A game whose clip is missing is a flat card, so this is not fatal.
       const shots = new Set(
@@ -443,17 +466,17 @@
 
       const { theme } = await import("./src/lib/overlay.js");
 
-      const games = await Promise.all(names.map(async (name) => {
+      const games = await Promise.all(found.map(async (g) => {
         try {
-          const { meta } = await import(`./src/${name}.js`);
-          return { name, ...meta, shot: shots.has(name) };
+          const { meta } = await import(`./src/${g.file}.js`);
+          return { ...g, ...meta, shot: shots.has(g.file) };
         } catch (err) {
-          return { name, error: String(err) };
+          return { ...g, error: String(err) };
         }
       }));
-      // A draft is any game without `release`, so it is what is being worked
-      // on and its section is at the top of the page. A module that threw has
-      // no meta, so it is a draft too, where work in progress goes.
+      // Newest work first: the ideas, then the drafts, which are the games
+      // without `release`, then the released ones. A module that threw has no
+      // meta, so its name is what places it.
       const newest = (a, b) =>
         (b.date ?? "").localeCompare(a.date ?? "") ||
         a.name.localeCompare(b.name);
@@ -462,19 +485,21 @@
         <h1>one · dev</h1>
         <p class=by>${games.length} games from src/</p>
       </header>` +
-        section("drafts", games.filter((g) => !g.release), theme) +
-        section("games", games.filter((g) => g.release), theme);
+        section("scratch", games.filter((g) => g.scratch), theme, false) +
+        section("drafts", games.filter((g) => !g.scratch && !g.release), theme) +
+        section("games", games.filter((g) => !g.scratch && g.release), theme);
 
       play([...document.querySelectorAll(".cards video")]);
 
       // One heading and its cards, newest first; nothing at all when the group
       // is empty, which is how a tree with no draft in it reads.
-      function section(title, group, theme) {
+      function section(title, group, theme, open = true) {
         if (!group.length) return "";
-        return `<section><h2>${title}</h2>
+        return `<details${open ? " open" : ""}>
+          <summary><h2>${title}</h2></summary>
           <ul class=cards>${
           group.sort(newest).map((g) => card(g, theme)).join("")
-        }</ul></section>`;
+        }</ul></details>`;
       }
     }
 
@@ -495,8 +520,8 @@
       // exactly as the built card's is.
       const fg = theme(m);
       const clip = g.shot
-        ? `<video src="./media/${g.name}/card.mp4" ` +
-          `poster="./media/${g.name}/card.png" loop muted playsinline ` +
+        ? `<video src="./media/${g.file}/card.mp4" ` +
+          `poster="./media/${g.file}/card.png" loop muted playsinline ` +
           `preload=none></video>`
         : "";
       // A broken game says why on hover; a working one has no hover text,
@@ -504,7 +529,7 @@
       const tip = g.error ?? "";
       return `<li${g.error ? " class=error" : ""} ` +
         `style="--bg:${esc(m.bg)};--fg:${esc(fg)}">
-        <a href="?game=${encodeURIComponent(g.name)}"${
+        <a href="?game=${encodeURIComponent(g.file)}"${
           tip ? ` title="${esc(tip)}"` : ""
         }>
           ${clip}
