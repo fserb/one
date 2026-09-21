@@ -358,8 +358,9 @@
       same ES modules the bundler does. Needs ~/web served, not a file:// open.
 
         dev.html               every game in src/, in three groups that open
-                               and close: the ideas, the drafts, then the games
-                               the build ships, as the front page shows them
+                               and close, and stay how they were left: the
+                               ideas, the drafts, then the games the build
+                               ships, as the front page shows them
         dev.html?game=wow      that game, running, like the built page
         &rec=0                 without the recorder, for an embedded iframe
 
@@ -440,6 +441,9 @@
      */
     async function index() {
       document.body.className = "index";
+      // Which groups the reader leaves open, by title.
+      const KEY = "one#dev.groups";
+      const groups = JSON.parse(localStorage.getItem(KEY) ?? "{}");
 
       let names;
       try {
@@ -486,13 +490,21 @@
         section("drafts", games.filter((g) => !g.scratch && !g.release), theme) +
         section("games", games.filter((g) => !g.scratch && g.release), theme);
 
+      for (const d of document.querySelectorAll("details[data-group]")) {
+        d.addEventListener("toggle", () => {
+          groups[d.dataset.group] = d.open;
+          localStorage.setItem(KEY, JSON.stringify(groups));
+        });
+      }
+
       play([...document.querySelectorAll(".cards video")]);
 
       // One heading and its cards, newest first; nothing at all when the group
-      // is empty, which is how a tree with no draft in it reads.
+      // is empty, which is how a tree with no draft in it reads. What the
+      // reader last left the group at wins over `open`, the group's default.
       function section(title, group, theme, open = true) {
         if (!group.length) return "";
-        return `<details${open ? " open" : ""}>
+        return `<details data-group=${title}${(groups[title] ?? open) ? " open" : ""}>
           <summary><h2>${title}</h2></summary>
           <ul class=cards>${
           group.sort(newest).map((g) => card(g, theme)).join("")
