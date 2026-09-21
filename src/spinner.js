@@ -29,6 +29,7 @@
  */
 
 import * as ent from "./lib/entity.js";
+import * as ease from "./alma/src/ease.js";
 import { shake } from "./lib/camera.js";
 import { gameOver } from "./lib/one.js";
 import * as play from "./lib/sounds.js";
@@ -45,13 +46,17 @@ export const meta = {
 
 const TAU = 2 * Math.PI;
 
-const ROOM = 0xd8cbb4; // inside the four walls
-const FLOOR = 0xcdbfa6; // inside the gun's track
+const EDGE = 0x2a2419; // the board's border, outside the four walls
+const ROOM = 0xcdbfa6; // inside them
+const FLOOR = 0xd8cbb4; // inside the gun's track
+const TRACK = 0xc0b09b; // the track itself, the one line on the board not INK
 // Every line on the board is this one, and everything the game draws is cut
 // out of the board with it.
 const INK = 0x1a1712;
-// What the axle and the chamber are filled with.
+// What the gun is cut out of: the chamber's cup and the next ball's.
 const PAPER = 0xfff8ea;
+// The axle, a shade under the floor it turns in.
+const HUB = 0xbfb09a;
 
 // The six a bubble can be. Board one is played with the first three, so those
 // are the three furthest apart. Each one is saturated and none is near INK: a
@@ -69,12 +74,16 @@ const CY = 512;
 const MARGIN = 22;
 const LOW = MARGIN + R;
 const HIGH = 1024 - MARGIN - R;
-// The circle the gun's pivot rides. What sets it is the row outward from it:
-// the chamber's 40, then the next ball, which has to sit clear of both the
-// chamber and the wall.
+// The circle the gun's pivot rides, and the row of the gun that sits outward
+// of it: the chamber, then the next ball 50 behind the pivot, whose cup stops
+// one short of the wall when the gun points straight out.
 const RAIL = 418;
-const QUEUE = 474;
+const QUEUE = 50;
 const QUEUE_R = 12;
+// The white the gun leaves outside each ball it holds, measured from the line
+// the chamber's is cut out with and from the edge of the next one, which has
+// none. One number, so the two rings are the same width.
+const LIP = 9;
 // A cell centre past this leaves 72 between that bubble and a shot leaving the
 // chamber, which is 2R and a little. Hex distance 5
 // reaches 300 at its furthest and 6 runs from 312 to 360, so the blob fills
@@ -91,6 +100,9 @@ const SPEED = 1400;
 // after this turns it at the axle, so every shot fired lands on the blob.
 const BOUNCES = 5;
 const RELOAD = 0.15;
+// The next ball's ride up the gun and into the chamber. The gun does not fire
+// during it.
+const FEED = 0.15;
 
 // omega += cross(arm, velocity) * SPIN / moment.
 const SPIN = 2.5;
@@ -126,6 +138,7 @@ let colors = 3;
 // The colour in the chamber, then the one waiting on the rail behind it.
 let gun = [];
 let reload = 0;
+let feed = 0;
 // The pointer as the chamber last read it: a pointer that moved aims it, and
 // the keys have it the rest of the time. The first frame only records where it
 // is, so a round does not open by swinging the gun at wherever it was left.
@@ -161,10 +174,10 @@ const SHINE_W = 0.17;
 // before any of them is filled. Drawn per ball, the line of the one next door
 // lands on top of this one's colour and the pair reads as two discs with a gap
 // between rather than as one sheet.
-function outline(ctx, x, y, r) {
+function outline(ctx, x, y, r, cut = CUT) {
   ctx.fillStyle = ent.css(INK);
   ctx.beginPath();
-  ctx.arc(x, y, r * CUT, 0, TAU);
+  ctx.arc(x, y, r * cut, 0, TAU);
   ctx.fill();
 }
 
@@ -181,8 +194,8 @@ function ball(ctx, color, r) {
   ctx.stroke();
 }
 
-// The board under everything: the room, the floor, and the next colour, which
-// rides out past the chamber.
+// The board under everything: the border, the room inside the four walls, and
+// the floor the gun runs on.
 //
 // One circle and not two. The floor ends exactly on the rail and the line
 // around it is the track the gun runs on. The line a bubble loses at is 42
@@ -195,20 +208,10 @@ class Rail extends ent.Entity {
     this.pos.x = CX;
     this.pos.y = CY;
     const half = 512 - MARGIN;
-    this.gfx.fill(ROOM).rect(-half, -half, 2 * half, 2 * half)
+    this.gfx.fill(EDGE).rect(-512, -512, 1024, 1024)
+      .fill(ROOM).rect(-half, -half, 2 * half, 2 * half)
       .fill(FLOOR).circle(0, 0, RAIL)
-      .fill(null).line(8, INK).circle(0, 0, RAIL - 4);
-  }
-
-  render(ctx) {
-    this.gfx.render(ctx);
-    const x = Math.cos(railA) * QUEUE;
-    const y = Math.sin(railA) * QUEUE;
-    outline(ctx, x, y, QUEUE_R);
-    ctx.save();
-    ctx.translate(x, y);
-    ball(ctx, gun[1], QUEUE_R);
-    ctx.restore();
+      .fill(null).line(8, TRACK).circle(0, 0, RAIL - 4);
   }
 }
 
@@ -219,7 +222,7 @@ class Axle extends ent.Entity {
     super();
     this.pos.x = CX;
     this.pos.y = CY;
-    const g = this.gfx.fill(PAPER).line(6, INK).circle(0, 0, AXLE_R - 3)
+    const g = this.gfx.fill(HUB).line(6, INK).circle(0, 0, AXLE_R - 3)
       .line(null).fill(INK);
     for (let i = 0; i < 6; ++i) {
       const a = i * TAU / 6;
@@ -290,8 +293,17 @@ class Drop extends ent.Entity {
     if (this.age > 1) this.remove();
   }
 
+  // The line is a ring here and a disc under the ball everywhere else: the
+  // drop fades out, and ink under the colour shows through it and takes the
+  // ball darker than the board as it goes. The ring runs one inside the ball's
+  // edge, so no floor shows in the seam.
   render(ctx) {
-    outline(ctx, 0, 0, R);
+    const w = R * (CUT - 1) + 1;
+    ctx.strokeStyle = ent.css(INK);
+    ctx.lineWidth = w;
+    ctx.beginPath();
+    ctx.arc(0, 0, R * CUT - w / 2, 0, TAU);
+    ctx.stroke();
     ball(ctx, this.color, R);
   }
 }
@@ -369,9 +381,12 @@ class Gun extends ent.Entity {
   constructor() {
     super();
     this.off = 0;
-    this.gfx.size(2 * 175).fill(PAPER).line(6, INK)
-      .arc(0, 0, 40, 28, MOUTH, TAU - MOUTH)
-      .line(null).fill(INK, 0.5)
+    // The two cups and the three dots that point the shot are the whole gun,
+    // and none of them is lined: the only line on it is the one the ball in
+    // the chamber is cut out with.
+    this.gfx.size(2 * 175).fill(PAPER)
+      .arc(0, 0, R * CUT + LIP, 20, MOUTH, TAU - MOUTH)
+      .circle(-QUEUE, 0, QUEUE_R + LIP)
       .circle(85, 0, 6).circle(125, 0, 6).circle(165, 0, 6);
     this.place();
   }
@@ -399,10 +414,13 @@ class Gun extends ent.Entity {
     this.place();
 
     reload = Math.max(0, reload - time);
-    if (!input.just.act || reload > 0 || ent.one(Shot) !== null) return;
+    feed = Math.max(0, feed - time);
+    if (!input.just.act || reload > 0 || feed > 0) return;
+    if (ent.one(Shot) !== null) return;
 
     new Shot(gun.shift(), this.pos.x, this.pos.y, this.angle);
     gun.push(pick());
+    feed = FEED;
     // The shot's momentum across the rail, pushed back into the carriage.
     railV += SPEED * Math.sin(this.off) * RECOIL / RAIL;
     play.shoot();
@@ -410,11 +428,25 @@ class Gun extends ent.Entity {
 
   render(ctx) {
     this.gfx.render(ctx);
-    // The chamber turns and the bubble in it does not: every crescent on the
+    // The gun turns and the two balls on it do not: every crescent on the
     // board is on the same side.
-    ctx.rotate(-this.angle);
-    outline(ctx, 0, 0, R);
-    ball(ctx, gun[0], R);
+    const a = this.angle;
+    const cos = Math.cos(a);
+    const sin = Math.sin(a);
+    ctx.rotate(-a);
+
+    // The fed ball rides up the gun and grows into the chamber, and its line
+    // opens out of its own edge, so it carries none while it is still the
+    // small one on the rail.
+    const t = ease.cubicOut(1 - feed / FEED);
+    const r = QUEUE_R + (R - QUEUE_R) * t;
+    const back = -QUEUE * (1 - t);
+    ctx.translate(back * cos, back * sin);
+    outline(ctx, 0, 0, r, 1 + (CUT - 1) * t);
+    ball(ctx, gun[0], r);
+
+    ctx.translate((-QUEUE - back) * cos, (-QUEUE - back) * sin);
+    ball(ctx, gun[1], QUEUE_R * t);
   }
 }
 
@@ -635,6 +667,7 @@ export function init() {
   board = 1;
   colors = 3;
   reload = 0;
+  feed = 0;
   aimed = false;
 
   build();
