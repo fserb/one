@@ -7,6 +7,9 @@
  * written into ~/Downloads under the name the rec button would have used, so
  * `./task media` reads it without knowing the difference.
  *
+ * A name is a file in src/, so an idea records as `_<name>`, and its zip and
+ * its media/ directory keep the underscore.
+ *
  * src/dev/play.js plays it: random held directions, a travelling pointer and
  * clicks, and no knowledge of the game. A take it never moved, and one whose
  * round ended early, are listed at the end to record by hand.
@@ -37,6 +40,14 @@ const TYPES = {
 
 const MIME = (path) => TYPES[path.split(".").pop()] ?? "application/octet-stream";
 
+function isFile(path) {
+  try {
+    return Deno.statSync(path).isFile;
+  } catch {
+    return false;
+  }
+}
+
 // dev.html needs a server: it loads the games as ES modules, which file://
 // does not allow. Files only, and no listing, since ?game= needs none.
 function serve() {
@@ -59,13 +70,7 @@ function serve() {
 }
 
 async function chrome() {
-  const bin = CHROME.find((p) => {
-    try {
-      return Deno.statSync(p).isFile;
-    } catch {
-      return false;
-    }
-  });
+  const bin = CHROME.find(isFile);
   if (!bin) throw new Error(`no chrome in:\n  ${CHROME.join("\n  ")}`);
 
   const dir = Deno.makeTempDirSync({ prefix: "one-record-" });
@@ -199,19 +204,26 @@ function write(take) {
   return path;
 }
 
+// The name is a file in src/, since dev.html imports src/<name>.js: without
+// this the page throws on a module that is not there, window.rec never appears
+// and the wait below reports a page that loaded nothing. An idea records under
+// its own name, underscore included, which its zip and its media/ directory
+// keep and .gitignore covers.
+function missingSource(game) {
+  if (isFile(`${ROOT}/src/${game}.js`)) return null;
+  if (isFile(`${ROOT}/src/_${game}.js`)) {
+    return `no src/${game}.js; as an idea: ./task record _${game}`;
+  }
+  return `no src/${game}.js`;
+}
+
 // A card recorded by hand is better than anything this can record, so with no
 // game named it never replaces one.
 function missing() {
   return [...Deno.readDirSync(`${ROOT}/src`)]
     .filter((e) => e.isFile && e.name.endsWith(".js") && !e.name.startsWith("_"))
     .map((e) => e.name.slice(0, -3))
-    .filter((game) => {
-      try {
-        return !Deno.statSync(`${ROOT}/media/${game}/card.mp4`).isFile;
-      } catch {
-        return true;
-      }
-    })
+    .filter((game) => !isFile(`${ROOT}/media/${game}/card.mp4`))
     .sort();
 }
 
@@ -231,6 +243,8 @@ for (const [i, game] of names.entries()) {
   // seconds, and the rest of its line lands once it is done.
   Deno.stdout.writeSync(out.encode(`${count}${game}`.padEnd(count.length + 12)));
   try {
+    const gone = missingSource(game);
+    if (gone) throw new Error(gone);
     const take = await record(cdp, url, game);
     if (!take.zip) {
       idle.push(game);

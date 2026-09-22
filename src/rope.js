@@ -859,8 +859,8 @@ class Wall extends ent.Entity {
 }
 
 export function init() {
-  // The engine holds 32 worlds for the life of the page, so the last round has
-  // to release its slot.
+  // A World owns a Box2D allocation the collector does not reach, and init()
+  // runs again on every round, so the last one is freed here.
   world?.destroy();
   world = new World({ gravity: { x: 0, y: 9.8 } });
   world.presolve = presolve;

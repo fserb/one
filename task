@@ -23,6 +23,16 @@ function record {
   media "$@"
 }
 
+function clean {
+  for dir in media/*/; do
+    [[ -d "$dir" ]] || continue
+    game=$(basename "$dir")
+    if [[ -f "src/$game.js" ]]; then continue; fi
+    echo "$game"
+    rm -rf "$dir"
+  done
+}
+
 function fmt {
   deno fmt
   deno lint
