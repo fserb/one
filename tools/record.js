@@ -206,14 +206,9 @@ function write(take) {
 
 // The name is a file in src/, since dev.html imports src/<name>.js: without
 // this the page throws on a module that is not there, window.rec never appears
-// and the wait below reports a page that loaded nothing. An idea records under
-// its own name, underscore included, which its zip and its media/ directory
-// keep and .gitignore covers.
+// and the wait below reports a page that loaded nothing.
 function missingSource(game) {
   if (isFile(`${ROOT}/src/${game}.js`)) return null;
-  if (isFile(`${ROOT}/src/_${game}.js`)) {
-    return `no src/${game}.js; as an idea: ./task record _${game}`;
-  }
   return `no src/${game}.js`;
 }
 
