@@ -80,9 +80,9 @@ const MINUTE = 0.5; // seconds a match minute takes
 const MATCHES = 7;
 const SLOW = 0.1; // time scale after a goal and at the whistle
 // &p1=every:tries:spread:powers:err makes you a planner, &p2= sets the
-// opponent's. powers split by /, empty keeps the default. &debug=true draws
-// each planner's last plan over it and stops the game on each plan until the
-// right arrow.
+// opponent's. powers split by /, empty keeps the default. &debug=1 draws each
+// planner's last plan over it; &debug=2 also stops the game on each plan until
+// the right arrow.
 
 const RIGHT = 5;
 const DAMP = 0.6;
@@ -717,7 +717,7 @@ class Planner extends Player {
       every: 1.5 - 1.25 * f,
       tries: 16,
       spread: 360,
-      powers: [5, 10],
+      powers: [2.5, 5, 7.5, 10],
       err: 30 * (1 - f),
     }, this.brain);
     console.log(
@@ -728,7 +728,7 @@ class Planner extends Player {
       this.powers,
       this.err,
     );
-    this.wait = this.every;
+    this.wait = random.random() * this.every;
     this.moves = null;
     this.aim = null;
     this.lead ??= 4;
@@ -785,7 +785,7 @@ class Planner extends Player {
       this.aim = [a + random.randFloat(-this.err, this.err) * DEG, power];
     }
     this.shown = { ...this.origin, to: this.to, tried: this.tried, aim: this.aim };
-    if (debug) paused = true;
+    if (debug >= 2) paused = true;
   }
 
   // Called before each physics step. The chosen throw goes on the step the plan
@@ -1211,7 +1211,7 @@ export function init() {
   const q = new URLSearchParams(location.search);
   const p1 = q.get("p1");
   const p2 = q.get("p2");
-  debug = q.get("debug") === "true";
+  debug = Number(q.get("debug") ?? 0);
   paused = false;
   for (const p of ent.get(Planner)) p.sim.destroy();
   world?.destroy();
