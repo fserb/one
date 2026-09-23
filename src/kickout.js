@@ -1,5 +1,5 @@
 /*
- * worldcup - one-on-one ragdoll football, after rujogames' A Small World Cup
+ * kickout - one-on-one ragdoll football, after rujogames' A Small World Cup
  * (Ludum Dare 38 compo, "A Small World").
  *
  * The rules and numbers are the original's, read out of its Construct 2 export
@@ -38,7 +38,7 @@ import * as play from "./lib/sounds.js";
 export { render } from "./lib/entity.js";
 
 export const meta = {
-  title: "worldcup",
+  title: "kickout",
   bg: "#9BD0E8",
   fg: "#1E252B",
   scoreMax: true,
