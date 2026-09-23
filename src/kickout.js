@@ -11,11 +11,12 @@
  * newton-seconds for every metre of it and 10 at most. A tap, a drag of 0.2 m
  * or less, throws the torso at the point tapped instead, by the same rule on
  * the distance from the torso to it; that one is from the Construct 3 version
- * (v1.3.2.5, on CrazyGames). Nothing else moves a
- * player. The ragdoll is six bodies on limited joints with no motors. The
- * original has nothing that stands a player back up; here a weak torque on
- * the torso does, since without it a player spent two thirds of a match lying
- * down.
+ * (v1.3.2.5, on CrazyGames). Nothing else moves a player. The original adds
+ * the impulse to the torso's velocity; here the torso stops first, so a throw
+ * goes where it points. The ragdoll is six bodies on limited joints with no
+ * motors. The original has nothing that stands a player back up; here a weak
+ * torque on the torso does, since without it a player spent two thirds of a
+ * match lying down.
  *
  * A match is 90 minutes at half a second each, plus 0 to 5 minutes of
  * stoppage, and a draw at the whistle plays on to a golden goal. The round is
@@ -573,6 +574,7 @@ class Player extends ent.Entity {
   }
 
   throwAt(a, power) {
+    this.torso.velocity(0, 0);
     this.torso.impulse(Math.cos(a) * power, Math.sin(a) * power);
   }
 
@@ -841,6 +843,7 @@ class Planner extends Player {
     this.set();
     if (move !== null) {
       const [a, power] = move;
+      this.me.torso.velocity(0, 0);
       this.me.torso.impulse(Math.cos(a) * power, Math.sin(a) * power);
     }
     const s = this.side;
