@@ -34,7 +34,8 @@ export const meta = {
   bg: "#E0E5EC",
   fg: "#5B8DEF",
   scoreMax: true,
-  date: "2025-07-26",
+  release: true,
+  date: "2026-09-23",
 };
 
 const BOARD_WIDTH = 4;
