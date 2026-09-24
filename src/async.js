@@ -13,9 +13,11 @@
  * The Meter in the spine is the swap budget: it drains with time, a swap costs
  * 1.5, a clear gives back its area less two, which the bar shows only once the
  * cleared block has flown into it. Empty drops both boards and the meter off
- * the page and ends the run. Full is a level: both boards refill and a colour
- * is added, up to five, after which the drain speeds up. A board with no swap
- * and no clear left drops and refills after STUCK_TIME, with no level.
+ * the page and ends the run; a run starts with the meter coming down and
+ * filling, then the empty boards filling as they refill. Full is a level:
+ * both boards refill and a colour is added, up to five, after which the drain
+ * speeds up. A board with no swap and no clear left drops and refills after
+ * STUCK_TIME, with no level.
  */
 
 import * as ent from "./lib/entity.js";
@@ -668,6 +670,19 @@ async function levelUp() {
   await refill();
 }
 
+// The meter comes down and its bar fills, then the empty boards fill the way
+// they refill.
+async function intro() {
+  busy = true;
+  meter.drop = -1;
+  meter.shown = 0;
+  meter.pending = meter.value;
+  await act(meter).attr("drop", 0, 0.5, ease.quadOut);
+  meter.pending = 0;
+  await act(meter).until(() => meter.value - meter.shown < 0.02);
+  await refill();
+}
+
 // The meter goes with the boards, leaving the finish screen on an empty page.
 async function end() {
   busy = true;
@@ -756,12 +771,7 @@ export function init() {
   meter = new Meter();
   new Back();
   new Front();
-  for (const board of boards) {
-    for (let y = 0; y < BOARD_HEIGHT; y++) {
-      for (let x = 0; x < BOARD_WIDTH; x++) new Block(board, x, y);
-    }
-  }
-  merge();
+  intro();
 }
 
 export function update(dt) {
