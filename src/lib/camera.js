@@ -25,8 +25,7 @@ op.camera = camera; // how one.js updates it without importing this module
 
 // A hit: SHAKE_BASE + SHAKE_FALL * t screen units, falling to SHAKE_BASE over
 // t and then off. Written on the camera at each call rather than once here, so
-// a game that shakes it directly keeps its own numbers: async wants no base
-// under its magnitude, and never calls this.
+// a game that shakes it directly keeps its own numbers.
 const SHAKE_BASE = 10;
 const SHAKE_FALL = 20;
 

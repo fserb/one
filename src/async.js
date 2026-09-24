@@ -12,10 +12,10 @@
  *
  * The Meter in the spine is the swap budget: it drains with time, a swap costs
  * one, a clear gives back its area less two, which the bar shows only once the
- * cleared block has flown into it. Empty ends the run. Full is a level: both
- * boards refill and a colour is added, up to five, after which the drain
- * speeds up. A board with no swap and no clear left drops and refills
- * after STUCK_TIME, with no level.
+ * cleared block has flown into it. Empty drops both boards and the meter off
+ * the page and ends the run. Full is a level: both boards refill and a colour
+ * is added, up to five, after which the drain speeds up. A board with no swap
+ * and no clear left drops and refills after STUCK_TIME, with no level.
  */
 
 import * as ent from "./lib/entity.js";
@@ -24,6 +24,7 @@ import { Mat4 } from "./alma/src/geom/mat4.js";
 import { Quad } from "./alma/src/geom/Quad.js";
 import * as ease from "./alma/src/ease.js";
 import { act } from "./lib/act.js";
+import { shake } from "./lib/camera.js";
 import { gameOver, score, time } from "./lib/one.js";
 
 export { render } from "./lib/entity.js";
@@ -89,7 +90,8 @@ const boards = [];
 let meter = null;
 let selected = null;
 let level = 0;
-let leveling = false;
+// Input and drain are off while a level, a stuck board or the end plays out.
+let busy = false;
 // Null until the board has settled and been checked.
 let moves = null;
 let stuck = 0;
@@ -336,6 +338,7 @@ class Meter extends ent.Entity {
     // Added to value but still flying in as sparks, so not yet shown.
     this.pending = 0;
     this.flash = 0;
+    this.drop = 0;
   }
 
   groove() {
@@ -367,14 +370,21 @@ class Meter extends ent.Entity {
     const dt = ent.game.time;
     const target = this.value - this.pending;
     this.shown += (target - this.shown) * Math.min(1, dt * 12);
-    if (leveling) return;
+    if (busy) return;
     this.value -= drainRate() * dt;
-    if (this.value <= 0) gameOver({ score: true });
+    if (this.value <= 0) end();
+  }
+
+  render(ctx) {
+    ctx.save();
+    ctx.translate(0, 1100 * this.drop);
+    this.draw(ctx);
+    ctx.restore();
   }
 
   // The bar's shadow is cut in three: the two caps copied as they are and the
   // straight middle stretched to the height.
-  render(ctx) {
+  draw(ctx) {
     const px = pixels(ctx);
     const w = this.groove();
     const groove = bake(`groove ${w}`, px, () => bakeGroove(px, w));
@@ -614,23 +624,40 @@ async function drop() {
 async function refill() {
   await settle();
   merge();
-  leveling = false;
+  busy = false;
 }
 
-// Waits out any clear still falling.
+// Waits out any swap or clear still falling, then every cleared block's flight
+// and the bar's rise to full, which shakes and holds before the drop.
 async function levelUp() {
   deselect();
   await act.wait();
+  await act(meter).until(() =>
+    flying.length === 0 && meter.value - meter.shown < 0.02
+  );
+  meter.shown = meter.value;
+  shake(0.3);
   meter.flash = 1;
   act(meter).attr("flash", 0, 0.8, ease.quadOut);
+  // await act({}).delay(0.5);
   await drop();
   level++;
   meter.value = METER_START;
   await refill();
 }
 
+// The meter goes with the boards, leaving the finish screen on an empty page.
+async function end() {
+  busy = true;
+  deselect();
+  await act.wait();
+  await act(meter).until(() => flying.length === 0);
+  await Promise.all([drop(), act(meter).attr("drop", 1, 0.6, ease.quadIn)]);
+  gameOver({ score: true });
+}
+
 function unstick() {
-  leveling = true;
+  busy = true;
   stuck = 0;
   deselect();
   drop().then(refill);
@@ -654,7 +681,7 @@ async function clear(block) {
   const full = meter.add(area - 2);
   const gain = meter.value - before;
   meter.pending += gain;
-  if (full) leveling = true;
+  if (full) busy = true;
   blocks.splice(blocks.indexOf(block), 1);
   flying.push(block);
   block.fly = { age: 0, t: 0, from: block.points, gain };
@@ -699,7 +726,7 @@ export function init() {
   selected = null;
   score.value = 0;
   level = 0;
-  leveling = false;
+  busy = false;
   moves = null;
   stuck = 0;
 
@@ -718,7 +745,7 @@ export function init() {
 export function update(dt) {
   ent.update(dt);
   const { input } = ent.game;
-  if (leveling) return;
+  if (busy) return;
   if (input.just.act) click(input.x, input.y);
   if (act.is()) return (stuck = 0);
   moves ??= hasMove();
