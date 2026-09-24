@@ -1,716 +1,551 @@
 /*
- * async - two boards, one conveyor belt of orders.
+ * async - swap blocks across two facing boards to grow them into rectangles.
  *
- * The two boards fall towards each other: gravity pulls right on the left one
- * and left on the right. A swap is only allowed when it leaves some block able
- * to grow. The belt never stops, and reaching the left edge ends the run.
+ * Two 4x6 boards side by side, gravity pulling each towards the other. A swap
+ * is only allowed when it leaves some block able to grow.
+ *
+ * The boards are quads under a perspective divide rather than flat rects, each
+ * with a rotation about its vertical axis, sprung towards a small resting
+ * tilt. Every block position comes from interpolating the board's quad, so the
+ * perspective is applied once, to the board, and the blocks inherit it.
+ *
+ * The run has no end: gameOver() is never called, so this is a board to play
+ * with rather than a game. score.value counts merged blocks destroyed.
  */
 
+import { Collider } from "./alma/src/collider.js";
+import { Mat4 } from "./alma/src/geom/mat4.js";
+import { Quad } from "./alma/src/geom/Quad.js";
 import * as ease from "./alma/src/ease.js";
-import * as extra from "./alma/src/utils/extra.js";
-import * as vec from "./alma/src/geom/vec.js";
-import { camera } from "./lib/camera.js";
 import { act } from "./lib/act.js";
-import { gameOver, input, msg, score } from "./lib/one.js";
-
-const { arrayRemove, promiseSleep, TAU } = extra;
+import { input, score } from "./lib/one.js";
 
 export const meta = {
   title: "async",
-  bg: "#FFFFFF",
-  fg: "#424B54",
+  bg: "#519B9D",
+  fg: "#386B99",
   scoreMax: true,
-  date: "2021-05-28",
+  date: "2025-07-26",
 };
 
-const PIECE = ["#F02299", "#26ABF6", "#FCFF00", "#16DB93"];
-const SIDE = ["#B6187E", "#1D7ACA", "#BFB702", "#109E79"];
-const FOOT = ["#650B57", "#0F378C", "#6C5300", "#094754"];
+const BOARD_WIDTH = 4;
+const BOARD_HEIGHT = 6;
+const USE_COLORS = 3;
+const COLORS = ["#386B99", "#F3C62C", "#E74C3C", "#AB7390"];
+const MARGIN_RATIO = 0.03;
 
-const WIDTH = 4;
-const HEIGHT = 6;
-const TILE = 120;
-const BOARDPOS = [
-  { x: 10, y: 290 },
-  { x: 1024 - TILE * WIDTH - 10, y: 290 },
+const SPRING_CONSTANT = 0.12;
+const TARGET_BOARD_ROTATION = 0.1;
+
+const ANIM_SWAP_TIME = 0.25;
+
+const PERSPECTIVE = 1000;
+
+// Arithmetic rather than a layout solve: margin, board, gap, spine, gap, board,
+// margin across the width, the pair centred in the height. The width binds,
+// which is why 4x6 leaves board colour above and below.
+const MARGIN = 1024 * 0.04;
+const SPINE = 1024 * 0.025;
+const BOARD_ASPECT = (BOARD_WIDTH + (BOARD_WIDTH - 1) * MARGIN_RATIO) /
+  (BOARD_HEIGHT + (BOARD_HEIGHT - 1) * MARGIN_RATIO);
+const BOARD_W = (1024 - 4 * MARGIN - SPINE) / 2;
+const BOARD_H = BOARD_W / BOARD_ASPECT;
+const BOARD_Y = (1024 - BOARD_H) / 2;
+
+const LAYOUT = [
+  { x: MARGIN, y: BOARD_Y, width: BOARD_W, height: BOARD_H },
+  {
+    x: 3 * MARGIN + BOARD_W + SPINE,
+    y: BOARD_Y,
+    width: BOARD_W,
+    height: BOARD_H,
+  },
 ];
 
-// Belt units draw in a unit square, scaled up by this.
-const SZ = 100;
-const STRIDE = 1.2;
+// One block's worth of board, which is what a depth offset is measured in.
+const BLOCK_SIZE = Math.min(
+  BOARD_W / (BOARD_WIDTH + (BOARD_WIDTH - 1) * MARGIN_RATIO),
+  BOARD_H / (BOARD_HEIGHT + (BOARD_HEIGHT - 1) * MARGIN_RATIO),
+);
 
-const board = [];
-const selected = [null, null];
-const belt = [];
+const blocks = [];
+const boards = [
+  { id: 0, layout: LAYOUT[0], rotation: 0, rotationVelocity: 0 },
+  { id: 1, layout: LAYOUT[1], rotation: 0, rotationVelocity: 0 },
+];
 
-// Reused, flipped per board by the reader. Board 0 falls right, board 1 left.
-const gravity = { x: 1, y: 0 };
+let selectedBlock = null;
+let selectedBoard = null;
 
-// Per board, since the last check. A "sync" order needs one of each.
-const merges = [0, 0];
-
-let needsMerge;
-let colors;
-let beltPos;
-let beltSpeed;
-let beltFlash;
-let beltNext;
-let milestone;
-
-export function init() {
-  msg(
-    `
-swap blocks on each side
-to build mega blocks
-`,
-    { at: "bottom", hold: 3, once: true },
-  );
-  board.length = 0;
-  belt.length = 0;
-  selected[0] = selected[1] = null;
-  merges[0] = merges[1] = 0;
-
-  colors = 2;
-  beltSpeed = 1;
-  beltNext = 1;
-  beltFlash = 0;
-  needsMerge = false;
-  milestone = 0;
-
-  // A fixed opening hand, so the first thirty seconds are always the same.
-  belt.unshift(createOrder(0, -1));
-  belt.unshift(createOrder(0, 1));
-  belt.unshift(createOrder(1, -1));
-  belt.unshift(createOrder(1, 0));
-  belt.unshift(createOrder(2, -1));
-  beltPos = -belt.length + 1;
-
-  fillEmpty();
-}
-
-function createBlock(p) {
-  const o = Object.assign({
-    b: -1,
-    x: -1,
-    y: -1,
-    v: Math.floor(colors * Math.random()),
-    w: 1,
-    h: 1,
-    // Render offset, animated to zero, so a block sits at its new grid cell
-    // while drawn at the old one.
-    d: { x: 0, y: 0 },
-    scale: 1,
-    selected: false,
-    removed: false,
-  }, p);
-  board.push(o);
-  return o;
-}
-
-function toScreen(p) {
-  const bp = BOARDPOS[p.b];
+function createBlock(board, x, y, color, displacement = 0) {
   return {
-    x: p.d.x + bp.x + (p.w / 2 + p.x) * TILE,
-    y: p.d.y + bp.y + (p.h / 2 + p.y) * TILE,
+    board,
+    x,
+    y,
+    color,
+    width: 1,
+    height: 1,
+    depth: 0,
+    depthVelocity: 0,
+    targetDepth: 0,
+    selected: false,
+    displacement,
   };
 }
 
-function add(p, d) {
-  return { b: p.b, x: p.x + d.x, y: p.y + d.y };
+function getBlockAt(board, x, y) {
+  return blocks.find((block) =>
+    block.board === board &&
+    x >= block.x && x < block.x + block.width &&
+    y >= block.y && y < block.y + block.height
+  );
 }
 
-function inRect(r, p) {
-  return r.b === p.b &&
-    p.x >= r.x && p.x < r.x + r.w &&
-    p.y >= r.y && p.y < r.y + r.h;
+function removeBlock(block) {
+  const index = blocks.indexOf(block);
+  if (index > -1) blocks.splice(index, 1);
 }
 
-function get(p) {
-  for (const o of board) {
-    if (o.removed) continue;
-    if (inRect(o, p)) return o;
-  }
-  return null;
-}
-
-// New blocks enter along the edge gravity pulls away from, offset `step` tiles
-// so they slide in rather than appear.
-function fillEmpty(step = 0) {
-  let added = false;
-  for (let b = 0; b < 2; ++b) {
-    gravity.x = Math.abs(gravity.x) * (b === 0 ? 1 : -1);
-
-    const start = {
-      b,
-      x: Math.abs(gravity.x * (1 - gravity.x)) * (WIDTH - 1) / 2,
-      y: Math.abs(gravity.y * (1 - gravity.y)) * (HEIGHT - 1) / 2,
-    };
-    const dir = { x: Math.abs(gravity.y), y: Math.abs(gravity.x) };
-
-    for (let s = 0; s < Math.max(WIDTH, HEIGHT); ++s) {
-      const p = add(start, vec.mul(dir, s));
-      if (p.x < 0 || p.y < 0 || p.x >= WIDTH || p.y >= HEIGHT) continue;
-      if (get(p) !== null) continue;
-      const o = createBlock(p);
-      o.x -= gravity.x;
-      o.y -= gravity.y;
-      o.d = vec.mul(gravity, -step * TILE);
-      added = true;
-    }
+function isValidPosition(board, x, y, width, height, excludeBlock) {
+  if (x < 0 || y < 0 || x + width > BOARD_WIDTH || y + height > BOARD_HEIGHT) {
+    return false;
   }
 
-  if (added) fallBlocks(step + 1);
-}
-
-// How many tiles the block at p can drop before it hits something.
-function checkCanFall(p) {
-  const b = get(p);
-  let step = 0;
-  let check = b;
-  while (check === null || check === b) {
-    const n = add(p, vec.mul(gravity, ++step));
-    if (n.x < 0 || n.y < 0 || n.x >= WIDTH || n.y >= HEIGHT) break;
-    check = get(n);
-  }
-  return step - 1;
-}
-
-async function fallBlocks(fillstep = 0) {
-  let changed = false;
-
-  for (const b of board) {
-    gravity.x = Math.abs(gravity.x) * (b.b === 0 ? 1 : -1);
-
-    // A wide block falls only as far as its most blocked cell allows.
-    let step = Infinity;
-    for (let x = b.x; x < b.x + b.w; ++x) {
-      for (let y = b.y; y < b.y + b.h; ++y) {
-        step = Math.min(step, checkCanFall({ b: b.b, x, y }));
-      }
-    }
-    if (step === 0) continue;
-
-    b.x += gravity.x * step;
-    b.y += gravity.y * step;
-    b.d.x -= TILE * gravity.x * step;
-    b.d.y -= TILE * gravity.y * step;
-    act(b.d)
-      .attr("x", 0, 0.4, ease.quadIn)
-      .attr("y", 0, 0.4, ease.quadIn);
-    changed = true;
-  }
-
-  if (changed) return await fallBlocks(fillstep);
-
-  fillEmpty(fillstep);
-  await promiseSleep(0.4);
-  camera.shake(0.05 + 0.05 * fillstep, 100);
-  needsMerge = true;
-}
-
-// True when growing b by (dx, dy) covers only same-coloured blocks, none
-// sticking out of the rectangle that results.
-function isValidResize(b, dx, dy) {
-  const maxx = b.x + b.w + dx;
-  const maxy = b.y + b.h + dy;
-  for (let x = b.x; x < maxx; ++x) {
-    for (let y = b.y; y < maxy; ++y) {
-      const n = get({ b: b.b, x, y });
-      if (!n || n.v !== b.v) return false;
-      if (n.x + n.w > maxx || n.y + n.h > maxy) return false;
-      if (n.x < b.x || n.y < b.y) return false;
+  for (let i = x; i < x + width; i++) {
+    for (let j = y; j < y + height; j++) {
+      const existing = getBlockAt(board, i, j);
+      if (existing && existing !== excludeBlock) return false;
     }
   }
   return true;
 }
 
-// The largest rectangle b can grow into, as (dx, dy). At least 2x2, ties to
-// the taller.
-function getMaxSquare(b) {
-  const expand = { x: 0, y: 0 };
+// Every cell in the target box has to hold a block of the same colour that fits
+// inside it: a bigger neighbour poking out leaves the union non-rectangular.
+function isValidResize(block, boardIndex, dx, dy) {
+  const maxX = block.x + block.width + dx;
+  const maxY = block.y + block.height + dy;
+
+  for (let x = block.x; x < maxX; x++) {
+    for (let y = block.y; y < maxY; y++) {
+      const n = getBlockAt(boardIndex, x, y);
+      if (
+        !n || n.color !== block.color ||
+        n.x + n.width > maxX || n.y + n.height > maxY ||
+        n.x < block.x || n.y < block.y
+      ) return false;
+    }
+  }
+  return true;
+}
+
+// The largest growth this block has, down and right, or zeroes for none. One
+// cell wide or tall is not a merge, so the area has to be more than 4.
+function getMaxSquare(block) {
+  let expand = { x: 0, y: 0 };
   let bestArea = 4;
 
-  for (let dx = 0; dx <= WIDTH - (b.x + b.w); dx++) {
-    for (let dy = 0; dy <= HEIGHT - (b.y + b.h); dy++) {
-      const area = (dx + b.w) * (dy + b.h);
-      if (dx + b.w === 1 || dy + b.h === 1) continue;
-      if (bestArea > area) continue;
-      if (bestArea === area && dy <= expand.y) continue;
-      if (!isValidResize(b, dx, dy)) continue;
-      expand.x = dx;
-      expand.y = dy;
+  for (let dx = 0; dx <= BOARD_WIDTH - (block.x + block.width); dx++) {
+    for (let dy = 0; dy <= BOARD_HEIGHT - (block.y + block.height); dy++) {
+      const area = (dx + block.width) * (dy + block.height);
+      if (
+        dx + block.width === 1 || dy + block.height === 1 ||
+        bestArea > area || (bestArea === area && dy <= expand.y) ||
+        !isValidResize(block, block.board, dx, dy)
+      ) continue;
+
+      expand = { x: dx, y: dy };
       bestArea = area;
     }
   }
   return expand;
 }
 
-function canGrow(b) {
-  const exp = getMaxSquare(b);
-  return exp.x > 0 || exp.y > 0;
+// Try the swap, ask whether anything can grow, put it back. The rule that makes
+// a swap a move rather than a shuffle.
+function canSwapCreateBiggerBlocks(block1, block2) {
+  [block1.color, block2.color] = [block2.color, block1.color];
+
+  const canGrow = blocks.some((block) => {
+    const exp = getMaxSquare(block);
+    return exp.x > 0 || exp.y > 0;
+  });
+
+  [block1.color, block2.color] = [block2.color, block1.color];
+  return canGrow;
 }
 
-// Grows one block, absorbing what it covers, then starts over.
-function tryMergeBlocks() {
-  for (const b of board) {
-    const exp = getMaxSquare(b);
-    if (exp.x === 0 && exp.y === 0) continue;
+// The outer edge a board feeds from: the left board fills from the left.
+function feedOrder(boardIndex) {
+  const xs = Array.from({ length: BOARD_WIDTH }, (_, i) => i);
+  return boardIndex === 0 ? xs : xs.reverse();
+}
 
-    for (let x = b.x; x < b.x + b.w + exp.x; x++) {
-      for (let y = b.y; y < b.y + b.h + exp.y; y++) {
-        const n = get({ b: b.b, x, y });
-        if (n === null || n === b) continue;
-        arrayRemove(board, n);
+function fillEmptySpacesInit() {
+  for (let boardIndex = 0; boardIndex < 2; boardIndex++) {
+    for (let y = 0; y < BOARD_HEIGHT; y++) {
+      for (const x of feedOrder(boardIndex)) {
+        if (getBlockAt(boardIndex, x, y)) break;
+        const color = Math.floor(Math.random() * USE_COLORS);
+        blocks.push(createBlock(boardIndex, x, y, color));
       }
     }
-    b.w += exp.x;
-    b.h += exp.y;
-    merges[b.b]++;
-
-    return tryMergeBlocks();
   }
 }
 
-// A swap is allowed only if it leaves some block able to merge, which is what
-// stops the board deadlocking.
-function isValidSwitch() {
-  return board.some(canGrow);
-}
+// `displacement` is how many cells a block is drawn short of where it already
+// is, tweened to zero, so the tween is only the picture catching up.
+async function applyGravityAndFill() {
+  const animated = [];
+  const before = blocks.map((b) => ({ block: b, x: b.x }));
 
-// type: 0 blocks, 1 shape, 2 bps, 3 sync, 4 or. color -1 means any.
-function createOrder(type, color = null) {
-  color ??= Math.random() < 0.5 ? -1 : Math.floor(colors * Math.random());
+  for (let boardIndex = 0; boardIndex < 2; boardIndex++) {
+    let moved = true;
+    while (moved) {
+      moved = false;
+      for (const block of blocks) {
+        if (block.board !== boardIndex) continue;
+        const newX = boardIndex === 0
+          ? Math.min(BOARD_WIDTH - block.width, block.x + 1)
+          : Math.max(0, block.x - 1);
 
-  if (type === 0) {
-    return {
-      type: "blocks",
-      color,
-      total: Math.floor(4 + 12 * Math.random()),
-      count: 0,
-      t: 0,
-    };
-  }
+        if (newX === block.x) continue;
+        if (
+          !isValidPosition(
+            boardIndex,
+            newX,
+            block.y,
+            block.width,
+            block.height,
+            block,
+          )
+        ) continue;
 
-  if (type === 1) {
-    return {
-      type: "shape",
-      color,
-      width: Math.random() < 0.75 ? 2 : 3,
-      height: Math.random() < 0.75 ? 2 : 3,
-      t: 1,
-    };
-  }
-
-  // Keep a meter full: it drains on its own and every shipment tops it up.
-  if (type === 2) {
-    return {
-      type: "bps",
-      color,
-      max: 10 + beltSpeed * 0.1,
-      value: 0,
-      speed: beltSpeed * 0.05 + 0.4 * Math.random(),
-      t: 1,
-    };
-  }
-
-  // Merge on both boards between checks.
-  if (type === 3) return { type: "sync", t: 1 };
-
-  // Either half satisfies it, and neither half can itself be an "or".
-  if (type === 4) {
-    const a = makeOrder(false);
-    const b = makeOrder(false);
-    const x = { type: "or", t: 1, a, b };
-    a.parent = b.parent = x;
-    return x;
-  }
-
-  return null;
-}
-
-function makeOrder(canBeOr = true) {
-  return createOrder(Math.floor((canBeOr ? 5 : 4) * Math.random()));
-}
-
-// Every fifth order speeds the belt up. The eighth adds a fourth colour.
-function makeMilestone() {
-  const n = milestone++;
-  const o = { type: "milestone", color: -1, t: 1 };
-  if (n === 7) return Object.assign(o, { color: 2, action: () => colors++ });
-  return Object.assign(o, { action: () => beltSpeed++ });
-}
-
-function popOrder(b) {
-  // Half of an "or": clearing it clears the whole thing.
-  if (b.parent !== undefined) {
-    act(b.parent)
-      .attr("t", 0, 0.3, ease.linear)
-      .then(() => popOrder(b.parent));
-    return;
-  }
-  score.value += 1;
-  arrayRemove(belt, b);
-}
-
-// A block just shipped. Offer it to the order at the front of the belt.
-function actBelt(piece, b = null) {
-  if (belt.length === 0) return;
-
-  const area = piece.w * piece.h;
-  b ??= belt[belt.length - 1];
-
-  if (b.type === "blocks") {
-    if (b.color !== -1 && b.color !== piece.v) return;
-    act(b)
-      .then(() => {
-        b.t = 1;
-        b.count = area;
-      })
-      .attr("t", 0, 0.3, ease.linear)
-      .then(() => {
-        b.total -= area;
-        b.count = 0;
-        if (b.total <= 0) popOrder(b);
-      });
-    return;
-  }
-
-  if (b.type === "shape") {
-    if (b.color !== -1 && b.color !== piece.v) return;
-    if (b.width !== piece.w || b.height !== piece.h) return;
-    act(b).attr("t", 0, 0.3, ease.linear).then(() => popOrder(b));
-    return;
-  }
-
-  if (b.type === "bps") {
-    if (b.color !== -1 && b.color !== piece.v) return;
-    b.value = Math.min(b.max, b.value + area);
-    if (b.value >= b.max) {
-      act(b).attr("t", 0, 0.3, ease.linear).then(() => popOrder(b));
-    }
-    return;
-  }
-
-  if (b.type === "or") {
-    actBelt(piece, b.a);
-    actBelt(piece, b.b);
-  }
-}
-
-// A "sync" clears once both boards have merged since the last check.
-function actBeltMerge() {
-  if (belt.length === 0) return;
-  if (merges[0] === 0 || merges[1] === 0) return;
-
-  const b = belt[belt.length - 1];
-  const vs = [];
-  if (b.type === "sync") vs.push(b);
-  if (b.type === "or") {
-    if (b.a.type === "sync") vs.push(b.a);
-    if (b.b.type === "sync") vs.push(b.b);
-  }
-
-  for (const v of vs) {
-    act(v).attr("t", 0, 0.3, ease.linear).then(() => popOrder(v));
-  }
-}
-
-// Where the front of the belt is, in screen x. Zero is the left edge.
-function beltFront() {
-  return 1024 - STRIDE * SZ * (belt.length + beltPos - 1 - 0.3);
-}
-
-function updateBelt(dt) {
-  const lp = beltFront();
-  // While the belt is short it runs in fast, then settles to its real speed.
-  beltPos += lp > 1024 - SZ * 0.9 ? dt : dt * beltSpeed / 100;
-
-  if (beltPos >= 1) {
-    beltPos -= 1;
-    if (beltNext <= 0) {
-      belt.unshift(makeMilestone());
-      beltNext += 5;
-    } else {
-      belt.unshift(makeOrder());
-      beltNext--;
+        block.x = newX;
+        moved = true;
+      }
     }
   }
 
-  if (belt.length === 0) return;
+  for (const { block, x: originalX } of before) {
+    if (block.x === originalX) continue;
+    const movement = block.x - originalX;
+    block.displacement = block.board === 0 ? movement : -movement;
+    animated.push(block);
+  }
+
+  for (let boardIndex = 0; boardIndex < 2; boardIndex++) {
+    const fresh = [];
+    const outsideX = boardIndex === 0 ? -1 : BOARD_WIDTH;
+
+    // One displacement for the whole board, off the furthest hole, so a row of
+    // new blocks slides in as a row.
+    let maxDisplacement = 1;
+    for (let y = 0; y < BOARD_HEIGHT; y++) {
+      for (const x of feedOrder(boardIndex)) {
+        if (getBlockAt(boardIndex, x, y)) break;
+        maxDisplacement = Math.max(maxDisplacement, Math.abs(outsideX - x));
+        fresh.push({ x, y });
+      }
+    }
+
+    for (const { x, y } of fresh) {
+      const color = Math.floor(Math.random() * USE_COLORS);
+      const block = createBlock(boardIndex, x, y, color, maxDisplacement);
+      blocks.push(block);
+      animated.push(block);
+    }
+  }
+
+  if (animated.length === 0) return;
+  await Promise.all(
+    animated.map((block) => act(block).attr("displacement", 0, 0.25, ease.quadIn)),
+  );
+}
+
+// Largest growth first per block, until a pass finds nothing. The merged block
+// keeps the identity of its top-left corner.
+function mergeBlocks() {
   if (act.is()) return;
 
-  if (lp <= 0) return gameOver({ score: true });
+  for (;;) {
+    let merged = false;
 
-  // The last two units of room: the front order blinks, faster as it closes.
-  if (lp <= 2 * SZ) {
-    beltFlash = (beltFlash + dt * (1 + 19 * (1 - lp / (2 * SZ)))) % 2;
-  } else {
-    beltFlash = 0;
+    for (const block of blocks) {
+      const exp = getMaxSquare(block);
+      if (exp.x === 0 && exp.y === 0) continue;
+
+      for (let x = block.x; x < block.x + block.width + exp.x; x++) {
+        for (let y = block.y; y < block.y + block.height + exp.y; y++) {
+          const n = getBlockAt(block.board, x, y);
+          if (n && n !== block) removeBlock(n);
+        }
+      }
+      block.width += exp.x;
+      block.height += exp.y;
+      merged = true;
+      break;
+    }
+
+    if (!merged) return;
+  }
+}
+
+// Rotate the rect about its vertical axis in 3D, then divide by depth.
+// Everything else on the board interpolates this.
+function getBoardQuadPoints(boardIndex) {
+  const { layout, rotation } = boards[boardIndex];
+  const { width, height, x, y } = layout;
+
+  const halfWidth = width * 0.5;
+  const halfHeight = height * 0.5;
+
+  const corners = new Quad([
+    { x: -halfWidth, y: -halfHeight },
+    { x: halfWidth, y: -halfHeight },
+    { x: halfWidth, y: halfHeight },
+    { x: -halfWidth, y: halfHeight },
+  ]).applyMatrix(new Mat4().makeRotationY(rotation), true);
+
+  return corners.map((corner) => {
+    const perspective = PERSPECTIVE / (corner.z + PERSPECTIVE);
+    return {
+      x: x + halfWidth + corner.x * perspective,
+      y: y + halfHeight + corner.y * perspective,
+    };
+  });
+}
+
+// A point on the board's quad, pushed out along the board's normal by depth.
+function interpolateQuad(quad, u, v, depth, boardIndex) {
+  const point = new Quad(quad).interpolate(u, v);
+  if (depth === 0) return point;
+
+  const rotation = boards[boardIndex].rotation;
+  const offset = depth * BLOCK_SIZE / 3;
+  point.x += offset * Math.sin(rotation);
+  point.y += offset * Math.cos(rotation);
+  return point;
+}
+
+function getBlockQuadPoints(block, withMargin = true) {
+  const boardQuad = getBoardQuadPoints(block.board);
+
+  const u1 = block.x / BOARD_WIDTH;
+  const v1 = block.y / BOARD_HEIGHT;
+  const u2 = (block.x + block.width) / BOARD_WIDTH;
+  const v2 = (block.y + block.height) / BOARD_HEIGHT;
+
+  const quad = new Quad([
+    interpolateQuad(boardQuad, u1, v1, block.depth, block.board),
+    interpolateQuad(boardQuad, u2, v1, block.depth, block.board),
+    interpolateQuad(boardQuad, u2, v2, block.depth, block.board),
+    interpolateQuad(boardQuad, u1, v2, block.depth, block.board),
+  ]);
+
+  // Forward blocks grow and back ones shrink: the parallax the offset misses.
+  const depthScale = block.depth >= 0 ? 1 / (1 + block.depth) : (1 - block.depth);
+  let out = quad.scale(depthScale);
+
+  // In cells, drawn outward: the left board's blocks are held back left.
+  if (block.displacement !== 0) {
+    const pixels = block.displacement *
+      (boards[block.board].layout.width / BOARD_WIDTH);
+    out = out.translate(block.board === 0 ? -pixels : pixels, 0);
   }
 
-  const b = belt[belt.length - 1];
+  if (!withMargin) return out.corners;
+  return out.applyMargin(MARGIN_RATIO, block.width, block.height).corners;
+}
 
-  if (b.type === "milestone") {
-    b.action();
-    act(b)
-      .delay(0.5)
-      .attr("t", 0, 0.3, ease.quadIn)
-      .then(() => popOrder(b));
+function updatePhysics(dt) {
+  // The springs are tuned per 60Hz step, so dt is measured against one.
+  const timeScale = dt / 0.016;
+
+  for (const block of blocks) {
+    const restore = (block.targetDepth - block.depth) * SPRING_CONSTANT;
+    block.depthVelocity = (block.depthVelocity + restore) * 0.8;
+    block.depth += block.depthVelocity * timeScale;
+  }
+
+  for (const board of boards) {
+    const target = board.id === 0 ? -TARGET_BOARD_ROTATION : TARGET_BOARD_ROTATION;
+    const restore = (target - board.rotation) * SPRING_CONSTANT;
+    board.rotationVelocity = (board.rotationVelocity + restore) *
+      0.85;
+    board.rotation += board.rotationVelocity * timeScale;
+  }
+}
+
+function deselect() {
+  if (!selectedBlock) return;
+  selectedBlock.selected = false;
+  selectedBlock.targetDepth = 0;
+  selectedBlock = null;
+  selectedBoard = null;
+}
+
+async function handleClick(x, y) {
+  const point = Collider.point(x, y);
+  let clicked = null;
+
+  // Hit-test the drawn quad and not the grid: the board is under a perspective
+  // divide and a rocking rotation.
+  for (const block of blocks) {
+    const quad = getBlockQuadPoints(block, false);
+    if (Collider.hit(point, Collider.polygon(quad))) {
+      clicked = block;
+      break;
+    }
+  }
+  if (!clicked) return;
+
+  // The square root makes the edge twice the push of a quarter out, not four.
+  const { layout } = boards[clicked.board];
+  const dist = (x - (layout.x + layout.width * 0.5)) / layout.width;
+  boards[clicked.board].rotationVelocity += -0.15 *
+    (Math.abs(dist) ** 0.5) * Math.sign(dist);
+
+  const crossBoard = selectedBlock && selectedBoard !== null &&
+    selectedBoard !== clicked.board;
+  const previous = selectedBlock;
+  deselect();
+
+  if (clicked.width >= 2 || clicked.height >= 2) {
+    clicked.destroyScale = 1.0;
+    await act(clicked).attr(
+      "destroyScale",
+      0.0,
+      0.3,
+      ease.quadIn,
+    );
+
+    score.value += 1;
+    removeBlock(clicked);
+    await applyGravityAndFill();
+    mergeBlocks();
     return;
   }
 
-  const vs = [];
-  if (b.type === "bps") vs.push(b);
-  if (b.type === "or") {
-    if (b.a.type === "bps") vs.push(b.a);
-    if (b.b.type === "bps") vs.push(b.b);
-  }
-  for (const v of vs) v.value = Math.max(0, v.value - dt * v.speed);
-}
+  if (crossBoard && canSwapCreateBiggerBlocks(previous, clicked)) {
+    // One progress object per block, so the two arcs are separate tracks.
+    const anim1 = { progress: 0 };
+    const anim2 = { progress: 0 };
+    previous.swapAnim = { progress: anim1, target: clicked, high: true };
+    clicked.swapAnim = { progress: anim2, target: previous, high: false };
 
-async function updateClick() {
-  if (!input.just.act) return;
+    await Promise.all([
+      act(anim1).attr("progress", 1.0, ANIM_SWAP_TIME, ease.quadOut),
+      act(anim2).attr("progress", 1.0, ANIM_SWAP_TIME, ease.quadOut),
+    ]);
 
-  const m = camera.toWorld(input.x, input.y);
-  let hit = null;
-  for (const b of [0, 1]) {
-    const v = vec.floor(vec.div(vec.sub(m, BOARDPOS[b]), TILE));
-    if (v.x < 0 || v.y < 0 || v.x >= WIDTH || v.y >= HEIGHT) continue;
-    v.b = b;
-    hit = v;
-    break;
-  }
-  if (hit === null) return;
-
-  const one = get(hit);
-  if (one === null) return;
-  selected[one.b] = one;
-
-  if (one.w > 1 && one.h > 1) {
-    one.removed = true;
-    act(one)
-      .attr("scale", 0, 0.3, ease.quadIn)
-      .then(() => arrayRemove(board, one));
-    actBelt(one);
-    await promiseSleep(0.1);
-    fallBlocks();
-    selected[0] = selected[1] = null;
-  }
-
-  if (selected[0] !== null && selected[1] !== null) {
-    const s0 = selected[0] === one ? selected[1] : selected[0];
-    const s1 = one;
-
-    [s0.v, s1.v] = [s1.v, s0.v];
-
-    if (!isValidSwitch()) {
-      [s0.v, s1.v] = [s1.v, s0.v];
-    } else {
-      // Only the colours moved, so each animates from where the other is.
-      const p0 = toScreen(s0);
-      const p1 = toScreen(s1);
-      s0.d = vec.sub(p1, p0);
-      s1.d = vec.sub(p0, p1);
-
-      const T = 0.35;
-      act(s0.d)
-        .attr("x", 0, T, ease.fastOutSlowIn)
-        .attr("y", 0, T, ease.backOut(1.5));
-      act(s1.d)
-        .attr("x", 0, T, ease.fastOutSlowIn)
-        .attr("y", 0, T, ease.backOut(1.5));
-
-      // One dips under the other on the way past.
-      act(s0)
-        .attr("scale", 0.2, 0.35 * T, ease.linear).then()
-        .attr("scale", 1, 0.65 * T, ease.linear);
-      act(s1)
-        .attr("scale", 1.8, 0.35 * T, ease.linear).then()
-        .attr("scale", 1, 0.65 * T, ease.linear);
-
-      await promiseSleep(T);
-      needsMerge = true;
+    [previous.color, clicked.color] = [clicked.color, previous.color];
+    for (const block of [previous, clicked]) {
+      delete block.swapAnim;
+      block.depth = block.targetDepth = block.depthVelocity = 0;
     }
 
-    selected[0] = selected[1] = null;
+    mergeBlocks();
+    return;
   }
 
-  for (const p of board) p.selected = selected[p.b] === p;
+  // One block per board, so a second click on the same board reselects.
+  selectedBlock = clicked;
+  selectedBoard = clicked.board;
+  selectedBlock.targetDepth = -0.25;
+  clicked.selected = true;
 }
 
-function updatePieces(dt) {
-  for (const p of board) {
-    if (p.selected) {
-      p.scale = Math.max(0.7, p.scale - 2 * dt);
-    } else if (p.scale < 1) {
-      p.scale = Math.min(1, p.scale + 2 * dt);
-    }
+// The two cross over each other, one arcing forward and one back, meeting at
+// the midpoint of their two lifted positions.
+function calculateSwapPosition(block) {
+  const progress = block.swapAnim.progress.progress;
+  const target = block.swapAnim.target;
+
+  const start = getBlockQuadPoints(block, false);
+  const end = getBlockQuadPoints({ ...target, depth: 0 }, false);
+
+  const arcHeight = block.swapAnim.high ? -2 : 3;
+  const lifted = getBlockQuadPoints({ ...block, depth: arcHeight }, false);
+  const liftedTarget = getBlockQuadPoints(
+    { ...target, depth: arcHeight },
+    false,
+  );
+  const mid = lifted.map((p, i) => ({
+    x: (p.x + liftedTarget[i].x) * 0.5,
+    y: (p.y + liftedTarget[i].y) * 0.5,
+  }));
+
+  if (progress < 0.5) {
+    const t = progress * 2;
+    block.depth = arcHeight * t;
+    return start.map((p, i) => ({
+      x: p.x + (mid[i].x - p.x) * t,
+      y: p.y + (mid[i].y - p.y) * t,
+    }));
   }
+
+  const t = (progress - 0.5) * 2;
+  block.depth = arcHeight * (1 - t);
+  return mid.map((p, i) => ({
+    x: p.x + (end[i].x - p.x) * t,
+    y: p.y + (end[i].y - p.y) * t,
+  }));
+}
+
+// 0.2 of a cell, so a merged block's corners are the same size as a single
+// block's rather than scaling with it.
+function getBlockCornerRadius(block) {
+  return {
+    rx: 0.2 / (block.width + (block.width - 1) * MARGIN_RATIO),
+    ry: 0.2 / (block.height + (block.height - 1) * MARGIN_RATIO),
+  };
+}
+
+export function init() {
+  blocks.length = 0;
+  selectedBlock = null;
+  selectedBoard = null;
+  score.value = 0;
+  for (const board of boards) {
+    board.rotation = 0;
+    board.rotationVelocity = 0;
+  }
+
+  fillEmptySpacesInit();
+  mergeBlocks();
 }
 
 export function update(dt) {
-  updatePieces(dt);
-  updateBelt(dt);
-  updateClick();
-
-  // Merge only once everything has settled, so a chain resolves in one go.
-  if (act.is()) return;
-  if (needsMerge) {
-    merges[0] = merges[1] = 0;
-    tryMergeBlocks();
-    actBeltMerge();
-    needsMerge = false;
-  }
+  // Not awaited: a click lands while an earlier one is still animating.
+  if (input.just.act) handleClick(input.x, input.y);
+  updatePhysics(dt);
 }
 
 export function render(ctx) {
-  camera.apply(ctx);
+  // Back to front, so a block arcing forward covers the ones behind it.
+  const ordered = [...blocks].sort((a, b) => b.depth - a.depth);
 
-  // Shrinking blocks go under, growing ones on top, so a swap is drawn right.
-  for (const p of board) {
-    if (p.scale < 1) renderPiece(ctx, p);
+  for (const block of ordered) {
+    const scale = block.destroyScale ?? 1;
+    if (scale <= 0) continue;
+
+    const points = block.swapAnim
+      ? calculateSwapPosition(block)
+      : getBlockQuadPoints(block);
+
+    ctx.fillStyle = COLORS[block.color];
+    const { rx, ry } = getBlockCornerRadius(block);
+    ctx.roundQuad(
+      scale === 1 ? points : new Quad(points).scale(scale).corners,
+      rx,
+      ry,
+    );
+    ctx.fill();
+
+    if (!block.selected) continue;
+    ctx.strokeStyle = "rgba(255,255,255,0.75)";
+    ctx.lineWidth = 16;
+    ctx.stroke();
   }
-  for (const p of board) {
-    if (p.scale === 1) renderPiece(ctx, p);
-  }
-  for (const p of board) {
-    if (p.scale > 1) renderPiece(ctx, p);
-  }
-
-  renderBelt(ctx);
-}
-
-const B = 0.04347826 * 1.5;
-const S = 0.04347826 * 1.3;
-
-function renderPiece(ctx, p) {
-  ctx.save();
-  const vp = toScreen(p);
-  ctx.translate(vp.x, vp.y);
-  ctx.scale(TILE * p.scale, TILE * p.scale);
-  ctx.translate(-p.w / 2, -p.h / 2);
-
-  ctx.fillStyle = SIDE[p.v];
-  ctx.beginPath();
-  ctx.moveTo(p.w - B, B);
-  ctx.lineTo(p.w - B + S, S + B);
-  ctx.lineTo(p.w - B + S, p.h - B + S);
-  ctx.lineTo(p.w - B, p.h - B);
-  ctx.closePath();
-  ctx.fill();
-
-  ctx.fillStyle = FOOT[p.v];
-  ctx.beginPath();
-  ctx.moveTo(p.w - B, p.h - B);
-  ctx.lineTo(p.w - B + S, p.h - B + S);
-  ctx.lineTo(S + B, p.h - B + S);
-  ctx.lineTo(B, p.h - B);
-  ctx.closePath();
-  ctx.fill();
-
-  ctx.fillStyle = PIECE[p.v];
-  ctx.fillRect(B, B, p.w - B * 2, p.h - B * 2);
-
-  ctx.restore();
-}
-
-function renderBelt(ctx) {
-  ctx.save();
-  ctx.translate(0, 117); // the strip above the boards, clear of the panels
-  ctx.scale(SZ, SZ);
-
-  let p = (beltPos - 1) * STRIDE;
-  for (let i = 0; i < belt.length; ++i) {
-    const b = belt[i];
-    if (i === belt.length - 1 && Math.floor(beltFlash) === 1) break;
-    ctx.save();
-    ctx.translate(p, 0);
-    renderOrder(ctx, b);
-    ctx.restore();
-    p += STRIDE;
-  }
-
-  ctx.restore();
-}
-
-function renderOrder(ctx, b) {
-  if (b.type === "blocks") return renderBlocks(ctx, b);
-  if (b.type === "shape") return renderShape(ctx, b);
-  if (b.type === "bps") return renderBPS(ctx, b);
-  if (b.type === "sync") return renderSync(ctx, b);
-  if (b.type === "or") return renderOr(ctx, b);
-  if (b.type === "milestone") return renderMilestone(ctx, b);
-}
-
-function renderMilestone(ctx, b) {
-  ctx.globalAlpha = b.t;
-  ctx.fillStyle = b.color === -1 ? meta.fg : SIDE[b.color];
-  ctx.beginPath();
-  for (let i = 0; i < 10; ++i) {
-    const r = i % 2 === 0 ? 0.35 : 0.15;
-    const f = i / 10 - 0.05;
-    ctx.lineTo(0.5 + r * Math.cos(TAU * f), 0.5 + r * Math.sin(TAU * f));
-  }
-  ctx.fill();
-}
-
-function renderOr(ctx, b) {
-  ctx.globalAlpha = b.t;
-  for (const [half, dy] of [[b.a, -0.5], [b.b, 0.5]]) {
-    ctx.save();
-    ctx.translate(0.05, dy + 0.05);
-    ctx.scale(0.9, 0.9);
-    renderOrder(ctx, half);
-    ctx.restore();
-  }
-}
-
-// Two offset rectangles joined by a bar: the "both boards" mark.
-function renderSync(ctx, b) {
-  ctx.globalAlpha *= b.t;
-  ctx.fillStyle = meta.fg;
-  ctx.fillRect(8.35 / 51, 14.24 / 51, 13 / 51, 17 / 51);
-  ctx.fillRect(29.65 / 51, 19.76 / 51, 13 / 51, 17 / 51);
-  ctx.fillRect(22.49 / 51, 23.74 / 51, 6.03 / 51, 3.53 / 51);
-}
-
-function renderBPS(ctx, b) {
-  ctx.globalAlpha *= b.t;
-  ctx.fillStyle = ctx.strokeStyle = b.color === -1 ? meta.fg : SIDE[b.color];
-
-  const v = b.value / b.max;
-  ctx.fillRect(0.39, 0.96 - v * 0.92, 0.22, v * 0.92);
-  ctx.lineWidth = 0.02;
-  ctx.strokeRect(0.35, 0, 0.3, 1);
-}
-
-function renderShape(ctx, b) {
-  ctx.globalAlpha *= b.t;
-  ctx.fillStyle = b.color === -1 ? meta.fg : PIECE[b.color];
-
-  const dx = (1 - b.width * 0.25) / 2;
-  const dy = (1 - b.height * 0.25) / 2;
-  for (let x = 0; x < b.width; ++x) {
-    for (let y = 0; y < b.height; ++y) {
-      ctx.fillRect(dx + x * 0.25 + 0.025, dy + y * 0.25 + 0.025, 0.2, 0.2);
-    }
-  }
-}
-
-// One outlined cell per tile owed. What a shipment covered fades out.
-function renderBlocks(ctx, b) {
-  const base = ctx.globalAlpha;
-  ctx.fillStyle = ctx.strokeStyle = b.color === -1 ? meta.fg : SIDE[b.color];
-
-  const dx = (1 - 0.25 * Math.ceil(b.total / 4)) / 2;
-  for (let i = 0; i < b.total; ++i) {
-    const y = i % 4;
-    const x = (i - y) / 4;
-
-    ctx.globalAlpha = base * (i >= b.total - b.count ? b.t : 1);
-    ctx.lineWidth = 0.02;
-    ctx.strokeRect(dx + x * 0.25 + 0.025, y * 0.25 + 0.025, 0.2, 0.2);
-    ctx.fillRect(dx + x * 0.25 + 0.095, y * 0.25 + 0.095, 0.06, 0.06);
-  }
-  ctx.globalAlpha = base;
 }
