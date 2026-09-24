@@ -13,7 +13,8 @@
  * The Meter in the spine is the swap budget: it drains with time, a swap costs
  * one, a clear gives back its area less two. Empty ends the run. Full is a
  * level: both boards refill and a colour is added, up to five, after which the
- * drain speeds up.
+ * drain speeds up. A board with no swap and no clear left drops and refills
+ * after STUCK_TIME, with no level.
  */
 
 import * as ent from "./lib/entity.js";
@@ -53,6 +54,7 @@ const SPRING = 0.12;
 const TILT = 0.1;
 
 const SWAP_TIME = 0.25;
+const STUCK_TIME = 10;
 
 const METER_MAX = 12;
 const METER_START = METER_MAX / 2;
@@ -84,6 +86,9 @@ let meter = null;
 let selected = null;
 let level = 0;
 let leveling = false;
+// Null until the board has settled and been checked.
+let moves = null;
+let stuck = 0;
 
 function colorCount() {
   return Math.min(2 + level, COLORS.length);
@@ -445,16 +450,30 @@ function growth(block) {
   return best;
 }
 
+// Only a block above and left of a or b, on its board, can grow into it.
 function canSwap(a, b) {
+  const reaches = (block, c) =>
+    block.board === c.board && block.x <= c.x && block.y <= c.y;
   [a.color, b.color] = [b.color, a.color];
-  const ok = blocks.some((block) => growth(block) !== null);
+  const ok = blocks.some((block) =>
+    (reaches(block, a) || reaches(block, b)) && growth(block) !== null
+  );
   [a.color, b.color] = [b.color, a.color];
   return ok;
+}
+
+function hasMove() {
+  if (blocks.some((b) => b.width > 1 || b.height > 1)) return true;
+  const [left, right] = boards.map((board) =>
+    blocks.filter((b) => b.board === board)
+  );
+  return left.some((a) => right.some((b) => a.color !== b.color && canSwap(a, b)));
 }
 
 // The merged block is the one at the top-left corner.
 function merge() {
   if (act.is()) return;
+  moves = null;
   for (;;) {
     const block = blocks.find((b) => growth(b) !== null);
     if (!block) return;
@@ -518,14 +537,8 @@ async function settle() {
   );
 }
 
-// Waits out any clear still falling, throws every block off, inner column
-// first, and refills.
-async function levelUp() {
-  deselect();
-  await act.wait();
-
-  meter.flash = 1;
-  act(meter).attr("flash", 0, 0.8, ease.quadOut);
+// Throws every block off, inner column first.
+async function drop() {
   for (const board of boards) board.spin -= board.side * 0.3;
 
   await Promise.all(blocks.map((b) => {
@@ -535,11 +548,31 @@ async function levelUp() {
   }));
 
   for (const b of [...blocks]) b.remove();
-  level++;
-  meter.value = METER_START;
+}
+
+async function refill() {
   await settle();
   merge();
   leveling = false;
+}
+
+// Waits out any clear still falling.
+async function levelUp() {
+  deselect();
+  await act.wait();
+  meter.flash = 1;
+  act(meter).attr("flash", 0, 0.8, ease.quadOut);
+  await drop();
+  level++;
+  meter.value = METER_START;
+  await refill();
+}
+
+function unstick() {
+  leveling = true;
+  stuck = 0;
+  deselect();
+  drop().then(refill);
 }
 
 function select(block) {
@@ -601,6 +634,8 @@ export function init() {
   score.value = 0;
   level = 0;
   leveling = false;
+  moves = null;
+  stuck = 0;
 
   boards.push(new Board(0), new Board(1));
   meter = new Meter();
@@ -617,7 +652,12 @@ export function init() {
 export function update(dt) {
   ent.update(dt);
   const { input } = ent.game;
-  if (!leveling && input.just.act) click(input.x, input.y);
+  if (leveling) return;
+  if (input.just.act) click(input.x, input.y);
+  if (act.is()) return (stuck = 0);
+  moves ??= hasMove();
+  stuck = moves ? 0 : stuck + dt;
+  if (stuck > STUCK_TIME) unstick();
 }
 
 // Device pixels per board unit, the scale the shadows are baked at.
