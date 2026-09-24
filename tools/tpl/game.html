@@ -29,8 +29,9 @@ html { background: #f2f0e5; scrollbar-gutter: stable; }
 /* A drag across the board is the game being played, not a selection. */
 body {
   --pad: 0px;
+  --margin: 26px;
   height: 100dvh;
-  padding: 26px;
+  padding: var(--margin);
   display: flex;
   flex-direction: column;
   font: 14px/1.45 var(--sans);
@@ -84,7 +85,7 @@ a .arrow { visibility: visible; }
 .board {
   position: relative;
   margin: auto;
-  width: min(calc(100dvh - 104px - var(--pad)), 100%);
+  width: min(calc(100dvh - 2 * var(--margin) - 52px - var(--pad)), 100%);
   aspect-ratio: 1;
   view-transition-name: board;
 }
@@ -124,6 +125,7 @@ canvas { display: block; cursor: pointer; touch-action: none; }
 /* A screen with no mouse on it. The board gives the bottom third of the page
    to the pad, which is what --pad takes off its size above. */
 @media (pointer: coarse) and (hover: none) {
+  body { --margin: 13px; }
   body.dpad { --pad: 32dvh; }
   body.dpad .pad { display: flex; }
 }
@@ -135,7 +137,7 @@ canvas { display: block; cursor: pointer; touch-action: none; }
   body.dpad { --pad: 0px; }
   body.dpad .pad {
     position: fixed;
-    inset: 78px 26px 26px;
+    inset: calc(var(--margin) + 52px) var(--margin) var(--margin);
     height: auto;
     pointer-events: none;
   }
