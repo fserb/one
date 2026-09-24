@@ -43,6 +43,7 @@ export const meta = {
   scoreMax: true,
   release: true,
   date: "2026-09-21",
+  dpad: true,
 };
 
 const TAU = 2 * Math.PI;
