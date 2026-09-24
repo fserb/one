@@ -11,7 +11,7 @@
  * the one arcing forward, then a cleared block on its way into the meter.
  *
  * The Meter in the spine is the swap budget: it drains with time, a swap costs
- * one, a clear gives back its area less two, which the bar shows only once the
+ * 1.5, a clear gives back its area less two, which the bar shows only once the
  * cleared block has flown into it. Empty drops both boards and the meter off
  * the page and ends the run. Full is a level: both boards refill and a colour
  * is added, up to five, after which the drain speeds up. A board with no swap
@@ -47,6 +47,8 @@ const SHADOW = 8;
 const SHADOW_LIGHT = "rgba(255,255,255,0.95)";
 const SHADOW_DARK = "rgba(163,177,198,0.8)";
 const METER_COLOR = "#3DBB8A";
+// METER_COLOR halfway to white.
+const LOW_COLOR = "#9EDDC4";
 const SINK = 0.5;
 const SINK_BOB = 0.04;
 const MARGIN_RATIO = 0.03;
@@ -61,7 +63,10 @@ const STUCK_TIME = 10;
 
 const METER_MAX = 12;
 const METER_START = METER_MAX / 2;
-const SWAP_COST = 1;
+// A 2x2 clear gives back 2, one and a third swaps.
+const SWAP_COST = 1.5;
+// Two swaps left: the bar starts to pulse red and shake.
+const METER_LOW = 3;
 // An untouched meter empties from half in 90 seconds.
 const DRAIN = 1 / 15;
 
@@ -398,10 +403,20 @@ class Meter extends ent.Entity {
 
     const pad = w * 0.19;
     const bw = this.width();
-    const h = Math.max(0, this.shown) / METER_MAX * (BOARD_H - 2 * pad);
-    if (h < bw) return;
-    const x = 512 - bw / 2;
-    const y = BOARD_Y + BOARD_H - pad - h;
+    let h = Math.max(0, this.shown) / METER_MAX * (BOARD_H - 2 * pad);
+    if (h <= 0) return;
+    const bottom = BOARD_Y + BOARD_H - pad;
+    ctx.save();
+    // Shorter than it is wide, it is a dot shrinking into the bottom.
+    if (h < bw) {
+      ctx.translate(512, bottom);
+      ctx.scale(h / bw, h / bw);
+      ctx.translate(-512, -bottom);
+      h = bw;
+    }
+    const low = Math.max(0, 1 - this.shown / METER_LOW);
+    const x = 512 - bw / 2 + 3 * low * Math.sin(time * 50);
+    const y = bottom - h;
 
     const d = 3;
     const shadow = bake(
@@ -417,7 +432,7 @@ class Meter extends ent.Entity {
     for (const [name, s] of [["light", -d], ["dark", d]]) {
       const image = shadow[name];
       const iw = image.width / px;
-      const bottom = image.height / px - cap - 2;
+      const tail = image.height / px - cap - 2;
       const left = x - shadow.pad + s;
       ctx.drawImage(
         image,
@@ -446,11 +461,11 @@ class Meter extends ent.Entity {
         0,
         (cap + 2) * px,
         image.width,
-        bottom * px,
+        tail * px,
         left,
         y + h - bw / 2 + s,
         iw,
-        bottom,
+        tail,
       );
     }
 
@@ -458,6 +473,12 @@ class Meter extends ent.Entity {
     ctx.beginPath();
     ctx.roundRect(x, y, bw, h, bw / 2);
     ctx.fill();
+    if (low > 0) {
+      ctx.globalAlpha = Math.min(1, 2 * low) * (1 + Math.sin(time * 12)) / 2;
+      ctx.fillStyle = LOW_COLOR;
+      ctx.fill();
+    }
+    ctx.restore();
   }
 }
 
