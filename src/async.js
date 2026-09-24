@@ -8,12 +8,13 @@
  * A Board is a rect rotated about its vertical axis under a perspective divide,
  * and a Block interpolates its board's quad. Back draws every block's shadows
  * before any block draws, then the block arcing behind in a swap; Front draws
- * the one arcing forward.
+ * the one arcing forward, then a cleared block on its way into the meter.
  *
  * The Meter in the spine is the swap budget: it drains with time, a swap costs
- * one, a clear gives back its area less two. Empty ends the run. Full is a
- * level: both boards refill and a colour is added, up to five, after which the
- * drain speeds up. A board with no swap and no clear left drops and refills
+ * one, a clear gives back its area less two, which the bar shows only once the
+ * cleared block has flown into it. Empty ends the run. Full is a level: both
+ * boards refill and a colour is added, up to five, after which the drain
+ * speeds up. A board with no swap and no clear left drops and refills
  * after STUCK_TIME, with no level.
  */
 
@@ -54,6 +55,7 @@ const SPRING = 0.12;
 const TILT = 0.1;
 
 const SWAP_TIME = 0.25;
+const FLY_TIME = 0.5;
 const STUCK_TIME = 10;
 
 const METER_MAX = 12;
@@ -81,6 +83,8 @@ const BLOCK_SIZE = Math.min(
 );
 
 const blocks = [];
+// Cleared blocks on their way into the meter, off the board.
+const flying = [];
 const boards = [];
 let meter = null;
 let selected = null;
@@ -168,8 +172,8 @@ class Block extends ent.Entity {
     // In cells, drawn short of where it is, and tweened to 0.
     this.displacement = displacement;
     this.drop = 0;
-    this.shrink = 1;
     this.swap = null;
+    this.fly = null;
     this.points = this.quad();
     blocks.push(this);
   }
@@ -211,6 +215,42 @@ class Block extends ent.Entity {
     };
   }
 
+  // Not an act(): merge() and the stuck check wait for every act to finish, and
+  // the board has settled long before this lands.
+  flyStep() {
+    const { fly } = this;
+    fly.age = Math.min(FLY_TIME, fly.age + ent.game.time);
+    fly.t = ease.quadIn(fly.age / FLY_TIME);
+    this.points = this.flight();
+    if (fly.age < FLY_TIME) return;
+    meter.land(fly.gain);
+    flying.splice(flying.indexOf(this), 1);
+    this.remove();
+  }
+
+  // Its centre on a curve that dips down on its way into the top of the bar,
+  // lifting towards the viewer on the way and shrinking evenly until its
+  // longer side is the bar's width.
+  flight() {
+    const { age, t, from } = this.fly;
+    const lift = 1 + 0.25 * Math.sin(Math.PI * age / FLY_TIME);
+    const c = {
+      x: (from[0].x + from[2].x) / 2,
+      y: (from[0].y + from[2].y) / 2,
+    };
+    const to = meter.top();
+    const mid = {
+      x: (c.x + to.x) / 2,
+      y: Math.max(c.y, to.y) + 150,
+    };
+    const u = 1 - t;
+    const x = u * u * c.x + 2 * u * t * mid.x + t * t * to.x;
+    const y = u * u * c.y + 2 * u * t * mid.y + t * t * to.y;
+    const size = Math.max(from[2].x - from[0].x, from[2].y - from[0].y);
+    const k = (u + meter.width() / size * t) * lift;
+    return from.map((p) => ({ x: x + (p.x - c.x) * k, y: y + (p.y - c.y) * k }));
+  }
+
   async swapWith(target, arc) {
     this.swap = { t: 0, target, arc };
     await act(this.swap).attr("t", 1, SWAP_TIME, ease.quadOut);
@@ -231,12 +271,12 @@ class Block extends ent.Entity {
   }
 
   update() {
+    if (this.fly) return this.flyStep();
     const restore = (this.targetSink - this.sink) * SPRING;
     this.sinkVel = (this.sinkVel + restore) * 0.8;
     this.sink += this.sinkVel * ent.game.time / 0.016;
 
     let q = new Quad(this.swap ? this.arc() : this.quad());
-    if (this.shrink !== 1) q = q.scale(this.shrink);
     if (this.sink !== 0) {
       const b = bob();
       q = q.scale(1 - (1 - SINK) * this.sink - SINK_BOB * b * this.sink)
@@ -246,14 +286,12 @@ class Block extends ent.Entity {
   }
 
   shadow(ctx, name, sign, px) {
-    if (this.shrink <= 0) return;
     const d = SHADOW * (1 - this.sink * (0.65 + 0.2 * bob()));
     const shadow = blockShadows(this, px);
     drawBlockShadow(ctx, shadow[name], shadow, this.points, sign * d, px);
   }
 
   fill(ctx) {
-    if (this.shrink <= 0) return;
     const { rx, ry } = this.radius();
     const { points } = this;
     ctx.fillStyle = COLORS[this.color];
@@ -267,7 +305,7 @@ class Block extends ent.Entity {
   }
 
   render(ctx) {
-    if (this.depth === 0) this.fill(ctx);
+    if (this.depth === 0 && !this.fly) this.fill(ctx);
   }
 }
 
@@ -286,6 +324,7 @@ class Back extends ent.Entity {
 class Front extends ent.Entity {
   render(ctx) {
     for (const block of blocks) if (block.depth < 0) block.fill(ctx);
+    for (const block of flying) block.fill(ctx);
   }
 }
 
@@ -294,7 +333,28 @@ class Meter extends ent.Entity {
     super();
     this.value = METER_START;
     this.shown = METER_START;
+    // Added to value but still flying in as sparks, so not yet shown.
+    this.pending = 0;
     this.flash = 0;
+  }
+
+  groove() {
+    return Math.round(SPINE * 1.7 * (1 + 1.5 * this.flash));
+  }
+
+  width() {
+    return Math.round(this.groove() * 0.62);
+  }
+
+  // Where a cleared block lands: the top of the bar.
+  top() {
+    const pad = this.groove() * 0.19;
+    const h = Math.max(0, this.shown) / METER_MAX * (BOARD_H - 2 * pad);
+    return { x: 512, y: BOARD_Y + BOARD_H - pad - h + this.width() / 2 };
+  }
+
+  land(n) {
+    this.pending -= n;
   }
 
   // True when this fills it.
@@ -305,7 +365,8 @@ class Meter extends ent.Entity {
 
   update() {
     const dt = ent.game.time;
-    this.shown += (this.value - this.shown) * Math.min(1, dt * 8);
+    const target = this.value - this.pending;
+    this.shown += (target - this.shown) * Math.min(1, dt * 12);
     if (leveling) return;
     this.value -= drainRate() * dt;
     if (this.value <= 0) gameOver({ score: true });
@@ -315,7 +376,7 @@ class Meter extends ent.Entity {
   // straight middle stretched to the height.
   render(ctx) {
     const px = pixels(ctx);
-    const w = Math.round(SPINE * 1.7 * (1 + 1.5 * this.flash));
+    const w = this.groove();
     const groove = bake(`groove ${w}`, px, () => bakeGroove(px, w));
     ctx.drawImage(
       groove,
@@ -326,7 +387,7 @@ class Meter extends ent.Entity {
     );
 
     const pad = w * 0.19;
-    const bw = Math.round(w - 2 * pad);
+    const bw = this.width();
     const h = Math.max(0, this.shown) / METER_MAX * (BOARD_H - 2 * pad);
     if (h < bw) return;
     const x = 512 - bw / 2;
@@ -589,10 +650,14 @@ function deselect() {
 async function clear(block) {
   const area = block.width * block.height;
   score.value += area;
+  const before = meter.value;
   const full = meter.add(area - 2);
+  const gain = meter.value - before;
+  meter.pending += gain;
   if (full) leveling = true;
-  await act(block).attr("shrink", 0, 0.3, ease.quadIn);
-  block.remove();
+  blocks.splice(blocks.indexOf(block), 1);
+  flying.push(block);
+  block.fly = { age: 0, t: 0, from: block.points, gain };
   await settle();
   merge();
   if (full) await levelUp();
@@ -629,6 +694,7 @@ function click(x, y) {
 export function init() {
   ent.reset([Board, Meter, Back, Block, Front]);
   blocks.length = 0;
+  flying.length = 0;
   boards.length = 0;
   selected = null;
   score.value = 0;
