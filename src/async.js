@@ -1,24 +1,4 @@
-/*
- * async - swap blocks across two facing boards to grow them into rectangles.
- *
- * Two 4x6 boards, gravity pulling each towards the spine. A swap is allowed
- * only when it leaves some block able to grow, and a click on a grown block
- * clears it.
- *
- * A Board is a rect rotated about its vertical axis under a perspective divide,
- * and a Block interpolates its board's quad. Back draws every block's shadows
- * before any block draws, then the block arcing behind in a swap; Front draws
- * the one arcing forward, then a cleared block on its way into the meter.
- *
- * The Meter in the spine is the swap budget: it drains with time, a swap costs
- * 1.5, a clear gives back its area less two, which the bar shows only once the
- * cleared block has flown into it. Empty drops both boards and the meter off
- * the page and ends the run; a run starts with the meter coming down and
- * filling, then the empty boards filling as they refill. Full is a level:
- * both boards refill and a colour is added, up to five, after which the drain
- * speeds up. A board with no swap and no clear left drops and refills after
- * STUCK_TIME, with no level.
- */
+// async. Swap blocks across two facing boards to grow them into rectangles.
 
 import * as ent from "./lib/entity.js";
 import { Collider } from "./alma/src/collider.js";
@@ -68,32 +48,29 @@ const METER_MAX = 12;
 const METER_START = METER_MAX / 2;
 // A 2x2 clear gives back 2, one and a third swaps.
 const SWAP_COST = 1.5;
-// Two swaps left: the bar starts to pulse red and shake.
+// Two swaps left: the bar starts to pulse and shake.
 const METER_LOW = 3;
 // An untouched meter empties from half in 90 seconds.
 const DRAIN = 1 / 15;
 
 const PERSPECTIVE = 1000;
 
-// Margin, board, gap, spine, gap, board, margin across the width. The width
-// binds, which is why 4x6 leaves board colour above and below.
+// n cells and the n - 1 margins between them, in cells.
+function span(n) {
+  return n + (n - 1) * MARGIN_RATIO;
+}
+
+// Margin, board, gap, spine, gap, board, margin across the width.
 const MARGIN = 1024 * 0.04;
 const SPINE = 1024 * 0.025;
-const BOARD_ASPECT = (BOARD_WIDTH + (BOARD_WIDTH - 1) * MARGIN_RATIO) /
-  (BOARD_HEIGHT + (BOARD_HEIGHT - 1) * MARGIN_RATIO);
 const BOARD_W = (1024 - 4 * MARGIN - SPINE) / 2;
-const BOARD_H = BOARD_W / BOARD_ASPECT;
+const BOARD_H = BOARD_W * span(BOARD_HEIGHT) / span(BOARD_WIDTH);
 const BOARD_Y = (1024 - BOARD_H) / 2;
-
 // What a depth of 3 moves a block by.
-const BLOCK_SIZE = Math.min(
-  BOARD_W / (BOARD_WIDTH + (BOARD_WIDTH - 1) * MARGIN_RATIO),
-  BOARD_H / (BOARD_HEIGHT + (BOARD_HEIGHT - 1) * MARGIN_RATIO),
-);
+const BLOCK_SIZE = BOARD_W / span(BOARD_WIDTH);
 
+// Blocks on the boards, which a cleared one's Flight is not.
 const blocks = [];
-// Cleared blocks on their way into the meter, off the board.
-const flying = [];
 const boards = [];
 let meter = null;
 let selected = null;
@@ -103,14 +80,6 @@ let busy = false;
 // Null until the board has settled and been checked.
 let moves = null;
 let stuck = 0;
-
-function colorCount() {
-  return Math.min(2 + level, COLORS.length);
-}
-
-function drainRate() {
-  return DRAIN * (1 + 0.5 * Math.max(0, level - (COLORS.length - 2)));
-}
 
 function bob() {
   return (1 + Math.sin(time * 5)) / 2;
@@ -124,11 +93,11 @@ function lerp(a, b, t) {
 }
 
 class Board extends ent.Entity {
-  constructor(id) {
+  // -1 for the left board, which leans and falls towards +x.
+  constructor(side) {
     super();
-    // -1 for the left board, which leans and falls towards +x.
-    this.side = id === 0 ? -1 : 1;
-    this.x = id === 0 ? MARGIN : 3 * MARGIN + BOARD_W + SPINE;
+    this.side = side;
+    this.x = side < 0 ? MARGIN : 3 * MARGIN + BOARD_W + SPINE;
     this.rotation = 0;
     this.spin = 0;
     this.project();
@@ -172,7 +141,9 @@ class Block extends ent.Entity {
     this.board = board;
     this.x = x;
     this.y = y;
-    this.color = Math.floor(Math.random() * colorCount());
+    this.color = Math.floor(
+      Math.random() * Math.min(2 + level, COLORS.length),
+    );
     this.width = 1;
     this.height = 1;
     this.depth = 0;
@@ -183,7 +154,6 @@ class Block extends ent.Entity {
     this.displacement = displacement;
     this.drop = 0;
     this.swap = null;
-    this.fly = null;
     this.points = this.quad();
     blocks.push(this);
   }
@@ -219,46 +189,7 @@ class Block extends ent.Entity {
 
   // Corners the size of a single block's, whatever this one's size.
   radius() {
-    return {
-      rx: 0.26 / (this.width + (this.width - 1) * MARGIN_RATIO),
-      ry: 0.26 / (this.height + (this.height - 1) * MARGIN_RATIO),
-    };
-  }
-
-  // Not an act(): merge() and the stuck check wait for every act to finish, and
-  // the board has settled long before this lands.
-  flyStep() {
-    const { fly } = this;
-    fly.age = Math.min(FLY_TIME, fly.age + ent.game.time);
-    fly.t = ease.quadIn(fly.age / FLY_TIME);
-    this.points = this.flight();
-    if (fly.age < FLY_TIME) return;
-    meter.land(fly.gain);
-    flying.splice(flying.indexOf(this), 1);
-    this.remove();
-  }
-
-  // Its centre on a curve that dips down on its way into the top of the bar,
-  // lifting towards the viewer on the way and shrinking evenly until its
-  // longer side is the bar's width.
-  flight() {
-    const { age, t, from } = this.fly;
-    const lift = 1 + 0.25 * Math.sin(Math.PI * age / FLY_TIME);
-    const c = {
-      x: (from[0].x + from[2].x) / 2,
-      y: (from[0].y + from[2].y) / 2,
-    };
-    const to = meter.top();
-    const mid = {
-      x: (c.x + to.x) / 2,
-      y: Math.max(c.y, to.y) + 150,
-    };
-    const u = 1 - t;
-    const x = u * u * c.x + 2 * u * t * mid.x + t * t * to.x;
-    const y = u * u * c.y + 2 * u * t * mid.y + t * t * to.y;
-    const size = Math.max(from[2].x - from[0].x, from[2].y - from[0].y);
-    const k = (u + meter.width() / size * t) * lift;
-    return from.map((p) => ({ x: x + (p.x - c.x) * k, y: y + (p.y - c.y) * k }));
+    return { rx: 0.26 / span(this.width), ry: 0.26 / span(this.height) };
   }
 
   async swapWith(target, arc) {
@@ -281,7 +212,6 @@ class Block extends ent.Entity {
   }
 
   update() {
-    if (this.fly) return this.flyStep();
     const restore = (this.targetSink - this.sink) * SPRING;
     this.sinkVel = (this.sinkVel + restore) * 0.8;
     this.sink += this.sinkVel * ent.game.time / 0.016;
@@ -295,10 +225,43 @@ class Block extends ent.Entity {
     this.points = q.corners;
   }
 
+  // The rest shape's shadow mapped onto the quad by the affine transform that
+  // averages its opposite edges; the perspective is too slight to show in a
+  // blur.
   shadow(ctx, name, sign, px) {
-    const d = SHADOW * (1 - this.sink * (0.65 + 0.2 * bob()));
-    const shadow = blockShadows(this, px);
-    drawBlockShadow(ctx, shadow[name], shadow, this.points, sign * d, px);
+    const width = BOARD_W / BOARD_WIDTH * (this.width - 2 * MARGIN_RATIO);
+    const height = BOARD_H / BOARD_HEIGHT * (this.height - 2 * MARGIN_RATIO);
+    const { rx, ry } = this.radius();
+    const shadow = bake(
+      `block ${this.width}x${this.height}`,
+      px,
+      () =>
+        bakeShadows(px, width, height, 2 * SHADOW, (c) =>
+          c.roundQuad(
+            [
+              { x: 0, y: 0 },
+              { x: width, y: 0 },
+              { x: width, y: height },
+              { x: 0, y: height },
+            ],
+            rx,
+            ry,
+          )),
+    );
+    const image = shadow[name];
+    const s = sign * SHADOW * (1 - this.sink * (0.65 + 0.2 * bob()));
+    const [a, b, c, e] = this.points;
+    const ux = (b.x - a.x + c.x - e.x) / 2 / width;
+    const uy = (b.y - a.y + c.y - e.y) / 2 / width;
+    const vx = (e.x - a.x + c.x - b.x) / 2 / height;
+    const vy = (e.y - a.y + c.y - b.y) / 2 / height;
+    const cx = (a.x + b.x + c.x + e.x) / 4 - (ux * width + vx * height) / 2;
+    const cy = (a.y + b.y + c.y + e.y) / 4 - (uy * width + vy * height) / 2;
+    ctx.save();
+    ctx.transform(ux, uy, vx, vy, cx + s, cy + s);
+    const { pad } = shadow;
+    ctx.drawImage(image, -pad, -pad, image.width / px, image.height / px);
+    ctx.restore();
   }
 
   fill(ctx) {
@@ -315,7 +278,7 @@ class Block extends ent.Entity {
   }
 
   render(ctx) {
-    if (this.depth === 0 && !this.fly) this.fill(ctx);
+    if (this.depth === 0) this.fill(ctx);
   }
 }
 
@@ -334,7 +297,48 @@ class Back extends ent.Entity {
 class Front extends ent.Entity {
   render(ctx) {
     for (const block of blocks) if (block.depth < 0) block.fill(ctx);
-    for (const block of flying) block.fill(ctx);
+  }
+}
+
+// A cleared block on a curve that dips down on its way into the top of the
+// bar, lifting towards the viewer and shrinking until its longer side is the
+// bar's width. Not an act(): merge() and the stuck check wait for every act,
+// and the board has settled long before this lands.
+class Flight extends ent.Entity {
+  constructor(block, gain) {
+    super();
+    this.block = block;
+    this.gain = gain;
+    this.from = block.points;
+  }
+
+  update() {
+    const { from } = this;
+    const a = Math.min(1, this.age / FLY_TIME);
+    const t = ease.quadIn(a);
+    const lift = 1 + 0.25 * Math.sin(Math.PI * a);
+    const c = {
+      x: (from[0].x + from[2].x) / 2,
+      y: (from[0].y + from[2].y) / 2,
+    };
+    const to = meter.top();
+    const mid = { x: (c.x + to.x) / 2, y: Math.max(c.y, to.y) + 150 };
+    const u = 1 - t;
+    const x = u * u * c.x + 2 * u * t * mid.x + t * t * to.x;
+    const y = u * u * c.y + 2 * u * t * mid.y + t * t * to.y;
+    const size = Math.max(from[2].x - from[0].x, from[2].y - from[0].y);
+    const k = (u + meter.width() / size * t) * lift;
+    this.block.points = from.map((p) => ({
+      x: x + (p.x - c.x) * k,
+      y: y + (p.y - c.y) * k,
+    }));
+    if (a < 1) return;
+    meter.pending -= this.gain;
+    this.remove();
+  }
+
+  render(ctx) {
+    this.block.fill(ctx);
   }
 }
 
@@ -343,10 +347,9 @@ class Meter extends ent.Entity {
     super();
     this.value = METER_START;
     this.shown = METER_START;
-    // Added to value but still flying in as sparks, so not yet shown.
+    // Added to value but still flying in, so not yet shown.
     this.pending = 0;
     this.flash = 0;
-    this.drop = 0;
   }
 
   groove() {
@@ -357,59 +360,37 @@ class Meter extends ent.Entity {
     return Math.round(this.groove() * 0.62);
   }
 
-  // Where a cleared block lands: the top of the bar.
-  top() {
+  bar() {
     const pad = this.groove() * 0.19;
     const h = Math.max(0, this.shown) / METER_MAX * (BOARD_H - 2 * pad);
-    return { x: 512, y: BOARD_Y + BOARD_H - pad - h + this.width() / 2 };
+    return { bottom: BOARD_Y + BOARD_H - pad, h };
   }
 
-  land(n) {
-    this.pending -= n;
-  }
-
-  // True when this fills it.
-  add(n) {
-    this.value = Math.min(METER_MAX, this.value + n);
-    return this.value === METER_MAX;
+  top() {
+    const { bottom, h } = this.bar();
+    return { x: 512, y: bottom - h + this.width() / 2 };
   }
 
   update() {
     const dt = ent.game.time;
-    const target = this.value - this.pending;
-    this.shown += (target - this.shown) * Math.min(1, dt * 12);
+    this.shown += (this.value - this.pending - this.shown) *
+      Math.min(1, dt * 12);
     if (busy) return;
-    this.value -= drainRate() * dt;
+    const faster = Math.max(0, level - (COLORS.length - 2));
+    this.value -= DRAIN * (1 + 0.5 * faster) * dt;
     if (this.value <= 0) end();
   }
 
   render(ctx) {
-    ctx.save();
-    ctx.translate(0, 1100 * this.drop);
-    this.draw(ctx);
-    ctx.restore();
-  }
-
-  // The bar's shadow is cut in three: the two caps copied as they are and the
-  // straight middle stretched to the height.
-  draw(ctx) {
     const px = pixels(ctx);
     const w = this.groove();
     const groove = bake(`groove ${w}`, px, () => bakeGroove(px, w));
-    ctx.drawImage(
-      groove,
-      512 - w / 2,
-      BOARD_Y,
-      groove.width / px,
-      groove.height / px,
-    );
+    const gw = groove.width / px;
+    ctx.drawImage(groove, 512 - w / 2, BOARD_Y, gw, groove.height / px);
 
-    const pad = w * 0.19;
     const bw = this.width();
-    let h = Math.max(0, this.shown) / METER_MAX * (BOARD_H - 2 * pad);
+    let { bottom, h } = this.bar();
     if (h <= 0) return;
-    const bottom = BOARD_Y + BOARD_H - pad;
-    ctx.save();
     // Shorter than it is wide, it is a dot shrinking into the bottom.
     if (h < bw) {
       ctx.translate(512, bottom);
@@ -421,67 +402,51 @@ class Meter extends ent.Entity {
     const x = 512 - bw / 2 + 3 * low * Math.sin(time * 50);
     const y = bottom - h;
 
+    // The shadow is cut in three: the two caps copied as they are and the
+    // straight middle stretched to the height.
     const d = 3;
     const shadow = bake(
       `bar ${bw}`,
       px,
       () =>
-        bakeShadows(px, bw, bw + 2, 2 * d, (c) => {
-          c.beginPath();
-          c.roundRect(0, 0, bw, bw + 2, bw / 2);
-        }),
+        bakeShadows(
+          px,
+          bw,
+          bw + 2,
+          2 * d,
+          (c) => c.roundRect(0, 0, bw, bw + 2, bw / 2),
+        ),
     );
-    const cap = shadow.pad + bw / 2;
+    const { pad } = shadow;
+    const cap = pad + bw / 2;
     for (const [name, s] of [["light", -d], ["dark", d]]) {
       const image = shadow[name];
-      const iw = image.width / px;
       const tail = image.height / px - cap - 2;
-      const left = x - shadow.pad + s;
-      ctx.drawImage(
-        image,
-        0,
-        0,
-        image.width,
-        cap * px,
-        left,
-        y - shadow.pad + s,
-        iw,
-        cap,
-      );
-      ctx.drawImage(
-        image,
-        0,
-        cap * px,
-        image.width,
-        2 * px,
-        left,
-        y + bw / 2 + s,
-        iw,
-        h - bw,
-      );
-      ctx.drawImage(
-        image,
-        0,
-        (cap + 2) * px,
-        image.width,
-        tail * px,
-        left,
-        y + h - bw / 2 + s,
-        iw,
-        tail,
-      );
+      const slice = (sy, sh, dy, dh) =>
+        ctx.drawImage(
+          image,
+          0,
+          sy * px,
+          image.width,
+          sh * px,
+          x - pad + s,
+          dy + s,
+          image.width / px,
+          dh,
+        );
+      slice(0, cap, y - pad, cap);
+      slice(cap, 2, y + bw / 2, h - bw);
+      slice(cap + 2, tail, y + h - bw / 2, tail);
     }
 
     ctx.fillStyle = METER_COLOR;
     ctx.beginPath();
     ctx.roundRect(x, y, bw, h, bw / 2);
     ctx.fill();
-    if (low > 0) {
-      ctx.globalAlpha = Math.min(1, 2 * low) * (1 + Math.sin(time * 12)) / 2;
-      ctx.fillStyle = LOW_COLOR;
-      ctx.fill();
-    }
-    ctx.restore();
+    if (low === 0) return;
+    ctx.globalAlpha = Math.min(1, 2 * low) * (1 + Math.sin(time * 12)) / 2;
+    ctx.fillStyle = LOW_COLOR;
+    ctx.fill();
   }
 }
 
@@ -584,12 +549,6 @@ function merge() {
   }
 }
 
-// From the outer edge in.
-function feedOrder(board) {
-  const xs = Array.from({ length: BOARD_WIDTH }, (_, i) => i);
-  return board.side < 0 ? xs : xs.reverse();
-}
-
 // Every block falls towards the spine, then each board refills from its outer
 // edge, all new blocks sliding in from the furthest hole's distance.
 async function settle() {
@@ -614,13 +573,13 @@ async function settle() {
   }
 
   for (const board of boards) {
-    const outside = board.side < 0 ? -1 : BOARD_WIDTH;
     const holes = [];
     let far = 1;
     for (let y = 0; y < BOARD_HEIGHT; y++) {
-      for (const x of feedOrder(board)) {
+      for (let i = 0; i < BOARD_WIDTH; i++) {
+        const x = board.side < 0 ? i : BOARD_WIDTH - 1 - i;
         if (blockAt(board, x, y)) break;
-        far = Math.max(far, Math.abs(outside - x));
+        far = Math.max(far, i + 1);
         holes.push([x, y]);
       }
     }
@@ -651,19 +610,16 @@ async function refill() {
   busy = false;
 }
 
-// Waits out any swap or clear still falling, then every cleared block's flight
-// and the bar's rise to full, which shakes and holds before the drop.
+// Waits out any swap or clear still falling, then every Flight and the bar's
+// rise to full, which shakes before the drop.
 async function levelUp() {
   deselect();
   await act.wait();
-  await act(meter).until(() =>
-    flying.length === 0 && meter.value - meter.shown < 0.02
-  );
+  await act(meter).until(() => !ent.one(Flight) && meter.value - meter.shown < 0.02);
   meter.shown = meter.value;
   shake(0.3);
   meter.flash = 1;
   act(meter).attr("flash", 0, 0.8, ease.quadOut);
-  // await act({}).delay(0.5);
   await drop();
   level++;
   meter.value = METER_START;
@@ -673,23 +629,21 @@ async function levelUp() {
 // The meter comes down and its bar fills, then the empty boards fill the way
 // they refill.
 async function intro() {
-  busy = true;
-  meter.drop = -1;
+  meter.pos.y = -1100;
   meter.shown = 0;
   meter.pending = meter.value;
-  await act(meter).attr("drop", 0, 0.5, ease.quadOut);
+  await act(meter).attr("pos.y", 0, 0.5, ease.quadOut);
   meter.pending = 0;
   await act(meter).until(() => meter.value - meter.shown < 0.02);
   await refill();
 }
 
-// The meter goes with the boards, leaving the finish screen on an empty page.
 async function end() {
   busy = true;
   deselect();
   await act.wait();
-  await act(meter).until(() => flying.length === 0);
-  await Promise.all([drop(), act(meter).attr("drop", 1, 0.6, ease.quadIn)]);
+  await act(meter).until(() => !ent.one(Flight));
+  await Promise.all([drop(), act(meter).attr("pos.y", 1100, 0.6, ease.quadIn)]);
   gameOver({ score: true });
 }
 
@@ -715,13 +669,13 @@ async function clear(block) {
   const area = block.width * block.height;
   score.value += area;
   const before = meter.value;
-  const full = meter.add(area - 2);
+  meter.value = Math.min(METER_MAX, before + area - 2);
   const gain = meter.value - before;
   meter.pending += gain;
+  const full = meter.value === METER_MAX;
   if (full) busy = true;
-  blocks.splice(blocks.indexOf(block), 1);
-  flying.push(block);
-  block.fly = { age: 0, t: 0, from: block.points, gain };
+  block.remove();
+  new Flight(block, gain);
   await settle();
   merge();
   if (full) await levelUp();
@@ -756,18 +710,17 @@ function click(x, y) {
 }
 
 export function init() {
-  ent.reset([Board, Meter, Back, Block, Front]);
+  ent.reset([Board, Meter, Back, Block, Front, Flight]);
   blocks.length = 0;
-  flying.length = 0;
   boards.length = 0;
   selected = null;
   score.value = 0;
   level = 0;
-  busy = false;
+  busy = true;
   moves = null;
   stuck = 0;
 
-  boards.push(new Board(0), new Board(1));
+  boards.push(new Board(-1), new Board(1));
   meter = new Meter();
   new Back();
   new Front();
@@ -776,8 +729,8 @@ export function init() {
 
 export function update(dt) {
   ent.update(dt);
-  const { input } = ent.game;
   if (busy) return;
+  const { input } = ent.game;
   if (input.just.act) click(input.x, input.y);
   if (act.is()) return (stuck = 0);
   moves ??= hasMove();
@@ -821,7 +774,7 @@ function bake(key, px, make) {
 // width to the left, off it, and its shadow offset back on.
 function bakeShadows(px, width, height, blur, draw) {
   const pad = blur * 1.5;
-  const out = { pad, width, height };
+  const out = { pad };
   for (const [name, color] of [["light", SHADOW_LIGHT], ["dark", SHADOW_DARK]]) {
     const canvas = new OffscreenCanvas(
       Math.ceil((width + 2 * pad) * px),
@@ -838,45 +791,6 @@ function bakeShadows(px, width, height, blur, draw) {
     out[name] = canvas;
   }
   return out;
-}
-
-function blockShadows(block, px) {
-  const width = BOARD_W / BOARD_WIDTH * (block.width - 2 * MARGIN_RATIO);
-  const height = BOARD_H / BOARD_HEIGHT * (block.height - 2 * MARGIN_RATIO);
-  const { rx, ry } = block.radius();
-  return bake(
-    `block ${block.width}x${block.height}`,
-    px,
-    () =>
-      bakeShadows(px, width, height, 2 * SHADOW, (c) =>
-        c.roundQuad(
-          [
-            { x: 0, y: 0 },
-            { x: width, y: 0 },
-            { x: width, y: height },
-            { x: 0, y: height },
-          ],
-          rx,
-          ry,
-        )),
-  );
-}
-
-// The rest shape mapped onto the quad by the affine transform that averages
-// its opposite edges; a block's perspective is too slight to show in a blur.
-function drawBlockShadow(ctx, image, shadow, points, s, px) {
-  const [a, b, c, e] = points;
-  const { pad, width, height } = shadow;
-  const ux = (b.x - a.x + c.x - e.x) / 2 / width;
-  const uy = (b.y - a.y + c.y - e.y) / 2 / width;
-  const vx = (e.x - a.x + c.x - b.x) / 2 / height;
-  const vy = (e.y - a.y + c.y - b.y) / 2 / height;
-  const cx = (a.x + b.x + c.x + e.x) / 4 - (ux * width + vx * height) / 2;
-  const cy = (a.y + b.y + c.y + e.y) / 4 - (uy * width + vy * height) / 2;
-  ctx.save();
-  ctx.transform(ux, uy, vx, vy, cx + s, cy + s);
-  ctx.drawImage(image, -pad, -pad, image.width / px, image.height / px);
-  ctx.restore();
 }
 
 // The groove the meter sits in: two shadows cast inward from a frame around it.
