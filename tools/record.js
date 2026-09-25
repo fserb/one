@@ -216,7 +216,7 @@ function missingSource(game) {
 // game named it never replaces one.
 function missing() {
   return [...Deno.readDirSync(`${ROOT}/src`)]
-    .filter((e) => e.isFile && e.name.endsWith(".js") && !e.name.startsWith("_"))
+    .filter((e) => e.isFile && e.name.endsWith(".js"))
     .map((e) => e.name.slice(0, -3))
     .filter((game) => !isFile(`${ROOT}/media/${game}/card.mp4`))
     .sort();

@@ -43,7 +43,7 @@ function newestZip(game) {
 
 function games() {
   return [...Deno.readDirSync(`${ROOT}/src`)]
-    .filter((e) => e.isFile && e.name.endsWith(".js") && !e.name.startsWith("_"))
+    .filter((e) => e.isFile && e.name.endsWith(".js"))
     .map((e) => e.name.slice(0, -3))
     .sort();
 }
