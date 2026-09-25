@@ -9,6 +9,10 @@
  * newer than the card they already have. Most games' zips are long gone from
  * ~/Downloads and their cards are committed, so a missing zip is skipped there
  * and an error when the game was named.
+ *
+ * A zip tools/record.js made is named one-<game>-auto-<stamp>.zip, and its card
+ * gets an empty media/<game>/auto beside it; a card from any other zip loses
+ * it. A card with no auto file was recorded by hand.
  */
 
 import { unzipSync } from "../src/alma/src/3rdp/fflate.js";
@@ -110,4 +114,8 @@ for (const game of names) {
   console.log(game);
   console.log(`  ${zip.path}`);
   card(game, zip.path);
+  const auto = `${ROOT}/media/${game}/auto`;
+  if (zip.path.includes(`/one-${game}-auto-`)) {
+    Deno.writeFileSync(auto, new Uint8Array());
+  } else if (mtime(auto) !== null) Deno.removeSync(auto);
 }

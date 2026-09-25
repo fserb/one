@@ -217,9 +217,10 @@ async function zipTake(end) {
   return zipSync(files);
 }
 
-function zipName() {
+// tools/media.js reads the "auto-" to mark the card auto-recorded.
+function zipName(tag = "") {
   const stamp = new Date().toISOString().replace(/[-:]/g, "").slice(0, 15);
-  return `one-${name}-${stamp}.zip`;
+  return `one-${name}-${tag}${stamp}.zip`;
 }
 
 async function keep() {
@@ -256,7 +257,7 @@ export async function auto() {
   const bytes = moved === 0 ? null : await zipTake(end);
   idle();
   return {
-    file: zipName(),
+    file: zipName("auto-"),
     zip: bytes && await base64(bytes),
     frames: end,
     full: TOTAL,
