@@ -34,7 +34,8 @@ export const meta = {
 const R = 7;
 
 const TIER_COUNT = 16;
-const TIER_RADIUS = 42;
+// Tier 0 takes the share of the pool below the danger line that Sobosuba's does.
+const TIER_RADIUS = 45.2;
 const TIER_GROWTH = Math.sqrt(1.26);
 
 function shift(c, dl) {
@@ -110,7 +111,7 @@ function buildPool(shape) {
     y1 = Math.max(y1, y);
   }
   const ox = (1024 - (x1 - x0)) / 2 - x0;
-  const oy = (1024 - (y1 - y0)) / 2 - y0;
+  const oy = (1024 - (y1 - y0)) / 2 - y0 + shape.lower;
   const chain = shape.chain.map(([x, y]) => [x + ox, y + oy]);
   const bounds = { x0: x0 + ox, x1: x1 + ox, y1: y1 + oy };
 
@@ -178,6 +179,7 @@ function buildPool(shape) {
 
 const pool = buildPool({
   danger: 291,
+  lower: 56, // below centre: room above the rail for an aim drawn upward
   chain: flatten([
     [162, 105],
     [112, 291],
@@ -277,7 +279,9 @@ class Blob extends ent.Entity {
   update() {
     const b = this.body;
     if (this.bar || b.scale >= 1) return;
-    sim.setScale(b, Math.min(1, b.scale + (1 - BAR_SHRINK) / 0.22 * ent.game.time));
+    // A third as fast while rising, so a shot up does not swell against the rail.
+    const rate = (1 - BAR_SHRINK) / 0.22 * (b.mvy < 0 ? 1 / 3 : 1);
+    sim.setScale(b, Math.min(1, b.scale + rate * ent.game.time));
   }
 
   // The body path scaled about the centroid, offset onto the lit face.
@@ -773,11 +777,9 @@ function aimReach(b, dx, dy) {
   return Math.max(Math.min(AIM_MAX, out), 2 * b.radius);
 }
 
-// The draw normalised by the room it had, then by the angle above horizontal.
+// The draw normalised by the room it had.
 function shot() {
-  const l = Math.hypot(aimX, aimY);
-  if (l < 1e-6) return [0, 0];
-  const g = (AIM_MAX / aimMax) * (1 - (1 - 0.8) * Math.max(0, -aimY) / l);
+  const g = AIM_MAX / aimMax;
   return [aimX * g, aimY * g];
 }
 
