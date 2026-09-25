@@ -1,26 +1,29 @@
 /*
  * blob - a merge game in a pool. After Sobosuba's bar mode.
  *
- * alma's SoftBodies owns the positions: `sim.bodies` is the list every loop
- * here iterates and `body.ent` is the reference back to the Blob. Everything
- * is in the 1024 board, and ent.update() runs inside the 60Hz fixed step.
+ * alma's SoftBodies holds the positions: `sim.bodies` is the list every loop
+ * here iterates, and `body.ent` is its Blob. Everything is in the 1024 board,
+ * and ent.update() runs inside the 60Hz fixed step.
  */
 
-import "./alma/src/extend.js"; // Math.TAU and Math.clamp
+import "./alma/src/extend.js";
 import color from "./alma/src/color.js";
 import * as line from "./alma/src/geom/line.js";
+import { Path2D } from "./alma/src/geom/path2d.js";
 import * as sdf from "./alma/src/geom/sdf.js";
 import * as spline from "./alma/src/geom/spline.js";
 import { Layer } from "./alma/src/gfx/layer.js";
 import * as random from "./alma/src/random.js";
+import { hp, lp } from "./alma/src/sfx.js";
+import { blow } from "./alma/src/sfxgen.js";
 import { PointerSpeed } from "./alma/src/smooth.js";
 import { SoftBodies } from "./alma/src/softbody.js";
 import { camera } from "./lib/camera2d.js";
 import * as ent from "./lib/entity.js";
 import { fixed, gameOver, input, op, score } from "./lib/one.js";
-import { hp, lp } from "./alma/src/sfx.js";
-import { blow } from "./alma/src/sfxgen.js";
 import * as sound from "./lib/sound.js";
+
+export { render } from "./lib/entity.js";
 
 export const meta = {
   title: "blob",
@@ -30,7 +33,7 @@ export const meta = {
   date: "2026-09-01",
 };
 
-// One ring point's radius: how far outside the ring a blob's edge reaches.
+// A ring point's radius: how far outside the ring a blob's edge reaches.
 const R = 7;
 
 const TIER_COUNT = 16;
@@ -38,148 +41,126 @@ const TIER_COUNT = 16;
 const TIER_RADIUS = 45.2;
 const TIER_GROWTH = Math.sqrt(1.26);
 
+const GRAVITY = 1800;
+const RAIL_GRAVITY = { x: 0, y: GRAVITY };
+const MAX_SPEED = 4800;
+
+const AIM_MAX = 260;
+const BAR_SHRINK = 0.65;
+const FEED_PERIOD = 0.5;
+const FEED_COOL = 0.7;
+// Merges needed before a tier joins the deal.
+const DEAL_UNLOCK = [0, 1, 3, 6, 10, 15, 21];
+
+const DANGER_PITCH = 2.5;
+const DANGER_HOLD = 1.0;
+
+const LIGHT_X = -180;
+const LIGHT_Y = -180;
+
+function light(x, y) {
+  const dx = LIGHT_X - x;
+  const dy = LIGHT_Y - y;
+  const d = Math.hypot(dx, dy);
+  return { x: dx / d, y: dy / d, d };
+}
+
 function shift(c, dl) {
   return c.withOKLCH(([l, ch, h]) => [l + dl, ch, h]).css;
 }
 
-function buildTiers() {
-  const tiers = [];
-  for (let i = 0; i < TIER_COUNT; i++) {
-    const outer = TIER_RADIUS * TIER_GROWTH ** i;
-    const radius = outer - R;
-    const n = Math.max(
-      12,
-      Math.round(Math.TAU * radius / (2 * R * (1 - 1 / 3))),
-    );
-    const c = color.oklch(
-      0.80 - 0.17 * i / (TIER_COUNT - 1),
-      0.16,
-      25 + 33 * i,
-    );
-    const cool = (m, dl) => shift(c.mix(color("#3f63a8"), m, "oklab"), dl);
-    const warm = (m, dl) => shift(c.mix(color("#fff2cc"), m, "oklab"), dl);
-    tiers.push({
-      index: i,
-      outer,
-      radius,
-      count: n,
-      base: SoftBodies.ring(n),
-      mass: Math.PI * outer * outer / 500,
-      cool: Math.log(100) * Math.PI * outer * outer / 85000,
-      value: 2 ** i,
-      font: radius * Math.min(0.62, 2.1 / `${2 ** i}`.length),
-      edge: Math.clamp(outer * 0.055, 5.5, 10.5),
-      drop: Math.min(28, outer * 0.22),
-      blur: Math.min(36, outer * 0.34),
-      ramp: [cool(0.44, 0.05), cool(0.34, -0.19), c.css],
-      line: cool(0.30, -0.45),
-      label: cool(0.25, -0.40),
-      emboss: warm(0.35, 0.12),
-    });
-  }
-  return tiers;
-}
-
-const TIERS = buildTiers();
+const TIERS = Array.from({ length: TIER_COUNT }, (_, i) => {
+  const outer = TIER_RADIUS * TIER_GROWTH ** i;
+  const radius = outer - R;
+  const area = Math.PI * outer * outer;
+  const c = color.oklch(0.80 - 0.17 * i / (TIER_COUNT - 1), 0.16, 25 + 33 * i);
+  const cool = (m, dl) => shift(c.mix(color("#3f63a8"), m, "oklab"), dl);
+  // A minor pentatonic degree a tier, tier 0 at A5 down to tier 15 at A2.
+  const k = TIER_COUNT - 1 - i;
+  return {
+    index: i,
+    outer,
+    radius,
+    base: SoftBodies.ring(Math.max(12, Math.round(Math.TAU * radius / (4 * R / 3)))),
+    mass: area / 500,
+    cool: Math.log(100) * area / 85000,
+    shock: area / 28000,
+    pitch: 110 * 2 ** (Math.floor(k / 5) + [0, 3, 5, 7, 10][k % 5] / 12),
+    value: 2 ** i,
+    font: radius * Math.min(0.62, 2.1 / `${2 ** i}`.length),
+    edge: Math.clamp(outer * 0.055, 5.5, 10.5),
+    drop: Math.min(28, outer * 0.22),
+    blur: Math.min(36, outer * 0.34),
+    ramp: [cool(0.44, 0.05), cool(0.34, -0.19), c.css],
+    line: cool(0.30, -0.45),
+    label: cool(0.25, -0.40),
+    emboss: shift(c.mix(color("#fff2cc"), 0.35, "oklab"), 0.12),
+  };
+});
 
 function flatten(pts, step = 7) {
   const curve = spline.catmullRom(pts.map(([x, y]) => ({ x, y })), {
     alpha: 0,
     tension: 0,
   });
-  const arc = spline.arcLength(curve);
-  return [...spline.pointsByDistance(arc, step)].map((p) => [p.x, p.y]);
+  return [...spline.pointsByDistance(spline.arcLength(curve), step)]
+    .map(({ x, y }) => ({ x, y }));
 }
 
-function chainPath(pts, close) {
-  const path = new Path2D();
-  path.moveTo(pts[0][0], pts[0][1]);
-  for (let i = 1; i < pts.length; i++) path.lineTo(pts[i][0], pts[i][1]);
-  if (close) path.closePath();
-  return path;
-}
-
-function buildPool(shape) {
-  let x0 = Infinity;
-  let x1 = -Infinity;
-  let y0 = Infinity;
-  let y1 = -Infinity;
-  for (const [x, y] of shape.chain) {
-    x0 = Math.min(x0, x);
-    x1 = Math.max(x1, x);
-    y0 = Math.min(y0, y);
-    y1 = Math.max(y1, y);
-  }
-  const ox = (1024 - (x1 - x0)) / 2 - x0;
-  const oy = (1024 - (y1 - y0)) / 2 - y0 + shape.lower;
-  const chain = shape.chain.map(([x, y]) => [x + ox, y + oy]);
-  const bounds = { x0: x0 + ox, x1: x1 + ox, y1: y1 + oy };
+function buildPool({ chain, danger, lower }) {
+  const xs = chain.map((p) => p.x);
+  const ys = chain.map((p) => p.y);
+  const ox = (1024 - Math.max(...xs) - Math.min(...xs)) / 2;
+  const oy = (1024 - Math.max(...ys) - Math.min(...ys)) / 2 + lower;
+  chain = chain.map(({ x, y }) => ({ x: x + ox, y: y + oy }));
+  const head = chain[0];
+  const tail = chain.at(-1);
 
   // Collision closes the chain along the top, above everything.
-  const head = chain[0];
-  const tail = chain[chain.length - 1];
-  const poly = [[head[0], -480], ...chain, [tail[0], -480]];
-
+  const poly = [{ x: head.x, y: -480 }, ...chain, { x: tail.x, y: -480 }];
   let twice = 0;
-  for (let i = 0; i < poly.length; i++) {
+  for (const [i, p] of poly.entries()) {
     const q = poly[(i + 1) % poly.length];
-    twice += poly[i][0] * q[1] - q[0] * poly[i][1];
+    twice += p.x * q.y - q.x * p.y;
   }
 
-  const field = sdf.bake(
-    sdf.polygon(poly.map(([x, y]) => ({ x, y }))),
-    {
+  // Where the chain crosses the danger line: the width the pile must cover.
+  danger += oy;
+  const cross = [];
+  for (let i = 1; i < chain.length; i++) {
+    const a = chain[i - 1];
+    const b = chain[i];
+    if ((a.y > danger) === (b.y > danger)) continue;
+    cross.push(a.x + (danger - a.y) * (b.x - a.x) / (b.y - a.y));
+  }
+
+  const l = Math.min(head.x, tail.x);
+  const r = Math.max(head.x, tail.x);
+  return {
+    chain,
+    line: Path2D.fromPoints(chain, false),
+    fill: Path2D.fromPoints(chain),
+    field: sdf.bake(sdf.polygon(poly), {
       bounds: { x0: -70, y0: -310, x1: 1024 + 70, y1: 1024 + 70 },
       cell: 3.5,
-      band: TIER_RADIUS * TIER_GROWTH ** (TIER_COUNT - 1) + 2 * R,
-    },
-  );
-
-  // The width the pile must cover to seal: the chain crossings at that height.
-  const dline = shape.danger + oy;
-  let dl = Infinity;
-  let dr = -Infinity;
-  for (let i = 1; i < chain.length; i++) {
-    const [ax, ay] = chain[i - 1];
-    const [bx, by] = chain[i];
-    if ((ay > dline) === (by > dline)) continue;
-    const x = ax + (dline - ay) * (bx - ax) / (by - ay);
-    dl = Math.min(dl, x);
-    dr = Math.max(dr, x);
-  }
-
-  const mouth = {
-    l: Math.min(head[0], tail[0]),
-    r: Math.max(head[0], tail[0]),
-  };
-
-  // Path2D is the browser's and the build imports this under Deno, so the two
-  // paths are built the first time one is drawn.
-  let fillPath = null;
-  let linePath = null;
-
-  return {
-    field,
-    get fill() {
-      return fillPath ??= chainPath(chain, true);
-    },
-    get line() {
-      return linePath ??= chainPath(chain, false);
-    },
-    chain,
-    side: twice < 0 ? -1 : 1,
-    mouth,
-    mid: (mouth.l + mouth.r) / 2,
-    bounds,
-    bar: Math.min(head[1], tail[1]),
-    danger: dline,
-    dangerSpan: { l: dl, r: dr },
+      band: TIERS.at(-1).outer + 2 * R,
+    }),
+    side: Math.sign(twice),
+    mouth: { l, r },
+    mid: (l + r) / 2,
+    x0: Math.min(...xs) + ox,
+    x1: Math.max(...xs) + ox,
+    y1: Math.max(...ys) + oy,
+    bar: Math.min(head.y, tail.y),
+    danger,
+    dangerL: Math.min(...cross),
+    dangerR: Math.max(...cross),
   };
 }
 
 const pool = buildPool({
   danger: 291,
-  lower: 56, // below centre: room above the rail for an aim drawn upward
+  lower: 56, // room above the rail for an aim drawn upward
   chain: flatten([
     [162, 105],
     [112, 291],
@@ -195,8 +176,12 @@ const pool = buildPool({
   ]),
 });
 
-const GRAVITY = 1800;
-const MAX_SPEED = 4800;
+// The two ends of the rail, kept off the walls of a narrower pool.
+const FEEDS = [-1, 1].map((s) => {
+  const edge = TIERS[DEAL_UNLOCK.length - 1].outer * BAR_SHRINK + 12;
+  const span = Math.min(450, pool.mouth.r - pool.mouth.l - 2 * edge) / 2;
+  return { x: pool.mid + s * span, y: pool.bar - 36 };
+});
 
 const sim = new SoftBodies({
   width: 1024,
@@ -209,56 +194,60 @@ const sim = new SoftBodies({
   rigidDamp: 25,
 });
 
-// The sim mutates this array in place, so the alias cannot go stale.
+// The sim mutates this array in place.
 const blobs = sim.bodies;
 
-const LIGHT_X = -180;
-const LIGHT_Y = -180;
+let rail = null;
+let arrow = null;
+let shocks = null;
 
-// Eight fills at 0.0724 compound to 1 - (1 - a)^8 = 0.45 at the core.
-const SHADOW_STEPS = 8;
+// A bar blob has no wall, or the mouth pushes the queue out; this bounds its x.
+function clampMouth(b, s) {
+  const { l, r } = pool.mouth;
+  for (let i = b.start; i < b.start + b.count; i++) {
+    s.px[i] = Math.clamp(s.px[i], l + s.pr[i], r - s.pr[i]);
+  }
+}
 
-// Both cooldowns are read off `age`, so a merge sets them once. `body.scale` is
-// the rail's squeeze, the solver's own number, not Entity's `scale`.
+// `body.scale` is the solver's size, not Entity's `scale`.
 class Blob extends ent.Entity {
-  constructor(index, cx, cy) {
+  constructor(index, x, y, merged = false) {
     super();
-    this.tier = TIERS[Math.min(index, TIER_COUNT - 1)];
+    this.tier = TIERS[index];
+    this.merged = merged;
+    this.bar = false;
     this.body = sim.add({
       base: this.tier.base,
       radius: this.tier.radius,
       mass: this.tier.mass,
-      x: cx,
-      y: cy,
+      x,
+      y,
     });
     this.body.ent = this;
-    this.bar = false;
-    this.coolFor = 0;
-    this.flashes = false;
+    if (merged) this.body.grace = sim.refitCooldown;
   }
 
   get radius() {
     return this.tier.outer * this.body.scale;
   }
 
-  // Too young to merge, which keeps a cascade to one tier a step.
-  get cooling() {
-    return this.age < this.coolFor;
+  // A merge's result waits before it merges again, so a cascade goes one tier
+  // a step.
+  get merges() {
+    if (this.tier.index === TIER_COUNT - 1) return false;
+    return !this.merged || this.age >= this.tier.cool;
   }
 
   get flash() {
-    if (!this.flashes) return 0;
     const u = this.age / 0.3;
-    return u >= 1 ? 0 : 1 - u * u;
+    return this.merged && u < 1 ? 1 - u * u : 0;
   }
 
-  // The body goes with it: one left in the arrays keeps falling.
   remove() {
     sim.remove(this.body);
     super.remove();
   }
 
-  // `setScale` takes the point radius with it, or the edge thickens.
   setBar(on) {
     this.bar = on;
     this.body.wall = on ? clampMouth : null;
@@ -266,14 +255,11 @@ class Blob extends ent.Entity {
     sim.setScale(this.body, on ? BAR_SHRINK : this.body.scale);
   }
 
-  // Every point at this speed, so it leaves without spin.
+  // Every point at one speed, so it leaves without spin.
   shove(sx, sy) {
-    const { vx, vy } = sim;
     const { start, count } = this.body;
-    for (let i = start; i < start + count; i++) {
-      vx[i] = sx;
-      vy[i] = sy;
-    }
+    sim.vx.fill(sx, start, start + count);
+    sim.vy.fill(sy, start, start + count);
   }
 
   update() {
@@ -284,14 +270,15 @@ class Blob extends ent.Entity {
     sim.setScale(b, Math.min(1, b.scale + rate * ent.game.time));
   }
 
-  // The body path scaled about the centroid, offset onto the lit face.
+  // The body scaled about its centre and moved onto the lit side.
   spec(ctx, path, L, along, across, sl, sa, alpha) {
     const { cx, cy } = this.body;
+    const a = Math.atan2(L.y, L.x);
     ctx.save();
     ctx.translate(cx + L.x * along - L.y * across, cy + L.y * along + L.x * across);
-    ctx.rotate(L.a);
+    ctx.rotate(a);
     ctx.scale(sl, sa);
-    ctx.rotate(-L.a);
+    ctx.rotate(-a);
     ctx.translate(-cx, -cy);
     ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
     ctx.fill(path);
@@ -302,13 +289,9 @@ class Blob extends ent.Entity {
     const t = this.tier;
     const b = this.body;
     const path = sim.outline(b);
+    const L = light(b.cx, b.cy);
 
-    const ldx = LIGHT_X - b.cx;
-    const ldy = LIGHT_Y - b.cy;
-    const llen = Math.hypot(ldx, ldy) || 1;
-    const L = { x: ldx / llen, y: ldy / llen, a: Math.atan2(ldy, ldx) };
-
-    // Extent along the light axis and across it.
+    // Extent along the light and across it.
     const { px, py } = sim;
     let lo = Infinity;
     let hi = -Infinity;
@@ -317,10 +300,9 @@ class Blob extends ent.Entity {
       const dx = px[i] - b.cx;
       const dy = py[i] - b.cy;
       const d = dx * L.x + dy * L.y;
-      if (d < lo) lo = d;
-      if (d > hi) hi = d;
-      const a = Math.abs(dy * L.x - dx * L.y);
-      if (a > across) across = a;
+      lo = Math.min(lo, d);
+      hi = Math.max(hi, d);
+      across = Math.max(across, Math.abs(dy * L.x - dx * L.y));
     }
     const rad = b.pointRadius * b.scale;
     const span = hi - lo + 2 * rad;
@@ -330,29 +312,28 @@ class Blob extends ent.Entity {
     ctx.lineJoin = "round";
     ctx.lineCap = "round";
 
-    // `t.blur` is what `shadowBlur` was given, in device pixels.
+    // Eight fills at 0.0724 compound to 0.45 at the core. `t.blur` was a
+    // shadowBlur, in device pixels.
     const spread = t.blur / op.screen.scale;
-    const dropX = b.cx - L.x * t.drop;
-    const dropY = b.cy - L.y * t.drop;
     ctx.fillStyle = "rgba(0, 0, 0, 0.0724)";
-    for (let i = SHADOW_STEPS - 1; i >= 0; i--) {
-      const grow = 1.04 + spread * i / (SHADOW_STEPS - 1) / t.outer;
+    for (let i = 7; i >= 0; i--) {
+      const grow = 1.04 + spread * i / 7 / t.outer;
       ctx.save();
-      ctx.translate(dropX, dropY);
+      ctx.translate(b.cx - L.x * t.drop, b.cy - L.y * t.drop);
       ctx.scale(grow, grow);
       ctx.translate(-b.cx, -b.cy);
       ctx.fill(path);
       ctx.restore();
     }
 
-    // Under the contour and wider, so what shows is a ring outside the blob.
-    if (this === aim || this === hover) {
+    const ring = this === arrow.blob ? 9.5 : this === arrow.hover ? 5 : 0;
+    if (ring > 0) {
       ctx.strokeStyle = "#fff";
-      ctx.lineWidth = t.edge + 2 * (this === aim ? 9.5 : 5);
+      ctx.lineWidth = t.edge + 2 * ring;
       ctx.stroke(path);
     }
 
-    // First, so the clipped bands land on its inner half.
+    // Before the fills, so they cover its inner half.
     ctx.strokeStyle = t.line;
     ctx.lineWidth = t.edge;
     ctx.stroke(path);
@@ -360,8 +341,8 @@ class Blob extends ent.Entity {
     ctx.save();
     ctx.clip(path);
 
-    // Darkest first, scaled toward the lamp, so the sides narrow with distance.
-    const far = llen - lo + rad; // lamp to the blob's far edge, along the axis
+    // Darkest first, each scaled toward the lamp.
+    const far = L.d - lo + rad;
     const steps = [0, Math.max(3.5, 0.020 * span), 0.28 * span];
     for (let i = 0; i < steps.length; i++) {
       const k = Math.max(0, 1 - steps[i] / far);
@@ -377,118 +358,47 @@ class Blob extends ent.Entity {
     this.spec(ctx, path, L, reach * 0.62, across * 0.20, 0.23, 0.32, 0.78);
     this.spec(ctx, path, L, reach * 0.78, across * -0.28, 0.095, 0.13, 0.52);
 
-    const flash = this.flash;
-    if (flash > 0) {
-      ctx.fillStyle = `rgba(255, 255, 255, ${0.85 * flash})`;
+    if (this.flash > 0) {
+      ctx.fillStyle = `rgba(255, 255, 255, ${0.85 * this.flash})`;
       ctx.fill(path);
     }
     ctx.restore();
 
-    ctx.save();
-    ctx.translate(b.cx, b.cy);
-    const font = t.font * b.scale;
-    ctx.font = `bold ${Math.round(font)}px "Vera", system-ui, sans-serif`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-
-    const lift = Math.max(1.8, font * 0.065);
+    const size = Math.round(t.font * b.scale);
+    const lift = Math.max(1.8, size * 0.065);
     ctx.fillStyle = t.emboss;
-    ctx.fillText(t.value, L.x * lift, L.y * lift);
+    ctx.text(`${t.value}`, b.cx + L.x * lift, b.cy + L.y * lift, size);
     ctx.fillStyle = t.label;
-    ctx.fillText(t.value, 0, 0);
-    ctx.restore();
+    ctx.text(`${t.value}`, b.cx, b.cy, size);
   }
 }
 
-const ready = new Uint8Array(TIER_COUNT);
-
-// Hoisted rather than one closure a particle a frame.
-const D2 = (2 * R + 1) ** 2;
-let probe = -1;
-let wantTier = null;
-let lowest = -Infinity;
-let ka = -1;
-let kb = -1;
-
-function consider(j) {
-  const { px, py, pbody } = sim;
-  if (j <= probe || pbody[j] === pbody[probe]) return;
-  const b = blobs[pbody[j]].ent;
-  if (b.tier !== wantTier || b.cooling) return;
-  if ((px[j] - px[probe]) ** 2 + (py[j] - py[probe]) ** 2 > D2) return;
-  const my = (py[probe] + py[j]) / 2;
-  if (my <= lowest) return;
-  lowest = my;
-  ka = probe;
-  kb = j;
-}
-
-// The lowest same-tier contact in the world, one a frame: piles go bottom up.
-function detectMerges() {
-  ready.fill(0);
-  let pairs = false;
-  for (const body of blobs) {
-    const b = body.ent;
-    if (b.cooling || b.tier.index === TIER_COUNT - 1) continue;
-    if (ready[b.tier.index]) pairs = true;
-    ready[b.tier.index] = 1;
-  }
-  if (!pairs) return;
-
-  sim.buildGrid();
-  for (let i = 0; i < sim.count; i++) {
-    const a = blobs[sim.pbody[i]].ent;
-    if (a.cooling || a.tier.index === TIER_COUNT - 1) continue;
-    probe = i;
-    wantTier = a.tier;
-    sim.eachNeighbor(i, consider);
-  }
-  if (ka >= 0) {
-    merge(
-      blobs[sim.pbody[ka]].ent,
-      blobs[sim.pbody[kb]].ent,
-      sim.pidx[ka],
-      sim.pidx[kb],
-    );
-  }
-  ka = -1;
-  kb = -1;
-  lowest = -Infinity;
-}
-
-// Everything but the touching point and the one before it, in ring order.
-function arcFrom(path, b, hit) {
-  const n = b.count;
-  for (let k = 1; k <= n - 2; k++) {
-    const i = b.start + (hit + k) % n;
-    const { px, py, vx, vy } = sim;
-    path.push({ x: px[i], y: py[i], vx: vx[i], vy: vy[i] });
+// Every point but the one touching and the one before it, in ring order.
+function* arc(b, hit) {
+  const { px, py, vx, vy } = sim;
+  for (let k = 1; k <= b.count - 2; k++) {
+    const i = b.start + (hit + k) % b.count;
+    yield { x: px[i], y: py[i], vx: vx[i], vy: vy[i] };
   }
 }
 
-// The bigger ring spread along the two arcs: it starts as the pair's outline.
+// The new ring spread evenly along the pair's joined outline.
 function resample(b, path) {
   const p = path.length;
-  const seg = new Float64Array(p);
-  let total = 0;
-  for (let i = 0; i < p; i++) {
-    const q = path[(i + 1) % p];
-    total += seg[i] = Math.hypot(q.x - path[i].x, q.y - path[i].y);
-  }
-  if (total < 1e-6) return;
-
+  const seg = path.map((q, i) => {
+    const n = path[(i + 1) % p];
+    return Math.hypot(n.x - q.x, n.y - q.y);
+  });
+  const stride = seg.reduce((a, s) => a + s, 0) / b.count;
   const { px, py, ox, oy, vx, vy } = sim;
-  const s = b.start;
-  const stride = total / b.count;
   let j = 0;
   let walked = 0;
   for (let k = 0; k < b.count; k++) {
-    const target = k * stride;
-    while (j < p - 1 && walked + seg[j] <= target) walked += seg[j++];
-    const t = seg[j] > 1e-9 ? (target - walked) / seg[j] : 0;
+    while (j < p - 1 && walked + seg[j] <= k * stride) walked += seg[j++];
+    const t = seg[j] > 1e-9 ? (k * stride - walked) / seg[j] : 0;
     const q0 = path[j];
     const q1 = path[(j + 1) % p];
-    const i = s + k;
+    const i = b.start + k;
     px[i] = ox[i] = q0.x + (q1.x - q0.x) * t;
     py[i] = oy[i] = q0.y + (q1.y - q0.y) * t;
     vx[i] = q0.vx + (q1.vx - q0.vx) * t;
@@ -496,433 +406,336 @@ function resample(b, path) {
   }
 }
 
-// Two arcs joined at their ends start narrow in the middle, and this takes some
-// of that out. Positions only, so it makes no velocity.
+// Two arcs joined at their ends are narrow in the middle. 40% of the way to
+// the rest radius, in positions only, so it adds no velocity.
 function round(b) {
   const { px, py, ox, oy } = sim;
-  const s = b.start;
-  const n = b.count;
-  let cx = 0;
-  let cy = 0;
-  for (let i = 0; i < n; i++) {
-    cx += px[s + i];
-    cy += py[s + i];
-  }
-  cx /= n;
-  cy /= n;
   const rest = b.restRadius * b.scale;
-  for (let i = 0; i < n; i++) {
-    const j = s + i;
-    const dx = px[j] - cx;
-    const dy = py[j] - cy;
+  for (let i = b.start; i < b.start + b.count; i++) {
+    const dx = px[i] - b.cx;
+    const dy = py[i] - b.cy;
     const d = Math.hypot(dx, dy);
     if (d < 1e-6) continue;
     const k = 1 + 0.4 * (rest / d - 1);
-    px[j] = ox[j] = cx + dx * k;
-    py[j] = oy[j] = cy + dy * k;
+    px[i] = ox[i] = b.cx + dx * k;
+    py[i] = oy[i] = b.cy + dy * k;
   }
 }
 
-function merge(a, b, hitA, hitB) {
-  const ab = a.body;
-  const bb = b.body;
-  // Taken now because `remove()` moves every index.
-  const hx = (sim.px[ab.start + hitA] + sim.px[bb.start + hitB]) / 2;
-  const hy = (sim.py[ab.start + hitA] + sim.py[bb.start + hitB]) / 2;
-  const cx = (ab.cx + bb.cx) / 2;
-  const cy = (ab.cy + bb.cy) / 2;
+// The lowest same-tier contact, one a step, so a pile merges bottom up.
+function detectMerges() {
+  const { px, py } = sim;
+  const near = (2 * R + 1) ** 2;
+  let lowest = -Infinity;
+  let pair = null;
+  for (const a of blobs) {
+    if (!a.ent.merges) continue;
+    for (const b of blobs) {
+      if (b.start <= a.start || b.ent.tier !== a.ent.tier || !b.ent.merges) {
+        continue;
+      }
+      if (a.x1 < b.x0 || b.x1 < a.x0 || a.y1 < b.y0 || b.y1 < a.y0) continue;
+      for (let i = a.start; i < a.start + a.count; i++) {
+        for (let j = b.start; j < b.start + b.count; j++) {
+          if ((px[i] - px[j]) ** 2 + (py[i] - py[j]) ** 2 > near) continue;
+          const y = (py[i] + py[j]) / 2;
+          if (y <= lowest) continue;
+          lowest = y;
+          pair = [a.ent, b.ent, i, j];
+        }
+      }
+    }
+  }
+  if (pair) merge(...pair);
+}
 
-  const path = [];
-  arcFrom(path, ab, hitA);
-  arcFrom(path, bb, hitB);
-
+function merge(a, b, i, j) {
+  const hx = (sim.px[i] + sim.px[j]) / 2;
+  const hy = (sim.py[i] + sim.py[j]) / 2;
+  const path = [
+    ...arc(a.body, i - a.body.start),
+    ...arc(b.body, j - b.body.start),
+  ];
+  const cx = (a.body.cx + b.body.cx) / 2;
+  const cy = (a.body.cy + b.body.cy) / 2;
   a.remove();
   b.remove();
 
-  const n = new Blob(a.tier.index + 1, cx, cy);
+  const n = new Blob(a.tier.index + 1, cx, cy, true);
   resample(n.body, path);
-  noteMerge(a, b, n);
+  // Before round(), which reads the scale setBar() leaves.
+  rail.merged(a, b, n);
+  arrow.merged(a, b, n);
+  sim.measure();
+  round(n.body);
+  sim.measure();
+
   // Scored by what came out, so a cascade beats the same merges spread out.
   score.value += n.tier.value;
-  // After noteMerge, whose squeeze sets the rest radius this rounds toward.
-  round(n.body);
-  shocks.fire(hx, hy, shockLife(a.tier)); // the tier that merged, not the new
-  const up = n.tier.index / (TIER_COUNT - 1);
-  camera.shake(0.08 + (0.55 - 0.08) * up);
-  playMerge(n.tier.index, hx);
-  n.coolFor = n.tier.cool;
-  n.flashes = true;
-  n.body.grace = sim.refitCooldown;
-  sim.compact();
-  sim.measure();
+  shocks.fire(hx, hy, a.tier.shock);
+  camera.shake(0.08 + 0.47 * n.tier.index / (TIER_COUNT - 1));
+  // The knock is heard at 840Hz; 3 dB louder an octave down.
+  sound.play("merge", {
+    rate: n.tier.pitch / 840,
+    volume: 0.42 * Math.min(2, Math.sqrt(TIERS[0].pitch / n.tier.pitch)),
+    pan: pan(hx),
+  });
 }
 
-const AIM_MAX = 260;
-const BAR_SHRINK = 0.65;
-const FEED_PERIOD = 0.5;
-const FEED_COOL = 0.7;
-// Merges needed before a tier joins the deal, permanently.
-const DEAL_UNLOCK = [0, 1, 3, 6, 10, 15, 21];
-
-// The rail's own gravity: the tilt from aiming applies to the free pool only.
-const RAIL_GRAVITY = { x: 0, y: GRAVITY };
-
-// Stands in for the wall, which is off for a bar blob or the mouth pushes the
-// queue out. Nothing else bounds a bar blob's x.
-function clampMouth(b, s) {
-  const { l, r } = pool.mouth;
-  for (let i = b.start; i < b.start + b.count; i++) {
-    s.px[i] = Math.clamp(s.px[i], l + s.pr[i], r - s.pr[i]);
-  }
-}
-
-const rail = [];
-
-// `sim.preSolve`, before the integrate, so `b.cx` and `b.mvx` are what the last
-// substep left.
+// Runs before each substep's integrate, off what the last substep left.
 function solveRail(h) {
-  rail.length = 0;
-  for (const b of blobs) if (b.ent.bar) rail.push(b);
-  if (rail.length === 0) return;
-
   const { vx, vy } = sim;
-  for (const b of rail) {
+  const queue = blobs.filter((b) => b.ent.bar);
+  for (const b of queue) {
     const dv = 140 * (pool.bar - b.cy) * h;
-    // Off a ramp a blob wide, which is what a per-point pull averaged to.
-    const off = (b.cx - pool.mid) / b.ent.radius;
-    const inward = -360 * Math.clamp(off, -1, 1) * h;
+    const inward = -360 * Math.clamp((b.cx - pool.mid) / b.ent.radius, -1, 1) * h;
     for (let i = b.start; i < b.start + b.count; i++) {
       vy[i] += dv - 12.0 * vy[i] * h;
       vx[i] += inward - 1.2 * vx[i] * h;
     }
   }
 
-  // A gap between neighbours, so two queued blobs stay separate to look at.
-  for (let a = 0; a < rail.length; a++) {
-    const ba = rail[a];
-    for (let c = a + 1; c < rail.length; c++) {
-      const bc = rail[c];
-      // Two of a tier merge where they are, and this gap would hold them apart.
-      if (ba.ent.tier === bc.ent.tier) continue;
-      const dx = bc.cx - ba.cx;
-      const d = Math.abs(dx);
-      const want = ba.ent.radius + bc.ent.radius + 12;
-      if (d >= want) continue;
-      // On the pair's approach, so a queue sliding inward is not resisted.
-      const s = dx < 0 ? -1 : 1;
-      const rate = (bc.mvx - ba.mvx) * s;
-      const push = (600 * (want - d) - 18 * rate) * h * s;
-      sim.pushBody(ba, -push, 0);
-      sim.pushBody(bc, push, 0);
+  // A gap between queued blobs of different tiers; two of a tier merge.
+  for (let i = 0; i < queue.length; i++) {
+    for (let j = i + 1; j < queue.length; j++) {
+      const a = queue[i];
+      const b = queue[j];
+      if (a.ent.tier === b.ent.tier) continue;
+      const dx = b.cx - a.cx;
+      const want = a.ent.radius + b.ent.radius + 12;
+      if (Math.abs(dx) >= want) continue;
+      // Damped on approach only, so a queue sliding inward is not held back.
+      const s = Math.sign(dx) || 1;
+      const push = (600 * (want - Math.abs(dx)) - 18 * (b.mvx - a.mvx) * s) *
+        h * s;
+      sim.pushBody(a, -push, 0);
+      sim.pushBody(b, push, 0);
     }
   }
-}
-
-// The ends of the rail, above it. A narrower pool keeps them off its walls.
-function buildFeeds() {
-  const { l, r } = pool.mouth;
-  const edge = TIER_RADIUS * TIER_GROWTH ** (DEAL_UNLOCK.length - 1) *
-      BAR_SHRINK + 12;
-  const span = Math.min(450, r - l - 2 * edge) / 2;
-  return [
-    { x: pool.mid - span, y: pool.bar - 36 },
-    { x: pool.mid + span, y: pool.bar - 36 },
-  ];
-}
-
-const feeds = buildFeeds();
-
-let hover = null; // the bar blob under the cursor
-let aim = null; // the bar blob being drawn back
-let aimX = 0; // the draw, in board units
-let aimY = 0;
-let aimMax = AIM_MAX; // how far the draw may run in the direction it goes
-let pressX = 0; // where the press landed, on the board
-let pressY = 0;
-let side = 0; // which feed point goes next
-let feedWait = 0;
-let gapWait = 0; // how long since the rail last lost a blob
-let starve = 0; // how far the room test has relaxed while the bar is empty
-
-function resetLauncher() {
-  made.fill(0);
-  for (let t = 0; t < open.length; t++) open[t] = DEAL_UNLOCK[t] === 0;
-  cancelAim();
-  side = 0;
-  feedWait = 0;
-  gapWait = FEED_COOL;
-  starve = 0;
-}
-
-// A tier unlocks once DEAL_UNLOCK[t] merges have produced one.
-const made = new Int32Array(DEAL_UNLOCK.length);
-const open = DEAL_UNLOCK.map((n) => n === 0);
-
-// A blob left: the gap stands for FEED_COOL, the next comes from the far end.
-function noteLeft(b) {
-  gapWait = 0;
-  feedWait = FEED_PERIOD;
-  // updateLauncher flips before it feeds.
-  side = (b.body.cx < pool.mid ? 1 : 0) ^ 1;
-}
-
-function pickTier(f, room) {
-  let pile = -1;
-  let near = -1; // the tier at this end of the queue
-  let queue = 0; // how many blobs are on the rail at all
-  let pileY = Infinity;
-  let nearD = Infinity;
-  for (const b of blobs) {
-    const tier = b.ent.tier;
-    // Along the rail, not straight down: a new blob is thrown at the middle.
-    if (b.ent.bar) {
-      queue++;
-      const d = Math.abs(b.cx - f.x);
-      if (d < nearD) {
-        nearD = d;
-        near = tier.index;
-      }
-      continue;
-    }
-    // A ray straight down from the feed point, crossing a ring.
-    if (b.cy <= f.y || b.cy - f.y >= 190) continue;
-    if (Math.abs(b.cx - f.x) > tier.outer) continue;
-    if (b.cy < pileY) {
-      pileY = b.cy;
-      pile = tier.index;
-    }
-  }
-
-  const deal = [];
-  const same = []; // what only the neighbour rule refuses
-  for (let t = 0; t < DEAL_UNLOCK.length; t++) {
-    if (!open[t] || t === pile || TIERS[t].outer > room) continue;
-    if (t === near) same.push(t);
-    else deal.push(t);
-  }
-  if (deal.length > 0) return random.choice(deal);
-  // Only the neighbour's tier fits: refuse, unless the rail is down to one.
-  if (queue <= 1 && same.length > 0) return random.choice(same);
-  return -1;
-}
-
-function feed(f) {
-  // At both ends of the drop; `starve` relaxes it while the rail is empty.
-  const room = Math.min(sim.clearance(f.x, f.y), sim.clearance(f.x, pool.bar)) +
-    starve;
-  const tier = pickTier(f, room);
-  if (tier < 0) return;
-  const b = new Blob(tier, f.x, f.y);
-  b.setBar(true);
-  starve = 0;
-  playFeed(f.x);
-
-  const dx = pool.mid - f.x;
-  const dy = pool.bar - f.y;
-  const l = Math.hypot(dx, dy) || 1;
-  b.shove(dx / l * 190, dy / l * 190);
-}
-
-function updateLauncher(dt) {
-  let queued = 0;
-  for (const b of blobs) if (b.ent.bar) queued++;
-  starve = queued === 0 ? starve + 38 * dt : 0;
-  if (queued >= 4) return;
-
-  // No gap to read while the rail is empty.
-  gapWait += dt;
-  if (queued > 0 && gapWait < FEED_COOL) return;
-
-  feedWait += dt;
-  if (feedWait < FEED_PERIOD) return;
-  feedWait = 0;
-  side ^= 1;
-  feed(feeds[side]);
-}
-
-function hoverBar(wx, wy) {
-  if (aim) return;
-  hover = null;
-  // The drag owns the pointer while it holds one.
-  if (sim.grabbed) return;
-  let best = 150 * 150;
-  for (const b of blobs) {
-    if (!b.ent.bar) continue;
-    const d = (b.cx - wx) ** 2 + (b.cy - wy) ** 2;
-    if (d < best) {
-      best = d;
-      hover = b.ent;
-    }
-  }
-}
-
-// False means the press was not the launcher's, and the drag takes the pile.
-function startAim(sx, sy) {
-  if (!hover) return false;
-  aim = hover;
-  pressX = sx;
-  pressY = sy;
-  aimX = 0;
-  aimY = 0;
-  aimMax = AIM_MAX;
-  return true;
-}
-
-// AIM_MAX, or the board edge if that comes first, never under twice the width.
-function aimReach(b, dx, dy) {
-  const l = Math.hypot(dx, dy);
-  if (l < 1e-6) return AIM_MAX;
-  const { cx, cy } = b.body;
-  const [, out] = line.rayBox(cx, cy, dx / l, dy / l, 0, 0, 1024, 1024);
-  return Math.max(Math.min(AIM_MAX, out), 2 * b.radius);
-}
-
-// The draw normalised by the room it had.
-function shot() {
-  const g = AIM_MAX / aimMax;
-  return [aimX * g, aimY * g];
-}
-
-// A live read, so letting go reads 0 on the next physics frame.
-function aimTilt() {
-  if (!aim) return 0;
-  const [sx] = shot();
-  return -sx * 180 / AIM_MAX;
-}
-
-// Both ends through toWorld in one frame.
-function aimAt(sx, sy, dt) {
-  if (!aim) return;
-  const a = camera.toWorld(pressX, pressY);
-  const b = camera.toWorld(sx, sy);
-  let dx = b.x - a.x;
-  let dy = b.y - a.y;
-  const l = Math.hypot(dx, dy);
-  aimMax = aimReach(aim, dx, dy);
-  if (l > aimMax) {
-    dx *= aimMax / l;
-    dy *= aimMax / l;
-  }
-  aimX = dx;
-  aimY = dy;
-
-  const [fx, fy] = shot();
-  const k = aim.body.mass * 215 * dt / AIM_MAX;
-  camera.push(-fx * k, -fy * k, aim.body.cx, aim.body.cy);
-}
-
-function launch() {
-  const b = aim;
-  const drawn = Math.hypot(aimX, aimY);
-  const [dx, dy] = shot();
-  cancelAim();
-  if (!b) return;
-
-  // A draw still inside the silhouette is not a shot, which is how an aim is
-  // called off: drag back over the blob and let go.
-  if (drawn < b.radius) return;
-
-  noteLeft(b);
-  b.setBar(false);
-  b.shove(dx * 1000 / AIM_MAX, dy * 1000 / AIM_MAX);
-
-  const k = b.body.mass * 9.5 / AIM_MAX;
-  camera.push(dx * k, dy * k, b.body.cx, b.body.cy);
-}
-
-function cancelAim() {
-  aim = null;
-  hover = null;
-  aimX = 0;
-  aimY = 0;
-  aimMax = AIM_MAX;
-}
-
-// A merge involving the rail leaves its result on the rail.
-function noteMerge(a, b, n) {
-  const t = n.tier.index;
-  if (t < open.length && !open[t] && ++made[t] >= DEAL_UNLOCK[t]) {
-    open[t] = true;
-  }
-  n.setBar(a.bar || b.bar);
-  // Two becoming one shortens the queue, so it waits as a launch does.
-  if (a.bar && b.bar) noteLeft(n);
-  if (aim === a || aim === b) aim = n;
-  if (hover === a || hover === b) hover = n;
 }
 
 class Rail extends ent.Entity {
+  constructor() {
+    super();
+    this.made = TIERS.map(() => 0);
+    this.side = 0; // the feed that went last
+    this.wait = 0;
+    this.since = FEED_COOL; // since the rail last lost a blob
+    this.starve = 0; // room the feed test gives up while the rail is empty
+  }
+
+  update() {
+    const dt = ent.game.time;
+    const queued = blobs.filter((b) => b.ent.bar).length;
+    this.starve = queued === 0 ? this.starve + 38 * dt : 0;
+    if (queued >= 4) return;
+    this.since += dt;
+    if (queued > 0 && this.since < FEED_COOL) return;
+    this.wait += dt;
+    if (this.wait < FEED_PERIOD) return;
+    this.wait = 0;
+    this.side ^= 1;
+    this.feed(FEEDS[this.side]);
+  }
+
+  feed(f) {
+    const room = this.starve +
+      Math.min(sim.clearance(f.x, f.y), sim.clearance(f.x, pool.bar));
+    const tier = this.pick(f, room);
+    if (tier < 0) return;
+    const b = new Blob(tier, f.x, f.y);
+    b.setBar(true);
+    const dx = pool.mid - f.x;
+    const dy = pool.bar - f.y;
+    const l = Math.hypot(dx, dy);
+    b.shove(dx / l * 190, dy / l * 190);
+    sound.play("feed", { rate: 0.6, volume: 0.22, pan: pan(f.x) });
+  }
+
+  // Not the tier on top of the pile below, nor the one queued nearest, unless
+  // that one is all that fits and the rail is down to one.
+  pick(f, room) {
+    let pile = -1;
+    let pileY = Infinity;
+    let near = -1;
+    let nearD = Infinity;
+    let queued = 0;
+    for (const b of blobs) {
+      const { tier, bar } = b.ent;
+      if (bar) {
+        queued++;
+        const d = Math.abs(b.cx - f.x);
+        if (d < nearD) [near, nearD] = [tier.index, d];
+        continue;
+      }
+      if (b.cy <= f.y || b.cy - f.y >= 190) continue;
+      if (Math.abs(b.cx - f.x) > tier.outer) continue;
+      if (b.cy < pileY) [pile, pileY] = [tier.index, b.cy];
+    }
+
+    const fits = [...DEAL_UNLOCK.keys()].filter((t) =>
+      this.made[t] >= DEAL_UNLOCK[t] && t !== pile && TIERS[t].outer <= room
+    );
+    const deal = fits.filter((t) => t !== near);
+    if (deal.length > 0) return random.choice(deal);
+    if (queued <= 1 && fits.length > 0) return near;
+    return -1;
+  }
+
+  // The next feed comes from the far end, after FEED_COOL.
+  left(b) {
+    this.since = 0;
+    this.wait = FEED_PERIOD;
+    this.side = b.body.cx < pool.mid ? 0 : 1;
+  }
+
+  merged(a, b, n) {
+    this.made[n.tier.index]++;
+    n.setBar(a.bar || b.bar);
+    if (a.bar && b.bar) this.left(n);
+  }
+
   render(ctx) {
     ctx.strokeStyle = "rgba(255, 255, 255, 0.10)";
     ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    ctx.moveTo(feeds[0].x, pool.bar);
-    ctx.lineTo(feeds[1].x, pool.bar);
-    ctx.stroke();
+    ctx.strokeLine(FEEDS[0].x, pool.bar, FEEDS[1].x, pool.bar);
   }
 }
 
 class Arrow extends ent.Entity {
+  constructor() {
+    super();
+    this.cancel();
+  }
+
+  cancel() {
+    this.blob = null;
+    this.hover = null;
+    this.dx = 0;
+    this.dy = 0;
+    this.max = AIM_MAX;
+  }
+
+  // The draw scaled up by how much room it had.
+  get shot() {
+    const g = AIM_MAX / this.max;
+    return [this.dx * g, this.dy * g];
+  }
+
+  get tilt() {
+    return this.blob ? -this.shot[0] * 180 / AIM_MAX : 0;
+  }
+
+  hoverAt(x, y) {
+    if (this.blob) return;
+    this.hover = null;
+    if (sim.grabbed) return;
+    let best = 150 * 150;
+    for (const b of blobs) {
+      const d = (b.cx - x) ** 2 + (b.cy - y) ** 2;
+      if (!b.ent.bar || d >= best) continue;
+      best = d;
+      this.hover = b.ent;
+    }
+  }
+
+  start(sx, sy) {
+    if (!this.hover) return false;
+    this.blob = this.hover;
+    this.press = { x: sx, y: sy };
+    return true;
+  }
+
+  // AIM_MAX, or less if the board edge is nearer, but never under twice the
+  // blob's radius.
+  drag(sx, sy, dt) {
+    const a = camera.toWorld(this.press.x, this.press.y);
+    const p = camera.toWorld(sx, sy);
+    const dx = p.x - a.x;
+    const dy = p.y - a.y;
+    const l = Math.hypot(dx, dy);
+    if (l < 1e-6) {
+      this.max = AIM_MAX;
+    } else {
+      const { cx, cy } = this.blob.body;
+      const [, out] = line.rayBox(cx, cy, dx / l, dy / l, 0, 0, 1024, 1024);
+      this.max = Math.max(Math.min(AIM_MAX, out), 2 * this.blob.radius);
+    }
+    const k = Math.min(1, this.max / l);
+    this.dx = dx * k;
+    this.dy = dy * k;
+
+    const [fx, fy] = this.shot;
+    const { cx, cy, mass } = this.blob.body;
+    const f = mass * 215 * dt / AIM_MAX;
+    camera.push(-fx * f, -fy * f, cx, cy);
+  }
+
+  // Let go inside the blob and the aim is called off.
+  launch() {
+    const b = this.blob;
+    const drawn = Math.hypot(this.dx, this.dy);
+    const [dx, dy] = this.shot;
+    this.cancel();
+    if (drawn < b.radius) return;
+
+    rail.left(b);
+    b.setBar(false);
+    b.shove(dx * 1000 / AIM_MAX, dy * 1000 / AIM_MAX);
+    const k = b.body.mass * 9.5 / AIM_MAX;
+    camera.push(dx * k, dy * k, b.body.cx, b.body.cy);
+  }
+
+  merged(a, b, n) {
+    if (this.blob === a || this.blob === b) this.blob = n;
+    if (this.hover === a || this.hover === b) this.hover = n;
+  }
+
   render(ctx) {
-    if (!aim) return;
-    const { cx, cy } = aim.body;
-    ctx.fillStyle = "rgba(255, 255, 255, 0.92)";
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.92)";
+    if (!this.blob) return;
+    const { cx, cy } = this.blob.body;
+    ctx.fillStyle = ctx.strokeStyle = "rgba(255, 255, 255, 0.92)";
     ctx.lineCap = "round";
     ctx.lineWidth = 7;
-    ctx.beginPath();
-    ctx.arc(cx, cy, 7, 0, Math.TAU);
-    ctx.fill();
+    ctx.fillCircle(cx, cy, 7);
 
-    // Nothing until the draw clears the blob: until then letting go cancels.
-    const len = Math.hypot(aimX, aimY);
-    if (len < aim.radius) return;
-    const tx = cx + aimX;
-    const ty = cy + aimY;
-    ctx.beginPath();
-    ctx.moveTo(cx, cy);
-    ctx.lineTo(tx, ty);
-    ctx.stroke();
+    const len = Math.hypot(this.dx, this.dy);
+    if (len < this.blob.radius) return;
+    const tx = cx + this.dx;
+    const ty = cy + this.dy;
+    ctx.strokeLine(cx, cy, tx, ty);
 
-    const [sx, sy] = shot(); // the shot, not the draw: a lob is a short arrow
-    const p = Math.min(1, Math.hypot(sx, sy) / AIM_MAX);
-    const ang = (40 - (40 - 22) * p) * Math.PI / 180;
-    // Fixed length back down the shaft, at most half of it.
+    // The head opens as the shot weakens.
+    const p = Math.min(1, Math.hypot(...this.shot) / AIM_MAX);
+    const ang = (40 - 18 * p) * Math.PI / 180;
     const h = -Math.min(31, len / 2) / len;
-    const hx = aimX * h;
-    const hy = aimY * h;
+    const hx = this.dx * h;
+    const hy = this.dy * h;
     ctx.beginPath();
-    for (const s of [1, -1]) {
-      const c = Math.cos(s * ang);
-      const n = Math.sin(s * ang);
+    for (const a of [ang, -ang]) {
       ctx.moveTo(tx, ty);
-      ctx.lineTo(tx + hx * c - hy * n, ty + hx * n + hy * c);
+      ctx.lineTo(
+        tx + hx * Math.cos(a) - hy * Math.sin(a),
+        ty + hx * Math.sin(a) + hy * Math.cos(a),
+      );
     }
     ctx.stroke();
   }
 }
 
-// What a merge of this blob is worth, in seconds of wave.
-function shockLife(tier) {
-  return Math.PI * tier.outer * tier.outer / 28000;
-}
-
-// One copy of the frame: a blit that samples its own target breaks the render
-// pass on a tile-based GPU.
-const scratch = new Layer({ attr: { alpha: false } });
-const SHOCK_BANDS = 8;
-
-// Every shock front in one entity: a front displaces what is on the canvas
-// rather than drawing anything, and all of them read one copy of it.
+// A front pushes the points it passes, and draws as the frame under it scaled
+// up inside a thin ring.
 class Shocks extends ent.Entity {
   constructor() {
     super();
     this.waves = [];
+    // A copy of the frame: a blit that samples its own target breaks the
+    // render pass on a tile-based GPU.
+    this.frame = new Layer({ attr: { alpha: false } });
   }
 
   fire(x, y, life) {
     this.waves.push({ x, y, life, life0: life, r: 0 });
-    // Away from the blast. No position, so no lever arm.
     const dx = 512 - x;
     const dy = 512 - y;
     const d = Math.hypot(dx, dy) || 1;
@@ -932,14 +745,9 @@ class Shocks extends ent.Entity {
   update() {
     const dt = ent.game.time;
     const { px, py, vx, vy, count } = sim;
-    for (let k = this.waves.length - 1; k >= 0; k--) {
-      const w = this.waves[k];
-      w.life -= dt;
-      if (w.life <= 0) {
-        this.waves.splice(k, 1);
-        continue;
-      }
-      // A point between the two is one the front passed this step.
+    for (const w of this.waves) w.life -= dt;
+    this.waves = this.waves.filter((w) => w.life > 0);
+    for (const w of this.waves) {
       const r0 = w.r;
       w.r += 2400 * dt;
       const dv = 120 * w.life;
@@ -954,44 +762,30 @@ class Shocks extends ent.Entity {
     }
   }
 
-  // Displacing a thin ring outward by one amount is a uniform scale about the
-  // centre, so a front is a blit clipped to the ring.
   render(ctx) {
-    if (this.waves.length === 0) return;
     const m = ctx.getTransform();
-    const canvas = ctx.canvas;
-    let src = null; // taken on the first band that draws
+    let src = null;
     for (const w of this.waves) {
       const p = m.transformPoint(new DOMPoint(w.x, w.y));
       const wide = w.r * 0.1;
-      const amp = 7 * (w.life / w.life0);
-      if (amp < 0.2) continue;
-      // A clipped blit costs its clip's bounding box, the whole disc, so a
-      // wave past the furthest corner is a full copy for nothing.
-      const far = 1.4 * Math.max(
-        Math.hypot(w.x, w.y),
-        Math.hypot(1024 - w.x, w.y),
-        Math.hypot(w.x, 1024 - w.y),
-        Math.hypot(1024 - w.x, 1024 - w.y),
-      );
-      if (w.r - wide > far) continue;
-      for (let i = 0; i < SHOCK_BANDS; i++) {
-        const r0 = w.r - wide + wide * i / SHOCK_BANDS;
-        const r1 = r0 + wide / SHOCK_BANDS;
+      const amp = 7 * w.life / w.life0;
+      // A clipped blit costs the whole disc, so none past the far corner.
+      const far = 1.4 *
+        Math.hypot(Math.max(w.x, 1024 - w.x), Math.max(w.y, 1024 - w.y));
+      if (amp < 0.2 || w.r - wide > far) continue;
+      for (let i = 0; i < 8; i++) {
+        const r0 = w.r - wide + wide * i / 8;
+        const r1 = r0 + wide / 8;
         if (r0 > far) break;
-        // A hump across the ring, not a step, so the front has a shape.
-        const off = amp * Math.sin(Math.PI * (i + 0.5) / SHOCK_BANDS);
-        src ??= scratch.copy(canvas);
+        const off = amp * Math.sin(Math.PI * (i + 0.5) / 8);
+        const k = r1 / (r1 + off);
+        src ??= this.frame.copy(ctx.canvas);
         ctx.save();
         ctx.beginPath();
         ctx.arc(w.x, w.y, r1, 0, Math.TAU);
         ctx.arc(w.x, w.y, Math.max(0, r0), 0, Math.TAU, true);
         ctx.clip();
-        const k = r1 / (r1 + off);
-        ctx.setTransform(1, 0, 0, 1, 0, 0);
-        ctx.translate(p.x, p.y);
-        ctx.scale(k, k);
-        ctx.translate(-p.x, -p.y);
+        ctx.setTransform(k, 0, 0, k, p.x * (1 - k), p.y * (1 - k));
         ctx.drawImage(src, 0, 0);
         ctx.restore();
       }
@@ -999,122 +793,226 @@ class Shocks extends ent.Entity {
   }
 }
 
-const DANGER_PITCH = 2.5;
-const DANGER_HOLD = 1.0;
+const LIT_TONES = 33;
 
-const cover = new Uint8Array(Math.ceil(1024 / DANGER_PITCH) + 2);
+function tones(dark, lit) {
+  return color(dark).steps(LIT_TONES, lit).map((c) => c.css);
+}
 
-// Called from step() and not update(): it reads the pile where the solve left
-// it, and ent.update() runs before sim.step().
+const DANGER_TONES = tones("#46536a", "#e0472c");
+
+// The round ends once the pile has covered the danger line, all but a gap
+// narrower than tier 0, for DANGER_HOLD.
 class Danger extends ent.Entity {
   constructor() {
     super();
-    this.spans = [];
+    this.cover = new Uint8Array(
+      Math.floor((pool.dangerR - pool.dangerL) / DANGER_PITCH) + 1,
+    );
     this.fill = 0;
     this.held = 0;
-    this.over = false;
   }
 
-  measure(dt) {
-    if (this.over) return;
+  update() {
     const { px, py } = sim;
+    const { cover } = this;
     const y = pool.danger;
-    const { l, r } = pool.dangerSpan;
-    const n = Math.min(cover.length, Math.floor((r - l) / DANGER_PITCH) + 1);
-    cover.fill(0, 0, n);
-
+    cover.fill(0);
     for (const b of blobs) {
-      if (b.ent.bar) continue; // the queue is not the pile
-      if (b.y0 > y) continue;
+      if (b.ent.bar || b.y0 > y) continue;
       let x0 = Infinity;
       let x1 = -Infinity;
       for (let i = b.start; i < b.start + b.count; i++) {
-        // How much of a point's circle is over the line.
         const d = py[i] - y;
         if (d >= R) continue;
         const w = d <= 0 ? R : Math.sqrt(R * R - d * d);
-        if (px[i] - w < x0) x0 = px[i] - w;
-        if (px[i] + w > x1) x1 = px[i] + w;
+        x0 = Math.min(x0, px[i] - w);
+        x1 = Math.max(x1, px[i] + w);
       }
-      // One interval a blob: the part of a ring above a line is one piece.
       if (x0 >= x1) continue;
-      const a = Math.max(0, Math.ceil((x0 - l) / DANGER_PITCH));
-      const z = Math.min(n - 1, Math.floor((x1 - l) / DANGER_PITCH));
-      for (let i = a; i <= z; i++) cover[i] = 1;
+      cover.fill(
+        1,
+        Math.max(0, Math.ceil((x0 - pool.dangerL) / DANGER_PITCH)),
+        Math.floor((x1 - pool.dangerL) / DANGER_PITCH) + 1,
+      );
     }
 
-    const spans = this.spans;
-    spans.length = 0;
-    let covered = 0;
-    let run = 0; // cells of open line since the last covered one
-    let start = -1;
-    let gap = 0; // the widest run still open
-    for (let i = 0; i < n; i++) {
-      if (cover[i]) {
-        covered++;
-        if (run > gap) gap = run;
-        run = 0;
-        if (start < 0) start = i;
-      } else {
-        run++;
-        if (start >= 0) {
-          spans.push(l + start * DANGER_PITCH, l + i * DANGER_PITCH);
-          start = -1;
-        }
-      }
+    let gap = 0;
+    let run = 0;
+    for (const c of cover) {
+      run = c ? 0 : run + 1;
+      gap = Math.max(gap, run);
     }
-    if (run > gap) gap = run;
-    if (start >= 0) spans.push(l + start * DANGER_PITCH, r);
-    this.fill = covered / n;
+    this.fill = cover.reduce((a, c) => a + c, 0) / cover.length;
 
-    // Drains rather than resetting, or a fluctuation delays the loss for good.
+    // Drains rather than resetting, or a gap that flickers open holds off the
+    // end for good.
     this.held = gap * DANGER_PITCH < 2 * TIER_RADIUS
-      ? Math.min(DANGER_HOLD, this.held + dt)
-      : Math.max(0, this.held - dt * 2);
+      ? Math.min(DANGER_HOLD, this.held + ent.game.time)
+      : Math.max(0, this.held - 2 * ent.game.time);
     if (this.held < DANGER_HOLD) return;
-    this.over = true;
+    arrow.cancel();
     camera.shake(0.7);
     gameOver({ score: true });
   }
 
   render(ctx) {
-    const { fill, spans } = this;
-    const held = this.held / DANGER_HOLD;
-    if (fill <= 0) return;
+    if (this.fill <= 0) return;
     const y = pool.danger;
     ctx.save();
-    ctx.clip(pool.fill);
+    ctx.clip(pool.fill.toPath2D());
     ctx.lineCap = "round";
     ctx.lineWidth = 3.5;
-    ctx.globalAlpha = 0.45 + 0.55 * fill;
-    ctx.strokeStyle = DANGER_TONES[Math.round(fill * (LIT_TONES - 1))];
+    ctx.globalAlpha = 0.45 + 0.55 * this.fill;
+    ctx.strokeStyle = DANGER_TONES[Math.round(this.fill * (LIT_TONES - 1))];
     ctx.beginPath();
-    for (let i = 0; i < spans.length; i += 2) {
-      ctx.moveTo(spans[i], y);
-      ctx.lineTo(spans[i + 1], y);
-    }
+    this.cover.forEach((c, i) => {
+      if (!c) return;
+      const x = pool.dangerL + i * DANGER_PITCH;
+      if (!this.cover[i - 1]) ctx.moveTo(x, y);
+      ctx.lineTo(Math.min(pool.dangerR, x + DANGER_PITCH), y);
+    });
     ctx.stroke();
 
-    // Sealed: the blink runs faster the nearer the loss is.
+    // Blinks faster the nearer the end is.
+    const held = this.held / DANGER_HOLD;
     if (held > 0) {
-      const hz = 2.5 + (10 - 2.5) * held;
+      const hz = 2.5 + 7.5 * held;
       const t = performance.now() / 1000;
-      ctx.globalAlpha = 0.3 + 0.7 * (0.5 + 0.5 * Math.cos(Math.TAU * hz * t));
+      ctx.globalAlpha = 0.65 + 0.35 * Math.cos(Math.TAU * hz * t);
       ctx.strokeStyle = DANGER_TONES[LIT_TONES - 1];
       ctx.lineWidth = 5;
-      ctx.beginPath();
-      ctx.moveTo(pool.dangerSpan.l, y);
-      ctx.lineTo(pool.dangerSpan.r, y);
-      ctx.stroke();
+      ctx.strokeLine(pool.dangerL, y, pool.dangerR, y);
     }
     ctx.restore();
   }
 }
 
-// The knock: a jet into a bore, which is what the fit found in a mallet on
-// metal, driven up 466 to 1062Hz over 83ms. lp(375) sits under the whole sweep,
-// so what is heard is the bore and not the jet. `gain` is the level the fit
-// normalised away. playMerge() plays it at the tier's rate.
+// The wall chain moved out by `d`, positive away from the pool, each piece
+// lit by how much it faces the lamp.
+function litChain(ctx, d, width, ramp) {
+  const pts = pool.chain;
+  const s = pool.side;
+  ctx.lineWidth = width;
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1];
+    const b = pts[i];
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const nx = s * dy / len * d;
+    const ny = -s * dx / len * d;
+    const L = light((a.x + b.x) / 2 + nx, (a.y + b.y) / 2 + ny);
+    const k = Math.max(0, s * Math.sign(d) * (dy * L.x - dx * L.y) / len);
+    ctx.strokeStyle = ramp[Math.round(k * (LIT_TONES - 1))];
+    ctx.strokeLine(a.x + nx, a.y + ny, b.x + nx, b.y + ny);
+  }
+}
+
+// `scale` is the bake's: a blur and an offset are in device pixels.
+function paintPool(ctx, scale) {
+  const { x0, x1, y1 } = pool;
+  const fill = pool.fill.toPath2D();
+  const edge = pool.line.toPath2D();
+  const mx = (x0 + x1) / 2;
+  const my = y1 / 2;
+  const L = light(mx, my);
+
+  const reach = Math.hypot(x1 - x0, y1) / 2;
+  const back = ctx.createLinearGradient(
+    mx + L.x * reach,
+    my + L.y * reach,
+    mx - L.x * reach,
+    my - L.y * reach,
+  );
+  back.addColorStop(0, "#1e2531");
+  back.addColorStop(1, "#0f1218");
+  ctx.fillStyle = back;
+  ctx.fill(fill);
+
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+
+  // The wall's shadow on the board outside the pool.
+  ctx.save();
+  ctx.clip(
+    new Path2D().rect(0, 0, 1024, 1024).addPath(pool.fill).toPath2D(),
+    "evenodd",
+  );
+  ctx.strokeStyle = "#000";
+  ctx.lineWidth = 12;
+  ctx.shadowColor = "rgba(0, 0, 0, 0.55)";
+  ctx.shadowBlur = 19 * scale;
+  ctx.shadowOffsetX = -L.x * 11 * scale;
+  ctx.shadowOffsetY = -L.y * 11 * scale;
+  ctx.stroke(edge);
+  ctx.restore();
+
+  // And inside it: two blurs along the wall, then the near wall's cast shadow,
+  // which the clip removes on the far side.
+  ctx.save();
+  ctx.clip(fill);
+  ctx.strokeStyle = ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
+  ctx.lineWidth = 9.5;
+  for (const blur of [26, 9.5]) {
+    ctx.shadowBlur = blur * scale;
+    ctx.stroke(edge);
+  }
+  ctx.shadowBlur = 36 * scale;
+  ctx.shadowOffsetX = -L.x * 29 * scale;
+  ctx.shadowOffsetY = -L.y * 29 * scale;
+  ctx.stroke(edge);
+  ctx.restore();
+
+  ctx.strokeStyle = "#39414f";
+  ctx.lineWidth = 12;
+  ctx.stroke(edge);
+  litChain(ctx, -12.5, 13, tones("#1c222c", "#41506a"));
+  litChain(ctx, 4.4, 3, tones("#2a303b", "#8a9ab4"));
+  litChain(ctx, -4.4, 3.5, tones("#242a34", "#77869f"));
+
+  // The dashes Danger lights up.
+  ctx.save();
+  ctx.clip(fill);
+  ctx.strokeStyle = "#2b323d";
+  ctx.lineWidth = 2.5;
+  ctx.setLineDash([12, 12]);
+  ctx.strokeLine(x0, pool.danger, x1, pool.danger);
+  ctx.restore();
+}
+
+function paintVignette(ctx) {
+  const cy = 1024 * 0.52;
+  const v = ctx.createRadialGradient(512, cy, 1024 * 0.36, 512, cy, 1024 * 0.92);
+  v.addColorStop(0, "rgba(0, 0, 0, 0)");
+  v.addColorStop(1, "rgba(0, 0, 0, 0.34)");
+  ctx.fillStyle = v;
+  ctx.fillRect(0, 0, 1024, 1024);
+}
+
+// Painted once per screen scale; `res` is the resolution against the screen's.
+class Backdrop extends ent.Entity {
+  constructor(paint, res = 1) {
+    super();
+    this.paint = paint;
+    this.res = res;
+    this.layer = new Layer();
+  }
+
+  render(ctx) {
+    const s = op.screen.scale;
+    const img = this.layer.bake(s, 1024, 1024, this.paint, s * this.res);
+    ctx.drawImage(img, 0, 0, 1024, 1024);
+  }
+}
+
+// On the screen, so the camera's lean does not move it off the corners.
+class Vignette extends Backdrop {
+  static screen = true;
+}
+
+// A jet into a bore, the fit to a mallet on metal, swept 466 to 1062Hz over
+// 83ms. `gain` is the level the fit normalised away.
 sound.make("merge", {
   osc: { type: blow, feed: 0.546 },
   freq: [466, 1062],
@@ -1123,9 +1021,8 @@ sound.make("merge", {
   fx: [lp(375)],
 });
 
-// The plip: a sine climbing 197 to 907Hz through the band the two filters leave
-// between them, which is the drop, and a triangle under its first 96ms, which is
-// the water. 245ms rendered, played at 0.6.
+// A sine climbing 197 to 907Hz between two filters, over a triangle for its
+// first 96ms.
 sound.make("feed", {
   osc: [
     {
@@ -1144,281 +1041,77 @@ sound.make("feed", {
 });
 
 sound.setVolume(0.72);
-// A cascade plays one knock a merge, and four at once reach the limiter.
+// A cascade plays a knock a merge, and four at once reach the limiter.
 sound.setLimit(4);
 
-// A minor pentatonic degree a tier, tier 0 at A5 down to tier 15 at A2.
-function tone(index) {
-  const k = TIER_COUNT - 1 - Math.clamp(index, 0, TIER_COUNT - 1);
-  return 110 * 2 ** (Math.floor(k / 5) + [0, 3, 5, 7, 10][k % 5] / 12);
+function pan(x) {
+  return Math.clamp((2 * (x - pool.x0) / (pool.x1 - pool.x0) - 1) * 0.7, -1, 1);
 }
 
-function panAt(x) {
-  const { x0, x1 } = pool.bounds;
-  return Math.clamp((2 * (x - x0) / (x1 - x0) - 1) * 0.7, -1, 1);
-}
-
-// 840Hz is the band the knock is heard in; volume rises 3 dB an octave
-// downward.
-function playMerge(index, x) {
-  const f = tone(index);
-  sound.play("merge", {
-    rate: f / 840,
-    volume: 0.42 * Math.min(2, Math.sqrt(tone(0) / f)),
-    pan: panAt(x),
-  });
-}
-
-function playFeed(x) {
-  sound.play("feed", { rate: 0.6, volume: 0.22, pan: panAt(x) });
-}
-
-const LIT_TONES = 33;
-
-function ramp(dark, lit) {
-  return color(dark).steps(LIT_TONES, lit).map((c) => c.css);
-}
-
-// The wall chain pushed out by `d`, positive away from the pool, lit per piece.
-function litChain(ctx, d, width, tones) {
-  const pts = pool.chain;
-  const s = pool.side * Math.sign(d);
-  ctx.lineWidth = width;
-  for (let i = 0; i < pts.length - 1; i++) {
-    const dx = pts[i + 1][0] - pts[i][0];
-    const dy = pts[i + 1][1] - pts[i][1];
-    const len = Math.hypot(dx, dy) || 1;
-    const ax = pts[i][0] + pool.side * dy / len * d;
-    const ay = pts[i][1] - pool.side * dx / len * d;
-    const bx = pts[i + 1][0] + pool.side * dy / len * d;
-    const by = pts[i + 1][1] - pool.side * dx / len * d;
-    const lx = LIGHT_X - (ax + bx) / 2;
-    const ly = LIGHT_Y - (ay + by) / 2;
-    const ll = Math.hypot(lx, ly) || 1;
-    const k = Math.max(0, s * (dy * lx - dx * ly) / (len * ll));
-    ctx.strokeStyle = tones[Math.round(k * (LIT_TONES - 1))];
-    ctx.beginPath();
-    ctx.moveTo(ax, ay);
-    ctx.lineTo(bx, by);
-    ctx.stroke();
-  }
-}
-
-// `scale` is the bake's own: a blur and an offset are in device pixels.
-function paintPool(ctx, scale) {
-  const { x0, x1, y1 } = pool.bounds;
-  const mx = (x0 + x1) / 2;
-  const my = y1 / 2;
-  const lx = LIGHT_X - mx;
-  const ly = LIGHT_Y - my;
-  const ll = Math.hypot(lx, ly);
-  const L = ll > 0 ? { x: lx / ll, y: ly / ll } : { x: 0, y: -1 };
-
-  const reach = Math.hypot(x1 - x0, y1) / 2;
-  const back = ctx.createLinearGradient(
-    mx + L.x * reach,
-    my + L.y * reach,
-    mx - L.x * reach,
-    my - L.y * reach,
-  );
-  back.addColorStop(0, "#1e2531");
-  back.addColorStop(1, "#0f1218");
-  ctx.fillStyle = back;
-  ctx.fill(pool.fill);
-
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
-
-  // Laid on the background rather than cut out of it.
-  ctx.save();
-  const outside = new Path2D();
-  outside.rect(0, 0, 1024, 1024);
-  outside.addPath(pool.fill);
-  ctx.clip(outside, "evenodd");
-  ctx.strokeStyle = "#000";
-  ctx.lineWidth = 12;
-  ctx.shadowColor = "rgba(0, 0, 0, 0.55)";
-  ctx.shadowBlur = 19 * scale;
-  ctx.shadowOffsetX = -L.x * 11 * scale;
-  ctx.shadowOffsetY = -L.y * 11 * scale;
-  ctx.stroke(pool.line);
-  ctx.restore();
-
-  // Blurred inward and clipped inside, so the pool is a box the blobs are in.
-  ctx.save();
-  ctx.clip(pool.fill);
-  ctx.strokeStyle = "rgba(0, 0, 0, 0.5)";
-  ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
-  ctx.lineWidth = 9.5;
-  for (const blur of [26, 9.5]) {
-    ctx.shadowBlur = blur * scale;
-    ctx.stroke(pool.line);
-  }
-
-  // The near wall's cast shadow; on the far side the clip takes it.
-  ctx.shadowBlur = 36 * scale;
-  ctx.shadowOffsetX = -L.x * 29 * scale;
-  ctx.shadowOffsetY = -L.y * 29 * scale;
-  ctx.stroke(pool.line);
-  ctx.restore();
-
-  ctx.strokeStyle = "#39414f";
-  ctx.lineWidth = 12;
-  ctx.stroke(pool.line);
-  litChain(ctx, -12.5, 13, ramp("#1c222c", "#41506a"));
-  litChain(ctx, 4.4, 3, ramp("#2a303b", "#8a9ab4"));
-  litChain(ctx, -4.4, 3.5, ramp("#242a34", "#77869f"));
-
-  // Baked dashes; what lights up on them is Danger, over the pile.
-  ctx.save();
-  ctx.clip(pool.fill);
-  ctx.strokeStyle = "#2b323d";
-  ctx.lineWidth = 2.5;
-  ctx.setLineDash([12, 12]);
-  ctx.beginPath();
-  ctx.moveTo(pool.bounds.x0, pool.danger);
-  ctx.lineTo(pool.bounds.x1, pool.danger);
-  ctx.stroke();
-  ctx.restore();
-}
-
-const DANGER_TONES = ramp("#46536a", "#e0472c");
-
-// Baked at half resolution, which is all a gradient this wide needs.
-function paintVignette(ctx) {
-  const cx = 512;
-  const cy = 1024 * 0.52;
-  const v = ctx.createRadialGradient(cx, cy, 1024 * 0.36, cx, cy, 1024 * 0.92);
-  v.addColorStop(0, "rgba(0, 0, 0, 0)");
-  v.addColorStop(1, "rgba(0, 0, 0, 0.34)");
-  ctx.fillStyle = v;
-  ctx.fillRect(0, 0, 1024, 1024);
-}
-
-// Under the camera the lean and the recoil would move the dark off the corners.
-class Vignette extends ent.Entity {
-  static screen = true;
-
-  render(ctx) {
-    const scale = op.screen.scale;
-    ctx.drawImage(
-      vigLayer.bake(scale, 1024, 1024, paintVignette, scale * 0.5),
-      0,
-      0,
-      1024,
-      1024,
-    );
-  }
-}
-
-// Keyed on the screen scale alone: everything else is fixed in board units.
-const poolLayer = new Layer();
-const vigLayer = new Layer();
-
-class Pool extends ent.Entity {
-  render(ctx) {
-    const scale = op.screen.scale;
-    ctx.drawImage(
-      poolLayer.bake(scale, 1024, 1024, paintPool, scale),
-      0,
-      0,
-      1024,
-      1024,
-    );
-  }
-}
-
-export function render(ctx) {
-  ent.render(ctx);
-}
-
-function step(dt) {
-  if (danger.over) return; // a finished run is a still picture
-  updateLauncher(dt); // first, so an arrival is solved from its first substep
-  detectMerges();
-  sim.measure();
-  sim.repair(dt);
-
-  // Last before the substeps, so a point a shock moved is solved this step.
-  ent.update(dt);
-
-  // A bar blob keeps its own RAIL_GRAVITY and is not affected by this.
-  sim.gravity.x = aimTilt();
-  sim.step(dt);
-
-  danger.measure(dt);
-  if (!danger.over) return;
-  cancelAim();
-  sim.release();
-}
-
-function tryGrab(x, y) {
+function grab(x, y) {
   let hit = null;
   let hitD = 36;
   for (const b of blobs) {
-    if (b.ent.bar) continue; // the rail aims, it does not drag
+    if (b.ent.bar) continue;
     if (sim.contains(b, x, y)) {
       hit = b;
       break;
     }
     const d = sim.nearest(b, x, y);
-    if (d < hitD) {
-      hitD = d;
-      hit = b;
-    }
+    if (d < hitD) [hit, hitD] = [b, d];
   }
   if (hit) sim.grab(hit, x, y);
 }
 
-// Measured on the board: the camera moving the world is not the pointer moving.
-const pointerSpeed = new PointerSpeed({ rate: 30, cap: MAX_SPEED });
-
-function handleInput(dt) {
-  pointerSpeed.sample(input.x, input.y, dt);
-
-  const p = camera.toWorld(input.x, input.y);
-  sim.grabTo(p.x, p.y, pointerSpeed.x, pointerSpeed.y);
-
-  hoverBar(p.x, p.y); // before the press: a touch's first frame picks nothing
-  if (input.just.act) {
-    // A touch lands where it lands; no motion before it to carry.
-    pointerSpeed.reset(input.x, input.y);
-    sim.grabTo(p.x, p.y, 0, 0);
-    // The launcher gets first refusal: the rail aims, elsewhere drags.
-    if (!startAim(input.x, input.y)) tryGrab(p.x, p.y);
-  }
-  if (aim) {
-    aimAt(input.x, input.y, dt);
-    if (!input.press.act) launch();
-  }
-  if (!input.press.act) sim.release();
-}
-
-let danger = null;
-let shocks = null;
+// On the screen: the camera moving is not the pointer moving.
+const pointer = new PointerSpeed({ rate: 30, cap: MAX_SPEED });
 
 export function init() {
-  sim.preSolve = solveRail;
   sim.clear();
-  ent.reset([Pool, Rail, Blob, Danger, Shocks, Arrow, Vignette]);
-  // After reset(), which sets a shakeBase of its own.
+  sim.preSolve = solveRail;
+  ent.reset([Backdrop, Rail, Blob, Danger, Shocks, Arrow, Vignette]);
+  // After reset(), which sets its own.
   camera.shakeBase = 3;
   camera.shakeRate = 15.5;
   camera.spin(Math.random() < 0.5 ? -1 : 1);
-
-  new Pool();
-  new Rail();
-  danger = new Danger();
-  shocks = new Shocks();
-  new Arrow();
-  new Vignette();
-
-  resetLauncher();
   random.seed(Date.now() | 0);
+
+  new Backdrop(paintPool);
+  rail = new Rail();
+  new Danger();
+  shocks = new Shocks();
+  arrow = new Arrow();
+  new Vignette(paintVignette, 0.5);
 }
 
+function step(dt) {
+  if (!op.playing) return;
+  sim.measure();
+  detectMerges();
+  sim.repair(dt);
+  ent.update(dt);
+  // Rail blobs have their own gravity and do not tilt.
+  sim.gravity.x = arrow.tilt;
+  sim.step(dt);
+}
+
+// Before the fixed step, and the camera has already moved, so a press lands on
+// what was shown.
 export function update(dt) {
-  // one.js has already run the camera, so a press lands on what was shown.
-  handleInput(dt);
+  pointer.sample(input.x, input.y, dt);
+  const p = camera.toWorld(input.x, input.y);
+  sim.grabTo(p.x, p.y, pointer.x, pointer.y);
+  // Before the press, so a touch's first frame has a hover to start from.
+  arrow.hoverAt(p.x, p.y);
+  if (input.just.act) {
+    pointer.reset(input.x, input.y);
+    sim.grabTo(p.x, p.y, 0, 0);
+    if (!arrow.start(input.x, input.y)) grab(p.x, p.y);
+  }
+  if (arrow.blob) {
+    arrow.drag(input.x, input.y, dt);
+    if (!input.press.act) arrow.launch();
+  }
+  if (!input.press.act) sim.release();
   fixed(60, step);
 }
