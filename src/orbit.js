@@ -5,7 +5,7 @@ import * as random from "./alma/src/random.js";
 import * as ent from "./lib/entity.js";
 import { delay, flash } from "./lib/effects.js";
 import { shake } from "./lib/camera.js";
-import { gameOver, msg, score } from "./lib/one.js";
+import { fold, gameOver, msg, score } from "./lib/one.js";
 import * as play from "./lib/sounds.js";
 
 export { render } from "./lib/entity.js";
@@ -111,7 +111,7 @@ class Player extends ent.Entity {
     this.gfx.clear().size(2 * SHIELD)
       .fill(WHITE).mt(0, -26).lt(21, 21).lt(0, 9).lt(-21, 21).fill();
     if (this.shield) {
-      this.gfx.line(6, mix(WHITE, COLOR, 0.75)).circle(0, 0, SHIELD);
+      this.gfx.line(6, ent.mix(WHITE, COLOR, 0.75)).circle(0, 0, SHIELD);
     }
   }
 
@@ -188,7 +188,7 @@ class Bullet extends Shot {
   }
 
   explode() {
-    this.gfx.cache(2).fill(mix(BLACK, COLOR, 0.75)).circle(0, 0, 2 * BR);
+    this.gfx.cache(2).fill(ent.mix(BLACK, COLOR, 0.75)).circle(0, 0, 2 * BR);
     this.vel.x = this.vel.y = 0;
     this.gone = 0.05;
   }
@@ -257,7 +257,7 @@ class Chunk extends ent.Entity {
     const r = (6 + 20 * this.health / 5) / 2;
     // size() keeps the ring's centre on the entity, which `angle` turns about.
     this.gfx.clear().size(2 * (this.radius + 13))
-      .fill(mix(COLOR, BLACK, this.health / 5))
+      .fill(ent.mix(COLOR, BLACK, this.health / 5))
       .arc(
         0,
         0,
@@ -330,7 +330,7 @@ class Chunk extends ent.Entity {
       new ent.Particle({
         x: CX - this.radius * Math.cos(a),
         y: CY - this.radius * Math.sin(a),
-        color: mix(COLOR, BLACK, 1 / 5),
+        color: ent.mix(COLOR, BLACK, 1 / 5),
         count: wide * 100 / TAU,
         size: 13,
         speed: 425,
@@ -389,7 +389,7 @@ class Level extends ent.Entity {
       const a = this.layers[i][0].angle;
       if (a === this.want[i]) continue;
       const max = 5 * dt;
-      const da = extra.clamp(turn(a, this.want[i]), -max, max);
+      const da = extra.clamp(fold(this.want[i] - a), -max, max);
       for (const c of this.layers[i]) c.angle += da;
     }
   }
@@ -441,7 +441,7 @@ class Enemy extends ent.Entity {
     if (dt > 0 && this.past.length > 1) {
       let sum = 0;
       for (let i = 1; i < this.past.length; ++i) {
-        sum += turn(this.past[i - 1], this.past[i]);
+        sum += fold(this.past[i] - this.past[i - 1]);
       }
       const rate = sum / (this.past.length - 1) / dt;
       aim += rate * (this.past.length / HISTORY) * (ORBIT / BSPEED);
@@ -456,7 +456,7 @@ class Enemy extends ent.Entity {
     this.scale = 1 + 0.3 * pressure();
 
     // Damping that never settles, so the turret oscillates around the player.
-    const t = turn(this.angle, aim);
+    const t = fold(aim - this.angle);
     if (t !== 0) this.angvel += Math.sign(t) * 10 * dt;
     this.angvel *= Math.pow(0.9, dt * 60);
     this.angle += this.angvel * dt;
@@ -554,19 +554,6 @@ function roll(n) {
 
 function mod(a, m) {
   return ((a % m) + m) % m;
-}
-
-function turn(a, b) {
-  return mod(b - a + Math.PI, TAU) - Math.PI;
-}
-
-function mix(a, b, t) {
-  let out = 0;
-  for (const s of [16, 8, 0]) {
-    const from = (a >> s) & 255;
-    out |= Math.round(from + (((b >> s) & 255) - from) * t) << s;
-  }
-  return out;
 }
 
 export function init() {

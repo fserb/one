@@ -9,9 +9,9 @@
  * fill() and line() set what every shape after them uses, and null turns
  * either off. mt()/lt()/ct() draw a path where the shape calls will not.
  *
- * css(c) and hex(s) are here too: one turns a 0xrrggbb number into the string a
- * canvas takes, the other a "#rrggbb" string back into the number. Games reach
- * both through entity.js.
+ * css(c), hex(s) and mix(a, b, t) are here too: css turns a 0xrrggbb number
+ * into the string a canvas takes, hex a "#rrggbb" string back into the number,
+ * and mix blends two numbers. Games reach all three through entity.js.
  *
  * Each shape is an alma Path2D, which records the calls and hands them to a
  * real Path2D the first time it is drawn, so a command list holds no DOM object
@@ -40,6 +40,16 @@ export function css(c) {
 // The other way: meta and theme() carry "#rrggbb", and drawing takes numbers.
 export function hex(s) {
   return parseInt(s.slice(1), 16);
+}
+
+// Two 0xrrggbb colours, `t` of the way from a to b, each channel on its own.
+export function mix(a, b, t) {
+  let out = 0;
+  for (const s of [16, 8, 0]) {
+    const from = (a >> s) & 255;
+    out |= Math.round(from + (((b >> s) & 255) - from) * t) << s;
+  }
+  return out;
 }
 
 const ALIGN = ["left", "center", "right"];

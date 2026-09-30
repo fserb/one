@@ -17,7 +17,8 @@ import { Entity, game } from "./core.js";
 import { meta, score } from "./one.js";
 
 // `size` is the font's height in board units, and `align` is gfx.js's anchor
-// string.
+// string. A function for `text` is called again every frame, for a readout of
+// a number that changes, like `() => Math.floor(score.value)`.
 export class Text extends Entity {
   static layer = 1000;
 
@@ -39,7 +40,8 @@ export class Text extends Entity {
     this.pos.y = o.y;
     this.vel.x = o.vel[0];
     this.vel.y = o.vel[1];
-    this.text = String(o.text);
+    this.read = typeof o.text === "function" ? o.text : null;
+    this.text = String(this.read?.() ?? o.text);
     this.size = o.size;
     this.color = o.color;
     this.duration = o.duration;
@@ -48,6 +50,7 @@ export class Text extends Entity {
   }
 
   update() {
+    if (this.read) this.text = String(this.read());
     if (this.duration === null) return;
     this.duration -= game.time;
     if (this.duration <= 0) this.remove();

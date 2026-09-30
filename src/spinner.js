@@ -31,7 +31,7 @@
 import * as ent from "./lib/entity.js";
 import * as ease from "./alma/src/ease.js";
 import { shake } from "./lib/camera.js";
-import { gameOver } from "./lib/one.js";
+import { fold, gameOver } from "./lib/one.js";
 import * as play from "./lib/sounds.js";
 
 export { render } from "./lib/entity.js";
@@ -151,13 +151,6 @@ const key = (q, r) => `${q},${r}`;
 const cellX = (q, r) => STEP * (q + r / 2);
 const cellY = (_q, r) => ROW * r;
 const taken = (q, r) => (q === 0 && r === 0) || cells.has(key(q, r));
-
-function fold(a) {
-  const x = a % TAU;
-  if (x > Math.PI) return x - TAU;
-  if (x <= -Math.PI) return x + TAU;
-  return x;
-}
 
 // Where the crescent sits on a ball: up and to the left, and the same on every
 // one of them, since the crescent is the light in the room and not something

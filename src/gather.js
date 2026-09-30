@@ -293,12 +293,9 @@ class Frame extends ent.Entity {
 // which is where the +N goes.
 class Total extends ent.Text {
   constructor() {
-    super({ text: "0", x: SCORE_X, y: TRAY_Y, size: 60, color: BLACK });
+    const text = () => Math.floor(score.value);
+    super({ text, x: SCORE_X, y: TRAY_Y, size: 60, color: BLACK });
     this.half = 0;
-  }
-
-  update() {
-    this.text = String(Math.floor(score.value));
   }
 
   render(ctx) {

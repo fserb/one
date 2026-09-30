@@ -2,7 +2,7 @@
 
 import * as ent from "./lib/entity.js";
 import { shake } from "./lib/camera.js";
-import { gameOver, ramp, score, speed } from "./lib/one.js";
+import { fold, gameOver, ramp, score, speed } from "./lib/one.js";
 import * as play from "./lib/sounds.js";
 
 export { render } from "./lib/entity.js";
@@ -366,13 +366,6 @@ function wrap(e, s) {
 
   if (pos.y < -s / 2) pos.y = 1024 + s / 2 - 1;
   else if (pos.y > 1024 + s / 2) pos.y = -s / 2 + 1;
-}
-
-function fold(a) {
-  const x = a % TAU;
-  if (x > Math.PI) return x - TAU;
-  if (x <= -Math.PI) return x + TAU;
-  return x;
 }
 
 // 0 to PI. A ship at rest has no heading, and PI sends it to the steering.

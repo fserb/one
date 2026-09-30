@@ -62,7 +62,6 @@ let speed = 1.5;
 let floor = YELLOW;
 let player = null;
 let hook = null;
-let label = null;
 
 class Floor extends ent.Entity {
   constructor() {
@@ -447,7 +446,6 @@ function eat(color) {
   floor = color;
   speed *= 1.06;
   ent.addScore(1, player.pos.x, player.pos.y, { color: BLACK });
-  label.text = String(score.value);
 }
 
 export function init() {
@@ -460,7 +458,7 @@ export function init() {
   player = new Player();
   hook = new Hook();
   // Black like the player and the hook, so the sweep at the end covers it.
-  label = new ent.Text({ text: "0", x: 512, y: 64, size: 64, color: BLACK });
+  new ent.Text({ text: () => score.value, x: 512, y: 64, size: 64, color: BLACK });
 
   // One per corner; the one with the floor's colour leaves on frame one.
   const corners = [

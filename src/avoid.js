@@ -334,10 +334,6 @@ function dent(b, ox, oy, rate) {
 // `screen` keeps the score out of the shake.
 class Score extends ent.Text {
   static screen = true;
-
-  update() {
-    this.text = String(Math.floor(score.value));
-  }
 }
 
 function spec(ctx, b, path, L, along, across, sl, sa, alpha) {
@@ -553,6 +549,7 @@ export function init() {
 
   new Player();
   new Score({
+    text: () => Math.floor(score.value),
     x: 40,
     y: 40,
     size: 54,

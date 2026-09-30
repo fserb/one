@@ -18,11 +18,7 @@
 
 import { bp, drive, lp } from "../alma/src/sfx.js";
 import { square } from "../alma/src/sfxgen.js";
-import { make, play } from "./sound.js";
-
-// A flat body: the band that sweeps sits on a node under this, and the parent's
-// envelope does the shaping.
-const FLAT = (d) => [0, d, 1e-4];
+import { flat, make, play } from "./sound.js";
 
 // A sound is the call that plays it, and each one is its own export, so a game
 // ships the sounds it names and not the set. Both /* @__PURE__ */ marks below
@@ -208,7 +204,7 @@ export const deny = /* @__PURE__ */ one("deny", 0.1, {
 export const whoosh = /* @__PURE__ */ one("whoosh", 0.36, {
   osc: {
     osc: "white",
-    env: FLAT(0.28),
+    env: flat(0.28),
     fx: [/* @__PURE__ */ bp([300, "expIn", 3000], 2.5)],
   },
   gain: 2,

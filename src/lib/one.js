@@ -55,6 +55,12 @@ export function roll(level) {
   return Math.random() ** (100 / (level + 1));
 }
 
+// An angle in radians brought into -PI..PI, so fold(b - a) is the shorter turn
+// from a to b.
+export function fold(a) {
+  return a - 2 * Math.PI * Math.round(a / (2 * Math.PI));
+}
+
 // One mutable object rather than exported `let`s: sound.js writes into it at
 // module scope, and a binding read there would still be in its temporal dead
 // zone.

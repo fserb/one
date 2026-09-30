@@ -7,7 +7,7 @@ import { World } from "./alma/src/rigid.js";
 import * as ent from "./lib/entity.js";
 import { camera } from "./lib/camera.js";
 import { act } from "./lib/act.js";
-import { fixed, gameOver, score, time } from "./lib/one.js";
+import { fixed, fold, gameOver, score, time } from "./lib/one.js";
 import { comb, lp } from "./alma/src/sfx.js";
 import * as sound from "./lib/sound.js";
 
@@ -47,9 +47,8 @@ const START = 12;
 // one through the other. `blend` is the chance a sign survives a round trip: 1
 // is a string and .5 is the paper's drum. The decays are long for a 100ms sound
 // on purpose, so the loop barely decays and the envelope does the shaping.
-const FLAT = (d) => [0, d, 1e-4];
 const PLUCK = (f, blend, decay, hit) => ({
-  osc: { osc: "white", env: FLAT(hit) },
+  osc: { osc: "white", env: sound.flat(hit) },
   fx: comb(f, { blend, decay, damp: 0.05 }),
 });
 
@@ -58,9 +57,9 @@ sound.make("hold", {
     osc: [
       PLUCK(100, 1, 3, 0.01),
       { ...PLUCK(50, 0.5, 1, 0.02), gain: 1.6 },
-      { osc: "white", gain: 0.3, env: FLAT(0.1) },
+      { osc: "white", gain: 0.3, env: sound.flat(0.1) },
     ],
-    env: FLAT(0.1),
+    env: sound.flat(0.1),
     fx: lp(100),
   },
   gain: 2.51,
@@ -742,9 +741,6 @@ const TEETH_PHASE = 50;
 const TOOTH = 1;
 const TOOTH_UP = TOOTH / 3;
 
-// The shortest way round to an angle.
-const wrap = (a) => a - TAU * Math.round(a / TAU);
-
 class Saw extends ent.Entity {
   constructor() {
     super();
@@ -787,7 +783,7 @@ class Saw extends ent.Entity {
     const next = vec.add(body, vec.clamp(full, 0, reach));
 
     const aim = vec.angle(vec.sub(here, last)) + TAU / 4;
-    const turn = clamp(wrap(aim - body.angle), -0.0035, 0.0035);
+    const turn = clamp(fold(aim - body.angle), -0.0035, 0.0035);
     body.moveTo(next.x, next.y, body.angle + turn);
 
     if (vec.len(full) < 0.001) this.at++;

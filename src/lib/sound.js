@@ -81,6 +81,10 @@ export function arm(target) {
 // corner follows rate * over, so raising it tilts every noise about 10 dB
 // across the band. It is 6x cheaper at 1, and nothing in the gallery aliases
 // enough at 1 to hear.
+// A flat body: the band that sweeps sits on a node under this, and the parent's
+// envelope does the shaping.
+export const flat = (d) => [0, d, 1e-4];
+
 export function make(name, params) {
   put(name, sfx(params, { rate: SAMPLE_RATE, over: 1 }));
 }

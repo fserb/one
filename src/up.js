@@ -206,12 +206,6 @@ class Bands extends ent.Entity {
   }
 }
 
-class Readout extends ent.Text {
-  update() {
-    this.text = String(Math.floor(score.value));
-  }
-}
-
 const CELL = 300;
 const MARGIN = 600;
 
@@ -281,10 +275,11 @@ function burn() {
 }
 
 export function init() {
-  ent.reset([Bands, Obstacle, Gold, ent.Particle, Player, Engine, Readout]);
+  ent.reset([Bands, Obstacle, Gold, ent.Particle, Player, Engine, ent.Text]);
 
   new Bands();
-  new Readout({
+  new ent.Text({
+    text: () => Math.floor(score.value),
     x: 26,
     y: 26,
     size: 34,

@@ -32,14 +32,12 @@ const WHITE = "#F2F0E5";
 const IRIS = "#212123";
 const RIM = "#B9A588";
 
-const FLAT = (d) => [0, d, 1e-4];
-
 // A 40 Hz string whose sign is randomised every round trip has no pitch left,
 // so this is filtered noise and wants no resonator at all.
 sound.make("hit", {
   osc: {
     osc: "white",
-    env: FLAT(0.3),
+    env: sound.flat(0.3),
     fx: [lp(1500), crush(Math.log2(48), 12000)],
   },
   gain: 2,
@@ -50,9 +48,9 @@ sound.make("hit", {
 // has no gain of its own. gain is the ring modulator, depth 1 of 0 being bare.
 sound.make("drop", {
   osc: {
-    osc: ["saw", { osc: "brown", gain: 0.5, env: FLAT(0.3) }],
+    osc: ["saw", { osc: "brown", gain: 0.5, env: sound.flat(0.3) }],
     freq: (t) => 100 - 600 * t,
-    env: FLAT(0.3),
+    env: sound.flat(0.3),
     gain: { wave: "sine", rate: 120, depth: 1, of: 0 },
     fx: lp(1000),
   },
