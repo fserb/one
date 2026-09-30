@@ -222,25 +222,25 @@ export class Gfx {
     if (this.cmds.length === 0) return;
 
     const [bx, by, bw, bh] = this.bounds();
+    const a = ctx.globalAlpha;
     ctx.save();
     ctx.translate(-bx - bw / 2, -by - bh / 2);
 
     for (const c of this.cmds) {
       const p2d = c.path.toPath2D();
       if (c.fill !== null) {
-        ctx.globalAlpha = c.fill.alpha;
+        ctx.globalAlpha = a * c.fill.alpha;
         ctx.fillStyle = css(c.fill.c);
         ctx.fill(p2d);
       }
       if (c.line !== null) {
-        ctx.globalAlpha = c.line.alpha;
+        ctx.globalAlpha = a * c.line.alpha;
         ctx.lineWidth = c.line.width;
         ctx.strokeStyle = css(c.line.c);
         ctx.stroke(p2d);
       }
     }
 
-    ctx.globalAlpha = 1;
     ctx.restore();
   }
 }
