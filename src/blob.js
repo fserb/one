@@ -1,6 +1,5 @@
 // blob - a merge game in a pool. After Sobosuba's bar mode.
 
-import "./alma/src/extend.js";
 import color from "./alma/src/color.js";
 import * as line from "./alma/src/geom/line.js";
 import { Path2D } from "./alma/src/geom/path2d.js";
@@ -12,6 +11,7 @@ import { hp, lp } from "./alma/src/sfx.js";
 import { blow } from "./alma/src/sfxgen.js";
 import { PointerSpeed } from "./alma/src/smooth.js";
 import { SoftBodies } from "./alma/src/softbody.js";
+import { clamp, TAU } from "./alma/src/utils/extra.js";
 import { camera } from "./lib/camera2d.js";
 import * as ent from "./lib/entity.js";
 import { fixed, gameOver, input, op, score } from "./lib/one.js";
@@ -76,14 +76,14 @@ const TIERS = Array.from({ length: TIER_COUNT }, (_, i) => {
     index: i,
     outer,
     radius,
-    base: SoftBodies.ring(Math.max(12, Math.round(Math.TAU * radius / (4 * R / 3)))),
+    base: SoftBodies.ring(Math.max(12, Math.round(TAU * radius / (4 * R / 3)))),
     mass: area / 500,
     cool: Math.log(100) * area / 85000,
     shock: area / 28000,
     pitch: 110 * 2 ** (Math.floor(k / 5) + [0, 3, 5, 7, 10][k % 5] / 12),
     value: 2 ** i,
     font: radius * Math.min(0.62, 2.1 / `${2 ** i}`.length),
-    edge: Math.clamp(outer * 0.055, 5.5, 10.5),
+    edge: clamp(outer * 0.055, 5.5, 10.5),
     drop: Math.min(28, outer * 0.22),
     blur: Math.min(36, outer * 0.34),
     ramp: [cool(0.44, 0.05), cool(0.34, -0.19), c.css],
@@ -197,7 +197,7 @@ let arrow = null;
 function clampMouth(b, s) {
   const { l, r } = pool.mouth;
   for (let i = b.start; i < b.start + b.count; i++) {
-    s.px[i] = Math.clamp(s.px[i], l + s.pr[i], r - s.pr[i]);
+    s.px[i] = clamp(s.px[i], l + s.pr[i], r - s.pr[i]);
   }
 }
 
@@ -479,7 +479,7 @@ function solveRail(h) {
   for (const e of queue) {
     const b = e.body;
     const dv = 140 * (pool.bar - b.cy) * h;
-    const inward = -360 * Math.clamp((b.cx - pool.mid) / e.radius, -1, 1) * h;
+    const inward = -360 * clamp((b.cx - pool.mid) / e.radius, -1, 1) * h;
     for (let i = b.start; i < b.start + b.count; i++) {
       vy[i] += dv - 12.0 * vy[i] * h;
       vx[i] += inward - 1.2 * vx[i] * h;
@@ -762,8 +762,8 @@ class Shock extends ent.Entity {
       const k = r1 / (r1 + off);
       ctx.save();
       ctx.beginPath();
-      ctx.arc(0, 0, r1, 0, Math.TAU);
-      ctx.arc(0, 0, Math.max(0, r0), 0, Math.TAU, true);
+      ctx.arc(0, 0, r1, 0, TAU);
+      ctx.arc(0, 0, Math.max(0, r0), 0, TAU, true);
       ctx.clip();
       ctx.setTransform(k, 0, 0, k, p.x * (1 - k), p.y * (1 - k));
       ctx.drawImage(src, 0, 0);
@@ -857,7 +857,7 @@ class Danger extends ent.Entity {
     if (held > 0) {
       const hz = 2.5 + 7.5 * held;
       const t = performance.now() / 1000;
-      ctx.globalAlpha = 0.65 + 0.35 * Math.cos(Math.TAU * hz * t);
+      ctx.globalAlpha = 0.65 + 0.35 * Math.cos(TAU * hz * t);
       ctx.strokeStyle = DANGER_TONES[LIT_TONES - 1];
       ctx.lineWidth = 5;
       ctx.strokeLine(pool.dangerL, y, pool.dangerR, y);
@@ -1018,7 +1018,7 @@ sound.setVolume(0.72);
 sound.setLimit(4);
 
 function pan(x) {
-  return Math.clamp((2 * (x - pool.x0) / (pool.x1 - pool.x0) - 1) * 0.7, -1, 1);
+  return clamp((2 * (x - pool.x0) / (pool.x1 - pool.x0) - 1) * 0.7, -1, 1);
 }
 
 function grab(x, y) {

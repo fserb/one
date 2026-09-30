@@ -2,8 +2,7 @@
  * sounds.js - the named sound set: one design a name, and nothing else.
  *
  * A game does not write sound params. It calls a name out of this list and the
- * same rendered sound answers in every game, with a little detune a play so the
- * tenth in a row is not the first again. The set was chosen by ear.
+ * same rendered sound answers in every game. The set was chosen by ear.
  *
  * Each entry is the name, a note saying what makes the sound, `vol`, the level
  * it plays at, and `params`, alma's sfx object. Every one is a wave -- sine,

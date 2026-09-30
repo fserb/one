@@ -211,8 +211,10 @@ function frame(real) {
   overlay.poll(real);
   effects.step(real);
 
+  // A round that start() begins here runs this frame too, so nothing is drawn
+  // before its entities have updated once.
+  if (!op.playing) overlay.update(real, start);
   if (op.playing) tick(real);
-  else overlay.update(real, start);
 
   ctx.reset();
   op.screen.apply(ctx);
