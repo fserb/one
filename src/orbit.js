@@ -114,17 +114,6 @@ class Player extends ent.Entity {
     }
   }
 
-  addShield() {
-    this.shield = true;
-    this.draw();
-  }
-
-  removeShield() {
-    if (this.shield) play.deny();
-    this.shield = false;
-    this.draw();
-  }
-
   update() {
     const dt = ent.game.time;
     if (ent.game.input.just.act) {
@@ -199,8 +188,7 @@ class Bullet extends Shot {
     super.update();
     if (this.dead) return;
 
-    const e = ent.one(Enemy);
-    if (e !== null && this.hit(e)) {
+    if (this.hit(ent.one(Enemy))) {
       this.explode();
       finishLevel();
     }
@@ -216,11 +204,15 @@ class EnemyBullet extends Shot {
     super.update();
     if (this.dead) return;
 
-    if (player !== null && this.hit(player)) {
+    if (this.hit(player)) {
       this.remove();
       flash(ent.css(WHITE));
-      if (player.shield) player.removeShield();
-      else die();
+      if (!player.shield) die();
+      else {
+        play.deny();
+        player.shield = false;
+        player.draw();
+      }
       return;
     }
 
@@ -250,7 +242,7 @@ class Chunk extends ent.Entity {
   }
 
   draw() {
-    const r = (6 + 20 * this.health / 5) / 2;
+    const r = 3 + 2 * this.health;
     // size() keeps the ring's centre on the entity, which `angle` turns about.
     this.gfx.clear().size(2 * (this.radius + 13))
       .fill(ent.mix(COLOR, BLACK, this.health / 5))
@@ -270,7 +262,7 @@ class Chunk extends ent.Entity {
     const dx = x - this.pos.x;
     const dy = y - this.pos.y;
     const d = Math.hypot(dx, dy);
-    const half = (6 + 20 * this.health / 5) / 2 + r;
+    const half = 3 + 2 * this.health + r;
     if (d < this.radius - half || d > this.radius + half) return false;
 
     const pad = r / d;
@@ -346,7 +338,7 @@ class Level extends ent.Entity {
     this.want = [];
 
     let radius = 85;
-    for (const [pattern, weight] of n < DATA.length ? DATA[n] : roll(n)) {
+    for (const [pattern, weight] of n < DATA.length ? DATA[n] : hard(n)) {
       let slots = 0;
       for (const c of pattern) slots += Number(c);
 
@@ -402,23 +394,17 @@ class Enemy extends ent.Entity {
     // Facing away, so the turret has half a turn to make before it can fire.
     this.angle = (player?.angle ?? 0) + Math.PI;
     this.hitCircle(36);
-    // Background colour, drawing nothing: it keeps the box on the body.
-    this.gfx.fill(COLOR).rect(-43, -43, 86, 86)
-      .fill(BLACK).circle(0, 0, 21)
-      .fill(BLACK).mt(0, -43).lt(21, 0).lt(-21, 0).fill();
+    this.gfx.size(86).fill(BLACK).circle(0, 0, 21)
+      .mt(0, -43).lt(21, 0).lt(-21, 0);
   }
 
   explode() {
     this.remove();
     play.explode();
     new ent.Particle({
-      x: CX,
-      y: CY,
       color: BLACK,
-      count: 100,
       size: [4, 21],
       speed: [107, 107],
-      direction: [0, TAU],
       duration: 0.5,
     });
   }
@@ -496,8 +482,10 @@ function nextLevel() {
   // An enemy round outlives the level that fired it.
   if (player === null) return;
 
-  if (!player.shield) player.addShield();
-  else if (level > 0) score.value += 50;
+  if (!player.shield) {
+    player.shield = true;
+    player.draw();
+  } else if (level > 0) score.value += 50;
 
   rings = new Level(level);
   play.power();
@@ -537,7 +525,7 @@ function die() {
 }
 
 // Past the hand-made levels: four rings out of HARD, up to eight.
-function roll(n) {
+function hard(n) {
   const count = Math.min(8, Math.trunc(3 + Math.sqrt(1 + n - DATA.length)));
   const out = [];
   for (let i = 0; i < count; ++i) {

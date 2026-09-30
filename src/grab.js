@@ -129,7 +129,6 @@ class Player extends ent.Entity {
 
   die() {
     play.explode();
-    this.clearHits();
     this.vel.x = this.vel.y = 0;
     this.dying = true;
     delay(0.2);
@@ -148,7 +147,6 @@ class Hook extends ent.Entity {
     this.target = null;
     // A hit shape does not turn with `angle`, so the circle is on the origin.
     this.hitCircle(CLAW);
-    this.draw();
   }
 
   // The claw is the origin and the arm extends back from it, so size() keeps
@@ -356,12 +354,8 @@ class EndGame extends ent.Entity {
     this.pos.x = 512;
     this.pos.y = 512;
     this.stage = 0;
-    this.p = [
-      { x: x - 21, y: y - 21 },
-      { x: x + 21, y: y - 21 },
-      { x: x + 21, y: y + 21 },
-      { x: x - 21, y: y + 21 },
-    ];
+    this.p = [[-1, -1], [1, -1], [1, 1], [-1, 1]]
+      .map(([i, j]) => ({ x: x + 21 * i, y: y + 21 * j }));
     this.draw();
   }
 

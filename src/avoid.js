@@ -172,11 +172,7 @@ class Enemy extends Blob {
       dent(player.body, this.pos.x, this.pos.y, k);
     }
 
-    const s = 200;
-    if (
-      this.pos.x < -s || this.pos.y < -s ||
-      this.pos.x > 1024 + s || this.pos.y > 1024 + s
-    ) {
+    if (Math.abs(this.pos.x - 512) > 712 || Math.abs(this.pos.y - 512) > 712) {
       this.cash();
       this.remove();
       return;
@@ -192,29 +188,18 @@ class Enemy extends Blob {
     }
 
     for (const e of ent.get(Enemy)) {
-      if (e === this || e.dead) continue;
+      if (e === this) continue;
       if (
         Math.hypot(this.pos.x - e.pos.x, this.pos.y - e.pos.y) > this.size + e.size
       ) continue;
 
-      if (this.size > e.size) {
-        new Splat(e.tones[1], e.pos, 470 + e.speed / 3, 18, e.size * CLEAN_BACK);
-        this.size -= e.size;
-        this.tads += e.tads;
-        e.remove();
-      } else {
-        new Splat(
-          this.tones[1],
-          this.pos,
-          470 + this.speed / 3,
-          18,
-          this.size * CLEAN_BACK,
-        );
-        e.size -= this.size;
-        e.tads += this.tads;
-        this.remove();
-        return;
-      }
+      const [big, small] = this.size > e.size ? [this, e] : [e, this];
+      const worth = small.size * CLEAN_BACK;
+      new Splat(small.tones[1], small.pos, 470 + small.speed / 3, 18, worth);
+      big.size -= small.size;
+      big.tads += small.tads;
+      small.remove();
+      if (small === this) return;
     }
   }
 
@@ -237,12 +222,9 @@ const FOLLOW = 26;
 class Player extends Blob {
   constructor() {
     super(53, 512, 512);
+    this.tones = GOLD_TONES;
     // The last place over the board the pointer was; it can start off it.
     this.aim = { x: 512, y: 512 };
-  }
-
-  get tones() {
-    return GOLD_TONES;
   }
 
   update() {
@@ -335,19 +317,6 @@ class Score extends ent.Text {
   static screen = true;
 }
 
-function spec(ctx, b, path, L, along, across, sl, sa, alpha) {
-  const { cx, cy } = b;
-  ctx.save();
-  ctx.translate(cx + L.x * along - L.y * across, cy + L.y * along + L.x * across);
-  ctx.rotate(L.a);
-  ctx.scale(sl, sa);
-  ctx.rotate(-L.a);
-  ctx.translate(-cx, -cy);
-  ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
-  ctx.fill(path);
-  ctx.restore();
-}
-
 function paint(ctx, b, tones, outer) {
   const path = sim.outline(b);
 
@@ -412,7 +381,17 @@ function paint(ctx, b, tones, outer) {
     ctx.restore();
   }
 
-  spec(ctx, b, path, L, reach * 0.52, across * 0.22, 0.34, 0.40, 0.85);
+  const sx = reach * 0.52;
+  const sy = across * 0.22;
+  ctx.save();
+  ctx.translate(b.cx + L.x * sx - L.y * sy, b.cy + L.y * sx + L.x * sy);
+  ctx.rotate(L.a);
+  ctx.scale(0.34, 0.40);
+  ctx.rotate(-L.a);
+  ctx.translate(-b.cx, -b.cy);
+  ctx.fillStyle = "rgba(255, 255, 255, 0.85)";
+  ctx.fill(path);
+  ctx.restore();
 
   // Inside the clip, so the rim is the lit half of a stroke, not a ring.
   ctx.strokeStyle = "rgba(255, 255, 255, 0.8)";
@@ -534,14 +513,6 @@ class Splat extends ent.Entity {
   }
 }
 
-function step(dt) {
-  sim.measure();
-  sim.repair(dt);
-  // Last before the substeps, so a dent this frame is solved this step.
-  ent.update(dt);
-  sim.step(dt);
-}
-
 export function init() {
   sim.clear();
   ent.reset([Splat, Enemy, Player]);
@@ -567,5 +538,9 @@ export function update(dt) {
   // The constraints are projections, so stiffness over a second is the substep
   // count times the steps in it; 480 a second holds it at any frame length.
   sim.substeps = Math.max(2, Math.min(24, Math.round(dt * 480)));
-  step(dt);
+  sim.measure();
+  sim.repair(dt);
+  // Last before the substeps, so a dent this frame is solved this step.
+  ent.update(dt);
+  sim.step(dt);
 }

@@ -22,8 +22,7 @@ export const meta = {
 
 const WHITE = 0xffffff;
 const BLACK = 0x000000;
-// meta.fg is PANEL too.
-const PANEL = 0x024972;
+const PANEL = ent.hex(meta.fg);
 const ORANGE = 0xe65205;
 
 // The game's own bar, along the bottom.
@@ -51,41 +50,27 @@ const PIXEL = 13;
 
 const WHITEOUT = 0.1;
 
-// `across` spawns w by h off the left edge; the other a column every dx. At
-// t == 0, `xmove(row, t)` is not a speed but that row's spawn offset.
+// `across` spawns 5 by 3 off the left edge and moves right at 425; the other is
+// 3 by 6, a column every 218. At t == 0, `xmove(row, t)` is not a speed but that
+// row's spawn offset.
 const STRATS = [
+  { across: true, ymove: () => 0, shooting: 0.1 },
   {
-    spawn: { across: true, w: 5, h: 3, dy: 107 },
-    xmove: () => 425,
-    ymove: () => 0,
-    shooting: 0.1,
-  },
-  {
-    spawn: { across: false, w: 3, h: 6, dx: 218 },
+    across: false,
     xmove: (y, t) => t === 0 ? 385 * y : Math.trunc(t) % 4 <= 1 ? 425 : -425,
     ymove: (t) => Math.trunc(t) % 2 === 0 ? 107 : 0,
     shooting: 0.1,
   },
+  { across: true, ymove: (t) => 32 * Math.sin(2 * Math.PI * t / 30), shooting: 0.3 },
   {
-    spawn: { across: true, w: 5, h: 3, dy: 107 },
-    xmove: () => 425,
-    ymove: (t) => 32 * Math.sin(2 * Math.PI * t / 30),
-    shooting: 0.3,
-  },
-  {
-    spawn: { across: false, w: 3, h: 6, dx: 218 },
+    across: false,
     xmove: (y, t) => t === 0 ? 277 * y : (y + Math.trunc(t)) % 4 <= 1 ? 425 : -425,
     ymove: (t) => Math.trunc(t) % 3 === 0 ? 107 : 0,
     shooting: 0.3,
   },
+  { across: true, ymove: (t) => 170 * Math.sin(2 * Math.PI * t / 5), shooting: 0.5 },
   {
-    spawn: { across: true, w: 5, h: 3, dy: 107 },
-    xmove: () => 425,
-    ymove: (t) => 170 * Math.sin(2 * Math.PI * t / 5),
-    shooting: 0.5,
-  },
-  {
-    spawn: { across: false, w: 3, h: 6, dx: 218 },
+    across: false,
     xmove: (_y, t) => {
       if (t === 0) return 512;
       const s = Math.trunc(1.5 * t) % 6;
@@ -96,13 +81,12 @@ const STRATS = [
     shooting: 0.4,
   },
   {
-    spawn: { across: true, w: 5, h: 3, dy: 107 },
-    xmove: () => 425,
+    across: true,
     ymove: (t) => 600 * Math.sin(2 * Math.PI * t / 1.5),
     shooting: 0.6,
   },
   {
-    spawn: { across: false, w: 3, h: 6, dx: 218 },
+    across: false,
     xmove: (y, t) => t === 0 ? (y * 7843) % 1024 : 0,
     ymove: () => 425,
     shooting: 0,
@@ -139,7 +123,7 @@ class Bar extends ent.Entity {
   }
 
   update() {
-    const y = BOT + (BARH - EH) / 2 - this.pos.y;
+    const y = -EH / 2;
     const left = Math.max(0, energy) / 100;
     this.gfx.clear()
       .fill(PANEL).rect(-512, -BARH / 2, 1024, BARH)
@@ -167,14 +151,11 @@ class Total extends ent.Text {
   }
 
   update() {
-    const gap = score.value - this.visualScore;
-    if (gap > 0) {
-      const rate = Math.max(20, gap * 2);
-      this.visualScore = Math.min(
-        score.value,
-        this.visualScore + rate * ent.game.time,
-      );
-    }
+    const rate = Math.max(20, (score.value - this.visualScore) * 2);
+    this.visualScore = Math.min(
+      score.value,
+      this.visualScore + rate * ent.game.time,
+    );
     this.text = String(Math.floor(this.visualScore));
   }
 }
@@ -208,15 +189,7 @@ class Player extends ent.Entity {
     this.bullet?.remove();
     this.remove();
     play.lose();
-    new ent.Particle({
-      x: this.pos.x,
-      y: this.pos.y,
-      color: WHITE,
-      count: 80,
-      size: 13,
-      speed: [43, 107],
-      duration: 1.5,
-    });
+    debris(this.pos, 80, 1.5);
     shake(1);
     ent.after(0.4, () => gameOver({ score: true }));
   }
@@ -258,12 +231,12 @@ class Player extends ent.Entity {
 }
 
 class Bullet extends ent.Entity {
-  constructor(x) {
+  constructor(x, y = SHOTY, c = WHITE) {
     super();
     this.pos.x = x;
-    this.pos.y = SHOTY;
+    this.pos.y = y;
     this.hitBox(12, 36);
-    this.gfx.fill(WHITE).rect(-6, -18, 12, 36);
+    this.gfx.fill(c).rect(-6, -18, 12, 36);
   }
 
   explode(hit) {
@@ -284,13 +257,9 @@ class Bullet extends ent.Entity {
   }
 }
 
-class EnemyBullet extends ent.Entity {
+class EnemyBullet extends Bullet {
   constructor(x, y) {
-    super();
-    this.pos.x = x;
-    this.pos.y = y;
-    this.hitBox(12, 36);
-    this.gfx.fill(BLACK).rect(-6, -18, 12, 36);
+    super(x, y, BLACK);
     new Light(x, y, false);
   }
 
@@ -326,14 +295,12 @@ class Light extends ent.Entity {
 }
 
 class Enemy extends ent.Entity {
-  constructor(row, x, y, sprite, wave) {
+  constructor(row, x, y, sprite) {
     super();
     this.row = row;
     this.pos.x = x;
     this.pos.y = y;
     this.sprite = sprite;
-    this.wave = wave;
-    this.exploding = false;
     this.hitBox(COLS * PIXEL, ROWS * PIXEL);
     this.draw(BLACK);
   }
@@ -361,20 +328,16 @@ class Enemy extends ent.Entity {
   }
 
   update() {
-    if (this.exploding) return;
-
     if (this.hit(player)) {
-      this.exploding = true;
       player.explode();
       this.remove();
-      this.wave.drop(this);
       play.explode();
       return;
     }
 
     if (!this.hit(player.bullet)) return;
 
-    this.exploding = true;
+    this.clearHits();
     this.draw(WHITE);
     play.explode();
     shake(0.2);
@@ -383,17 +346,7 @@ class Enemy extends ent.Entity {
     score.value += (waves + 1) * player.combo;
     ent.after(WHITEOUT, () => {
       this.remove();
-      this.wave.drop(this);
-      new ent.Particle({
-        x: this.pos.x,
-        y: this.pos.y,
-        color: WHITE,
-        count: this.sprite.dots,
-        size: 13,
-        speed: [43, 107],
-        spread: 11,
-        duration: 0.5,
-      });
+      debris(this.pos, this.sprite.dots, 0.5, 11);
     });
   }
 }
@@ -405,50 +358,34 @@ class Wave extends ent.Entity {
     super();
     this.strat = STRATS[waves % STRATS.length];
     this.ticker = TICKERS[Math.trunc(waves / STRATS.length) % TICKERS.length];
-    this.all = [];
     this.spawn();
   }
 
   spawn() {
-    const { across, w, h, dx, dy } = this.strat.spawn;
+    const { across, xmove } = this.strat;
+    const [w, h] = across ? [5, 3] : [3, 6];
+    const gap = across ? BANDX / w : BANDY / h;
     const sprite = pattern();
-    const add = (row, x, y) => this.all.push(new Enemy(row, x, y, sprite, this));
-
-    if (across) {
-      const gap = BANDX / w;
-      for (let y = 0; y < h; ++y) {
-        for (let x = 0; x < w; ++x) {
-          add(y, x * gap + (y % 2) * (gap / 2) - 1058, 107 + y * dy);
-        }
-      }
-    } else {
-      const gap = BANDY / h;
-      for (let y = 0; y < h; ++y) {
-        for (let x = 0; x < w; ++x) {
-          add(y, 32 + x * dx + this.strat.xmove(y, 0), -gap * y);
-        }
+    const all = [];
+    for (let y = 0; y < h; ++y) {
+      for (let x = 0; x < w; ++x) {
+        const [ex, ey] = across
+          ? [x * gap + (y % 2) * (gap / 2) - 1058, 107 + y * 107]
+          : [32 + x * 218 + xmove(y, 0), -gap * y];
+        all.push(new Enemy(y, ex, ey, sprite));
       }
     }
 
     // Moved back off the entry edge, so the wave arrives rather than appears.
-    if (across) {
-      const max = Math.max(...this.all.map((e) => e.pos.x));
-      if (max > 0) { for (const e of this.all) e.pos.x -= max + 215; }
-    } else {
-      const max = Math.max(...this.all.map((e) => e.pos.y));
-      if (max > 0) { for (const e of this.all) e.pos.y -= max + 64; }
-    }
-  }
-
-  drop(e) {
-    const i = this.all.indexOf(e);
-    if (i >= 0) this.all.splice(i, 1);
+    const k = across ? "x" : "y";
+    const max = Math.max(...all.map((e) => e.pos[k]));
+    if (max > 0) { for (const e of all) e.pos[k] -= max + (across ? 215 : 64); }
   }
 
   update() {
     const { time } = ent.game;
-    const { across } = this.strat.spawn;
-    const { xmove, ymove, shooting } = this.strat;
+    const { across, ymove, shooting } = this.strat;
+    const xmove = this.strat.xmove ?? (() => 425);
     const steps = 10 + this.ticker(this.age);
 
     // Reservoir sampling: the same 1/n chance without counting them first.
@@ -456,7 +393,8 @@ class Wave extends ent.Entity {
     let shooter = null;
     let seen = 0;
 
-    for (const e of this.all) {
+    const all = ent.get(Enemy);
+    for (const e of all) {
       for (let s = 0; s < steps; ++s) {
         const t = this.age + s * time / 10;
         e.pos.x += xmove(e.row, t) * time / 10;
@@ -474,13 +412,26 @@ class Wave extends ent.Entity {
       if (shooter === null || Math.random() < 1 / seen) shooter = e;
     }
 
-    this.age += this.ticker(this.age) * time / 10;
+    this.age += (steps - 10) * time / 10;
     shooter?.shoot();
 
-    if (this.all.length > 0) return;
+    if (all.length > 0) return;
     this.remove();
     nextLevel();
   }
+}
+
+function debris(pos, count, duration, spread = 0) {
+  new ent.Particle({
+    x: pos.x,
+    y: pos.y,
+    color: WHITE,
+    count,
+    size: 13,
+    speed: [43, 107],
+    spread,
+    duration,
+  });
 }
 
 // Mirrored left to right, drawn again until legible; dots is the debris count.
@@ -501,7 +452,6 @@ function pattern() {
 
 // Spend what is left of the bar, over 1.5s for a full one.
 function nextLevel() {
-  if (wave === null) return;
   waves += 1;
   wave = null;
 
@@ -524,7 +474,7 @@ function nextLevel() {
 }
 
 function beginLevel() {
-  if (energy <= 0) energy = 1;
+  energy = 1;
   play.power();
 
   ent.every(0, () => {
@@ -540,7 +490,6 @@ export function init() {
   // formation, then an enemy asks what it is touching.
   ent.reset([Player, Wave, Enemy, EnemyBullet, Bullet, Light, ent.Particle, Bar]);
 
-  energy = 0;
   wave = null;
   waves = 0;
 

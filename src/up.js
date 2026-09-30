@@ -40,12 +40,12 @@ let passAt = 0;
 let burnAt = 0;
 
 class Engine extends ent.Entity {
-  constructor(ship, offset, label) {
+  constructor(ship, offset, label, key) {
     super();
     this.ship = ship;
     this.offset = offset;
     this.label = label;
-    this.firing = false;
+    this.key = key;
     this.gfx.fill(FLAME).rect(-19.5, -19.5, 39, 39, 12);
   }
 
@@ -57,8 +57,9 @@ class Engine extends ent.Entity {
   }
 
   fire() {
+    const a = this.angle + this.offset;
     // Thrust over drag is the top speed: 530 against a drag of 2 gives 265.
-    this.ship.thrust(530, this.offset + Math.PI);
+    this.ship.accelerate(-530 * Math.cos(a), -530 * Math.sin(a));
     new ent.Particle({
       x: this.pos.x,
       y: this.pos.y,
@@ -66,12 +67,10 @@ class Engine extends ent.Entity {
       count: [1, 2],
       size: [11, 11],
       speed: [530, 210],
-      direction: [this.angle + this.offset - Math.PI / 8, Math.PI / 4],
+      direction: [a - Math.PI / 8, Math.PI / 4],
       delay: [0, 0.05],
       duration: [0.25, 0.1],
     });
-
-    this.firing = true;
   }
 
   render(ctx) {
@@ -88,27 +87,20 @@ class Player extends ent.Entity {
     // Two polygons and not two boxes: entity.js only turns a polygon.
     this.hitPoly([-84, -21, 84, -21, 84, 21, -84, 21]);
     this.hitPoly([-21, -84, 21, -84, 21, 84, -21, 84]);
-    this.engines = ["D", "W", "A", "S"].map((label, i) =>
-      new Engine(this, -i * Math.PI / 2, label)
-    );
-  }
-
-  thrust(force, a) {
-    this.accelerate(
-      force * Math.cos(this.angle + a),
-      force * Math.sin(this.angle + a),
+    const keys = [["D", "right"], ["W", "up"], ["A", "left"], ["S", "down"]];
+    this.engines = keys.map(([label, key], i) =>
+      new Engine(this, -i * Math.PI / 2, label, key)
     );
   }
 
   update() {
     const { input, time } = ent.game;
-    if (input.press.right) this.engines[0].fire();
-    if (input.press.up) this.engines[1].fire();
-    if (input.press.left) this.engines[2].fire();
-    if (input.press.down) this.engines[3].fire();
+    const on = this.engines.filter((e) => input.press[e.key]);
+    for (const e of on) e.fire();
 
     this.accelerate(-2 * this.vel.x, -2 * this.vel.y);
     this.angle += time * this.vel.x / 425;
+    burn(on);
 
     if (this.pos.y > OUT) this.kill();
   }
@@ -223,7 +215,7 @@ function fill() {
       const key = `${cx},${cy}`;
       if (filled.has(key)) continue;
       filled.add(key);
-      deal(cx, cy, Math.floor(n) + (Math.random() < n % 1 ? 1 : 0));
+      deal(cx, cy, Math.floor(n + Math.random()));
     }
   }
 }
@@ -251,20 +243,16 @@ function deal(cx, cy, k) {
 }
 
 // One whoosh every 0.07s however many engines fired; x pans, y pitches.
-function burn() {
-  let n = 0;
-  let x = 0;
-  let y = 0;
-  for (const e of player.engines) {
-    if (!e.firing) continue;
-    e.firing = false;
-    const a = e.offset + player.angle;
-    n += 1;
-    x += Math.cos(a);
-    y += Math.sin(a);
-  }
+function burn(on) {
+  const n = on.length;
   if (n === 0 || ent.game.totalTime < burnAt) return;
 
+  let x = 0;
+  let y = 0;
+  for (const e of on) {
+    x += Math.cos(e.offset + player.angle);
+    y += Math.sin(e.offset + player.angle);
+  }
   burnAt = ent.game.totalTime + 0.07;
   play.whoosh({
     volume: 0.055 + 0.028 * n,
@@ -324,5 +312,4 @@ export function update(dt) {
   score.value += near * dt / 12;
 
   ent.update(dt);
-  burn();
 }

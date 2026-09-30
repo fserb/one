@@ -3,6 +3,7 @@
 import * as ent from "./lib/entity.js";
 import { Collider } from "./alma/src/collider.js";
 import { Mat4 } from "./alma/src/geom/mat4.js";
+import * as vec from "./alma/src/geom/vec.js";
 import { Quad } from "./alma/src/geom/Quad.js";
 import * as ease from "./alma/src/ease.js";
 import { act } from "./lib/act.js";
@@ -86,10 +87,7 @@ function bob() {
 }
 
 function lerp(a, b, t) {
-  return a.map((p, i) => ({
-    x: p.x + (b[i].x - p.x) * t,
-    y: p.y + (b[i].y - p.y) * t,
-  }));
+  return a.map((p, i) => vec.lerp(p, b[i], t));
 }
 
 class Board extends ent.Entity {
@@ -535,9 +533,9 @@ function merge() {
   if (act.is()) return;
   moves = null;
   for (;;) {
-    const block = blocks.find((b) => growth(b) !== null);
+    let g = null;
+    const block = blocks.find((b) => (g = growth(b)) !== null);
     if (!block) return;
-    const g = growth(block);
     for (let x = block.x; x < block.x + block.width + g.x; x++) {
       for (let y = block.y; y < block.y + block.height + g.y; y++) {
         const n = blockAt(block.board, x, y);
@@ -654,11 +652,6 @@ function unstick() {
   drop().then(refill);
 }
 
-function select(block) {
-  selected = block;
-  block.targetSink = 1;
-}
-
 function deselect() {
   if (!selected) return;
   selected.targetSink = 0;
@@ -706,7 +699,8 @@ function click(x, y) {
   if (previous && previous.board !== block.board && canSwap(previous, block)) {
     return swap(previous, block);
   }
-  select(block);
+  selected = block;
+  block.targetSink = 1;
 }
 
 export function init() {
@@ -714,7 +708,6 @@ export function init() {
   blocks.length = 0;
   boards.length = 0;
   selected = null;
-  score.value = 0;
   level = 0;
   busy = true;
   moves = null;

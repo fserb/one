@@ -122,13 +122,8 @@ class Piece extends ent.Entity {
     this.draw();
   }
 
-  target() {
-    this.targeted = true;
-    this.draw();
-  }
-
-  untarget() {
-    this.targeted = false;
+  mark(on) {
+    this.targeted = on;
     this.draw();
   }
 
@@ -149,8 +144,9 @@ class Piece extends ent.Entity {
     const dx = this.eye.x - this.pos.x;
     const dy = this.eye.y - this.pos.y;
     const d = Math.hypot(dx, dy);
-    const px = d === 0 ? 0 : PUPIL * dx / d;
-    const py = d === 0 ? 0 : PUPIL * dy / d;
+    const k = d === 0 ? 0 : PUPIL / d;
+    const px = k * dx;
+    const py = k * dy;
     this.gfx.clear()
       .fill(COLORS[this.color]).line(EDGE, DARK[this.color])
       .rect(-BOX, -BOX, 2 * BOX, 2 * BOX)
@@ -185,14 +181,11 @@ class Piece extends ent.Entity {
     if (this.targeted) {
       this.eye.x = this.pos.x;
       this.eye.y = this.pos.y;
-      const s = Math.max(0.5, this.scale - step);
-      if (s === this.scale) return;
-      this.scale = s;
-    } else {
-      const s = Math.min(1, this.scale + step);
-      if (s === this.scale) return;
-      this.scale = s;
     }
+    const ds = this.targeted ? -step : step;
+    const s = Math.min(1, Math.max(0.5, this.scale + ds));
+    if (s === this.scale) return;
+    this.scale = s;
     this.draw();
   }
 }
@@ -227,16 +220,12 @@ class Cursor extends ent.Entity {
 class Tray extends ent.Entity {
   constructor() {
     super();
-    this.counts = null;
     this.moving = false;
     this.points = 0;
-    this.from = TRAY_L;
-    this.pos.x = TRAY_L;
     this.pos.y = TRAY_Y;
   }
 
   set(counts) {
-    this.counts = counts;
     const order = [0, 1, 2, 3, 4].sort((a, b) => counts[b] - counts[a]);
 
     this.gfx.clear();
@@ -251,15 +240,12 @@ class Tray extends ent.Entity {
     // gfx centres on its own box, so the left edge costs half the width.
     this.from = TRAY_L + (17 * Math.max(...counts) - 2) / 2;
     this.pos.x = this.from;
-    this.pos.y = TRAY_Y;
   }
 
-  go() {
+  go(points) {
     this.moving = true;
     this.age = 0;
-    const kinds = this.counts.filter((c) => c > 0).length;
-    const each = Math.max(...this.counts);
-    this.points = kinds * each * (each - 1) * (kinds - 1) * hard();
+    this.points = points;
   }
 
   update() {
@@ -268,7 +254,15 @@ class Tray extends ent.Entity {
     this.pos.x = this.from + (SCORE_X - TRAY_L) * t * t;
     this.alpha = Math.max(0, 1 - t * t);
     if (t <= 1) return;
-    addScore(this.points);
+    shake(0.25);
+    play.coin();
+    ent.addScore(this.points, SCORE_X + 11 + total.half, TRAY_Y, {
+      size: 30,
+      color: 0x666666,
+      align: "left middle",
+      vel: [85, 0],
+      duration: 0.5,
+    });
     this.remove();
   }
 }
@@ -302,18 +296,6 @@ class Total extends ent.Text {
     this.half = ctx.mtext(this.text, this.size).width / 2;
     super.render(ctx);
   }
-}
-
-function addScore(v) {
-  shake(0.25);
-  play.coin();
-  ent.addScore(v, SCORE_X + 11 + total.half, TRAY_Y, {
-    size: 30,
-    color: 0x666666,
-    align: "left middle",
-    vel: [85, 0],
-    duration: 0.5,
-  });
 }
 
 function say(m) {
@@ -360,20 +342,12 @@ function nextRow() {
 }
 
 function shift() {
-  for (let y = 0; y < ROWS; ++y) {
-    for (let x = 0; x < COLS; ++x) {
-      const p = grid[x][y];
-      if (p !== null) p.py += 1;
-    }
-  }
-  for (let y = ROWS - 1; y > 0; --y) {
-    for (let x = 0; x < COLS; ++x) grid[x][y] = grid[x][y - 1];
-  }
-
   const row = nextRow();
   for (let x = 0; x < COLS; ++x) {
-    const c = row === null ? _ : row[x];
-    grid[x][0] = c === _ ? null : new Piece(x, 0, c);
+    for (const p of grid[x]) if (p !== null) p.py += 1;
+    grid[x].pop();
+    const c = row?.[x] ?? _;
+    grid[x].unshift(c === _ ? null : new Piece(x, 0, c));
   }
 
   for (const c of chain) c.py += 1;
@@ -401,7 +375,7 @@ function advance(dt) {
 
 function undo() {
   for (const c of chain.slice(1)) {
-    at(c.px, c.py)?.untarget();
+    at(c.px, c.py)?.mark(false);
     c.remove();
   }
   chain.length = 1;
@@ -419,8 +393,8 @@ function check() {
   tray.set(counts);
 
   const most = Math.max(...counts);
-  if (most <= 1) return;
-  if (counts.filter((c) => c > 0).length <= 1) return;
+  const kinds = counts.filter((c) => c > 0).length;
+  if (most <= 1 || kinds <= 1) return;
   if (counts.some((c) => c > 0 && c < most)) return;
 
   const head = chain.at(-1);
@@ -431,7 +405,7 @@ function check() {
   chain = [head];
   play.explode();
 
-  tray.go();
+  tray.go(kinds * most * (most - 1) * (kinds - 1) * hard());
   tray = new Tray();
 }
 
@@ -444,10 +418,9 @@ function control() {
   const head = chain.at(-1);
   const hx = cellX(head.px);
   const hy = cellY(head.py);
-  at(head.px - 1, head.py)?.see(hx, hy);
-  at(head.px + 1, head.py)?.see(hx, hy);
-  at(head.px, head.py - 1)?.see(hx, hy);
-  at(head.px, head.py + 1)?.see(hx, hy);
+  for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+    at(head.px + dx, head.py + dy)?.see(hx, hy);
+  }
 
   let tx = head.px;
   let ty = head.py;
@@ -471,7 +444,7 @@ function control() {
   play.jump();
   head.head = false;
   head.draw();
-  box.target();
+  box.mark(true);
   chain.push(new Cursor(tx, ty));
   check();
 }

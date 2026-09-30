@@ -94,10 +94,6 @@ let colors = 3;
 let gun = [];
 let reload = 0;
 let feed = 0;
-// The first frame only records where the pointer is, so a round does not open
-// by swinging the gun at wherever it was left.
-const ptr = { x: 0, y: 0 };
-let aimed = false;
 
 const key = (q, r) => `${q},${r}`;
 const cellX = (q, r) => STEP * (q + r / 2);
@@ -242,8 +238,7 @@ class Shot extends ent.Entity {
     this.color = color;
     this.pos.x = x;
     this.pos.y = y;
-    this.dx = Math.cos(a);
-    this.dy = Math.sin(a);
+    this.dir = { x: Math.cos(a), y: Math.sin(a) };
     this.left = BOUNCES;
   }
 
@@ -256,29 +251,18 @@ class Shot extends ent.Entity {
   }
 
   step(d) {
-    this.pos.x += this.dx * d;
-    this.pos.y += this.dy * d;
+    this.pos.x += this.dir.x * d;
+    this.pos.y += this.dir.y * d;
 
     // Flat walls and never the round rail: a bounce inside a circle keeps the
     // shot line's distance from the middle, so a bank off it could never aim
     // the shot in.
     let hit = false;
-    if (this.pos.x < LOW) {
-      this.pos.x = LOW;
-      this.dx = -this.dx;
-      hit = true;
-    } else if (this.pos.x > HIGH) {
-      this.pos.x = HIGH;
-      this.dx = -this.dx;
-      hit = true;
-    }
-    if (this.pos.y < LOW) {
-      this.pos.y = LOW;
-      this.dy = -this.dy;
-      hit = true;
-    } else if (this.pos.y > HIGH) {
-      this.pos.y = HIGH;
-      this.dy = -this.dy;
+    for (const k of ["x", "y"]) {
+      const p = Math.min(HIGH, Math.max(LOW, this.pos[k]));
+      if (p === this.pos[k]) continue;
+      this.pos[k] = p;
+      this.dir[k] = -this.dir[k];
       hit = true;
     }
 
@@ -290,8 +274,8 @@ class Shot extends ent.Entity {
       // nothing adds no spin.
       if (--this.left < 0) {
         const d = Math.hypot(CX - this.pos.x, CY - this.pos.y) || 1;
-        this.dx = (CX - this.pos.x) / d;
-        this.dy = (CY - this.pos.y) / d;
+        this.dir.x = (CX - this.pos.x) / d;
+        this.dir.y = (CY - this.pos.y) / d;
       }
     }
 
@@ -309,6 +293,9 @@ class Gun extends ent.Entity {
   constructor() {
     super();
     this.off = 0;
+    // The first frame only records where the pointer is, so a round does not
+    // open by swinging the gun at wherever it was left.
+    this.ptr = null;
     this.gfx.size(2 * 175).fill(PAPER)
       .arc(0, 0, R * CUT + LIP, 20, MOUTH, TAU - MOUTH)
       .circle(-QUEUE, 0, QUEUE_R + LIP)
@@ -324,24 +311,21 @@ class Gun extends ent.Entity {
 
   update() {
     const { input, time } = ent.game;
-    const moved = input.x !== ptr.x || input.y !== ptr.y;
-    ptr.x = input.x;
-    ptr.y = input.y;
+    const last = this.ptr;
+    this.ptr = { x: input.x, y: input.y };
 
     if (input.press.left) this.off -= TURN * time;
     else if (input.press.right) this.off += TURN * time;
-    else if (moved && aimed) {
+    else if (last && (input.x !== last.x || input.y !== last.y)) {
       const at = Math.atan2(input.y - this.pos.y, input.x - this.pos.x);
       this.off = fold(at - railA - Math.PI);
     }
-    aimed = true;
     this.off = fold(this.off);
     this.place();
 
     reload = Math.max(0, reload - time);
     feed = Math.max(0, feed - time);
-    if (!input.just.act || reload > 0 || feed > 0) return;
-    if (ent.one(Shot) !== null) return;
+    if (!input.just.act || reload > 0 || feed > 0 || ent.one(Shot)) return;
 
     new Shot(gun.shift(), this.pos.x, this.pos.y, this.angle);
     gun.push(pick());
@@ -391,23 +375,16 @@ function settle(cell, lx, ly) {
 
   let best = null;
   let d = Infinity;
-  for (const [dq, dr] of DIRS) {
-    const q = cell.q + dq;
-    const r = cell.r + dr;
-    if (taken(q, r) || near(q, r) >= d) continue;
+  const consider = (q, r) => {
+    if (taken(q, r) || near(q, r) >= d) return;
     d = near(q, r);
     best = { q, r };
-  }
+  };
+  for (const [dq, dr] of DIRS) consider(cell.q + dq, cell.r + dr);
   if (best !== null) return best;
 
   for (const b of cells.values()) {
-    for (const [dq, dr] of DIRS) {
-      const q = b.q + dq;
-      const r = b.r + dr;
-      if (taken(q, r) || near(q, r) >= d) continue;
-      d = near(q, r);
-      best = { q, r };
-    }
+    for (const [dq, dr] of DIRS) consider(b.q + dq, b.r + dr);
   }
   return best;
 }
@@ -415,7 +392,7 @@ function settle(cell, lx, ly) {
 function land(shot, cell) {
   const dx = shot.pos.x - CX;
   const dy = shot.pos.y - CY;
-  omega += (dx * shot.dy - dy * shot.dx) * SPEED * SPIN / moment();
+  omega += (dx * shot.dir.y - dy * shot.dir.x) * SPEED * SPIN / moment();
 
   const at = settle(cell, dx * cosA + dy * sinA, dy * cosA - dx * sinA);
   shot.remove();
@@ -431,7 +408,8 @@ function moment() {
 }
 
 function resolve(b) {
-  const group = same(b);
+  const group = [...flood(b.q, b.r, (n) => n?.color === b.color)]
+    .map((k) => cells.get(k));
   if (group.length >= MATCH) {
     pop(group);
     dropLoose();
@@ -441,28 +419,35 @@ function resolve(b) {
   restock();
 }
 
-function same(b) {
-  const group = [b];
-  const seen = new Set([key(b.q, b.r)]);
-  for (let i = 0; i < group.length; ++i) {
+function flood(q, r, keep) {
+  const seen = new Set([key(q, r)]);
+  const queue = [[q, r]];
+  for (let i = 0; i < queue.length; ++i) {
     for (const [dq, dr] of DIRS) {
-      const k = key(group[i].q + dq, group[i].r + dr);
-      if (seen.has(k)) continue;
+      const at = [queue[i][0] + dq, queue[i][1] + dr];
+      const k = key(...at);
+      if (seen.has(k) || !keep(cells.get(k))) continue;
       seen.add(k);
-      const n = cells.get(k);
-      if (n !== undefined && n.color === b.color) group.push(n);
+      queue.push(at);
     }
   }
-  return group;
+  return seen;
+}
+
+function mid(list) {
+  let x = 0;
+  let y = 0;
+  for (const b of list) {
+    x += b.pos.x / list.length;
+    y += b.pos.y / list.length;
+  }
+  return { x, y };
 }
 
 function pop(group) {
   const c = COLORS[group[0].color];
-  let cx = 0;
-  let cy = 0;
+  const { x, y } = mid(group);
   for (const b of group) {
-    cx += b.pos.x / group.length;
-    cy += b.pos.y / group.length;
     new ent.Particle({
       x: b.pos.x,
       y: b.pos.y,
@@ -475,37 +460,22 @@ function pop(group) {
     });
     b.remove();
   }
-  ent.addScore(10 * group.length * board, cx, cy, { color: c });
+  ent.addScore(10 * group.length * board, x, y, { color: c });
   play.break();
   shake(0.1 + 0.02 * group.length);
 }
 
 function dropLoose() {
-  const seen = new Set([key(0, 0)]);
-  const queue = [[0, 0]];
-  for (let i = 0; i < queue.length; ++i) {
-    for (const [dq, dr] of DIRS) {
-      const q = queue[i][0] + dq;
-      const r = queue[i][1] + dr;
-      const k = key(q, r);
-      if (seen.has(k) || !cells.has(k)) continue;
-      seen.add(k);
-      queue.push([q, r]);
-    }
-  }
-
+  const seen = flood(0, 0, (n) => n !== undefined);
   const gone = [...cells.values()].filter((b) => !seen.has(key(b.q, b.r)));
   if (gone.length === 0) return;
 
-  let cx = 0;
-  let cy = 0;
+  const { x, y } = mid(gone);
   for (const b of gone) {
-    cx += b.pos.x / gone.length;
-    cy += b.pos.y / gone.length;
     new Drop(b);
     b.remove();
   }
-  ent.addScore(20 * gone.length * board, cx, cy);
+  ent.addScore(20 * gone.length * board, x, y);
   play.drop();
 }
 
@@ -547,9 +517,7 @@ function pick() {
 function restock() {
   const on = live();
   if (on.length === 0) return;
-  gun = gun.map((c) =>
-    on.includes(c) ? c : on[Math.floor(on.length * Math.random())]
-  );
+  gun = gun.map((c) => on.includes(c) ? c : pick());
 }
 
 // Distance 3 ragged, so no two boards present the same edge.
@@ -568,20 +536,14 @@ export function init() {
   ent.reset([Rail, Gun, Axle, Outline, Bubble, Drop, Shot]);
   cells.clear();
 
-  angle = 0;
-  omega = 0;
-  cosA = 1;
-  sinA = 0;
   railA = -Math.PI / 2;
   railV = 0;
-  board = 1;
-  colors = 3;
-  reload = 0;
+  board = 0;
   feed = 0;
-  aimed = false;
-
-  build();
+  gun = [];
+  nextBoard();
   gun = [pick(), pick()];
+  reload = 0;
   new Rail();
   new Axle();
   new Gun();

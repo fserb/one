@@ -68,7 +68,7 @@ class Player extends ent.Entity {
 
     this.reload = Math.max(0, this.reload - time);
     if (input.press.act && this.reload <= 0) {
-      fire(this, true, play.shoot);
+      fire(this);
       this.reload += 0.35;
     }
 
@@ -87,7 +87,6 @@ class Bullet extends ent.Entity {
     super();
     this.fromPlayer = fromPlayer;
     this.angle = src.angle;
-    this.life = 2;
     this.pos.x = src.pos.x + MUZZLE * Math.cos(this.angle);
     this.pos.y = src.pos.y + MUZZLE * Math.sin(this.angle);
     this.vel.x = SHOT_SPEED * Math.cos(this.angle);
@@ -98,18 +97,15 @@ class Bullet extends ent.Entity {
   }
 
   update() {
-    this.life -= ent.game.time;
-    if (this.life < 0) return this.remove();
+    if (this.age > 2) return this.remove();
 
     wrap(this, 0);
 
-    for (const b of ent.get(Bullet)) {
-      if (b.fromPlayer === this.fromPlayer || !this.hit(b)) continue;
-      play.hit();
-      b.remove();
-      this.remove();
-      return;
-    }
+    const b = incoming(this, !this.fromPlayer);
+    if (b === null) return;
+    play.hit();
+    b.remove();
+    this.remove();
   }
 }
 
@@ -157,9 +153,10 @@ class Rock extends Target {
       });
 
       if (this.size >= ROCK_MIN) {
-        const half = this.size / 2;
-        split(this.pos, half, b.angle + Math.PI / 2);
-        split(this.pos, half, b.angle - Math.PI / 2);
+        for (const s of [1, -1]) {
+          const a = b.angle + s * Math.PI / 2;
+          new Rock(this.size / 2, this.pos.x, this.pos.y, a, 107);
+        }
       }
       return;
     }
@@ -193,15 +190,9 @@ class Enemy extends Target {
   findTarget() {
     const x = 1024 * Math.random();
     const y = 1024 * Math.random();
-    if (player === null) {
-      this.target = { x, y };
-      return;
-    }
-    const w = 1 - Math.min(0.75, this.age / 10);
-    this.target = {
-      x: w * x + (1 - w) * player.pos.x,
-      y: w * y + (1 - w) * player.pos.y,
-    };
+    const p = player?.pos ?? { x, y };
+    const w = Math.min(0.75, this.age / 10);
+    this.target = { x: x + (p.x - x) * w, y: y + (p.y - y) * w };
   }
 
   update() {
@@ -211,6 +202,7 @@ class Enemy extends Target {
     if (Math.hypot(tx, ty) < 68) this.findTarget();
 
     const speed = Math.hypot(this.vel.x, this.vel.y);
+    const dot = this.vel.x * tx + this.vel.y * ty;
     const toPlayer = player === null
       ? 0
       : Math.atan2(player.pos.y - this.pos.y, player.pos.x - this.pos.x);
@@ -218,13 +210,13 @@ class Enemy extends Target {
     // Over 215 it stops steering and aims; under 43 it thrusts as it points.
     if (
       player !== null && speed >= 215 &&
-      between(tx, ty, this.vel.x, this.vel.y) <= CONE
+      dot > Math.cos(CONE) * Math.hypot(tx, ty) * speed
     ) {
       steer(this, toPlayer, Math.PI);
     } else {
       let dx = tx;
       let dy = ty;
-      if (speed > 0 && this.vel.x * tx + this.vel.y * ty > 0) {
+      if (speed > 0 && dot > 0) {
         // Mirror about the line to the target; the overshoot is the weave.
         const l = Math.hypot(tx, ty);
         const nx = tx / l;
@@ -244,7 +236,7 @@ class Enemy extends Target {
     if (player !== null) {
       this.reload = Math.max(0, this.reload - time);
       if (Math.abs(fold(toPlayer - this.angle)) < Math.PI / 12 && this.reload <= 0) {
-        fire(this, false, play.shoot, -500);
+        fire(this);
         this.reload += 0.75;
       }
     }
@@ -252,21 +244,14 @@ class Enemy extends Target {
     wrap(this, 26);
 
     const b = incoming(this, true);
-    if (b !== null) {
-      b.remove();
-      this.remove();
-      shake();
-      play.break();
-      ent.addScore(10, this.pos.x, this.pos.y);
-      debris(this.pos, BLACK, 40, 1);
-      return;
-    }
-
-    if (!this.hit(player)) return;
+    if (b === null && !this.hit(player)) return;
     this.remove();
     play.break();
     debris(this.pos, BLACK, 40, 1);
-    explode();
+    if (b === null) return explode();
+    b.remove();
+    shake();
+    ent.addScore(10, this.pos.x, this.pos.y);
   }
 }
 
@@ -283,11 +268,11 @@ function thrust(e, dv) {
   e.vel.y *= TOP_SPEED / l;
 }
 
-function fire(e, fromPlayer, shoot, detune = 0) {
-  new Bullet(e, fromPlayer);
+function fire(e) {
+  new Bullet(e, e === player);
   e.vel.x -= RECOIL * Math.cos(e.angle);
   e.vel.y -= RECOIL * Math.sin(e.angle);
-  shoot({ detune });
+  play.shoot({ detune: e === player ? 0 : -500 });
 }
 
 // Returns how far off `e` was before the turn.
@@ -342,10 +327,6 @@ function debris(pos, color, count, life) {
   });
 }
 
-function split(pos, size, angle) {
-  new Rock(size, pos.x, pos.y, angle, 107);
-}
-
 function newRock() {
   const size = ROCK_MIN + 43 * Math.random();
   const angle = TAU * Math.random();
@@ -368,17 +349,9 @@ function wrap(e, s) {
   else if (pos.y > 1024 + s / 2) pos.y = -s / 2 + 1;
 }
 
-// 0 to PI. A ship at rest has no heading, and PI sends it to the steering.
-function between(ax, ay, bx, by) {
-  const l = Math.hypot(ax, ay) * Math.hypot(bx, by);
-  if (l === 0) return Math.PI;
-  return Math.acos(Math.max(-1, Math.min(1, (ax * bx + ay * by) / l)));
-}
-
 export function init() {
   ent.reset([Rock, Enemy, ent.Particle, Player, Bullet]);
 
-  realtime = 0;
   rockTime = 2;
   waveTime = 0;
   wave = 1;

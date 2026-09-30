@@ -3,6 +3,7 @@
 import color from "./alma/src/color.js";
 import * as line from "./alma/src/geom/line.js";
 import { Path2D } from "./alma/src/geom/path2d.js";
+import { area } from "./alma/src/geom/shape/measure.js";
 import * as sdf from "./alma/src/geom/sdf.js";
 import * as spline from "./alma/src/geom/spline.js";
 import { Layer } from "./alma/src/gfx/layer.js";
@@ -93,13 +94,12 @@ const TIERS = Array.from({ length: TIER_COUNT }, (_, i) => {
   };
 });
 
-function flatten(pts, step = 7) {
+function flatten(pts) {
   const curve = spline.catmullRom(pts.map(([x, y]) => ({ x, y })), {
     alpha: 0,
     tension: 0,
   });
-  return [...spline.pointsByDistance(spline.arcLength(curve), step)]
-    .map(({ x, y }) => ({ x, y }));
+  return [...spline.pointsByDistance(spline.arcLength(curve), 7)];
 }
 
 function buildPool({ chain, danger, lower }) {
@@ -113,11 +113,6 @@ function buildPool({ chain, danger, lower }) {
 
   // The collision polygon closes the chain above the top of the board.
   const poly = [{ x: head.x, y: -480 }, ...chain, { x: tail.x, y: -480 }];
-  let twice = 0;
-  for (const [i, p] of poly.entries()) {
-    const q = poly[(i + 1) % poly.length];
-    twice += p.x * q.y - q.x * p.y;
-  }
 
   danger += oy;
   const cross = [];
@@ -139,7 +134,7 @@ function buildPool({ chain, danger, lower }) {
       cell: 3.5,
       band: TIERS.at(-1).outer + 2 * R,
     }),
-    side: Math.sign(twice),
+    side: -Math.sign(area({ points: poly })),
     mouth: { l, r },
     mid: (l + r) / 2,
     x0: Math.min(...xs) + ox,
@@ -527,13 +522,13 @@ class Rail extends ent.Entity {
     if (this.wait < FEED_PERIOD) return;
     this.wait = 0;
     this.side ^= 1;
-    this.feed(FEEDS[this.side]);
+    this.feed(FEEDS[this.side], queued);
   }
 
-  feed(f) {
+  feed(f, queued) {
     const room = this.extra +
       Math.min(sim.clearance(f.x, f.y), sim.clearance(f.x, pool.bar));
-    const tier = this.pick(f, room);
+    const tier = this.pick(f, room, queued);
     if (tier < 0) return;
     const b = new Blob(tier, f.x, f.y, { bar: true });
     const dx = pool.mid - f.x;
@@ -545,15 +540,13 @@ class Rail extends ent.Entity {
 
   // Not the tier on top of the pile below, nor the nearest rail blob's tier,
   // unless that one is all that fits and the rail has one blob or none.
-  pick(f, room) {
+  pick(f, room, queued) {
     let pile = -1;
     let pileY = Infinity;
     let near = -1;
     let nearD = Infinity;
-    let queued = 0;
     for (const { tier, bar, body: { cx, cy } } of ent.get(Blob)) {
       if (bar) {
-        queued++;
         const d = Math.abs(cx - f.x);
         if (d < nearD) [near, nearD] = [tier.index, d];
         continue;
@@ -608,10 +601,6 @@ class Arrow extends ent.Entity {
   get shot() {
     const g = AIM_MAX / this.max;
     return [this.dx * g, this.dy * g];
-  }
-
-  get tilt() {
-    return this.blob ? -this.shot[0] * 180 / AIM_MAX : 0;
   }
 
   hoverAt(x, y) {
@@ -1062,7 +1051,7 @@ function step(dt) {
   sim.repair(dt);
   ent.update(dt);
   // Rail blobs have their own gravity and do not tilt.
-  sim.gravity.x = arrow.tilt;
+  sim.gravity.x = -arrow.shot[0] * 180 / AIM_MAX;
   sim.step(dt);
 }
 

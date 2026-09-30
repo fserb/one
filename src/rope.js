@@ -13,7 +13,7 @@ import * as sound from "./lib/sound.js";
 
 export { render } from "./lib/entity.js";
 
-const { clamp, lerp, TAU } = extra;
+const { clamp, TAU } = extra;
 
 export const meta = {
   title: "rope",
@@ -147,11 +147,11 @@ class Cave extends ent.Entity {
     const horizon = this.horizon;
     const last = this.path.at(-1);
     const step = VIEW / (4 + 2 * Math.random());
-    const next = vec.add(last, vec.mul(this.dir, step));
+    const yv = vec.mul(this.dir, step);
+    const next = vec.add(last, yv);
 
     const length = VIEW + 7 * Math.random();
-    const yv = vec.mul(vec.normalize(this.dir), step);
-    const xv = vec.mul(vec.normalize(vec.perp(yv)), length);
+    const xv = vec.mul(vec.perp(this.dir), length);
 
     // A turn moves the outside of the bend further than the inside.
     let lastDir = vec.sub(last, this.path.at(-2) ?? last);
@@ -172,20 +172,15 @@ class Cave extends ent.Entity {
       Math.ceil(horizon.length * (i + 1) / divs),
     ];
 
-    const horiz = [];
-    for (let i = 0; i < divs; ++i) {
-      const [h0, h1] = span(i);
-      let max = -1;
-      for (let x = h0; x < h1; x++) max = Math.max(max, horizon[x]);
-      horiz.push(max);
-    }
+    const horiz = Array.from(
+      { length: divs },
+      (_, i) => Math.max(-1, ...horizon.slice(...span(i))),
+    );
 
     // A column takes a rope once 0.4 of clear air has opened under it.
-    const space = [];
-    for (let i = 0; i < divs; ++i) {
-      if (horiz[i] > -0.4) space.push(null);
-      else space.push(Math.random() < 0.5 ? "line" : "hang");
-    }
+    const space = horiz.map((h) =>
+      h > -0.4 ? null : Math.random() < 0.5 ? "line" : "hang"
+    );
     const isLine = (i) => space[i] === "line";
 
     // Never three across in a row, then drop some so the band stays climbable.
@@ -202,7 +197,7 @@ class Cave extends ent.Entity {
 
     // How upright the path runs decides which kind comes out level. That one is
     // pinned at both ends; the steep one hangs from its top.
-    const upright = Math.abs(vec.dot(vec.normalize(this.dir), { x: 0, y: -1 }));
+    const upright = Math.abs(this.dir.y);
     const pinLine = upright >= 0.25;
     const pinHang = upright <= 0.75;
     const band = (x, y = 0) =>
@@ -234,7 +229,7 @@ class Cave extends ent.Entity {
     this.path.push(next);
 
     this.turning = clamp(this.turning + TURN * (Math.random() - 0.5), -TURN, TURN);
-    const turn = vec.mul(vec.normalize(vec.perp(this.dir)), this.turning);
+    const turn = vec.mul(vec.perp(this.dir), this.turning);
     this.dir = vec.normalize(vec.add(this.dir, turn));
   }
 }
@@ -392,11 +387,9 @@ class Player extends ent.Entity {
     this.eyelook = { x: 0, y: 0 };
     this.focuson = null;
     this.onair = 0;
-    this.pupil = 0;
     this.blink = 0;
     this.blinking = 1;
     this.looking = 2;
-    this.breath = 0;
 
     const density = 1 / 10;
 
@@ -404,8 +397,6 @@ class Player extends ent.Entity {
     // A category of its own, which only the saw's mask includes. A category of
     // 0 fails the broadphase query, so the saw would pass over the head.
     this.head.circle({ r: 0.6, density, filter: { category: 8, mask: 8 } });
-    this.pos.x = this.head.x;
-    this.pos.y = this.head.y;
 
     this.tail = [];
     let last = this.head;
@@ -472,9 +463,6 @@ class Player extends ent.Entity {
     this.pos.x = this.head.x;
     this.pos.y = this.head.y;
 
-    this.breath = Math.sin(TAU * time * 0.12);
-    this.pupil = Math.cos(333 + TAU * time * 0.035);
-
     this.blinking -= dt;
     if (this.blinking <= 0 && this.blink === 0) {
       act(this)
@@ -483,11 +471,10 @@ class Player extends ent.Entity {
       this.blinking = 2 + 8 * Math.random();
     }
 
-    this.eye.x = lerp(this.eye.x, this.eyelook.x, 0.15);
-    this.eye.y = lerp(this.eye.y, this.eyelook.y, 0.15);
+    this.eye = vec.lerp(this.eye, this.eyelook, 0.15);
 
     if (this.hands.every((h) => h.hold === null)) {
-      this.eyelook.x = this.eyelook.y = 0;
+      this.eyelook = { x: 0, y: 0 };
       this.looking = 5 + Math.random();
       this.onair += dt;
       if (this.onair > 5) gameOver({ score: true });
@@ -507,12 +494,9 @@ class Player extends ent.Entity {
     this.looking -= dt;
     if (this.looking <= 0) {
       this.looking = 5 + 3 * Math.random();
-      this.eyelook.x = -1 + 2 * Math.random();
-      this.eyelook.y = -1 + 2 * Math.random();
+      this.eyelook = { x: -1 + 2 * Math.random(), y: -1 + 2 * Math.random() };
     } else if (this.focuson) {
-      const d = vec.normalize(vec.sub(this.focuson, this.head));
-      this.eyelook.x = d.x;
-      this.eyelook.y = d.y;
+      this.eyelook = vec.normalize(vec.sub(this.focuson, this.head));
     }
   }
 
@@ -594,12 +578,12 @@ class Player extends ent.Entity {
     ctx.scale(0.45 / 38, 0.45 / 38);
 
     ctx.fillStyle = BODY;
-    ctx.fillCircle(0, 0, 51 + this.breath);
+    ctx.fillCircle(0, 0, 51 + Math.sin(TAU * time * 0.12));
     ctx.fillStyle = WHITE;
     ctx.fillCircle(0, 0, 38);
 
     const ER = 16;
-    const rb = 20.5 - this.pupil;
+    const rb = 20.5 - Math.cos(333 + TAU * time * 0.035);
     const rx = rb - 5 * vec.len(this.eye);
     const ang = vec.angle(this.eye);
 
@@ -628,11 +612,8 @@ class Player extends ent.Entity {
       ctx.fillStyle = BODY;
       ctx.beginPath();
       ctx.arc(0, 0, 39, Math.PI, TAU);
-      if (this.blink < 0.5) {
-        ctx.ellipse(0, 0, 39, lerp(39, 0, this.blink * 2), 0, 0, Math.PI, true);
-      } else {
-        ctx.ellipse(0, 0, 39, lerp(0, 39, (this.blink - 0.5) * 2), 0, 0, Math.PI);
-      }
+      const ry = 39 * Math.abs(1 - 2 * this.blink);
+      ctx.ellipse(0, 0, 39, ry, 0, 0, Math.PI, this.blink < 0.5);
       ctx.fill();
     }
 
@@ -646,20 +627,17 @@ class Throw extends ent.Entity {
   constructor() {
     super();
     this.hand = null;
-    this.target = { x: 0, y: 0 };
   }
 
   update() {
     const input = ent.game.input;
     if (this.hand === null) {
       if (input.just.act) this.grab();
-      return;
-    }
-    if (input.press.act) {
+    } else if (input.press.act) {
       this.drag();
-      return;
+    } else {
+      this.release();
     }
-    this.release();
   }
 
   grab() {
