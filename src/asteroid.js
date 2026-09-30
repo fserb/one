@@ -2,7 +2,7 @@
 
 import * as ent from "./lib/entity.js";
 import { shake } from "./lib/camera.js";
-import { gameOver, ramp, score } from "./lib/one.js";
+import { gameOver, ramp, score, speed } from "./lib/one.js";
 import * as play from "./lib/sounds.js";
 
 export { render } from "./lib/entity.js";
@@ -40,9 +40,8 @@ const ROCK_SPEED = 215;
 
 const CONE = Math.PI / 6;
 
+// The ship turns on the real clock, whatever speed() the rest runs at.
 let realtime = 0;
-// Seconds of running clock; the ramp reads this, not one.js's time.
-let clock = 0;
 let rockTime = 0;
 let waveTime = 0;
 let wave = 1;
@@ -387,7 +386,6 @@ export function init() {
   ent.reset([Rock, Enemy, ent.Particle, Player, Bullet]);
 
   realtime = 0;
-  clock = 0;
   rockTime = 2;
   waveTime = 0;
   wave = 1;
@@ -395,24 +393,23 @@ export function init() {
   player = new Player();
 }
 
-export function update(dt) {
-  realtime = dt;
+export function update(dt, real) {
+  realtime = real;
+  const { press } = ent.game.input;
+  speed(player === null || press.up || press.act ? 1 : 1 / 50);
 
   // explode()'s timer ends the round.
   if (player === null) return ent.update(dt);
 
-  const { input } = ent.game;
-  const time = input.press.up || input.press.act ? dt : dt / 50;
-  clock += time;
-  const hard = ramp(clock);
+  const hard = ramp();
 
-  rockTime -= time;
+  rockTime -= dt;
   if (rockTime <= 0) {
     rockTime = 23 / hard;
     newRock();
   }
 
-  waveTime -= time;
+  waveTime -= dt;
   if (waveTime <= 0) {
     const n = Math.floor(wave);
     for (let i = 0; i < n; ++i) new Enemy();
@@ -423,6 +420,6 @@ export function update(dt) {
 
   if (alive === 0) rockTime = waveTime = 0;
 
-  score.value += time;
-  ent.update(time);
+  score.value += dt;
+  ent.update(dt);
 }

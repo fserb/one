@@ -6,7 +6,11 @@
  * doing nothing at module scope: the build reads `meta` by importing it under
  * Deno, so nothing may use the DOM there.
  *
- * It also holds the shared state: meta, score, op and `time`.
+ * It also holds the shared state: meta, score, op and `time`, and the round's
+ * clock. tick() is the round's part of a frame: it scales the frame's seconds
+ * by speed(), holds them at 0 through effects.js's delay(), adds what advance()
+ * asked for, and passes the result to `time`, fixed(), Act and the game's
+ * update(). The camera, the overlay and the flash stay on the real clock.
  */
 
 import { register as registerPlus2d } from "../alma/src/gfx/plus2d.js";
@@ -36,6 +40,12 @@ export const score = {
 };
 
 export let time = 0;
+
+let rate = 1; // speed()
+let owed = 0; // seconds advance() adds to the next tick
+let dt = 0; // this tick's seconds on the round's clock
+let ticks = 0;
+const rates = new Map(); // fixed()'s accumulators, by rate
 
 export function ramp(t = time) {
   return Math.sqrt(t * 0.006) + 1;
@@ -96,6 +106,9 @@ export function start() {
   op.camera?.moveTo({ x: 512, y: 512, scale: 1, angle: 0 }).settle();
   effects.reset();
   time = 0;
+  rate = 1;
+  owed = 0;
+  rates.clear();
   overlay.startGame();
   op.playing = true;
   op.game.init?.();
@@ -113,10 +126,54 @@ export function gameOver(opts) {
   overlay.gameOver(opts);
 }
 
-// Runs `func` `rate` times a second in whole steps. Call it from update(), so
-// the steps use this frame's input.
-export function fixed(rate, func) {
-  return op.screen.fixed(rate, func);
+// Runs `func` `hz` times a second of the round's clock, in whole steps, and
+// returns the leftover as a fraction of a step. Call it from update(), so the
+// steps use this frame's input.
+export function fixed(hz, func) {
+  let f = rates.get(hz);
+  if (!f) rates.set(hz, f = { acc: 0, tick: -1, steps: 0 });
+  const h = 1 / hz;
+  if (f.tick !== ticks) {
+    f.tick = ticks;
+    f.acc += dt;
+    f.steps = 0;
+    while (f.acc >= h) {
+      f.acc -= h;
+      f.steps++;
+    }
+  }
+  for (let i = 0; i < f.steps; i++) func(h);
+  return f.acc / h;
+}
+
+// How fast the round's clock runs: 1 is real time, 0 stops it, 0.1 is slow
+// motion. It stays until the game sets it again or a round starts. With no
+// argument it returns the current speed.
+export function speed(s) {
+  if (s !== undefined) rate = s;
+  return rate;
+}
+
+// The next tick runs `t` more seconds than the speed gives it, even at speed 0,
+// which is how a stopped game steps one frame: advance(1 / 60).
+export function advance(t) {
+  owed += t;
+}
+
+// Moves `time`, and so ramp(), without running the seconds in between.
+export function skip(t) {
+  time += t;
+}
+
+// The round's part of a frame. frame() calls it while the round is playing,
+// and a headless harness calls it in place of frame().
+export function tick(real) {
+  dt = (effects.held(real) ? 0 : real * rate) + owed;
+  owed = 0;
+  ticks++;
+  time += dt;
+  op.act?._frame(dt);
+  op.game.update?.(dt, real);
 }
 
 /*
@@ -142,19 +199,14 @@ export function msg(text, opts) {
   return overlay.left();
 }
 
-function frame(dt) {
-  op.act?._frame(dt);
-  op.camera?.update(dt);
+function frame(real) {
+  op.camera?.update(real);
   pollInput();
-  overlay.poll(dt);
-  effects.step(dt);
+  overlay.poll(real);
+  effects.step(real);
 
-  if (op.playing) {
-    time += dt;
-    op.game.update?.(dt);
-  } else {
-    overlay.update(dt, start);
-  }
+  if (op.playing) tick(real);
+  else overlay.update(real, start);
 
   ctx.reset();
   op.screen.apply(ctx);

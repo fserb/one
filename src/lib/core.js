@@ -209,9 +209,6 @@ function ordered() {
 }
 
 export function update(dt) {
-  // A held frame still runs at dt 0: entities read input, nothing moves.
-  if (effects.frozen) dt = 0;
-
   game.time = dt;
   game.totalTime += dt;
 
