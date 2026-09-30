@@ -551,12 +551,12 @@ export function init() {
 }
 
 export function update(dt) {
-  // Entities first: entity.js holds a hit by running a frame at dt 0.
+  // Entities first, so player.dead is this frame's.
   ent.update(dt);
 
   // Between waves the bar is being spent or refilled, and the drain is off.
   if (wave === null || player.dead) return;
 
-  energy -= ent.game.time * 100 / 120; // a full bar is two minutes unspent
+  energy -= dt * 100 / 120; // a full bar is two minutes unspent
   if (energy <= 0) player.explode();
 }

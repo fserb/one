@@ -1,32 +1,5 @@
-/*
- * spinner. A bubble shooter where both things that matter turn: the blob on its
- * axle, and the gun on the rail around it.
- *
- * The blob is a hexagonal grid in a frame of its own: `cells`, keyed "q,r",
- * with the axle at (0, 0) and never in the map. Nothing in the grid moves. The
- * blob has one `angle`, and a bubble's board position is its cell turned by
- * that about the middle. A landing turns the contact point back the other way
- * to pick the cell the bubble settles in, and turns the blob by the arm crossed
- * with the shot's velocity over the blob's own moment, so one hit moves a small
- * blob further than a big one.
- *
- * The gun has no drive. It rides a circular rail, the bubble leaves the chamber
- * at its pivot, and the only thing that moves the carriage is what that shot
- * pushed back: aim across the rail and it slides, aim at the middle and it
- * holds. So every shot both plays the board and picks where the next one is
- * fired from.
- *
- * What a shot bounces off is the room's four walls and never the rail, because
- * reflection inside a circle conserves the distance from the middle to the
- * shot's line: a shot that misses the axle by 200 misses it by 200 after every
- * bounce, so a bank off a round wall can only turn the chord and never aim it
- * in. A flat wall moves that number, which is what makes a bank worth taking.
- *
- * Three of a colour touching go, and whatever no longer reaches the axle falls
- * off: clearing the axle's six neighbours drops the board in one shot. A bubble
- * whose cell centre lands past FAR ends the round. Emptying the blob starts the
- * next board, one colour wider and worth one more.
- */
+// spinner. A bubble shooter where the blob turns on its axle and the gun rides a
+// rail around it.
 
 import * as ent from "./lib/entity.js";
 import * as ease from "./alma/src/ease.js";
@@ -48,16 +21,12 @@ export const meta = {
 
 const TAU = 2 * Math.PI;
 
-const EDGE = 0x2a2419; // the board's border, outside the four walls
-const ROOM = 0xcdbfa6; // inside them
-const FLOOR = 0xd8cbb4; // inside the gun's track
-const TRACK = 0xc0b09b; // the track itself, the one line on the board not INK
-// Every line on the board is this one, and everything the game draws is cut
-// out of the board with it.
+const EDGE = 0x2a2419;
+const ROOM = 0xcdbfa6;
+const FLOOR = 0xd8cbb4;
+const TRACK = 0xc0b09b;
 const INK = 0x1a1712;
-// What the gun is cut out of: the chamber's cup and the next ball's.
 const PAPER = 0xfff8ea;
-// The axle, a shade under the floor it turns in.
 const HUB = 0xbfb09a;
 
 // The six a bubble can be. Board one is played with the first three, so those
@@ -65,26 +34,20 @@ const HUB = 0xbfb09a;
 // bubble that close to the line reads as a hole cut in the board.
 const COLORS = [0xf2483f, 0xf5a623, 0x35b8e8, 0x4fbf52, 0xf25a9e, 0x8f6ae0];
 
-const R = 30; // a bubble, and the grid's cell centres sit 2R apart
+const R = 30;
 const STEP = 2 * R;
 const ROW = STEP * Math.sqrt(3) / 2;
 
 const CX = 512;
 const CY = 512;
-// The walls, inset from the board's edge, and where a shot's centre turns
-// around.
 const MARGIN = 22;
 const LOW = MARGIN + R;
 const HIGH = 1024 - MARGIN - R;
-// The circle the gun's pivot rides, and the row of the gun that sits outward
-// of it: the chamber, then the next ball 50 behind the pivot, whose cup stops
-// one short of the wall when the gun points straight out.
+// With the gun pointing straight out, the next ball's cup stops one short of
+// the wall.
 const RAIL = 418;
 const QUEUE = 50;
 const QUEUE_R = 12;
-// The white the gun leaves outside each ball it holds, measured from the line
-// the chamber's is cut out with and from the edge of the next one, which has
-// none. One number, so the two rings are the same width.
 const LIP = 9;
 // A cell centre past this leaves 72 between that bubble and a shot leaving the
 // chamber, which is 2R and a little. Hex distance 5
@@ -92,29 +55,20 @@ const LIP = 9;
 // five rings and keeps whichever part of the sixth it is turned to.
 const FAR = 346;
 
-// The chamber turns the whole way round. Pointing it straight out is the shot
-// that only banks, and straight in is the one that moves the gun not at all.
 const TURN = 1.6;
 const MOUTH = 0.7; // the half-angle the chamber is open over
 
 const SPEED = 1400;
-// Bounces before the shot gives up banking. It is never thrown away: the one
-// after this turns it at the axle, so every shot fired lands on the blob.
 const BOUNCES = 5;
 const RELOAD = 0.15;
-// The next ball's ride up the gun and into the chamber. The gun does not fire
-// during it.
 const FEED = 0.15;
 
-// omega += cross(arm, velocity) * SPIN / moment.
 const SPIN = 2.5;
 const DRAG = 0.6;
-// The axle's own moment, which is what a nearly empty blob turns on.
 const AXLE_MOMENT = 5e4;
 const AXLE_R = 28;
 
-// The recoil, as a share of the shot's own momentum, and what bleeds it off.
-// Together they carry the gun 110 degrees on the widest shot and none on a
+// Together these carry the gun 110 degrees on the widest shot and none on a
 // straight one.
 const RECOIL = 1;
 const RAIL_DRAG = 1.6;
@@ -133,17 +87,15 @@ let angle = 0;
 let omega = 0;
 let cosA = 1;
 let sinA = 0;
-let railA = -Math.PI / 2; // where the gun is, measured from the middle
+let railA = -Math.PI / 2;
 let railV = 0;
 let board = 1;
 let colors = 3;
-// The colour in the chamber, then the one waiting on the rail behind it.
 let gun = [];
 let reload = 0;
 let feed = 0;
-// The pointer as the chamber last read it: a pointer that moved aims it, and
-// the keys have it the rest of the time. The first frame only records where it
-// is, so a round does not open by swinging the gun at wherever it was left.
+// The first frame only records where the pointer is, so a round does not open
+// by swinging the gun at wherever it was left.
 const ptr = { x: 0, y: 0 };
 let aimed = false;
 
@@ -152,23 +104,16 @@ const cellX = (q, r) => STEP * (q + r / 2);
 const cellY = (_q, r) => ROW * r;
 const taken = (q, r) => (q === 0 && r === 0) || cells.has(key(q, r));
 
-// Where the crescent sits on a ball: up and to the left, and the same on every
-// one of them, since the crescent is the light in the room and not something
-// the bubble carries around the blob.
 const LX = -0.645;
 const LY = -0.764;
 const LA = Math.atan2(LY, LX);
-// The line under a ball, as a share of its radius, and where the crescent is
-// drawn and how wide it is.
 const CUT = 1.18;
 const SHINE = 0.62;
 const SHINE_W = 0.17;
 
-// A ball is one flat colour and one white crescent, and the line it is cut out
-// with is not its own: outline() lays that down for every ball on the board
-// before any of them is filled. Drawn per ball, the line of the one next door
-// lands on top of this one's colour and the pair reads as two discs with a gap
-// between rather than as one sheet.
+// Every ball's outline goes down before any ball is filled. Drawn per ball, the
+// outline of the one next door lands on this one's colour and the two read as
+// separate discs rather than one sheet.
 function outline(ctx, x, y, r, cut = CUT) {
   ctx.fillStyle = ent.css(INK);
   ctx.beginPath();
@@ -189,14 +134,7 @@ function ball(ctx, color, r) {
   ctx.stroke();
 }
 
-// The board under everything: the border, the room inside the four walls, and
-// the floor the gun runs on.
-//
-// One circle and not two. The floor ends exactly on the rail and the line
-// around it is the track the gun runs on. The line a bubble loses at is 42
-// inside that and is not drawn: two rings that close together read as a mark
-// rather than as a track, and the blob arriving under the gun says the same
-// thing.
+// FAR is not drawn: a ring 42 inside the track reads as one mark with it.
 class Rail extends ent.Entity {
   constructor() {
     super();
@@ -210,8 +148,6 @@ class Rail extends ent.Entity {
   }
 }
 
-// The socket turns with the blob, which is the one place the turn reads when
-// the board around it is symmetric.
 class Axle extends ent.Entity {
   constructor() {
     super();
@@ -230,7 +166,6 @@ class Axle extends ent.Entity {
   }
 }
 
-// The line under the whole blob, before any bubble in it is filled.
 class Outline extends ent.Entity {
   render(ctx) {
     for (const b of cells.values()) outline(ctx, b.pos.x, b.pos.y, R);
@@ -268,7 +203,6 @@ class Bubble extends ent.Entity {
   }
 }
 
-// A bubble the blob let go of. It keeps the speed the spin was giving it.
 class Drop extends ent.Entity {
   constructor(b) {
     super();
@@ -288,10 +222,9 @@ class Drop extends ent.Entity {
     if (this.age > 1) this.remove();
   }
 
-  // The line is a ring here and a disc under the ball everywhere else: the
-  // drop fades out, and ink under the colour shows through it and takes the
-  // ball darker than the board as it goes. The ring runs one inside the ball's
-  // edge, so no floor shows in the seam.
+  // A ring and not a disc: the drop fades, and a disc under it would show
+  // through and darken it. One inside the ball's edge, so no floor shows in the
+  // seam.
   render(ctx) {
     const w = R * (CUT - 1) + 1;
     ctx.strokeStyle = ent.css(INK);
@@ -326,6 +259,9 @@ class Shot extends ent.Entity {
     this.pos.x += this.dx * d;
     this.pos.y += this.dy * d;
 
+    // Flat walls and never the round rail: a bounce inside a circle keeps the
+    // shot line's distance from the middle, so a bank off it could never aim
+    // the shot in.
     let hit = false;
     if (this.pos.x < LOW) {
       this.pos.x = LOW;
@@ -350,9 +286,8 @@ class Shot extends ent.Entity {
     // axis from flipping a direction the turn below has just set.
     if (hit) {
       play.bounce();
-      // Out of banks, so it goes at the axle and takes whatever the blob has
-      // turned into its way. It arrives along a radius, so it adds no spin: a
-      // shot that found nothing does not get to move the board either.
+      // Out of banks: it goes at the axle along a radius, so a shot that found
+      // nothing adds no spin.
       if (--this.left < 0) {
         const d = Math.hypot(CX - this.pos.x, CY - this.pos.y) || 1;
         this.dx = (CX - this.pos.x) / d;
@@ -370,15 +305,10 @@ class Shot extends ent.Entity {
   }
 }
 
-// The chamber, which turns about its pivot on the rail. `angle` is where the
-// shot goes; the carriage under it has no drive of its own.
 class Gun extends ent.Entity {
   constructor() {
     super();
     this.off = 0;
-    // The two cups and the three dots that point the shot are the whole gun,
-    // and none of them is lined: the only line on it is the one the ball in
-    // the chamber is cut out with.
     this.gfx.size(2 * 175).fill(PAPER)
       .arc(0, 0, R * CUT + LIP, 20, MOUTH, TAU - MOUTH)
       .circle(-QUEUE, 0, QUEUE_R + LIP)
@@ -416,23 +346,18 @@ class Gun extends ent.Entity {
     new Shot(gun.shift(), this.pos.x, this.pos.y, this.angle);
     gun.push(pick());
     feed = FEED;
-    // The shot's momentum across the rail, pushed back into the carriage.
     railV += SPEED * Math.sin(this.off) * RECOIL / RAIL;
     play.shoot();
   }
 
   render(ctx) {
     this.gfx.render(ctx);
-    // The gun turns and the two balls on it do not: every crescent on the
-    // board is on the same side.
+    // The balls do not turn with the gun, so every crescent is on the same side.
     const a = this.angle;
     const cos = Math.cos(a);
     const sin = Math.sin(a);
     ctx.rotate(-a);
 
-    // The fed ball rides up the gun and grows into the chamber, and its line
-    // opens out of its own edge, so it carries none while it is still the
-    // small one on the rail.
     const t = ease.cubicOut(1 - feed / FEED);
     const r = QUEUE_R + (R - QUEUE_R) * t;
     const back = -QUEUE * (1 - t);
@@ -445,7 +370,6 @@ class Gun extends ent.Entity {
   }
 }
 
-// The occupied cell the shot ran into, the axle included.
 function struck(x, y) {
   if (Math.hypot(x - CX, y - CY) < R + AXLE_R) return { q: 0, r: 0 };
 
@@ -460,9 +384,8 @@ function struck(x, y) {
   return best;
 }
 
-// Where the bubble settles: the free neighbour of what it ran into nearest to
-// where it was, and failing that the nearest free edge cell anywhere, so a shot
-// that ends up inside a pocket still lands.
+// Failing a free neighbour, the nearest free cell anywhere, so a shot that ends
+// up inside a pocket still lands.
 function settle(cell, lx, ly) {
   const near = (q, r) => (cellX(q, r) - lx) ** 2 + (cellY(q, r) - ly) ** 2;
 
@@ -518,7 +441,6 @@ function resolve(b) {
   restock();
 }
 
-// Every bubble of one colour touching `b`.
 function same(b) {
   const group = [b];
   const seen = new Set([key(b.q, b.r)]);
@@ -535,7 +457,6 @@ function same(b) {
 }
 
 function pop(group) {
-  // One colour by definition, so the number leaves in it.
   const c = COLORS[group[0].color];
   let cx = 0;
   let cy = 0;
@@ -559,7 +480,6 @@ function pop(group) {
   shake(0.1 + 0.02 * group.length);
 }
 
-// Bubbles the pop cut off the axle: they leave the blob and fall.
 function dropLoose() {
   const seen = new Set([key(0, 0)]);
   const queue = [[0, 0]];
@@ -589,8 +509,6 @@ function dropLoose() {
   play.drop();
 }
 
-// The board is empty. The bonus and the sound land on the shot that did it;
-// the next board waits for what that shot knocked off to finish falling.
 function cleared() {
   ent.addScore(100 * board, CX, CY);
   play.power();
@@ -608,7 +526,6 @@ function nextBoard() {
   sinA = 0;
   build();
   restock();
-  // Long enough to read the board that just arrived.
   reload = 0.6;
 }
 
@@ -627,7 +544,6 @@ function pick() {
   return on.length === 0 ? 0 : on[Math.floor(on.length * Math.random())];
 }
 
-// A colour the last shot took off the board is no colour to be handed.
 function restock() {
   const on = live();
   if (on.length === 0) return;
@@ -636,8 +552,7 @@ function restock() {
   );
 }
 
-// Hex distance 2 whole and distance 3 ragged, so no two boards present the same
-// edge to aim at.
+// Distance 3 ragged, so no two boards present the same edge.
 function build() {
   for (let q = -3; q <= 3; ++q) {
     for (let r = -3; r <= 3; ++r) {

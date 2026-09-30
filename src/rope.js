@@ -85,7 +85,6 @@ function link(a, b, { max, length = max, hertz, damping, localB = [0, 0] }) {
   });
 }
 
-// The hand and the rope of a contact between the two, or null.
 function handRope(a, b) {
   if (b.data === "hand") [a, b] = [b, a];
   return a.data === "hand" && b.data === "rope" ? [a, b] : null;
@@ -219,7 +218,6 @@ class Cave extends ent.Entity {
       }
       if (!isLine(i)) continue;
 
-      // Two adjacent columns make one long rope instead of two short ones.
       const end = isLine(i + 1) ? i + 1 : i;
       for (let x = i; x <= end; x++) horiz[x] = 0;
       new Rope(band(i), band(end + 1), pinLine);
@@ -528,7 +526,6 @@ class Player extends ent.Entity {
     camera.approach(to, ent.game.time, { angle: 2.45 });
   }
 
-  // _draw translated to pos, and the bodies are in world metres.
   render(ctx) {
     ctx.translate(-this.pos.x, -this.pos.y);
 
@@ -665,7 +662,6 @@ class Throw extends ent.Entity {
     this.release();
   }
 
-  // The hand under the pointer, unless it is loose and moving fast.
   grab() {
     const p = ent.game.input;
 
@@ -759,7 +755,6 @@ class Saw extends ent.Entity {
 
     this.at = 0;
     this.phase = 0;
-    // The pace rises by one every `wait` steps, and `wait` itself shortens.
     this.pace = 0;
     this.wait = 1000;
     this.since = 0;
@@ -776,7 +771,6 @@ class Saw extends ent.Entity {
     const here = path[this.at];
     const last = path[this.at - 1] ?? { x: 0, y: 0 };
 
-    // It sprints if the player gets too far ahead.
     const away = vec.distance(ent.one(Player).head, body);
     const reach = 0.001 * (away > 20 ? 100 : this.pace);
     const full = vec.sub(here, body);

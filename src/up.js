@@ -39,7 +39,6 @@ const filled = new Set();
 let passAt = 0;
 let burnAt = 0;
 
-// The exhaust is what moves the ship, so firing pushes along `offset` reversed.
 class Engine extends ent.Entity {
   constructor(ship, offset, label) {
     super();

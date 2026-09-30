@@ -85,8 +85,6 @@ class Player extends ent.Entity {
     this.hitCircle(PR);
   }
 
-  // The keys or the pad move, and the pointer aims. Alone in the collection,
-  // this is not playable with either one alone.
   update() {
     const { input } = ent.game;
 
@@ -119,7 +117,6 @@ class Player extends ent.Entity {
     }
   }
 
-  // The walls return the speed you hit them with.
   bounce(k) {
     if (this.pos[k] < EDGE) {
       this.pos[k] = EDGE;
@@ -403,7 +400,6 @@ const gone = (b) => b === null || b.dead;
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const angle = (from, to) => Math.atan2(to.y - from.y, to.x - from.x);
 
-// The point `r` from `p` in the direction `a`.
 function polar(p, r, a) {
   return { x: p.x + Math.cos(a) * r, y: p.y + Math.sin(a) * r };
 }
@@ -428,7 +424,6 @@ function wrap(p) {
   if (p.y >= 1024) p.y -= 1024;
 }
 
-// Fired at the player and then left to itself. Yellow's and blue's.
 function shoot(g) {
   const b = new Bullet(g.color, g.pos);
   const a = angle(g.pos, player.pos);

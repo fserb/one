@@ -1,9 +1,4 @@
-/*
- * blob - a merge game in a pool. After Sobosuba's bar mode.
- *
- * Each Blob has a body in alma's SoftBodies, which holds the positions.
- * ent.update() runs inside the 60Hz fixed step.
- */
+// blob - a merge game in a pool. After Sobosuba's bar mode.
 
 import "./alma/src/extend.js";
 import color from "./alma/src/color.js";
@@ -1048,7 +1043,6 @@ export function init() {
   sim.clear();
   sim.preSolve = solveRail;
   ent.reset([Backdrop, Rail, Blob, Danger, Shock, Arrow, Vignette]);
-  // After reset(), which sets its own.
   camera.shakeBase = 3;
   camera.shakeRate = 15.5;
   camera.spin(Math.random() < 0.5 ? -1 : 1);

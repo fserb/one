@@ -183,7 +183,6 @@ class Enemy extends Blob {
     }
 
     if (d < this.size + player.size) {
-      // Read before remove(): the body is gone by the time the splat is made.
       const s = this.size;
       this.cash();
       player.chit(s);

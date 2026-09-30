@@ -90,7 +90,6 @@ let player = null;
 let rings = null;
 let presses = 0;
 
-// A press adds 0.1; the count halves every 1.4s. The effects read the square.
 function pressure() {
   return presses * presses;
 }
@@ -153,8 +152,6 @@ class Player extends ent.Entity {
   }
 }
 
-// A round in flight, either side's: a disc for the first frames, the drawn
-// shape after that.
 class Shot extends ent.Entity {
   constructor(x, y, angle, color) {
     super();
@@ -183,7 +180,6 @@ class Shot extends ent.Entity {
 class Bullet extends Shot {
   constructor(x, y, angle) {
     super(x, y, angle, WHITE);
-    // Seconds left of the puff. Zero while the bullet is live.
     this.gone = 0;
   }
 
@@ -236,7 +232,7 @@ class EnemyBullet extends Shot {
   }
 }
 
-// One slice of one ring. `want` is where its health is heading, -1 for still.
+// `want` is -1 when the health is not moving.
 class Chunk extends ent.Entity {
   constructor(radius, begin, size, slots, maxHealth) {
     super();
@@ -343,7 +339,6 @@ class Chunk extends ent.Entity {
   }
 }
 
-// Every so often a ring is given a new angle, which closes the hole you cut.
 class Level extends ent.Entity {
   constructor(n) {
     super();
@@ -395,7 +390,6 @@ class Level extends ent.Entity {
   }
 }
 
-// It leads the player's angle, off by a normal deviate: why the shield exists.
 class Enemy extends ent.Entity {
   constructor(first) {
     super();
