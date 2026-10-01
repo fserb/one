@@ -175,7 +175,10 @@ class Piece extends ent.Entity {
   leave() {
     this.count -= 1;
     this.pop = 1;
-    if (this.count > 0) return;
+    if (this.count > 0) {
+      this.spin = spin();
+      return;
+    }
 
     new ent.Particle({
       x: this.pos.x,
@@ -572,13 +575,19 @@ function clear() {
   flash(ent.css(CHALK), 0.05);
 }
 
+// Radians a second, either way: a slow shape is a longer wait for the face and a
+// wider press when it comes, a fast one the opposite.
+function spin() {
+  const s = (1.6 + 1.4 * Math.random()) * Math.min(1.6, 1 + 0.04 * level);
+  return Math.random() < 0.5 ? -s : s;
+}
+
 function buildLevel() {
   ent.reset([Light, Piece, Player, ent.Particle]);
   new Light();
 
   const n = Math.min(3 + (level >> 1), 6);
   const most = Math.min(1 + Math.ceil(level / 2), 3);
-  const ramp = Math.min(1.6, 1 + 0.04 * level);
   const big = 183 - 13 * n;
   const pieces = [];
 
@@ -589,18 +598,8 @@ function buildLevel() {
     const r = s * FAT[sides];
     const at = place(pieces, r);
     if (at === null) continue;
-    // Radians a second: a slow shape is a longer wait for the face and a wider
-    // press when it comes, a fast one the opposite.
-    const spin = (1.6 + 1.4 * Math.random()) * ramp;
     pieces.push(
-      new Piece(
-        at.x,
-        at.y,
-        sides,
-        r,
-        Math.random() < 0.5 ? -spin : spin,
-        1 + Math.floor(Math.random() * most),
-      ),
+      new Piece(at.x, at.y, sides, r, spin(), 1 + Math.floor(Math.random() * most)),
     );
   }
 
