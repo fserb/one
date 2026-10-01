@@ -8,16 +8,16 @@
  * as leaving the board.
  *
  * A contact is a segment test and not an overlap: the step from last frame's
- * position to this one, against the outline in the piece's own unturned
- * coordinates. That gives the point and the face in one pass and nothing
- * tunnels at 1110 a second. Both ends of the step use this frame's angle, which
+ * position to this one, against the outline pushed out by half the blob's
+ * width, in the piece's own unturned coordinates. That gives the point and the
+ * face in one pass and nothing tunnels at 1110 a second. Both ends of the step use this frame's angle, which
  * is a frame of error in the shape's turn and none in the blob's line.
  */
 
 import * as ent from "./lib/entity.js";
 import { flash } from "./lib/effects.js";
 import { shake } from "./lib/camera.js";
-import { gameOver, msg, score } from "./lib/one.js";
+import { gameOver, msg, score, speed } from "./lib/one.js";
 import * as play from "./lib/sounds.js";
 
 export { render } from "./lib/entity.js";
@@ -44,6 +44,14 @@ const BW = 32;
 const BH = 45;
 const OUT = 85;
 
+// A launch that will reach no piece runs the round at SLOW for MISS real seconds,
+// and again while that flight closes in on a piece's outline within NEAR, plus
+// PASS real seconds after it stops closing in.
+const SLOW = 0.05;
+const MISS = 0.5;
+const NEAR = 60;
+const PASS = 0.15;
+
 // No two circumcircles come within GAP. EDGE is RIDE plus half the blob, so the
 // blob on the face nearest the edge is still on the board.
 const GAP = 47;
@@ -60,6 +68,7 @@ const FAT = { 3: 1.32, 4: 1.12, 6: 1.02 };
 
 let level = 0;
 let clearing = 0; // seconds left of the pause between levels, 0 while playing
+let slow = 0; // real seconds left at SLOW
 
 class Piece extends ent.Entity {
   constructor(x, y, sides, r, spin, count) {
@@ -70,6 +79,9 @@ class Piece extends ent.Entity {
     this.spin = spin;
     this.count = count;
     this.pts = corners(sides, r);
+    // The outline pushed out by half the blob's width along every face, which
+    // is what the blob's middle is tested against.
+    this.hit = corners(sides, r + BW / 2 / Math.cos(Math.PI / sides));
     this.angle = TAU * Math.random();
     this.pop = 0; // fades from 1 on the launch that took a number off
 
@@ -118,15 +130,21 @@ class Piece extends ent.Entity {
     if (ent.get(Piece).length === 0) clear();
   }
 
-  // Where the step from a to b first crosses this outline, in local
-  // coordinates: the point and the face's outward normal, or null on a miss.
-  cross(ax, ay, bx, by) {
-    return crossPoly(this.toLocal(ax, ay), this.toLocal(bx, by), this.pts);
+  // Where the step from a to b first comes within half the blob's width of
+  // this outline, in local coordinates: the point on the face it reached and
+  // that face's outward normal, or null on a miss.
+  cross(ax, ay, bx, by, angle = this.angle) {
+    const a = this.toLocal(ax, ay, angle);
+    const b = this.toLocal(bx, by, angle);
+    const c = crossPoly(a, b, this.hit);
+    if (c === null) return null;
+    const { x, y } = onEdge(c, this.pts, c.i);
+    return { ...c, x, y };
   }
 
-  toLocal(x, y) {
-    const c = Math.cos(this.angle);
-    const s = Math.sin(this.angle);
+  toLocal(x, y, angle = this.angle) {
+    const c = Math.cos(angle);
+    const s = Math.sin(angle);
     const dx = x - this.pos.x;
     const dy = y - this.pos.y;
     return { x: dx * c + dy * s, y: -dx * s + dy * c };
@@ -155,6 +173,7 @@ class Player extends ent.Entity {
     this.dir = { x: dx, y: dy };
     this.piece = null;
     this.from = null;
+    this.missing = null; // the piece left on a flight predicted to reach none
     // Read only while `piece` is set.
     this.ax =
       this.ay =
@@ -210,6 +229,39 @@ class Player extends ent.Entity {
     });
     play.jump();
     p.leave();
+    if (clearing > 0 || !this.misses()) return;
+    this.missing = p;
+    this.gap = Infinity;
+    slow = MISS;
+    speed(SLOW);
+  }
+
+  // How far the nearest outline is, other than the piece it left.
+  gapNow() {
+    let d = Infinity;
+    for (const p of ent.get(Piece)) {
+      if (p === this.missing) continue;
+      d = Math.min(d, nearest(p.toLocal(this.pos.x, this.pos.y), p.pts).d);
+    }
+    return d;
+  }
+
+  // Runs the flight ahead in 1/240 s steps, every piece turning as it will, and
+  // reports whether it leaves the board without crossing one.
+  misses() {
+    const h = 1 / 240;
+    const pieces = ent.get(Piece).filter((p) => p !== this.from);
+    let { x, y } = this.pos;
+    for (let t = h; x > 0 && x < 1024 && y > 0 && y < 1024; t += h) {
+      const bx = x + this.dir.x * SPEED * h;
+      const by = y + this.dir.y * SPEED * h;
+      for (const p of pieces) {
+        if (p.cross(x, y, bx, by, p.angle + p.spin * t)) return false;
+      }
+      x = bx;
+      y = by;
+    }
+    return true;
   }
 
   fly() {
@@ -224,6 +276,14 @@ class Player extends ent.Entity {
       this.from = null;
     }
     if (this.land(x, y)) return;
+    if (this.missing !== null) {
+      const d = this.gapNow();
+      if (d < NEAR && d < this.gap) {
+        slow = Math.max(slow, PASS);
+        speed(SLOW);
+      }
+      this.gap = d;
+    }
 
     const on = this.pos.x > 0 && this.pos.x < 1024 && this.pos.y > 0 &&
       this.pos.y < 1024;
@@ -259,6 +319,9 @@ class Player extends ent.Entity {
     this.ny = best.ny;
     this.squash = 0.35;
     this.ride();
+    this.missing = null;
+    slow = 0;
+    speed(1);
 
     const n = piece.turn(best.nx, best.ny);
     new ent.Particle({
@@ -330,7 +393,7 @@ function crossPoly(a, b, pts) {
   }
 
   const nrm = normal(pts, best.i);
-  return { t: best.t, x: best.x, y: best.y, nx: nrm.x, ny: nrm.y };
+  return { t: best.t, i: best.i, x: best.x, y: best.y, nx: nrm.x, ny: nrm.y };
 }
 
 // The perpendicular of edge i pointing away from the origin.
@@ -358,17 +421,22 @@ function inside(p, pts) {
 function nearest(p, pts) {
   let best = null;
   for (let i = 0; i < pts.length; ++i) {
-    const [px, py] = pts[i];
-    const [qx, qy] = pts[(i + 1) % pts.length];
-    const dx = qx - px;
-    const dy = qy - py;
-    const u = clamp(((p.x - px) * dx + (p.y - py) * dy) / (dx * dx + dy * dy));
-    const x = px + dx * u;
-    const y = py + dy * u;
-    const d = Math.hypot(p.x - x, p.y - y);
-    if (best === null || d < best.d) best = { d, t: 0, i, x, y };
+    const e = onEdge(p, pts, i);
+    if (best === null || e.d < best.d) best = { d: e.d, t: 0, i, x: e.x, y: e.y };
   }
   return best;
+}
+
+// The point on edge i nearest p, and how far it is.
+function onEdge(p, pts, i) {
+  const [px, py] = pts[i];
+  const [qx, qy] = pts[(i + 1) % pts.length];
+  const dx = qx - px;
+  const dy = qy - py;
+  const u = clamp(((p.x - px) * dx + (p.y - py) * dy) / (dx * dx + dy * dy));
+  const x = px + dx * u;
+  const y = py + dy * u;
+  return { d: Math.hypot(p.x - x, p.y - y), x, y };
 }
 
 function clamp(v) {
@@ -424,7 +492,7 @@ function buildLevel() {
     if (at === null) continue;
     // Radians a second: a slow shape is a longer wait for the face and a wider
     // press when it comes, a fast one the opposite.
-    const spin = (1.2 + 1.4 * Math.random()) * ramp;
+    const spin = (1.6 + 1.0 * Math.random()) * ramp;
     pieces.push(
       new Piece(
         at.x,
@@ -451,11 +519,16 @@ function buildLevel() {
 export function init() {
   level = 0;
   clearing = 0;
+  slow = 0;
   buildLevel();
 }
 
-export function update(dt) {
+export function update(dt, real) {
   ent.update(dt);
+  if (slow > 0) {
+    slow -= real;
+    if (slow <= 0) speed(1);
+  }
   if (clearing <= 0) return;
   clearing -= dt;
   if (clearing > 0) return;
