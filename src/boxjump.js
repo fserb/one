@@ -24,17 +24,23 @@ export { render } from "./lib/entity.js";
 
 export const meta = {
   title: "boxjump",
-  bg: "#2B2D42",
-  fg: "#EDF2F4",
+  bg: "#08090C",
+  fg: "#FFC46B",
   scoreMax: true,
   date: "2026-09-12",
 };
 
 const TAU = 2 * Math.PI;
 
-const BOARD = 0x2b2d42;
-const CHALK = 0xedf2f4;
-const BLOB = 0xef476f;
+const BOARD = 0x08090c;
+const PIECE = 0x14161c;
+const CHALK = 0xffd696; // the torch's colour, which the dust and the flash take too
+const BLOB = 0xffe3b0;
+const EYE = 0x5a3a10;
+
+// The torch's half-angle in radians, and how far its light reaches.
+const CONE = 0.32;
+const BEAM = 1300;
 
 const SPEED = 1110;
 const RIDE = 23; // how far the blob's middle floats off the face it stands on
@@ -87,7 +93,7 @@ class Piece extends ent.Entity {
 
     // size() is the circumcircle's square, and it is required: a triangle's
     // bounding box is not centred on its circumcentre.
-    this.gfx.size(2 * this.r).fill(CHALK);
+    this.gfx.size(2 * this.r).fill(PIECE);
     this.gfx.mt(this.pts[0][0], this.pts[0][1]);
     for (const [x, y] of this.pts.slice(1)) this.gfx.lt(x, y);
     this.gfx.lt(this.pts[0][0], this.pts[0][1]);
@@ -103,9 +109,66 @@ class Piece extends ent.Entity {
   // is a digit nobody reads at a glance.
   render(ctx) {
     this.gfx.render(ctx);
+    const b = ent.one(Player);
+    if (b !== null) this.rim(ctx, b);
     ctx.rotate(-this.angle);
-    ctx.fillStyle = ent.css(BOARD);
-    ctx.text(`${this.count}`, 0, 0, this.r * 0.74);
+    ctx.fillStyle = "#ffc46b88";
+    ctx.text(`${this.count}`, 0, 0, this.r * 0.6);
+  }
+
+  // The faces turned to the blob catch its light: in full inside the cone,
+  // and fading with distance outside it.
+  rim(ctx, b) {
+    const l = this.toLocal(b.pos.x, b.pos.y);
+    const a = Math.atan2(b.dir.y, b.dir.x);
+    const n = this.pts.length;
+    ctx.lineWidth = 5;
+    for (let i = 0; i < n; ++i) {
+      const [px, py] = this.pts[i];
+      const [qx, qy] = this.pts[(i + 1) % n];
+      const mx = (px + qx) / 2 - l.x;
+      const my = (py + qy) / 2 - l.y;
+      const d = Math.hypot(mx, my);
+      const nrm = normal(this.pts, i);
+      const lit = -(nrm.x * mx + nrm.y * my) / d;
+      if (lit <= 0) continue;
+      const w = this.toWorld((px + qx) / 2, (py + qy) / 2);
+      const off = Math.atan2(w.y - b.pos.y, w.x - b.pos.x) - a;
+      const inside = Math.abs(Math.atan2(Math.sin(off), Math.cos(off))) < CONE;
+      const k = lit * (inside ? 1 : Math.min(0.6, 120 / d));
+      ctx.strokeStyle = `rgba(255,214,150,${k})`;
+      ctx.beginPath();
+      ctx.moveTo(px, py);
+      ctx.lineTo(qx, qy);
+      ctx.stroke();
+    }
+  }
+
+  // The faces turned away from (lx, ly), each pushed out to past the board:
+  // every quad winds the same way, so one fill of them all is the shadow.
+  shadow(ctx, lx, ly) {
+    const l = this.toLocal(lx, ly);
+    const n = this.pts.length;
+    const far = (q) => {
+      const dx = q.x - lx;
+      const dy = q.y - ly;
+      const d = Math.hypot(dx, dy);
+      return { x: q.x + dx / d * 3000, y: q.y + dy / d * 3000 };
+    };
+    for (let i = 0; i < n; ++i) {
+      const [px, py] = this.pts[i];
+      const nrm = normal(this.pts, i);
+      if (nrm.x * (px - l.x) + nrm.y * (py - l.y) < 0) continue;
+      const a = this.toWorld(px, py);
+      const b = this.toWorld(...this.pts[(i + 1) % n]);
+      const fa = far(a);
+      const fb = far(b);
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.lineTo(fb.x, fb.y);
+      ctx.lineTo(fa.x, fa.y);
+      ctx.closePath();
+    }
   }
 
   // The last piece to go ends the level, with the blob still in the air.
@@ -163,6 +226,39 @@ class Piece extends ent.Entity {
   }
 }
 
+// The blob's torch: a glow round it, a cone down the line it faces, and every
+// piece's shadow cut back out of both in the board's colour.
+class Light extends ent.Entity {
+  render(ctx) {
+    const b = ent.one(Player);
+    if (b === null) return;
+    const { x, y } = b.pos;
+    const a = Math.atan2(b.dir.y, b.dir.x);
+
+    const glow = ctx.createRadialGradient(x, y, 0, x, y, 220);
+    glow.addColorStop(0, "#ffc46b40");
+    glow.addColorStop(1, "#ffc46b00");
+    ctx.fillStyle = glow;
+    ctx.fillRect(x - 220, y - 220, 440, 440);
+
+    const beam = ctx.createRadialGradient(x, y, 0, x, y, BEAM);
+    beam.addColorStop(0, "#ffe2a8");
+    beam.addColorStop(0.3, "#b9874a");
+    beam.addColorStop(1, "#2a1e10");
+    ctx.fillStyle = beam;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.arc(x, y, 1600, a - CONE, a + CONE);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.beginPath();
+    for (const p of ent.get(Piece)) p.shadow(ctx, x, y);
+    ctx.fillStyle = ent.css(BOARD);
+    ctx.fill();
+  }
+}
+
 // Riding holds the contact in the piece's local coordinates, so the piece's
 // turn is the only thing that moves the blob and nothing accumulates.
 class Player extends ent.Entity {
@@ -186,7 +282,7 @@ class Player extends ent.Entity {
     this.entered = false;
     this.angle = Math.atan2(dy, dx) + Math.PI / 2;
     this.gfx.fill(BLOB).rect(-BW / 2, -BH / 2, BW, BH, 19)
-      .fill(BOARD).rect(-6, 9 - BH / 2, 13, 9, 9);
+      .fill(EYE).rect(-6, 9 - BH / 2, 13, 9, 9);
   }
 
   // The press is read here and not in ride(), which land() also calls: it would
@@ -350,6 +446,8 @@ class Player extends ent.Entity {
   // a launch stretches it along the line it leaves on.
   render(ctx) {
     ctx.scale(1 + this.squash, 1 - this.squash);
+    ctx.shadowColor = "#ffc46b";
+    ctx.shadowBlur = 24;
     this.gfx.render(ctx);
   }
 }
@@ -475,7 +573,8 @@ function clear() {
 }
 
 function buildLevel() {
-  ent.reset([Piece, Player, ent.Particle]);
+  ent.reset([Light, Piece, Player, ent.Particle]);
+  new Light();
 
   const n = Math.min(3 + (level >> 1), 6);
   const most = Math.min(1 + Math.ceil(level / 2), 3);
@@ -492,7 +591,7 @@ function buildLevel() {
     if (at === null) continue;
     // Radians a second: a slow shape is a longer wait for the face and a wider
     // press when it comes, a fast one the opposite.
-    const spin = (1.6 + 1.0 * Math.random()) * ramp;
+    const spin = (1.6 + 1.4 * Math.random()) * ramp;
     pieces.push(
       new Piece(
         at.x,
