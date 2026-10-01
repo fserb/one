@@ -2,8 +2,10 @@
  * boxjump. Based on a prototype by wombatstuff.
  * https://x.com/wombatstuff/status/1180176881708146688
  *
- * The number falls on the launch and not on the landing, so the last shape goes
- * while the blob is still in the air and the level ends mid-flight. `clearing`
+ * A launch takes a side off the piece it leaves, so a shape is as many jumps
+ * as its sides less two, and a triangle goes. That happens on the launch and
+ * not on the landing, so the last shape goes while the blob is still in the
+ * air and the level ends mid-flight. `clearing`
  * is the pause before the next board, and also what stops that flight counting
  * as leaving the board.
  *
@@ -33,7 +35,7 @@ export const meta = {
 const TAU = 2 * Math.PI;
 
 const BOARD = 0x08090c;
-const PIECE = 0x14161c;
+const PIECE = 0x1c1f27;
 const CHALK = 0xffd696; // the torch's colour, which the dust and the flash take too
 const BLOB = 0xffe3b0;
 const EYE = 0x5a3a10;
@@ -68,32 +70,36 @@ const EDGE = 47;
 // all-medium. The top falls with the count, which keeps six of them fitting.
 const SMIN = 47;
 
-// A triangle of the same circumradius looks much smaller, hence FAT.
-const SHAPES = [3, 4, 6];
-const FAT = { 3: 1.32, 4: 1.12, 6: 1.02 };
+// A triangle of the same circumradius looks much smaller, hence FAT. A piece
+// keeps its circumradius as it loses sides, so it fits where it was placed.
+const FAT = { 3: 1.32, 4: 1.12, 5: 1.05, 6: 1.02 };
 
 let level = 0;
 let clearing = 0; // seconds left of the pause between levels, 0 while playing
 let slow = 0; // real seconds left at SLOW
 
 class Piece extends ent.Entity {
-  constructor(x, y, sides, r, spin, count) {
+  constructor(x, y, sides, r, spin) {
     super();
     this.pos.x = x;
     this.pos.y = y;
     this.r = r;
     this.spin = spin;
-    this.count = count;
+    this.angle = TAU * Math.random();
+    this.pop = 0; // fades from 1 on the launch that took a side off
+    this.shape(sides);
+  }
+
+  shape(sides) {
+    const { r } = this;
     this.pts = corners(sides, r);
     // The outline pushed out by half the blob's width along every face, which
     // is what the blob's middle is tested against.
     this.hit = corners(sides, r + BW / 2 / Math.cos(Math.PI / sides));
-    this.angle = TAU * Math.random();
-    this.pop = 0; // fades from 1 on the launch that took a number off
 
     // size() is the circumcircle's square, and it is required: a triangle's
     // bounding box is not centred on its circumcentre.
-    this.gfx.size(2 * this.r).fill(PIECE);
+    this.gfx.clear().size(2 * r).fill(PIECE);
     this.gfx.mt(this.pts[0][0], this.pts[0][1]);
     for (const [x, y] of this.pts.slice(1)) this.gfx.lt(x, y);
     this.gfx.lt(this.pts[0][0], this.pts[0][1]);
@@ -105,15 +111,10 @@ class Piece extends ent.Entity {
     this.scale = 1 + 0.16 * this.pop;
   }
 
-  // The outline turns and the number does not: a digit coming round upside down
-  // is a digit nobody reads at a glance.
   render(ctx) {
     this.gfx.render(ctx);
     const b = ent.one(Player);
     if (b !== null) this.rim(ctx, b);
-    ctx.rotate(-this.angle);
-    ctx.fillStyle = "#ffc46b88";
-    ctx.text(`${this.count}`, 0, 0, this.r * 0.6);
   }
 
   // The faces turned to the blob catch its light: in full inside the cone,
@@ -171,11 +172,19 @@ class Piece extends ent.Entity {
     }
   }
 
-  // The last piece to go ends the level, with the blob still in the air.
-  leave() {
-    this.count -= 1;
+  // The last piece to go ends the level, with the blob still in the air. The
+  // shape with a side less turns by the least that puts one of its faces
+  // parallel to the one the blob left along `n`, its world normal.
+  leave(n) {
     this.pop = 1;
-    if (this.count > 0) {
+    const sides = this.pts.length - 1;
+    if (sides >= 3) {
+      this.shape(sides);
+      // Face 0's normal points at -PI/2 + PI/sides, and each next face one
+      // step further round.
+      const step = TAU / sides;
+      const k = Math.atan2(n.y, n.x) - this.angle + Math.PI / 2 - Math.PI / sides;
+      this.angle += k - step * Math.round(k / step);
       this.spin = spin();
       return;
     }
@@ -327,7 +336,7 @@ class Player extends ent.Entity {
       duration: [0.3, 0.2],
     });
     play.jump();
-    p.leave();
+    p.leave(this.dir);
     if (clearing > 0 || !this.misses()) return;
     this.missing = p;
     this.gap = Infinity;
@@ -549,16 +558,23 @@ function dist(a, b) {
 }
 
 // It drops the piece rather than shrink one, since a shape's size is the shape
-// of the jump off it; over 3000 boards of six it never had to.
-function place(pieces, r) {
+// of the jump off it; over 3000 boards of six it never had to. Of the first
+// `k` free spots it takes the one with the most room to its nearest piece, so
+// a higher `k` spreads a board out: on boards of six the mean gap to the
+// nearest piece is about 110 at k = 1 and 180 at k = 10.
+function place(pieces, r, k) {
   const m = r + EDGE;
-  for (let i = 0; i < 300; ++i) {
+  let best = null;
+  for (let i = 0; i < 300 && k > 0; ++i) {
     const x = m + (1024 - 2 * m) * Math.random();
     const y = m + (1024 - 2 * m) * Math.random();
-    const free = pieces.every((p) => dist(p.pos, { x, y }) > p.r + r + GAP);
-    if (free) return { x, y };
+    let d = Infinity;
+    for (const p of pieces) d = Math.min(d, dist(p.pos, { x, y }) - p.r - r);
+    if (d <= GAP) continue;
+    k -= 1;
+    if (best === null || d > best.d) best = { x, y, d };
   }
-  return null;
+  return best;
 }
 
 // How far (x, y) is from the board's edge along (dx, dy).
@@ -587,20 +603,18 @@ function buildLevel() {
   new Light();
 
   const n = Math.min(3 + (level >> 1), 6);
-  const most = Math.min(1 + Math.ceil(level / 2), 3);
+  const most = Math.min(1 + Math.ceil(level / 2), 4);
   const big = 183 - 13 * n;
   const pieces = [];
 
   for (let i = 0; i < n; ++i) {
-    const sides = SHAPES[Math.floor(Math.random() * SHAPES.length)];
+    const sides = 3 + Math.floor(Math.random() * most);
     // Its size band, biggest first, which is the order that packs.
     const s = SMIN + (big - SMIN) * (n - 1 - i + Math.random()) / n;
     const r = s * FAT[sides];
-    const at = place(pieces, r);
+    const at = place(pieces, r, Math.min(1 + level, 10));
     if (at === null) continue;
-    pieces.push(
-      new Piece(at.x, at.y, sides, r, spin(), 1 + Math.floor(Math.random() * most)),
-    );
+    pieces.push(new Piece(at.x, at.y, sides, r, spin()));
   }
 
   // The level opens with the blob already in the air, so frame one is the game.
@@ -611,7 +625,7 @@ function buildLevel() {
   const back = reach(target.pos.x, target.pos.y, -dx, -dy) + 64;
   new Player(target.pos.x - dx * back, target.pos.y - dy * back, dx, dy);
 
-  msg(`LEVEL ${level + 1}`);
+  msg(`LEVEL ${level + 1}`, { color: BLOB });
 }
 
 export function init() {
