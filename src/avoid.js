@@ -16,6 +16,7 @@ export const meta = {
   scoreMax: true,
   date: "2014-03-30",
   release: true,
+  about: "Based on Aba Games' Satellite Catch.",
 };
 
 // A ring point's radius at scale 1. A body's own pr is this times its scale.

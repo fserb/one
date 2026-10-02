@@ -31,6 +31,8 @@ export const meta = {
   scoreMax: true,
   release: true,
   date: "2026-10-01",
+  about:
+    "Based on a [prototype by wombatstuff](https://x.com/wombatstuff/status/1180176881708146688).",
 };
 
 const TAU = 2 * Math.PI;

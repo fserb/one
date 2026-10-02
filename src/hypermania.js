@@ -18,6 +18,7 @@ export const meta = {
   date: "2014-04-13",
   release: true,
   dpad: true,
+  about: "Megamania on a time limit.",
 };
 
 const WHITE = 0xffffff;

@@ -27,6 +27,7 @@ export const meta = {
   scoreMax: true,
   release: true,
   date: "2026-09-24",
+  about: "A merge game in a pool. After Sobosuba's bar mode.",
 };
 
 // A ring point's radius: how far outside the ring a blob's edge reaches.

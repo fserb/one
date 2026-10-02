@@ -15,6 +15,7 @@ export const meta = {
   date: "2014-03-30",
   release: true,
   dpad: true,
+  about: "Based on Aba Games' WASD THRUST.",
 };
 
 // Off the bottom: the ship dies here, an obstacle scores here.

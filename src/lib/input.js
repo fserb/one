@@ -123,6 +123,7 @@ function releaseAll() {
 // and less the links and buttons a page puts around the board. The target of
 // the press is the whole of what decides it.
 function forGame(e) {
+  if (document.querySelector(":popover-open")) return false;
   return !e.target?.closest?.("a, button, .pad");
 }
 
@@ -200,8 +201,11 @@ export function init(scr, { dpad = false } = {}) {
     const k = e.key.toLowerCase();
     if (SCROLLS.has(k)) e.preventDefault();
     const button = KEYS[k];
-    // Auto-repeat is not a fresh press.
-    if (button !== undefined && !e.repeat) down(button);
+    // Auto-repeat is not a fresh press, and a press under the open meta.about
+    // box is not the game's.
+    if (button === undefined || e.repeat) return;
+    if (document.querySelector(":popover-open")) return;
+    down(button);
   });
   on(globalThis, "keyup", (e) => {
     const button = KEYS[e.key.toLowerCase()];

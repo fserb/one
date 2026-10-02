@@ -16,6 +16,7 @@ export const meta = {
   date: "2014-04-15",
   release: true,
   dpad: true,
+  about: "The sketch the full [Gather](https://fserb.com/vault/gather) grew out of.",
 };
 
 const BLACK = 0x000000;

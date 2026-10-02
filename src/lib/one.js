@@ -206,15 +206,19 @@ export function msg(text, opts) {
 }
 
 function frame(real) {
-  op.camera?.update(real);
-  pollInput();
-  overlay.poll(real);
-  effects.step(real);
+  // While the page's meta.about box is open nothing runs, and the board is
+  // still drawn, since a resize clears the canvas.
+  if (!document.querySelector(":popover-open")) {
+    op.camera?.update(real);
+    pollInput();
+    overlay.poll(real);
+    effects.step(real);
 
-  // A round that start() begins here runs this frame too, so nothing is drawn
-  // before its entities have updated once.
-  if (!op.playing) overlay.update(real, start);
-  if (op.playing) tick(real);
+    // A round that start() begins here runs this frame too, so nothing is
+    // drawn before its entities have updated once.
+    if (!op.playing) overlay.update(real, start);
+    if (op.playing) tick(real);
+  }
 
   ctx.reset();
   op.screen.apply(ctx);

@@ -15,6 +15,7 @@
  */
 
 import { theme } from "../src/lib/overlay.js";
+import { about } from "../src/dev/about.js";
 
 const SRC = new URL("../src/", import.meta.url);
 const WWW = new URL("../www/", import.meta.url);
@@ -202,6 +203,7 @@ function page(game, m, js, s) {
     icon: favicon(m),
     fonts: FONTS,
     image,
+    about: about(m),
     script: js,
   });
 }

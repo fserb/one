@@ -15,6 +15,7 @@ export const meta = {
   date: "2014-04-05",
   release: true,
   dpad: true,
+  about: '"Super Hot Asteroid", April 2014. Atari\'s Asteroids and SUPERHOT.',
 };
 
 const WHITE = 0xffffff;

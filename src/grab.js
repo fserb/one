@@ -17,6 +17,8 @@ export const meta = {
   date: "2015-04-18",
   release: true,
   dpad: true,
+  about:
+    '"the name of the game is grab". Ludum Dare 32, April 2015; the weapon is Blitzcrank\'s hook.',
 };
 
 const BLACK = 0x010101;
