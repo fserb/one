@@ -29,7 +29,8 @@ export const meta = {
   bg: "#08090C",
   fg: "#FFC46B",
   scoreMax: true,
-  date: "2026-09-12",
+  release: true,
+  date: "2026-10-01",
 };
 
 const TAU = 2 * Math.PI;
