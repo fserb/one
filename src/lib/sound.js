@@ -89,6 +89,12 @@ export function make(name, params) {
   put(name, sfx(params, { rate: SAMPLE_RATE, over: 1 }));
 }
 
+// A recording rather than a synthesis: any URL the browser decodes, and a
+// data: URL keeps it inside the bundle.
+export function file(name, url) {
+  add(name, () => audio.load(name, url));
+}
+
 function put(name, samples, rate = SAMPLE_RATE) {
   add(name, () => audio.put(name, samples, rate));
 }
