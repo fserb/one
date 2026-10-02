@@ -14,8 +14,8 @@
  * The original is two players, first to 11. Here the right wrestler is a
  * machine playing the same three controls, the machine's head down scores,
  * yours costs one of five lives, and the match runs until they are gone.
- * ramp(), stepped each time the player wins a round, shortens the machine's
- * reaction delay.
+ * ramp(), stepped each time the player wins a round, makes the machine react
+ * sooner and err less.
  *
  * The original is in pixels. Here a pixel is 1/50 of a metre and a mass is 0.4
  * of the original's (Nape stores density over 1000), so every number below is
@@ -67,11 +67,12 @@ const COUNT = 0.9; // 3, 2, 1, a third each
 const GO = 0.4;
 const REST = 1.6; // real seconds from a point to the next count
 const SLOW = 0.3; // real seconds of it at a tenth speed
-const BOT_DELAY = 0.45;
+const BOT_DELAY = 0.3; // its fastest reaction, before ramp()
 const TIP = 1.0;
 const BOT_REACH = 0.2;
-const BOT_GAP = 0.3;
-const BOT_MISS = 0.2;
+const BOT_HOLD = 0.5;
+const BOT_KICK = 0.3;
+const BOT_MISS = 0.3;
 const ROUND_T = 15; // ramp() seconds a round, so round 13 is its three minutes
 
 const LEG_SPEED = 380;
@@ -120,6 +121,12 @@ let clock;
 let camX;
 let history;
 let botAt;
+let react;
+let kickEnd;
+let answered;
+let plan;
+let planEnd;
+let tip;
 let count;
 let go;
 
@@ -204,7 +211,10 @@ function place() {
 
 // Both wrestlers grunt on a kick, each in its own voice.
 function legTo(w, on) {
-  if (on && !w.leg) sound.play(w.voice, { volume: 0.6 });
+  if (on && !w.leg) {
+    sound.play(w.voice, { volume: 0.6 });
+    w.kickAt = clock;
+  }
   w.leg = on;
 }
 
@@ -218,39 +228,109 @@ function player(w) {
   if (w.lean < 0 && !press.right) w.lean = press.left ? 1 : 0;
 }
 
-// What the machine sees, recorded every step: its own tilt and the player's,
-// positive toward each other, and both heads' heights.
+// What the machine sees, recorded every step: its own tilt, positive toward
+// the player, how much higher its head is, whether its foot is down, and when
+// the player last kicked.
 function snapshot() {
   const [a, b] = pair;
   return {
     t: clock,
+    kickAt: a.kickAt,
     mine: -b.torso.angle,
     above: a.head.y - b.head.y,
     grounded: b.foot.y > GROUND - 0.4,
   };
 }
 
-// The machine plays on what it saw `delay` seconds ago, and changes its
-// controls once a gap, leaving them alone at some of those; ramp() shortens
-// the delay and the gap and makes it miss less. A machine that read the board
-// every step and never let go of a lean could not be beaten. Leaning while
-// tipped over too far goes back toward upright; otherwise it leans into the
-// player. It kicks off the ground when its head is no higher than the
-// player's, and lets the leg curl while it is in the air.
+// What the machine is trying, picked by `odds`: a lean and whether to kick
+// from what it saw, how long it holds a decision, and how often it answers
+// the player's kick. `tip` is how far over it lets itself go before it leans
+// back, drawn with each plan; stubborn never leans back.
+const PLANS = {
+  push: {
+    odds: 4,
+    hold: 1,
+    answer: 0.7,
+    act: ({ s, tip, low }) => [s.mine > tip ? -1 : 1, low],
+  },
+  pull: {
+    odds: 2,
+    hold: 1.5,
+    answer: 0.3,
+    act: ({ s, tip }) => [
+      s.mine < -tip ? 1 : -1,
+      s.grounded && Math.random() < 0.3,
+    ],
+  },
+  wait: {
+    odds: 2,
+    hold: 1.5,
+    answer: 0.9,
+    act: () => [Math.random() < 0.3 ? rnd() : 0, false],
+  },
+  mash: { odds: 2, hold: 0.4, answer: 1, act: ({ s }) => [rnd(), s.grounded] },
+  rock: {
+    odds: 2,
+    hold: 0.8,
+    answer: 0.5,
+    act: ({ low, w }) => [w.lean > 0 ? -1 : 1, low || Math.random() < 0.5],
+  },
+  stubborn: { odds: 1, hold: 2, answer: 0.5, act: ({ low }) => [1, low] },
+};
+function rnd() {
+  return Math.random() < 0.5 ? -1 : 1;
+}
+
+function pickPlan() {
+  const plans = Object.entries(PLANS);
+  let n = Math.random() * plans.reduce((t, [, p]) => t + p.odds, 0);
+  for (const [name, { odds }] of plans) {
+    n -= odds;
+    if (n <= 0) return name;
+  }
+  return "push";
+}
+
+// The machine plays as a person does. It decides on what it saw a reaction
+// time ago, drawn fresh at each decision and now and then slow, and holds the
+// decision until the next one; a kick is one press of its own length, not a
+// leg set again every step. Every few seconds it changes what it is trying,
+// from PLANS, at random. Some decisions are wrong: it lets go of the lean,
+// leans the wrong way, or kicks with its foot in the air. ramp() makes it
+// react sooner, decide more often and get fewer wrong, and its plans run
+// longer. A machine that read the board every step and never let go of a
+// lean could not be beaten.
 function bot(w) {
   const r = ramp((round - 1) * ROUND_T);
-  const delay = BOT_DELAY / r;
-  history = history.filter((s) => s.t >= clock - delay - 0.1);
-  const seen = history.find((s) => s.t >= clock - delay);
-  if (!seen || clock < botAt) return;
-  botAt = clock + BOT_GAP * (0.5 + Math.random()) / r;
-  if (Math.random() < BOT_MISS / r) {
-    w.lean = 0;
-    legTo(w, false);
-    return;
+  history = history.filter((s) => s.t >= clock - 1);
+  const seen = history.findLast((s) => s.t <= clock - react);
+  if (!seen) return;
+  if (clock >= planEnd) {
+    plan = pickPlan();
+    planEnd = clock + (1.5 + 3 * Math.random()) * Math.sqrt(r);
+    tip = TIP * (0.6 + Math.random());
   }
-  w.lean = seen.mine > TIP ? -1 : 1;
-  legTo(w, seen.grounded && seen.above < BOT_REACH);
+  const { hold, answer, act } = PLANS[plan];
+  const kick = () => {
+    if (clock < kickEnd + 0.1) return;
+    kickEnd = clock + BOT_KICK * (0.5 + Math.random());
+  };
+  if (seen.kickAt > answered) {
+    answered = seen.kickAt;
+    if (seen.grounded && Math.random() < answer) kick();
+  }
+  if (clock < botAt) return legTo(w, clock < kickEnd);
+  botAt = clock + BOT_HOLD * hold * (0.4 + Math.random()) / r;
+  react = BOT_DELAY * (1 + 1.5 * Math.random() ** 3) / r;
+  const low = seen.grounded && seen.above < BOT_REACH;
+  const [lean, kicks] = act({ s: seen, tip, low, w });
+  const miss = Math.random();
+  const wrong = BOT_MISS / r;
+  if (miss < wrong / 3) w.lean = 0;
+  else if (miss < wrong * 2 / 3) w.lean = -lean;
+  else w.lean = lean;
+  if (kicks || miss > 1 - wrong / 3) kick();
+  legTo(w, clock < kickEnd);
 }
 
 function point(loser) {
@@ -323,6 +403,10 @@ export function init() {
   camX = M / 2;
   history = [];
   botAt = 0;
+  react = BOT_DELAY;
+  kickEnd = -1;
+  answered = 0;
+  planEnd = 0;
   count = COUNT;
   sound.play("start", { volume: 0.4 });
   go = 0;
@@ -337,6 +421,8 @@ export function update(dt, real) {
     if (restAt <= 0) {
       restAt = 0;
       history = [];
+      kickEnd = -1;
+      answered = clock;
       if (won) round += 1;
       place();
       count = COUNT;
