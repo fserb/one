@@ -13,8 +13,9 @@
  *
  * The original is two players, first to 11. Here the right wrestler is a
  * machine playing the same three controls, the machine's head down scores,
- * yours costs one of five lives, and the round runs until they are gone.
- * ramp() shortens the machine's reaction delay.
+ * yours costs one of five lives, and the match runs until they are gone.
+ * ramp(), stepped each time the player wins a round, shortens the machine's
+ * reaction delay.
  *
  * The original is in pixels. Here a pixel is 1/50 of a metre and a mass is 0.4
  * of the original's (Nape stores density over 1000), so every number below is
@@ -71,6 +72,7 @@ const TIP = 1.0;
 const BOT_REACH = 0.2;
 const BOT_GAP = 0.3;
 const BOT_MISS = 0.2;
+const ROUND_T = 15; // ramp() seconds a round, so round 13 is its three minutes
 
 const LEG_SPEED = 380;
 const LEG_FORCE = 1078500 * TQ;
@@ -111,6 +113,8 @@ let world;
 let ground;
 let pair;
 let lives;
+let round;
+let won;
 let restAt;
 let clock;
 let camX;
@@ -234,7 +238,7 @@ function snapshot() {
 // player. It kicks off the ground when its head is no higher than the
 // player's, and lets the leg curl while it is in the air.
 function bot(w) {
-  const r = ramp(clock);
+  const r = ramp((round - 1) * ROUND_T);
   const delay = BOT_DELAY / r;
   history = history.filter((s) => s.t >= clock - delay - 0.1);
   const seen = history.find((s) => s.t >= clock - delay);
@@ -274,7 +278,8 @@ function point(loser) {
     duration: [0.5, 0.2],
   });
 
-  if (loser.side > 0) {
+  won = loser.side > 0;
+  if (won) {
     ent.addScore(1, (p.x - camX) * PPM + 512, p.y * PPM - 60);
     return;
   }
@@ -312,6 +317,7 @@ export function init() {
   });
 
   lives = LIVES;
+  round = 1;
   restAt = 0;
   clock = 0;
   camX = M / 2;
@@ -331,6 +337,7 @@ export function update(dt, real) {
     if (restAt <= 0) {
       restAt = 0;
       history = [];
+      if (won) round += 1;
       place();
       count = COUNT;
       sound.play("start", { volume: 0.4 });
@@ -444,6 +451,9 @@ export function render(ctx) {
     ctx.fillStyle = BAND;
     ctx.text(call, 512, 300, 180, { weight: "bold" });
   }
+
+  ctx.fillStyle = MAT_TOP;
+  ctx.text(`ROUND ${round}`, 512, GROUND * PPM + 50, 36, { weight: "bold" });
 
   // The lives, studded into the mat on the player's own side.
   for (let i = 0; i < LIVES; ++i) {
