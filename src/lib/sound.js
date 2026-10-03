@@ -102,8 +102,10 @@ function put(name, samples, rate = SAMPLE_RATE) {
 // `opts` goes straight to alma's Playback: detune, delay, rate, volume, pan.
 // `ready` and not merely built: a suspended context has a stopped clock, and a
 // frame of sounds scheduled into one all play together the moment it starts.
+// A file() decodes after the gesture, so for its first moments it has no
+// buffer, and a play then is dropped like one before the gesture.
 export function play(name, opts) {
-  if (muted || !audio?.ready) return;
+  if (muted || !audio?.ready || !audio.buffers.has(name)) return;
   audio.play(name, opts);
 }
 

@@ -22,12 +22,21 @@
  * the original's, converted by S and TQ. Its code steps 0.00625 s a frame, but
  * a recording of it falls at 830 px/s² against its gravity of 770, so it ran
  * at real time, and so does this.
+ *
+ * It draws as neon on a tube. Each wrestler is one glowing outline around the
+ * union of its parts, cut out on a canvas of its own, over a floor that
+ * mirrors them and lights where a body lands; a point sends three rings in the
+ * loser's colour off its head. The board is drawn on a
+ * canvas at the screen's resolution and put on the real one split into red,
+ * green and blue a few units apart, with two blurred copies added on for the
+ * bloom, then scanlines, a flicker and a dark rim. The text goes on after,
+ * sharp.
  */
 
 import { World } from "./alma/src/rigid.js";
 import * as ent from "./lib/entity.js";
-import { shake } from "./lib/camera.js";
-import { fixed, gameOver, input, ramp, speed } from "./lib/one.js";
+import { camera, shake } from "./lib/camera.js";
+import { fixed, gameOver, input, op, ramp, score, speed } from "./lib/one.js";
 import * as sound from "./lib/sound.js";
 
 // The original's own sounds, its MP3s as they came out of the SWF.
@@ -50,8 +59,8 @@ sound.file(
 
 export const meta = {
   title: "wrestle",
-  bg: "#25283D",
-  fg: "#EDE7D9",
+  bg: "#07060F",
+  fg: "#3DF5FF",
   scoreMax: true,
   date: "2026-09-21",
   dpad: true,
@@ -74,6 +83,9 @@ const BOT_HOLD = 0.5;
 const BOT_KICK = 0.3;
 const BOT_MISS = 0.3;
 const ROUND_T = 15; // ramp() seconds a round, so round 13 is its three minutes
+// How well it plays climbs three times as fast as how fast it reacts: its
+// wrong decisions and its weak plans fall as 1 / ramp() on this clock.
+const QUALITY_T = 45;
 
 const LEG_SPEED = 380;
 const LEG_FORCE = 1078500 * TQ;
@@ -82,14 +94,10 @@ const ARM_FORCE = 1868500 * TQ;
 const ARM_LOW = 600000 * TQ;
 const ARM_FOLLOW = 10;
 
-const MAT_C = "#3E4266";
-const MAT_TOP = "#565C8C";
-const MAT_LINE = "#4A4F7A";
-const YOU = "#4FA3C4";
-const YOU_DARK = "#2C6A85";
-const BOT = "#D1495B";
-const BOT_DARK = "#8B2E3C";
-const BAND = "#EDE7D9";
+const BG = "#07060F";
+const NEON = ["#3DF5FF", "#FF3DCB"]; // you, the machine
+const GRID = "#2A1F5C";
+const LINE = "#FFB13D";
 
 // The left wrestler in the original's pixels, after its -16 root offset. The
 // right one is this mirrored about x = 320.
@@ -101,6 +109,8 @@ const PARTS = {
   foot: { x: 236.62, y: 341.83, w: 54.22, h: 20.85, angle: 0.0092 },
   arm: { x: 269.41, y: 218.58, w: 114.35, h: 28.14 },
 };
+
+const PART_NAMES = Object.keys(PARTS);
 
 // Body A's anchor, body B's anchor, both local, and B's angle less A's.
 const JOINTS = [
@@ -129,6 +139,9 @@ let planEnd;
 let tip;
 let count;
 let go;
+let stale;
+let rings;
+let lit;
 
 function at(x, y, side) {
   return [M / 2 + side * (x - 320) * S, GROUND + (y - 352) * S];
@@ -200,6 +213,9 @@ function place() {
   for (const w of pair) {
     w.leg = null;
     w.lean = 0;
+    // drive() leaves the leg motors alone until the first press, so they are
+    // stopped here, or they run on at whatever the last round left them.
+    for (const j of w.joints) j.motorSpeed = 0;
     for (const [body, x, y, angle] of w.pose) {
       body.moveTo(x, y, angle);
       body.velocity(0, 0);
@@ -218,8 +234,13 @@ function legTo(w, on) {
   w.leg = on;
 }
 
+// Keys held through a point do nothing in the next round until let go.
 function player(w) {
   const press = input.press;
+  if (stale) {
+    if (press.up || press.act || press.left || press.right) return;
+    stale = false;
+  }
   const leg = press.up || press.act;
   legTo(w, leg ? true : w.leg === null ? null : false);
   if (input.just.left) w.lean = 1;
@@ -264,28 +285,42 @@ const PLANS = {
   },
   wait: {
     odds: 2,
+    weak: true,
     hold: 1.5,
     answer: 0.9,
     act: () => [Math.random() < 0.3 ? rnd() : 0, false],
   },
-  mash: { odds: 2, hold: 0.4, answer: 1, act: ({ s }) => [rnd(), s.grounded] },
+  mash: {
+    odds: 2,
+    weak: true,
+    hold: 0.4,
+    answer: 1,
+    act: ({ s }) => [rnd(), s.grounded],
+  },
   rock: {
     odds: 2,
     hold: 0.8,
     answer: 0.5,
     act: ({ low, w }) => [w.lean > 0 ? -1 : 1, low || Math.random() < 0.5],
   },
-  stubborn: { odds: 1, hold: 2, answer: 0.5, act: ({ low }) => [1, low] },
+  stubborn: {
+    odds: 1,
+    weak: true,
+    hold: 2,
+    answer: 0.5,
+    act: ({ low }) => [1, low],
+  },
 };
 function rnd() {
   return Math.random() < 0.5 ? -1 : 1;
 }
 
-function pickPlan() {
+function pickPlan(q) {
   const plans = Object.entries(PLANS);
-  let n = Math.random() * plans.reduce((t, [, p]) => t + p.odds, 0);
-  for (const [name, { odds }] of plans) {
-    n -= odds;
+  const odds = (p) => p.weak ? p.odds / q : p.odds;
+  let n = Math.random() * plans.reduce((t, [, p]) => t + odds(p), 0);
+  for (const [name, p] of plans) {
+    n -= odds(p);
     if (n <= 0) return name;
   }
   return "push";
@@ -302,11 +337,12 @@ function pickPlan() {
 // lean could not be beaten.
 function bot(w) {
   const r = ramp((round - 1) * ROUND_T);
+  const q = ramp((round - 1) * QUALITY_T);
   history = history.filter((s) => s.t >= clock - 1);
   const seen = history.findLast((s) => s.t <= clock - react);
   if (!seen) return;
   if (clock >= planEnd) {
-    plan = pickPlan();
+    plan = pickPlan(q);
     planEnd = clock + (1.5 + 3 * Math.random()) * Math.sqrt(r);
     tip = TIP * (0.6 + Math.random());
   }
@@ -325,7 +361,7 @@ function bot(w) {
   const low = seen.grounded && seen.above < BOT_REACH;
   const [lean, kicks] = act({ s: seen, tip, low, w });
   const miss = Math.random();
-  const wrong = BOT_MISS / r;
+  const wrong = BOT_MISS / q;
   if (miss < wrong / 3) w.lean = 0;
   else if (miss < wrong * 2 / 3) w.lean = -lean;
   else w.lean = lean;
@@ -347,20 +383,20 @@ function point(loser) {
   const d = Math.hypot(dx, dy);
   h.velocity(h.vx + 3 * dx / d, Math.min(h.vy, 0) - 5);
   h.spin = 8 * Math.sign(dx);
-  const p = loser.head;
-  new ent.Particle({
-    x: (p.x - camX) * PPM + 512,
-    y: p.y * PPM,
-    color: loser.side < 0 ? 0x4fa3c4 : 0xd1495b,
-    count: 34,
-    size: [8, 5],
-    speed: [260, 170],
-    duration: [0.5, 0.2],
-  });
 
   won = loser.side > 0;
+  for (let i = 0; i < 3; ++i) {
+    rings.push({
+      x: h.x,
+      y: h.y,
+      r: 3 + 3 * i,
+      dur: 0.5 + 0.25 * i,
+      t: 0,
+      color: NEON[loser.side < 0 ? 0 : 1],
+    });
+  }
   if (won) {
-    ent.addScore(1, (p.x - camX) * PPM + 512, p.y * PPM - 60);
+    score.value += 1;
     return;
   }
   lives -= 1;
@@ -403,6 +439,7 @@ export function init() {
   camX = M / 2;
   history = [];
   botAt = 0;
+  stale = false;
   react = BOT_DELAY;
   kickEnd = -1;
   answered = 0;
@@ -410,10 +447,16 @@ export function init() {
   count = COUNT;
   sound.play("start", { volume: 0.4 });
   go = 0;
+  rings = [];
+  lit = [];
 }
 
 export function update(dt, real) {
   clock += dt;
+  for (const r of rings) r.t += real;
+  rings = rings.filter((r) => r.t < r.dur);
+  for (const l of lit) l.t -= 2 * real;
+  lit = lit.filter((l) => l.t > 0);
 
   if (restAt > 0) {
     restAt -= real;
@@ -423,6 +466,9 @@ export function update(dt, real) {
       history = [];
       kickEnd = -1;
       answered = clock;
+      botAt = 0;
+      planEnd = 0;
+      stale = true;
       if (won) round += 1;
       place();
       count = COUNT;
@@ -454,6 +500,10 @@ export function update(dt, real) {
       const other = a === ground ? b : a;
       const loser = pair.find((w) => w.skull === other);
       if (loser) return point(loser);
+      const body = other.body;
+      const w = pair.find((w) => PART_NAMES.some((n) => w[n] === body));
+      const v = Math.hypot(body.vx, body.vy);
+      if (w && v > 1) lit.push({ x: body.x, side: w.side, t: Math.min(1, v / 4) });
     }
   });
 
@@ -463,94 +513,236 @@ export function update(dt, real) {
   ent.update(dt);
 }
 
-function box(ctx, b, p, fill, edge) {
-  ctx.save();
-  ctx.translate(b.x, b.y);
-  ctx.rotate(b.angle);
-  const w = p.w * S;
-  const h = p.h * S;
-  const r = Math.min(w, h) / 2;
-  ctx.beginPath();
-  ctx.roundRect(-w / 2, -h / 2, w, h, r);
-  ctx.fillStyle = fill;
-  ctx.fill();
-  ctx.strokeStyle = edge;
-  ctx.lineWidth = 0.06;
-  ctx.stroke();
-  ctx.restore();
+// The canvases the board is drawn on before it reaches the screen, all at the
+// screen's pixels per board unit and remade when that changes.
+let px = 0;
+let scene;
+let sc;
+let layer;
+let lc;
+let channels;
+let glow;
+let gc;
+let scan;
+
+function canvas(n) {
+  const c = new OffscreenCanvas(n, n);
+  return [c, c.getContext("2d")];
 }
 
-function colors(w) {
-  return w.side < 0 ? [YOU, YOU_DARK] : [BOT, BOT_DARK];
+function surfaces() {
+  if (op.screen.scale === px) return;
+  px = op.screen.scale;
+  const n = Math.ceil(1024 * px);
+  [scene, sc] = canvas(n);
+  [layer, lc] = canvas(n);
+  channels = ["#FF0000", "#00FF00", "#0000FF"].map((c) => [c, ...canvas(n)]);
+  [glow, gc] = canvas(Math.ceil(n / 4));
+  const [s, x] = canvas(n);
+  x.scale(px, px);
+  x.fillStyle = "rgba(0, 0, 0, 0.35)";
+  for (let y = 0; y < 1024; y += 4) x.fillRect(0, y, 1024, 2);
+  scan = s;
 }
 
-function drawWrestler(ctx, w) {
-  const [fill, edge] = colors(w);
-  for (const name of ["thigh", "calf", "foot", "torso"]) {
-    box(ctx, w[name], PARTS[name], fill, edge);
+function inWorld(c, fn) {
+  c.save();
+  c.translate(512, 0);
+  c.scale(PPM, PPM);
+  c.translate(-camX, 0);
+  fn();
+  c.restore();
+}
+
+// A part's own outline as a path in its frame, grown by `pad` metres.
+function path(c, b, name, pad) {
+  const p = PARTS[name];
+  c.save();
+  c.translate(b.x, b.y);
+  c.rotate(b.angle);
+  c.beginPath();
+  if (p.r) c.arc(0, 0, p.r * S + pad, 0, 2 * Math.PI);
+  else {
+    const w = p.w * S + 2 * pad;
+    const h = p.h * S + 2 * pad;
+    c.roundRect(-w / 2, -h / 2, w, h, Math.min(w, h) / 2);
   }
-  const h = w.head;
-  const r = PARTS.head.r * S;
-  const off = !w.neck;
-  ctx.fillStyle = fill;
-  ctx.beginPath();
-  ctx.arc(h.x, h.y, r, 0, 2 * Math.PI);
-  ctx.fill();
-  ctx.strokeStyle = edge;
-  ctx.lineWidth = 0.06;
-  ctx.stroke();
-  if (off) return;
+  c.restore();
+}
 
-  // The headband, on the side of the head facing away from the torso.
-  const a = Math.atan2(h.y - w.torso.y, h.x - w.torso.x);
-  ctx.strokeStyle = BAND;
-  ctx.lineWidth = 0.08;
-  ctx.beginPath();
-  ctx.arc(h.x, h.y, r * 0.8, a - 1.0, a + 1.0);
-  ctx.stroke();
+// One outline around the whole wrestler: every part grown by the line's width
+// and filled on the layer, then every part at its own size cut back out of it,
+// which leaves the ring around the union. The inside is filled with the board
+// first, so the outline behind it does not show through.
+function outline(c, w, color, blur) {
+  lc.setTransform(px, 0, 0, px, 0, 0);
+  lc.clearRect(0, 0, 1024, 1024);
+  inWorld(lc, () => {
+    lc.fillStyle = color;
+    for (const n of PART_NAMES) {
+      path(lc, w[n], n, 0.07);
+      lc.fill();
+    }
+    lc.globalCompositeOperation = "destination-out";
+    for (const n of PART_NAMES) {
+      path(lc, w[n], n, 0);
+      lc.fill();
+    }
+    lc.globalCompositeOperation = "source-over";
+  });
+  inWorld(c, () => {
+    c.fillStyle = BG;
+    for (const n of PART_NAMES) {
+      path(c, w[n], n, 0);
+      c.fill();
+    }
+  });
+  c.shadowBlur = blur * px;
+  c.shadowColor = color;
+  c.drawImage(layer, 0, 0, 1024, 1024);
+  c.shadowBlur = 0;
+}
+
+function wrestlers(c, blur) {
+  for (const w of pair) outline(c, w, NEON[w.side < 0 ? 0 : 1], blur);
+}
+
+function board(c) {
+  c.setTransform(px, 0, 0, px, 0, 0);
+  c.fillStyle = BG;
+  c.fillRect(0, 0, 1024, 1024);
+
+  inWorld(c, () => {
+    // The floor, lines running to the viewer from a mark a metre.
+    const left = camX - M / 2;
+    c.strokeStyle = GRID;
+    c.lineWidth = 0.03;
+    for (let x = Math.floor(left); x < left + M + 1; ++x) {
+      c.beginPath();
+      c.moveTo(x, GROUND);
+      c.lineTo(camX + (x - camX) * 2.2, M);
+      c.stroke();
+    }
+    for (const y of [0.3, 0.75, 1.4]) {
+      c.beginPath();
+      c.moveTo(left, GROUND + y);
+      c.lineTo(left + M, GROUND + y);
+      c.stroke();
+    }
+    c.shadowBlur = 18 * px;
+    c.shadowColor = LINE;
+    c.strokeStyle = LINE;
+    c.lineWidth = 0.06;
+    c.beginPath();
+    c.moveTo(left, GROUND);
+    c.lineTo(left + M, GROUND);
+    c.stroke();
+    c.shadowBlur = 0;
+  });
+
+  // The floor is a mirror: the wrestlers again, upside down below the line.
+  c.save();
+  c.beginPath();
+  c.rect(0, GROUND * PPM, 1024, 1024);
+  c.clip();
+  c.translate(0, 2 * GROUND * PPM);
+  c.scale(1, -1);
+  c.globalAlpha = 0.28;
+  wrestlers(c, 8);
+  c.restore();
+
+  wrestlers(c, 18);
+
+  inWorld(c, () => {
+    c.shadowBlur = 24 * px;
+    for (const l of lit) {
+      const color = NEON[l.side < 0 ? 0 : 1];
+      c.shadowColor = color;
+      c.strokeStyle = color;
+      c.globalAlpha = l.t;
+      c.lineWidth = 0.12;
+      c.beginPath();
+      c.moveTo(l.x - 1.2, GROUND);
+      c.lineTo(l.x + 1.2, GROUND);
+      c.stroke();
+    }
+    for (const r of rings) {
+      c.shadowColor = r.color;
+      c.strokeStyle = r.color;
+      const k = r.t / r.dur;
+      c.globalAlpha = 1 - k;
+      c.lineWidth = 0.2 * (1 - 0.7 * k);
+      c.beginPath();
+      c.arc(r.x, r.y, 0.1 + (r.r - 0.1) * (1 - (1 - k) ** 3), 0, 2 * Math.PI);
+      c.stroke();
+    }
+    c.globalAlpha = 1;
+    c.shadowBlur = 0;
+  });
+}
+
+// The tube: the board split into its three channels, 3 units apart, then a
+// wide and a tight blur of it added on, scanlines, a flicker and the dark rim.
+function tube(ctx) {
+  for (const [i, [color, ch, x]] of channels.entries()) {
+    x.globalCompositeOperation = "copy";
+    x.drawImage(scene, 0, 0);
+    x.globalCompositeOperation = "multiply";
+    x.fillStyle = color;
+    x.fillRect(0, 0, ch.width, ch.height);
+    ctx.globalCompositeOperation = "lighter";
+    ctx.drawImage(ch, (i - 1) * 3, 0, 1024, 1024);
+  }
+  // The blur is done on a copy a quarter the size, 16 times fewer pixels,
+  // which a bloom does not show. ctx.filter's blur is in canvas pixels.
+  for (const [blur, a] of [[21, 0.9], [5, 0.5]]) {
+    gc.filter = `blur(${blur * px / 4}px)`;
+    gc.globalCompositeOperation = "copy";
+    gc.drawImage(scene, 0, 0, glow.width, glow.height);
+    ctx.globalAlpha = a;
+    ctx.drawImage(glow, 0, 0, 1024, 1024);
+  }
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = "source-over";
+  ctx.drawImage(scan, 0, 0, 1024, 1024);
+  ctx.fillStyle = `rgba(255, 255, 255, ${Math.random() * 0.035})`;
+  ctx.fillRect(0, 0, 1024, 1024);
+  const g = ctx.createRadialGradient(512, 512, 320, 512, 512, 760);
+  g.addColorStop(0, "rgba(0, 0, 0, 0)");
+  g.addColorStop(1, "rgba(0, 0, 0, 0.8)");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 1024, 1024);
 }
 
 export function render(ctx) {
+  surfaces();
+  board(sc);
   ctx.save();
-  ctx.translate(512, 0);
-  ctx.scale(PPM, PPM);
-  ctx.translate(-camX, 0);
-
-  const left = camX - M / 2;
-  ctx.fillStyle = MAT_C;
-  ctx.fillRect(left, GROUND, M, M - GROUND);
-  // A mark a metre, so the mat shows the camera moving.
-  ctx.fillStyle = MAT_LINE;
-  for (let x = Math.floor(left); x < left + M + 1; ++x) {
-    ctx.fillRect(x, GROUND + 0.25, 0.5, M - GROUND);
-  }
-  ctx.fillStyle = MAT_TOP;
-  ctx.fillRect(left, GROUND, M, 0.1);
-
-  // The arms go over both bodies, as in the original.
-  for (const w of pair) drawWrestler(ctx, w);
-  for (const w of pair) box(ctx, w.arm, PARTS.arm, ...colors(w));
+  camera.apply(ctx);
+  ctx.fillStyle = "#000";
+  ctx.fillRect(0, 0, 1024, 1024);
+  tube(ctx);
   ctx.restore();
 
   const call = count > 0 ? `${Math.ceil(count / (COUNT / 3))}` : go > 0 ? "GO!" : "";
   if (call) {
-    ctx.fillStyle = BAND;
+    ctx.fillStyle = LINE;
     ctx.text(call, 512, 300, 180, { weight: "bold" });
   }
 
-  ctx.fillStyle = MAT_TOP;
-  ctx.text(`ROUND ${round}`, 512, GROUND * PPM + 50, 36, { weight: "bold" });
+  ctx.fillStyle = NEON[1];
+  ctx.text(`ROUND ${round}`, 512, 60, 36, { weight: "bold" });
 
-  // The lives, studded into the mat on the player's own side.
+  // The lives, at the top on the player's own side.
   for (let i = 0; i < LIVES; ++i) {
     ctx.beginPath();
-    ctx.arc(48 + i * 36, GROUND * PPM + 50, 10, 0, 2 * Math.PI);
+    ctx.arc(48 + i * 36, 60, 10, 0, 2 * Math.PI);
     if (i < lives) {
-      ctx.fillStyle = YOU;
+      ctx.fillStyle = NEON[0];
       ctx.fill();
       continue;
     }
-    ctx.strokeStyle = MAT_TOP;
+    ctx.strokeStyle = GRID;
     ctx.lineWidth = 5;
     ctx.stroke();
   }
