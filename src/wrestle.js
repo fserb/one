@@ -726,7 +726,7 @@ export function render(ctx) {
 
   const call = count > 0 ? `${Math.ceil(count / (COUNT / 3))}` : go > 0 ? "GO!" : "";
   if (call) {
-    ctx.fillStyle = LINE;
+    ctx.fillStyle = NEON[0];
     ctx.text(call, 512, 300, 180, { weight: "bold" });
   }
 
