@@ -57,7 +57,9 @@ function serve() {
       const path = decodeURIComponent(new URL(req.url).pathname);
       if (path.includes("..")) return new Response("no", { status: 403 });
       try {
-        const file = await Deno.open(ROOT + (path === "/" ? "/dev.html" : path));
+        const file = await Deno.open(
+          ROOT + (path === "/" ? "/dev.html" : path),
+        );
         return new Response(file.readable, {
           headers: { "content-type": MIME(path) },
         });
@@ -86,6 +88,9 @@ async function chrome() {
       "--no-first-run",
       "--no-default-browser-check",
       "--disable-extensions",
+      // macOS Chrome otherwise copies its app bundle to a temp dir per launch
+      // and often leaves it there
+      "--disable-features=MacAppCodeSignClone",
       "--disable-background-timer-throttling",
       "--disable-backgrounding-occluded-windows",
       "about:blank",
@@ -192,7 +197,9 @@ async function evaluate(cdp, expression, timeout = 20000) {
     clearTimeout(timer);
   }
   if (res.exceptionDetails) {
-    throw new Error(res.exceptionDetails.exception?.description ?? "page threw");
+    throw new Error(
+      res.exceptionDetails.exception?.description ?? "page threw",
+    );
   }
   return res.result.value;
 }
@@ -236,7 +243,9 @@ for (const [i, game] of names.entries()) {
   const count = names.length > 1 ? `[${i + 1}/${names.length}] ` : "";
   // The name goes out before the take, not after it: a take runs twelve
   // seconds, and the rest of its line lands once it is done.
-  Deno.stdout.writeSync(out.encode(`${count}${game}`.padEnd(count.length + 12)));
+  Deno.stdout.writeSync(
+    out.encode(`${count}${game}`.padEnd(count.length + 12)),
+  );
   try {
     const gone = missingSource(game);
     if (gone) throw new Error(gone);

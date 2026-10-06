@@ -1,21 +1,26 @@
 /*
  * tower.
  *
- * A 7x10 board cut into regions, each numbered 1..n along a path through its
- * own cells. So a number says where the next one is: the cell numbered 4
- * touches the 3 and the 5 of its region, and the board is read by following
- * chains out of its 1s.
+ * A 7x10 board cut into regions, each holding 1..n once. Walking a region's
+ * path reads k, k+1, ..., n, 1, 2, ..., k-1: the n touches the 1, and the ends
+ * are the k-1 and the k, which can be any two. So a 1 is not where a chain
+ * starts, and nothing on the board says where a region ends.
  *
- * A region is legal when its numbers run 1..n and each one touches the one
- * before it; being connected comes with that. A board is only kept when one
+ * A region is legal when its numbers are 1..n and, going round n -> 1, every
+ * step but at most one is between touching cells. A board is only kept when one
  * set of regions covers it and no other, so it has a single answer and the
- * score is the seconds it took.
+ * score is the seconds it took. Of the boards with one answer, the one kept is
+ * the one where the search for that answer has to guess the most.
  *
  * The groups are the whole of the state: a drag puts the cells it crosses into
  * the group it started on, with whatever groups they were in. A cell comes out
  * of its group by being clicked, or by the drag that started on it coming back
  * into it. A group takes a colour once it is a legal region, and the round
  * ends with every cell in one.
+ *
+ * A press on the gap between two cells puts an x there, or takes it off: a
+ * note for the player that the two are not neighbours on the path, which the
+ * groups do not read.
  *
  * A region is drawn as one shape rather than a row of tiles: each cell fills
  * into the margin on the sides it has a neighbour on, and rounds off on the
@@ -37,6 +42,9 @@ const WIDTH = 7;
 const HEIGHT = 10;
 const MARGIN = 12;
 const PAD = 36;
+// How far from the middle of a gap a press still marks it, in board units:
+// the gap is too thin to hit, so it takes some of each cell beside it.
+const MARK_REACH = MARGIN / 2 + 14;
 
 // Whatever fits once the padding is off, which on a square is the height: 7x10
 // is the taller way up.
@@ -56,6 +64,7 @@ const HOVER_LINE = "#999999";
 // A group that is not a legal region yet.
 const PARTIAL = "#E6F3FF";
 const INK = "#333333";
+const MARK = "#E03C3C";
 
 // A region's fill, one per group in the order they were made.
 const REGION = [
@@ -79,10 +88,10 @@ const REGION = [
 const MIN_REGION = 4;
 const MAX_REGION = 9;
 
-// How many cuts to look at for one that can be numbered to a single answer.
-// Four cuts in five can be, so the budget is only there to end the loop, and
-// running it out is the one way a board with more answers is played.
-const BOARD_TRIES = 16;
+// How many cuts are given numbers, to keep the one with the most guesses.
+// Against keeping the first, 32 takes the median from 3 guesses to 17, in about
+// 0.9 s; 16 gets 12 in 0.4 s.
+const BOARD_TRIES = 32;
 
 // How far the answers are counted while the numbering is chosen. Following
 // only 8 of them numbers half the cuts to one answer, 32 or more three
@@ -92,6 +101,10 @@ const ANSWERS_MAX = 64;
 // A nine-cell blob has hundreds of numberings and the search does not need them
 // all, only enough to choose between.
 const PATHS_MAX = 200;
+
+// Each path comes in n rotations, so the numberings a region chooses between
+// are cut to this many, at random.
+const OPTIONS_MAX = 300;
 
 // Flattened here rather than drawn as an alpha: the shape is filled in
 // overlapping passes, one a rounded corner, and a translucent fill would stack
@@ -123,11 +136,37 @@ let dragGroup = null;
 let dragFrom = null;
 let dragSeen = new Set();
 
+// The x'd gaps, each the cell to its left or above, times two, plus 1 for the
+// gap below that cell; the one under the pointer is drawn faintly.
+let marks = new Set();
+let hoverMark = null;
+
 function cellAt(x, y) {
   const col = Math.floor((x - X0) / (CELL + MARGIN));
   const row = Math.floor((y - Y0) / (CELL + MARGIN));
   if (row < 0 || row >= HEIGHT || col < 0 || col >= WIDTH) return null;
   return grid[row][col];
+}
+
+// The gap a press at (x, y) lands on, or null. A point near both a row's gap
+// and a column's is where four cells meet, which is no one gap.
+function gapAt(x, y) {
+  const step = CELL + MARGIN;
+  const col = Math.round((x - X0 - CELL - MARGIN / 2) / step);
+  const row = Math.round((y - Y0 - CELL - MARGIN / 2) / step);
+  const dx = Math.abs(x - (X0 + col * step + CELL + MARGIN / 2));
+  const dy = Math.abs(y - (Y0 + row * step + CELL + MARGIN / 2));
+  if (dx <= MARK_REACH && dy <= MARK_REACH) return null;
+
+  const cx = Math.floor((x - X0) / step);
+  const cy = Math.floor((y - Y0) / step);
+  if (dx <= MARK_REACH && col >= 0 && col < WIDTH - 1 && cy >= 0 && cy < HEIGHT) {
+    return (col + cy * WIDTH) * 2;
+  }
+  if (dy <= MARK_REACH && row >= 0 && row < HEIGHT - 1 && cx >= 0 && cx < WIDTH) {
+    return (cx + row * WIDTH) * 2 + 1;
+  }
+  return null;
 }
 
 function cellX(x) {
@@ -406,38 +445,50 @@ function board(numbered) {
   return num;
 }
 
-// Every legal region on a board: a chain 1..n, each cell touching the one
-// before. A cell can only follow the number below it, so a chain never
-// crosses itself and no visited set is needed. Length one is left out, the
-// way a group of one is.
+// Every legal region on a board, as its cells in order 1..n. A walk starts
+// on some k, counts up to n, goes on from n to a touching 1 and stops before
+// k, so a region whose n -> 1 and k-1 -> k both touch is found from more than
+// one k and is kept once. Length one is left out, the way a group of one is.
 function chains(num) {
-  const out = [];
+  let top = 0;
+  for (const row of num) top = Math.max(top, ...row);
+
+  const out = new Map();
   const path = [];
 
-  function walk(x, y) {
+  function walk(x, y, n) {
     path.push(x + y * WIDTH);
-    if (path.length > 1) out.push([...path]);
-
-    for (const [nx, ny] of [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]]) {
-      if (nx < 0 || nx >= WIDTH || ny < 0 || ny >= HEIGHT) continue;
-      if (num[ny][nx] === path.length + 1) walk(nx, ny);
+    if (path.length === n) {
+      const order = [...path].sort((a, b) =>
+        num[Math.floor(a / WIDTH)][a % WIDTH] -
+        num[Math.floor(b / WIDTH)][b % WIDTH]
+      );
+      out.set(order.join(), order);
+    } else {
+      const want = num[y][x] === n ? 1 : num[y][x] + 1;
+      for (const [nx, ny] of [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]]) {
+        if (nx < 0 || nx >= WIDTH || ny < 0 || ny >= HEIGHT) continue;
+        if (num[ny][nx] === want) walk(nx, ny, n);
+      }
     }
-
     path.pop();
   }
 
-  for (let y = 0; y < HEIGHT; y++) {
-    for (let x = 0; x < WIDTH; x++) {
-      if (num[y][x] === 1) walk(x, y);
+  for (let n = 2; n <= top; n++) {
+    for (let y = 0; y < HEIGHT; y++) {
+      for (let x = 0; x < WIDTH; x++) {
+        if (num[y][x] <= n) walk(x, y, n);
+      }
     }
   }
 
-  return out;
+  return [...out.values()];
 }
 
-// How many sets of regions cover the board, counted no further than `cap`.
-// The cell the fewest regions still fit over is filled first, so a dead end
-// comes up at once.
+// How many sets of regions cover the board, counted no further than `cap`,
+// and how many guesses the search made on the way. The cell the fewest regions
+// still fit over is filled first, so a dead end comes up at once, and a cell
+// with one region left is a forced move rather than a guess.
 function answers(numbered, cap) {
   const list = chains(board(numbered));
   const over = Array.from({ length: WIDTH * HEIGHT }, () => []);
@@ -447,6 +498,7 @@ function answers(numbered, cap) {
 
   const taken = new Uint8Array(WIDTH * HEIGHT);
   let found = 0;
+  let guesses = 0;
 
   function fill(left) {
     if (left === 0) {
@@ -462,6 +514,7 @@ function answers(numbered, cap) {
       if (!fewest || fits.length < fewest.length) fewest = fits;
     }
 
+    if (fewest.length > 1) guesses++;
     for (const i of fewest) {
       for (const c of list[i]) taken[c] = 1;
       fill(left - list[i].length);
@@ -471,56 +524,35 @@ function answers(numbered, cap) {
   }
 
   fill(taken.length);
-  return found;
-}
-
-// Steps k -> k+1 where the k also touches a k+1 from another region, so the
-// player has to choose. A board with few of them traces itself out of its 1s.
-function forks(numbered) {
-  const num = board(numbered);
-
-  let count = 0;
-  for (const path of numbered) {
-    for (let i = 0; i + 1 < path.length; i++) {
-      const [x, y] = path[i];
-      const next = [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]]
-        .filter(([nx, ny]) =>
-          nx >= 0 && nx < WIDTH && ny >= 0 && ny < HEIGHT &&
-          num[ny][nx] === i + 2
-        );
-      if (next.length > 1) count++;
-    }
-  }
-  return count;
+  return { found, guesses };
 }
 
 /*
- * The numbering is chosen, not rolled: it decides both how many answers the
- * board has and how much work each step is. A random numbering of a cut leaves
- * one answer 2% of the time.
- *
- * So a region at a time takes the numbering that leaves the fewest answers,
- * and the count is followed down rather than jumped to: a numbering that
- * halves it is the way to one even when no single region reaches one on its
- * own, which is the difference between numbering a sixth of the cuts and four
- * fifths of them. A cut none of it gets to one is dropped.
- *
- * Then, without losing the single answer, a region takes the numbering that
- * puts the most of its numbers beside the same number in another region, so
- * the steps a player has to look past are as many as one answer allows.
+ * The numbering is chosen, not rolled: a region at a time takes the one that
+ * leaves the fewest answers, following the count down rather than jumping to
+ * one, and a cut none of it gets to one is dropped. A numbering is a path and
+ * the number it starts on, kept as the cells in order 1..n.
  */
 function number(shapes) {
-  const options = shapes.map((cells) => paths(cells, WIDTH));
-  const choice = options.map((ps) => ps[Math.floor(Math.random() * ps.length)]);
+  const options = shapes.map((cells) => {
+    const all = [];
+    for (const p of paths(cells, WIDTH)) {
+      for (let r = 0; r < p.length; r++) {
+        all.push([...p.slice(r), ...p.slice(0, r)]);
+      }
+    }
+    return shuffle(all).slice(0, OPTIONS_MAX);
+  });
+  const choice = options.map((ps) => ps[0]);
 
-  let count = answers(choice, ANSWERS_MAX);
+  let count = answers(choice, ANSWERS_MAX).found;
   for (let pass = 0; pass < shapes.length && count > 1; pass++) {
     let moved = false;
     for (let i = 0; i < choice.length && count > 1; i++) {
       let best = choice[i];
       for (const p of options[i]) {
         choice[i] = p;
-        const n = answers(choice, ANSWERS_MAX);
+        const n = answers(choice, ANSWERS_MAX).found;
         if (n >= count) continue;
         count = n;
         best = p;
@@ -530,36 +562,30 @@ function number(shapes) {
     }
     if (!moved) break;
   }
-  if (count > 1) return null;
-
-  for (let i = 0; i < choice.length; i++) {
-    let best = choice[i];
-    let most = forks(choice);
-    for (const p of options[i]) {
-      choice[i] = p;
-      if (answers(choice, 2) > 1) continue;
-      const n = forks(choice);
-      if (n <= most) continue;
-      most = n;
-      best = p;
-    }
-    choice[i] = best;
-  }
-
-  return choice;
+  return count > 1 ? null : choice;
 }
 
 function build() {
   let numbered = null;
+  let most = -1;
   let last = null;
+  const t0 = performance.now();
   for (let i = 0; i < BOARD_TRIES || !last; i++) {
     const shapes = cut();
     if (!shapes) continue;
 
     last = shapes;
-    numbered = number(shapes);
-    if (numbered) break;
+    const next = number(shapes);
+    if (!next) continue;
+    const { guesses } = answers(next, 2);
+    if (guesses <= most) continue;
+    most = guesses;
+    numbered = next;
   }
+  console.log(
+    `${numbered ? `${most} guesses` : "MORE THAN ONE ANSWER"}, ` +
+      `${(performance.now() - t0).toFixed(0)} ms`,
+  );
   // Past the budget: a board with more than one answer beats no board.
   numbered ??= last.map((cells) => paths(cells, WIDTH)[0]);
 
@@ -569,23 +595,21 @@ function build() {
   }
 }
 
-// 1..n, each touching the one before, which leaves the region connected
-// without asking. Starting at 1 is what makes the board have one answer:
-// without it a region of four splits into its 1-2 and its 3-4 and both halves
-// are legal.
+// 1..n, and going round n -> 1 every step but one at most is between
+// touching cells, which leaves the region connected without asking.
 function isValid(group) {
-  if (group.length === 0) return false;
+  if (group.length < 2) return false;
 
   const order = [...group].sort((a, b) => a.number - b.number);
-  if (order[0].number !== 1) return false;
-  for (let i = 1; i < order.length; i++) {
+  let gaps = 0;
+  for (let i = 0; i < order.length; i++) {
     if (order[i].number !== i + 1) return false;
-    const step = Math.abs(order[i].x - order[i - 1].x) +
-      Math.abs(order[i].y - order[i - 1].y);
-    if (step !== 1) return false;
+    const next = order[(i + 1) % order.length];
+    const step = Math.abs(next.x - order[i].x) + Math.abs(next.y - order[i].y);
+    if (step !== 1) gaps++;
   }
 
-  return true;
+  return gaps <= 1;
 }
 
 function create(cell) {
@@ -657,13 +681,24 @@ export function init() {
   dragGroup = null;
   dragFrom = null;
   dragSeen = new Set();
+  marks = new Set();
+  hoverMark = null;
   score.value = 0;
 
   build();
 }
 
 export function update() {
-  hovered = cellAt(input.x, input.y);
+  // Mid-drag the pointer crosses gaps on its way between cells, and those
+  // are cells, not marks.
+  hoverMark = dragFrom ? null : gapAt(input.x, input.y);
+  hovered = hoverMark === null ? cellAt(input.x, input.y) : null;
+
+  if (input.just.act && hoverMark !== null) {
+    if (marks.has(hoverMark)) marks.delete(hoverMark);
+    else marks.add(hoverMark);
+    return;
+  }
 
   if (input.just.act) {
     dragFrom = hovered;
@@ -739,6 +774,26 @@ function regionArea(ctx, cells, fill) {
   for (const c of cells) regionCell(ctx, c, set, fill);
 }
 
+function cross(ctx, gap, color) {
+  const cell = gap >> 1;
+  const x = cellX(cell % WIDTH);
+  const y = cellY(Math.floor(cell / WIDTH));
+  const [cx, cy] = gap & 1
+    ? [x + CELL / 2, y + CELL + MARGIN / 2]
+    : [x + CELL + MARGIN / 2, y + CELL / 2];
+  const r = 6;
+
+  ctx.beginPath();
+  ctx.moveTo(cx - r, cy - r);
+  ctx.lineTo(cx + r, cy + r);
+  ctx.moveTo(cx + r, cy - r);
+  ctx.lineTo(cx - r, cy + r);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 4;
+  ctx.lineCap = "round";
+  ctx.stroke();
+}
+
 export function render(ctx) {
   for (const g of groups) {
     const fill = isValid(g.cells) ? REGION_FILL[g.color] : PARTIAL;
@@ -764,5 +819,10 @@ export function render(ctx) {
       ctx.fillStyle = INK;
       ctx.text(`${cell.number}`, x + CELL / 2, y + CELL / 2, CELL * 0.4);
     }
+  }
+
+  for (const gap of marks) cross(ctx, gap, MARK);
+  if (hoverMark !== null && !marks.has(hoverMark)) {
+    cross(ctx, hoverMark, HOVER_LINE);
   }
 }
