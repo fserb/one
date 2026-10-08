@@ -1245,10 +1245,22 @@ function move(track, dt) {
   if (chain.length === 0) return;
 
   const grown = [];
+  const growing = new Set();
   for (const b of chain) {
     if (b.w >= 1) continue;
+    growing.add(b);
     b.w = Math.min(1, b.w + dt / GROW);
     if (b.w === 1) grown.push(b);
+  }
+
+  // A ball growing in makes room behind it, so the balls ahead of it, nearer
+  // the skull, stay where they are.
+  let push = false;
+  for (let i = chain.length - 1; i > 0 && growing.size > 0; --i) {
+    const max = chain[i].s - space(chain[i - 1], chain[i]);
+    push = (push || growing.has(chain[i]) || growing.has(chain[i - 1])) &&
+      chain[i - 1].s > max;
+    if (push) chain[i - 1].s = max;
   }
 
   const open = chain.map((_, i) => i > 0 && gap(chain, i) > GAP);
