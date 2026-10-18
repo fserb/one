@@ -224,8 +224,11 @@ function value(side) {
   return v;
 }
 
-// The cells from a to b through empty ones, both ends included.
-function route(a, b) {
+// The cells from a to b through empty ones, both ends included. AStar tells
+// cells apart by their JSON, so both ends go in as bare {x, y}.
+function route({ x: ax, y: ay }, { x: bx, y: by }) {
+  const a = { x: ax, y: ay };
+  const b = { x: bx, y: by };
   const grid = Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
   const end = (x, y) => (x === a.x && y === a.y) || (x === b.x && y === b.y);
   const tileCost = (x, y) => at(x, y) === null || end(x, y) ? 1 : false;
