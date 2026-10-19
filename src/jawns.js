@@ -432,7 +432,7 @@ function commit(m) {
   for (const j of apply(m)) kill(j);
   placeAll();
   check = [inCheck(ME), inCheck(AI)];
-  const dead = check.map((c, side) => c && inMate(side));
+  const dead = [ME, AI].map((side) => !owned(side).some((j) => j.role === "Q"));
   if (dead[ME] || dead[AI]) return finish(dead[ME] ? AI : ME);
   turn = 1 - turn;
   onTurn();
@@ -462,7 +462,7 @@ function onTurn() {
 }
 
 function startThinking() {
-  think = { list: owned(AI), moves: [], kill: null };
+  think = { list: owned(AI), moves: [], kill: null, mate: null };
 }
 
 // One of its jawns a frame, so a search never stalls a frame.
@@ -470,9 +470,13 @@ function thinkStep() {
   const j = think.list.shift();
   if (j && !think.kill) {
     for (const m of options(j)) {
-      if (trial(m, () => inMate(ME))) {
+      if (m.kind === ATTACK && at(m.x, m.y).role === "Q") {
         think.kill = m;
         break;
+      }
+      if (!think.mate && trial(m, () => inMate(ME))) {
+        think.mate = m;
+        continue;
       }
       m.value = trial(m, () => inCheck(AI))
         ? -Infinity
@@ -482,10 +486,10 @@ function thinkStep() {
     return;
   }
 
-  const { moves, kill } = think;
+  const { moves, kill, mate } = think;
   think = null;
-  if (!kill && moves.length === 0) return finish(ME);
-  perform(kill ?? pick(moves));
+  if (!kill && !mate && moves.length === 0) return finish(ME);
+  perform(kill ?? mate ?? pick(moves));
 }
 
 function pick(moves) {
